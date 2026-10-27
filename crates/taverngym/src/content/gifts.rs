@@ -620,6 +620,15 @@ pub fn gift_fits(
     def: &crate::cards::CardDef,
     lowest: u8,
 ) -> bool {
+    let normal = db().get(db().normal_of(def.cid));
+    if c.g
+        .cfg
+        .dark_gift_pair_bans
+        .iter()
+        .any(|pair| pair[0] == normal.id && pair[1] == db().get(gift).id)
+    {
+        return false;
+    }
     // Hot path (every candidate x gift of each offer): the sets are resolved to CardIds once.
     struct Sets {
         battlecry: Vec<CardId>,

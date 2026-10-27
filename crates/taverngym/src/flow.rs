@@ -285,6 +285,8 @@ impl Game {
 
         let mut g = Game {
             cfg,
+            library: None,
+            captured_library: None,
             seed,
             rng,
             turn: 0,
@@ -364,6 +366,16 @@ impl Game {
         self.decide_pairs();
         for p in 0..self.players.len() {
             if self.players[p].alive {
+                if self.is_library_seat(p) {
+                    let pl = &mut self.players[p];
+                    pl.ended_turn = false;
+                    pl.pending.clear();
+                    pl.gold = 0;
+                    pl.actions_this_turn = 0;
+                    pl.moves_this_turn = 0;
+                    pl.move_orders.clear();
+                    continue;
+                }
                 self.start_turn_player(p);
                 self.flush_hand_queue(p);
             }
@@ -378,6 +390,8 @@ impl Game {
         let pl = &mut self.players[p];
         pl.ended_turn = false;
         pl.actions_this_turn = 0;
+        pl.moves_this_turn = 0;
+        pl.move_orders.clear();
         pl.freezes_this_turn = 0;
         pl.skipping = false;
         pl.turn_data.clear();
@@ -914,6 +928,17 @@ impl Game {
     }
 
     pub fn combat_round(&mut self) {
+        self.apply_library_round();
+        if self.cfg.capture_library {
+            self.captured_library = Some(crate::library::Capture {
+                turn: self.turn,
+                lobby: self.lobby_races.0,
+                deity: self.deity,
+                paradox: self.paradox,
+                players: self.players.clone(),
+                card_table: self.card_table,
+            });
+        }
         // Records (and replay frames) describe only the most recent round.
         self.last_combats.clear();
         let alive: Vec<PlayerId> = (0..self.players.len())

@@ -140,7 +140,8 @@ universes, the shared pool and `hero_choices` offers per seat. Phases run
 
 ## Combat
 
-The first attacker is the side with more minions, then the higher Tavern Tier, then random.
+The first attacker is the side with more minions; equal-size warbands choose randomly,
+regardless of Tavern Tier (personal correction to the released upstream baseline).
 Start of Combat runs in stages: trinkets, Quest Rewards and Quests → Hero Powers → "Start of
 Combat" Tavern-spell effects → minions in hand → minions on the board; in each stage the first
 attacker's side goes first and deaths resolve after each effect. Then the sides alternate: the
@@ -281,3 +282,21 @@ is free when off; `draw_pool_minion` walks `UniverseIndex` without allocating. B
    hook if the text has a number that depends on state.
 4. Run `cargo run --release -p taverngym --example content_report > docs/CONTENT.md`; scripted
    cards join the pools automatically in `ContentMode::Implemented`.
+
+
+## HSRL training and tooling layers
+
+The native engine above remains the foundation. HSRL adds these layers without renaming
+the original Python package or duplicating the simulator:
+
+- `python/taverngym/rl`: player-visible encoders, Entity Transformer/legacy policies,
+  effective-decision collection, BC/PPO updates, independent evaluation and strict checkpoints.
+- `python/taverngym/research`: source-disjoint library construction, complete native lobby
+  context coverage, supervised readiness checks and disposable resource profiling.
+- `python/taverngym/offline`: observations, semantic intents/receipts, trajectories and replay.
+- `configs/` and `deploy/nus/`: versioned experiments and Slurm entry points.
+- `tools/warband_collector/` and `tools/opponent_capture/`: manual and log-based data capture.
+
+The current main policy is feedforward (49 entity tokens, 17,962,378 parameters). Library
+opponents provide combat templates; they do not expose hidden state to the learner.
+See [the current pipeline](TRAINING_PIPELINE_CURRENT.md) and [documentation index](README.md).

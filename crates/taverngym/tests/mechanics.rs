@@ -4575,8 +4575,9 @@ fn m19_deathrattles_summon_where_their_minion_died() {
 }
 
 #[test]
-fn n1_higher_tier_attacks_first_on_equal_boards() {
-    for seed in 0..10 {
+fn n1_equal_boards_choose_first_attacker_independent_of_tier() {
+    let mut first_counts = [0; 2];
+    for seed in 0..128 {
         let mut g = game(800 + seed);
         g.cfg.record_log = true;
         set_board(&mut g, 0, &["BG36_345"]);
@@ -4585,8 +4586,18 @@ fn n1_higher_tier_attacks_first_on_equal_boards() {
         g.log.clear();
         g.simulate_combat(0, Some(1), None);
         let first = g.log.iter().find(|l| l.contains(" attacks ")).unwrap();
-        assert!(first.contains("p1"), "{first}");
+        first_counts[usize::from(first.contains("p1"))] += 1;
+        let mut other = game(800 + seed);
+        other.cfg.record_log = true;
+        set_board(&mut other, 0, &["BG36_345"]);
+        set_board(&mut other, 1, &["BG36_345"]);
+        other.players[0].tier = 3;
+        other.log.clear();
+        other.simulate_combat(0, Some(1), None);
+        let swapped = other.log.iter().find(|l| l.contains(" attacks ")).unwrap();
+        assert_eq!(first.contains("p1"), swapped.contains("p1"));
     }
+    assert!(first_counts.iter().all(|n| *n > 0), "{first_counts:?}");
 }
 
 #[test]
@@ -4603,6 +4614,21 @@ fn n3_summons_left_of_the_attacker_wait() {
     c.summon(0, 3, right);
     assert!(c.minion(l).unwrap().attacked, "left of it: next round");
     assert!(!c.minion(r).unwrap().attacked, "right of it: this round");
+}
+
+#[test]
+fn relentless_deflector_regains_shield_after_three_friendly_deaths() {
+    let mut g = game(8021);
+    set_board(&mut g, 0, &["BG34_405", "BG36_345", "BG36_345", "BG36_345"]);
+    let mut c = combat_ctx(&mut g);
+    let eid = c.boards[0][0].eid;
+    c.minion_mut(eid).unwrap().remove(Kw::DIVINE_SHIELD);
+    let fodder: Vec<_> = c.boards[0].iter().skip(1).map(|m| m.eid).collect();
+    for (i, target) in fodder.into_iter().enumerate() {
+        c.destroy(target);
+        c.resolve_deaths();
+        assert_eq!(c.minion(eid).unwrap().has(Kw::DIVINE_SHIELD), i == 2);
+    }
 }
 
 #[test]

@@ -276,6 +276,41 @@ impl PyBatchEnv {
     fn set_illegal_penalty(&mut self, v: f32) {
         self.env.illegal_penalty = v;
     }
+    #[setter]
+    fn set_auto_reset(&mut self, value: bool) {
+        self.env.auto_reset = value;
+    }
+    #[getter]
+    fn auto_reset(&self) -> bool {
+        self.env.auto_reset
+    }
+    fn bot_actions(&mut self, py: Python<'_>) -> Vec<i64> {
+        py.detach(|| self.env.bot_actions())
+    }
+    fn training_extras(&self, py: Python<'_>) -> Vec<Vec<taverngym::training_obs::Token>> {
+        py.detach(|| {
+            (0..self.env.n_games())
+                .flat_map(|i| {
+                    self.env
+                        .controlled()
+                        .iter()
+                        .map(move |p| taverngym::training_obs::observe(self.env.game(i), *p))
+                })
+                .collect()
+        })
+    }
+    fn diagnostics(&self) -> Vec<(bool, u32, Option<String>)> {
+        (0..self.env.n_games())
+            .map(|i| {
+                let g = self.env.game(i);
+                (
+                    g.turn_limit_end,
+                    g.truncated_combats,
+                    g.stopped_reason.map(|s| s.as_str().to_string()),
+                )
+            })
+            .collect()
+    }
     /// (features f32, cards i32, masks u8, ready u8) as bytes, one row per slot.
     fn observe<'py>(&self, py: Python<'py>) -> PyResult<BatchObs<'py>> {
         let n = self.env.n_slots();
@@ -318,6 +353,19 @@ impl PyBatchEnv {
             PyBytes::new(py, &places),
             PyBytes::new(py, &rejected),
         ))
+    }
+    fn bind_library(&mut self, py: Python<'_>, text: &str, learners: Vec<usize>) -> PyResult<()> {
+        py.detach(|| self.env.bind_library(text, &learners))
+            .map_err(PyValueError::new_err)
+    }
+    fn captured_library(&self, i: usize) -> PyResult<String> {
+        self.env.captured_library(i).map_err(PyValueError::new_err)
+    }
+    fn last_applied(&self) -> Vec<bool> {
+        self.env.last_applied()
+    }
+    fn last_errors(&self) -> Vec<Vec<(usize, i64, String)>> {
+        self.env.last_errors()
     }
     /// Game `i` and its episode state as JSON (`load` restores it exactly).
     fn save(&self, py: Python<'_>, i: usize) -> PyResult<String> {

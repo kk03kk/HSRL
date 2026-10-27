@@ -132,6 +132,12 @@ impl Game {
         if self.phase == Phase::GameOver {
             return Err("game over");
         }
+        if let Action::Move { from, to } = a
+            && !self.move_allowed(p, from, to)
+        {
+            return Err("move budget or cycle");
+        }
+        let old_order: Vec<_> = self.players[p].board.iter().map(|m| m.eid).collect();
         self.players[p].actions_this_turn += 1;
         let r = self.apply_inner(p, a);
         if r.is_err() {
@@ -139,6 +145,21 @@ impl Game {
             // (a refusal never moves the game on, so this is still the same turn).
             let n = &mut self.players[p].actions_this_turn;
             *n = n.saturating_sub(1);
+        }
+        if r.is_ok() {
+            if matches!(a, Action::Move { .. }) {
+                let pl = &mut self.players[p];
+                pl.moves_this_turn += 1;
+                if self.cfg.block_move_cycles {
+                    if pl.move_orders.is_empty() {
+                        pl.move_orders.push(old_order);
+                    }
+                    pl.move_orders
+                        .push(pl.board.iter().map(|m| m.eid).collect());
+                }
+            } else {
+                self.players[p].move_orders.clear();
+            }
         }
         self.recruit_deaths();
         if self.cfg.experimental_mode {
@@ -161,6 +182,10 @@ impl Game {
             Action::Choose(i) => self.choose(p, i),
             Action::Cancel => self.cancel(p),
             _ if self.phase == Phase::HeroSelect => Err("choose a hero first"),
+            Action::EndTurn if self.is_library_seat(p) => {
+                self.end_turn_silent(p);
+                Ok(())
+            }
             Action::EndTurn => self.end_turn(p),
             _ if !self.players[p].uncapped
                 && self.players[p].actions_this_turn > self.action_cap_of(p) =>
@@ -226,6 +251,9 @@ impl Game {
         }
         let cfg = &self.cfg;
         m[A_END] = true;
+        if self.is_library_seat(p) {
+            return m;
+        }
         m[A_FREEZE] = self.can_freeze(p);
         // Past the per-turn action cap only End Turn stays legal (`apply` agrees), in a
         // skipped turn too.
@@ -279,12 +307,26 @@ impl Game {
         let n = pl.board.len().min(N_BOARD);
         for f in 0..n {
             for t in 0..n {
-                if f != t {
+                if self.move_allowed(p, f, t) {
                     m[A_MOVE + f * N_BOARD + t] = true;
                 }
             }
         }
         m
+    }
+
+    pub fn move_allowed(&self, p: PlayerId, from: usize, to: usize) -> bool {
+        let pl = &self.players[p];
+        if from == to || from >= pl.board.len() || to >= pl.board.len() {
+            return false;
+        }
+        if self.cfg.max_moves_per_turn > 0 && pl.moves_this_turn >= self.cfg.max_moves_per_turn {
+            return false;
+        }
+        let mut order: Vec<_> = pl.board.iter().map(|m| m.eid).collect();
+        let eid = order.remove(from);
+        order.insert(to, eid);
+        !self.cfg.block_move_cycles || !pl.move_orders.contains(&order)
     }
 
     pub fn legal_actions(&self, p: PlayerId) -> Vec<usize> {

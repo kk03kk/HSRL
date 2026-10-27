@@ -1,0 +1,23 @@
+{
+  "device": "cuda",
+  "n_games": 2,
+  "learner_seats": 1,
+  "threads": 2,
+  "torch_threads": 1,
+  "iterations": 2,
+  "bc_waves": 1,
+  "bc_epochs": 1,
+  "epochs": 1,
+  "seq_len": 16,
+  "memory_horizon": 128,
+  "eval_seeds": [900000000],
+  "chunks_per_batch": 2,
+  "dim": 32,
+  "layers": 1,
+  "heads": 2,
+  "hidden": 32,
+  "history_every": 1,
+  "history_size": 2,
+  "eval_every": 1,
+  "eval_games": 2
+}

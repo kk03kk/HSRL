@@ -17,10 +17,10 @@ RESULTS = ROOT / "tavernbench" / "results"
 
 
 def test_released_answers_cover_their_tasks():
-    ids = {json.loads(line)["id"] for line in open(SET / "prompts.jsonl")}
+    ids = {json.loads(line)["id"] for line in open(SET / "prompts.jsonl", encoding="utf-8")}
     for table, n in (("eval", 368), ("tools", 144)):
         for f in sorted((RESULTS / table).glob("*/answers.jsonl")):
-            rows = [json.loads(line) for line in open(f)]
+            rows = [json.loads(line) for line in open(f, encoding="utf-8")]
             got = [r["id"] for r in rows]
             assert len(got) == len(set(got)) and set(got) <= ids, f
             missing = n - len(got)
@@ -29,8 +29,8 @@ def test_released_answers_cover_their_tasks():
 
 
 def test_every_task_has_a_label_and_the_labels_score_themselves():
-    prompts = [json.loads(line) for line in open(SET / "prompts.jsonl")]
-    labels = {d["id"]: d for d in map(json.loads, open(SET / "labels.jsonl"))}
+    prompts = [json.loads(line) for line in open(SET / "prompts.jsonl", encoding="utf-8")]
+    labels = {d["id"]: d for d in map(json.loads, open(SET / "labels.jsonl", encoding="utf-8"))}
     assert len(prompts) == 368 and set(labels) == {p["id"] for p in prompts}
     for p in prompts:
         lab = labels[p["id"]]

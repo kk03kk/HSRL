@@ -73,6 +73,10 @@ pub struct CombatFrame {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Game {
     pub cfg: RulesConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<crate::library::Schedule>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub captured_library: Option<crate::library::Capture>,
     pub seed: u64,
     pub rng: Rng,
     pub turn: u32,
@@ -143,6 +147,13 @@ impl Game {
     /// table would be read as other cards, or panic at the first pool access.
     pub fn check_loaded(&self) -> Result<(), String> {
         self.cfg.validate()?;
+        if let Some(schedule) = &self.library
+            && (schedule.seats.len() != self.players.len()
+                || schedule.learner >= self.players.len()
+                || schedule.seats[schedule.learner].is_some())
+        {
+            return Err("invalid library schedule in snapshot".into());
+        }
         let d = db();
         if self.card_table != 0 && self.card_table != d.fingerprint {
             return Err(format!(

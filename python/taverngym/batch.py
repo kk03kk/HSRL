@@ -86,6 +86,8 @@ class BatchEnv:
             {
                 "placement": np.frombuffer(pl, dtype=np.uint8).copy(),
                 "rejected": np.frombuffer(rj, dtype=np.uint8).astype(bool),
+                "applied": np.asarray(self._env.last_applied(), dtype=bool),
+                "errors": self._env.last_errors(),
             },
         )
 
@@ -98,6 +100,29 @@ class BatchEnv:
 
     def episode_index(self, i):
         return self._env.episode_index(int(i))
+
+    def bot_actions(self):
+        return np.asarray(self._env.bot_actions(), dtype=np.int64)
+
+    def bind_library(self, bank_json, learners):
+        return self._env.bind_library(bank_json, [int(x) for x in learners])
+
+    def captured_library(self, i):
+        return json.loads(self._env.captured_library(int(i)))
+
+    def training_extras(self):
+        return self._env.training_extras()
+
+    def diagnostics(self):
+        return self._env.diagnostics()
+
+    @property
+    def auto_reset(self):
+        return self._env.auto_reset
+
+    @auto_reset.setter
+    def auto_reset(self, value):
+        self._env.auto_reset = bool(value)
 
     def game(self, i) -> Game:
         """An independent copy of game `i` (inspect it with `view`, `state_json`...)."""

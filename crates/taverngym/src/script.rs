@@ -274,7 +274,8 @@ pub struct Script {
     /// The pick of a Discover this card offered, before it goes to the hand:
     /// `(ctx, side, source card, pick)`. Returning None consumes the pick ("choose a minion
     /// to transform into", a Pirate boarding Nellie's Ship): it never enters the hand, so a
-    /// full hand doesn't matter and no "after you Discover" effect fires.
+    /// full hand doesn't matter. Such a hook must explicitly emit `Discovered` when the
+    /// interaction still counts as a Discover (Nellie's Ship, 37.0.1).
     pub discover_pick: Option<FxPick>,
     /// Extra eligibility for being offered to a player (trinkets); None = always.
     pub offer_ok: Option<fn(&crate::engine::Game, crate::types::PlayerId) -> bool>,

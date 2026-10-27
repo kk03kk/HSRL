@@ -1,0 +1,7 @@
+{
+  "format": "taverngym.rules-lsa.v1",
+  "sha256": "5661efbb18cdfcc2901fec2d41bb193c7b5e70e6ab869a338da6de7978f36138",
+  "dimensions": 128,
+  "kind": "offline lexical TF-IDF + LSA, not pretrained semantic model",
+  "training_trajectory_data": false
+}

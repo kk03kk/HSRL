@@ -149,6 +149,10 @@ pub struct RulesConfig {
     pub dark_gift_cost: i32,
     pub dark_gift_uses: u32,
     pub dark_gift_choices: usize,
+    /// Explicit (normal minion ID, gift ID) offer exclusions for a versioned profile.
+    /// Empty preserves the 36.6.3 baseline. The training recovery profile applies the
+    /// three published 37.0.1 offering fixes; this is not full 37.x content parity.
+    pub dark_gift_pair_bans: Vec<[String; 2]>,
     /// Dark Gift button, turn 9: the chance (percent) that the first option is Tier 5 rather than 4
     /// (`dark_gift_slots`). The client gave 4/5/6 and 5/5/6 twice each: an assumption, not a
     /// measured probability.
@@ -221,6 +225,11 @@ pub struct RulesConfig {
 
     /// Record a structured event log (debugging; costs speed).
     pub record_log: bool,
+    /// Training interaction budget; zero preserves unrestricted legacy moves.
+    pub max_moves_per_turn: u32,
+    pub block_move_cycles: bool,
+    /// Capture post-end-turn, pre-combat seats for offline opponent libraries.
+    pub capture_library: bool,
 }
 
 impl Default for RulesConfig {
@@ -273,6 +282,7 @@ impl Default for RulesConfig {
             dark_gift_cost: 3,
             dark_gift_uses: 3,
             dark_gift_choices: 3,
+            dark_gift_pair_bans: vec![],
             dark_gift_t9_first_t5_pct: 50,
             dark_gift_late_t6_pct: 50,
             volumizer_attached_grow: false,
@@ -288,6 +298,9 @@ impl Default for RulesConfig {
             freeze_presses_per_turn: freeze_presses(),
             max_turns: max_turns(),
             record_log: false,
+            max_moves_per_turn: 0,
+            block_move_cycles: false,
+            capture_library: false,
         }
     }
 }

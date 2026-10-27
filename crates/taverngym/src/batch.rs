@@ -44,11 +44,15 @@ pub struct Episode {
     pub index: u64,
     /// Per controlled seat: its episode has ended (eliminated, or the game is over).
     pub finished: Vec<bool>,
+    #[serde(skip)]
+    pub last_errors: Vec<(PlayerId, i64, String)>,
 }
 
 /// What [`BatchEnv::step`] reports for one slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SlotResult {
+    /// Action executed against the same visible decision context that was observed.
+    pub applied: bool,
     /// The placement reward when the seat's episode ends ([`placement_reward`]: 1st = 1,
     /// last = -1), plus [`BatchEnv::illegal_penalty`] when the action was rejected.
     pub reward: f32,
@@ -63,6 +67,7 @@ pub struct SlotResult {
 
 /// Many games stepped together; see the module documentation.
 pub struct BatchEnv {
+    last_applied: Vec<bool>,
     cfg: RulesConfig,
     seed: u64,
     controlled: Vec<PlayerId>,
@@ -70,6 +75,8 @@ pub struct BatchEnv {
     threads: usize,
     /// Reward for a rejected action (the action is ignored).
     pub illegal_penalty: f32,
+    /// False keeps completed lobbies available for full-episode RL and diagnostics.
+    pub auto_reset: bool,
 }
 
 /// One slot's observation outputs: features, card indices, legal mask, ready flag.
@@ -83,7 +90,11 @@ fn splitmix64(mut z: u64) -> u64 {
 }
 
 fn over(g: &Game) -> bool {
-    g.is_over() || g.stopped_reason.is_some()
+    g.is_over()
+        || g.stopped_reason.is_some()
+        || g.library
+            .as_ref()
+            .is_some_and(|schedule| !g.players[schedule.learner].alive)
 }
 
 /// Let the bot seats act until a controlled seat must act, or the game is over.
@@ -174,12 +185,14 @@ impl BatchEnv {
             }
         }
         let mut env = BatchEnv {
+            last_applied: vec![false; n_games * controlled.len()],
             cfg,
             seed,
             controlled,
             episodes: Vec::new(),
             threads: threads.max(1),
             illegal_penalty: -0.01,
+            auto_reset: true,
         };
         env.episodes = (0..n_games).map(|i| env.fresh(i, 0)).collect();
         Ok(env)
@@ -196,6 +209,7 @@ impl BatchEnv {
             game: g,
             index,
             finished: vec![false; self.controlled.len()],
+            last_errors: vec![],
         }
     }
 
@@ -304,7 +318,19 @@ impl BatchEnv {
             });
         }
         self.episodes = eps;
+        self.last_applied = out.iter().map(|r| r.applied).collect();
         Ok(())
+    }
+
+    pub fn last_applied(&self) -> Vec<bool> {
+        self.last_applied.clone()
+    }
+
+    pub fn last_errors(&self) -> Vec<Vec<(PlayerId, i64, String)>> {
+        self.episodes
+            .iter()
+            .map(|e| e.last_errors.clone())
+            .collect()
     }
 
     fn step_game(&self, gi: usize, e: &mut Episode, slots: &mut [(&i64, &mut SlotResult)]) {
@@ -315,10 +341,36 @@ impl BatchEnv {
         let ready: Vec<bool> = (0..self.controlled.len())
             .map(|j| !e.finished[j] && !over(&e.game) && e.game.needs_action(self.controlled[j]))
             .collect();
+        let contexts: Vec<_> = self
+            .controlled
+            .iter()
+            .enumerate()
+            .map(|(j, p)| {
+                ready[j].then(|| {
+                    (
+                        observe(&e.game, *p),
+                        crate::training_obs::observe(&e.game, *p),
+                        e.game.legal_mask(*p),
+                    )
+                })
+            })
+            .collect();
+        e.last_errors.clear();
         for (j, (a, r)) in slots.iter_mut().enumerate() {
             **r = SlotResult::default();
             let p = self.controlled[j];
             if !ready[j] || over(&e.game) || !e.game.needs_action(p) {
+                continue;
+            }
+            // Earlier seats can give this player choices/cards or change public information.
+            // Defer stale decisions rather than executing/learning an action for another state.
+            let (before, extras, before_mask) = contexts[j].as_ref().unwrap();
+            let now = observe(&e.game, p);
+            if before.cards != now.cards
+                || before.floats != now.floats
+                || *extras != crate::training_obs::observe(&e.game, p)
+                || *before_mask != e.game.legal_mask(p)
+            {
                 continue;
             }
             let legal = e.game.legal_mask(p);
@@ -326,10 +378,12 @@ impl BatchEnv {
                 .ok()
                 .filter(|&a| a < legal.len() && legal[a]);
             match ok.map(|a| e.game.apply_index(p, a)) {
-                Some(Ok(())) => {}
-                _ => {
+                Some(Ok(())) => r.applied = true,
+                result => {
                     r.rejected = true;
                     r.reward += self.illegal_penalty;
+                    let why = result.and_then(Result::err).unwrap_or("not in legal mask");
+                    e.last_errors.push((p, **a, why.to_owned()));
                 }
             }
         }
@@ -343,9 +397,56 @@ impl BatchEnv {
                 r.reward += placement_reward(r.placement, n);
             }
         }
-        if e.finished.iter().all(|x| *x) {
+        if self.auto_reset && e.finished.iter().all(|x| *x) {
             *e = self.fresh(gi, e.index + 1);
         }
+    }
+
+    /// Teacher choices without consuming the game's RNG. Inactive slots are -1.
+    pub fn bind_library(&mut self, text: &str, learners: &[usize]) -> Result<(), String> {
+        if self.auto_reset {
+            return Err("library episodes require auto_reset=false".into());
+        }
+        if learners.len() != self.episodes.len() {
+            return Err("one learner seat per game required".into());
+        }
+        if self.controlled != (0..8).collect::<Vec<_>>() {
+            return Err("library requires all eight explicit action slots".into());
+        }
+        let bank = crate::library::cached_bank(text)?;
+        for (e, &learner) in self.episodes.iter_mut().zip(learners) {
+            e.game.bind_library(&bank, learner)?;
+        }
+        Ok(())
+    }
+
+    pub fn captured_library(&self, i: usize) -> Result<String, String> {
+        let e = self.episodes.get(i).ok_or("game index out of range")?;
+        serde_json::to_string(&e.game.captured_library).map_err(|e| e.to_string())
+    }
+
+    pub fn bot_actions(&mut self) -> Vec<i64> {
+        let controlled = &self.controlled;
+        let mut out = vec![-1; self.n_slots()];
+        par_chunks(
+            self.threads,
+            &mut self.episodes,
+            &mut out,
+            controlled.len(),
+            |_, eps, rows| {
+                for (e, rows) in eps.iter_mut().zip(rows.chunks_mut(controlled.len())) {
+                    for (j, dst) in rows.iter_mut().enumerate() {
+                        let p = controlled[j];
+                        if !e.finished[j] && !over(&e.game) && e.game.needs_action(p) {
+                            let rng = e.game.rng.clone();
+                            *dst = bot::choose_action(&mut e.game, p).encode() as i64;
+                            e.game.rng = rng;
+                        }
+                    }
+                }
+            },
+        );
+        out
     }
 
     /// Game `i` and its episode state as JSON.

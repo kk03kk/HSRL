@@ -30,11 +30,13 @@ pub mod experimental;
 pub mod flow;
 pub mod guard;
 pub mod invariants;
+pub mod library;
 pub mod obs;
 pub mod recruit;
 pub mod rng;
 pub mod script;
 pub mod state;
+pub mod training_obs;
 pub mod types;
 pub mod workers;
 

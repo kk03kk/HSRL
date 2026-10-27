@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+env:
+  OMP_NUM_THREADS: "2"
+  MKL_NUM_THREADS: "2"
+
 jobs:
   rust:
     runs-on: ubuntu-latest
@@ -30,5 +37,7 @@ jobs:
         run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Build and install the extension in place
-        run: pip install -e ".[test]"
+        run: |
+          pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[test]"
       - run: pytest -q

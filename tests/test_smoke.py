@@ -7,7 +7,7 @@ def test_versions_match_card_data():
     # The card table is generated from client 36.6.0 data with the 36.6.3 overlay on top
     # (tools/overlays/36.6.3.json).
     root = taverngym.REPO_ROOT
-    meta = json.loads((root / "tools" / "overlays" / "36.6.3.json").read_text())["meta"]
+    meta = json.loads((root / "tools" / "overlays" / "36.6.3.json").read_text(encoding="utf-8"))["meta"]
     assert taverngym.game_version() == meta["client_version"] == "36.6.3.253932"
     assert taverngym.server_rules_version() == meta["server_patch"]
     assert taverngym.version()

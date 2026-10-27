@@ -1,5 +1,7 @@
 # build outputs
 /target/
+/.toolchains/
+/slurm-*.out
 **/__pycache__/
 *.py[cod]
 *.so
@@ -48,3 +50,15 @@ guard-*.json
 *.npz
 *.npy
 *.pkl
+
+# Versioned, reproducible policy input asset (not a checkpoint).
+!/assets/entity-v2/rules-lsa128.npz
+
+# Local collaboration history, machine inventory and private research evidence.
+/AGENTS.md
+/PROJECT_WORKSPACE.md
+/project-workspace.json
+/docs/research/
+/EXECUTION_ENV.json
+/SOURCE_MANIFEST.json
+/PATCH_MANIFEST.json

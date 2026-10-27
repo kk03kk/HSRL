@@ -959,6 +959,10 @@ pub struct Player {
     #[serde(default)]
     pub sees_all_boards: bool,
     pub actions_this_turn: u32,
+    #[serde(default)]
+    pub moves_this_turn: u32,
+    #[serde(default)]
+    pub move_orders: Vec<Vec<EntityId>>,
     /// Presses of the Freeze button this turn (`RulesConfig::freeze_presses_per_turn`).
     #[serde(default)]
     pub freezes_this_turn: u32,
@@ -1097,6 +1101,8 @@ impl Player {
             sees_all_boards: false,
             uncapped: false,
             actions_this_turn: 0,
+            moves_this_turn: 0,
+            move_orders: Vec::new(),
             freezes_this_turn: 0,
             skipping: false,
             turn_data: Vec::new(),

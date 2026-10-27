@@ -13,11 +13,13 @@ dependencies = ["numpy"]
 
 [project.optional-dependencies]
 test = ["pytest"]
+train = ["torch>=2.10,<2.14"]
 # TavernBench model runners (scoring needs none of these)
 bench = ["openai>=1.0", "httpx", "requests"]
 
 [project.urls]
-Repository = "https://github.com/MCG-NJU/AutoTavern"
+Repository = "https://github.com/kk03kk/HSRL"
+Upstream = "https://github.com/MCG-NJU/AutoTavern"
 
 [tool.maturin]
 manifest-path = "crates/taverngym-py/Cargo.toml"
