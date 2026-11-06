@@ -1,0 +1,444 @@
+{
+  "schema": "hsrl.upstream_source_lock/v1",
+  "repository": "https://github.com/MCG-NJU/AutoTavern",
+  "commit": "1c2086a997afde46d68c6c5992cab194ddcfce88",
+  "checked_on": "2026-11-05",
+  "normalization": "LF; taverngym namespace -> hsbg_engine",
+  "groups": [
+    {
+      "local": "engine/crates/hsbg-engine/src",
+      "upstream": "crates/taverngym/src",
+      "files": {
+        "actions.rs": {
+          "upstream_sha256": "c44915a4236a945d0a76e577953e00cad87118b8b78eae341776cd19a1aa9e1d",
+          "fork_sha256": "862368dc4f3d9e880f53d8b2cd5b6d663897bf4f552bd17bc24fd3f9b918e82d",
+          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留"
+        },
+        "batch.rs": {
+          "upstream_sha256": "946bc0f161885e53e5ae4a9afa9a67a447b7c422af430ed1fb636122e09b76d2",
+          "fork_sha256": "7949e0282821d7ccaf7314e02c19e6002dcda7b28c47a2eba6a9a15e89484932",
+          "reason": "增加训练回合计数只读接口"
+        },
+        "bot.rs": {
+          "upstream_sha256": "63b24e6d48a65bab585c415753b437804e6039b71d6b6fb5a5f3f497e4789855",
+          "fork_sha256": "cf63b012a60ca442eed70955c4d07fb6c7f18f6664ab043c80db8a8f1db1ec86",
+          "reason": "Bot 待选推荐遵守合法掩码并允许合法取消"
+        },
+        "cards.rs": {
+          "upstream_sha256": "b82d3f6df6c07893e59759006f53521e506fd49288f94798d786281f1c347651",
+          "fork_sha256": "1a509b5f4a528d74409e67464c26c52fef47f8ebc369c46ed86517c15a1faa3b",
+          "reason": "卡表 meta 驱动版本与兼容缺失 meta 的历史输入"
+        },
+        "combat.rs": {
+          "upstream_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd",
+          "fork_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd"
+        },
+        "config.rs": {
+          "upstream_sha256": "b4f497252393744b76e6710affbea3b087349562bee94d6ef9348e3e592107c3",
+          "fork_sha256": "093006937f52bbd33ac396b8753e0bcd59234f779b9794a9756715500596eab1",
+          "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史"
+        },
+        "content/aberrations.rs": {
+          "upstream_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1",
+          "fork_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1"
+        },
+        "content/beasts.rs": {
+          "upstream_sha256": "740a233bc3f8399ed31d5b92396fe45142667fe9682febc29dc945798a560644",
+          "fork_sha256": "740a233bc3f8399ed31d5b92396fe45142667fe9682febc29dc945798a560644"
+        },
+        "content/buddies_a.rs": {
+          "upstream_sha256": "c52ae56c1d52e9ff5bc1eb722ccebf533e0ddb06b351eaddcc60f280c4238f4c",
+          "fork_sha256": "c52ae56c1d52e9ff5bc1eb722ccebf533e0ddb06b351eaddcc60f280c4238f4c"
+        },
+        "content/buddies_b.rs": {
+          "upstream_sha256": "c0c21663d326236158f64e2ac074e7a133d53693303c837237522f4e71299147",
+          "fork_sha256": "c0c21663d326236158f64e2ac074e7a133d53693303c837237522f4e71299147"
+        },
+        "content/buddies_c.rs": {
+          "upstream_sha256": "95e2f26b7335218d2a4f1204e370767b023405fba5c2b6826594e404d0c3606b",
+          "fork_sha256": "95e2f26b7335218d2a4f1204e370767b023405fba5c2b6826594e404d0c3606b"
+        },
+        "content/darkmoon.rs": {
+          "upstream_sha256": "f3dbc4bd103f5cc2b7e7fdbdba4cf1b6fcb9c58e788137b890677fc123bbbdb1",
+          "fork_sha256": "f3dbc4bd103f5cc2b7e7fdbdba4cf1b6fcb9c58e788137b890677fc123bbbdb1"
+        },
+        "content/demons.rs": {
+          "upstream_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749",
+          "fork_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749"
+        },
+        "content/demons_p1.rs": {
+          "upstream_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102",
+          "fork_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102"
+        },
+        "content/dragons.rs": {
+          "upstream_sha256": "f45509cf23b9ee1ba9ea68183681e35dbb587e74e4543ea615191d041db6ecab",
+          "fork_sha256": "f45509cf23b9ee1ba9ea68183681e35dbb587e74e4543ea615191d041db6ecab"
+        },
+        "content/elementals.rs": {
+          "upstream_sha256": "21267f8a7910bb75199e3ff8de86734484e29dc92c3ed6db52fd2deb3b119ea7",
+          "fork_sha256": "21267f8a7910bb75199e3ff8de86734484e29dc92c3ed6db52fd2deb3b119ea7"
+        },
+        "content/gifts.rs": {
+          "upstream_sha256": "da499d0bf2cb14fa502eeccd57d4137e86789386b9001df09dc34f3a1a3a673f",
+          "fork_sha256": "da499d0bf2cb14fa502eeccd57d4137e86789386b9001df09dc34f3a1a3a673f"
+        },
+        "content/helpful.rs": {
+          "upstream_sha256": "48b7a63fefef0fb1fc81147a4601330202dc4c6f0a23489e8ebfda9010c38418",
+          "fork_sha256": "48b7a63fefef0fb1fc81147a4601330202dc4c6f0a23489e8ebfda9010c38418"
+        },
+        "content/hero_powers.rs": {
+          "upstream_sha256": "57375fe9ec573bd65d62e10ed8fcd0907949ffd1bc938a2f9e83f5cee531fa09",
+          "fork_sha256": "57375fe9ec573bd65d62e10ed8fcd0907949ffd1bc938a2f9e83f5cee531fa09"
+        },
+        "content/heroes.rs": {
+          "upstream_sha256": "1c0a84a511f055d9679ae56495038dcc4e74cde581127d20cac441b7a8ee5a5f",
+          "fork_sha256": "1c0a84a511f055d9679ae56495038dcc4e74cde581127d20cac441b7a8ee5a5f"
+        },
+        "content/heroes_active.rs": {
+          "upstream_sha256": "dc06d11c5a171d7e0afeb8fd434496c773cfe6f2beb2b5ebd3c312964334e969",
+          "fork_sha256": "dc06d11c5a171d7e0afeb8fd434496c773cfe6f2beb2b5ebd3c312964334e969"
+        },
+        "content/heroes_combat.rs": {
+          "upstream_sha256": "6e62985b677deae3bda36f90eb878d09150f55c892c02dd40ca0ca0353912d9e",
+          "fork_sha256": "6e62985b677deae3bda36f90eb878d09150f55c892c02dd40ca0ca0353912d9e"
+        },
+        "content/heroes_eco.rs": {
+          "upstream_sha256": "09781798e7e1d7c2088c7cc05b58e18f598f614dee53d9a16796b5888aaaaabc",
+          "fork_sha256": "09781798e7e1d7c2088c7cc05b58e18f598f614dee53d9a16796b5888aaaaabc"
+        },
+        "content/heroes_gen.rs": {
+          "upstream_sha256": "f374883a95440e416c86cde38e09362db280a9e701f8717f3e9c8683174b5c7a",
+          "fork_sha256": "f374883a95440e416c86cde38e09362db280a9e701f8717f3e9c8683174b5c7a"
+        },
+        "content/heroes_special.rs": {
+          "upstream_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee",
+          "fork_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee"
+        },
+        "content/mechs.rs": {
+          "upstream_sha256": "e6c35513f96abd69bfcbdd09e79c36f5166a4be4c97c08e9a63b8720d87a94af",
+          "fork_sha256": "e6c35513f96abd69bfcbdd09e79c36f5166a4be4c97c08e9a63b8720d87a94af"
+        },
+        "content/mechs_p1.rs": {
+          "upstream_sha256": "af7a63fec976bc5f90e9c1a48c02146453303df490f69dd63dba96dfd102d853",
+          "fork_sha256": "af7a63fec976bc5f90e9c1a48c02146453303df490f69dd63dba96dfd102d853"
+        },
+        "content/minions.rs": {
+          "upstream_sha256": "eb48eedfc775010963a3109ffb5d986571d52b585272b77f0dba0199fee2f79c",
+          "fork_sha256": "eb48eedfc775010963a3109ffb5d986571d52b585272b77f0dba0199fee2f79c"
+        },
+        "content/mod.rs": {
+          "upstream_sha256": "9f2c497a8a8c321b9c4734df6cf512f964d8adb0b4a52bc55cbda7743482ee28",
+          "fork_sha256": "c0468b55557207cd5e8462021f8020a58eb2d274a70773ea55068af0b5611447",
+          "reason": "登记朋友 P3 新增脚本，无重复覆盖上游注册"
+        },
+        "content/murlocs.rs": {
+          "upstream_sha256": "b77c5898678c098963f00510273fa45bde93c3884219e529a8b212f355b3f33e",
+          "fork_sha256": "b77c5898678c098963f00510273fa45bde93c3884219e529a8b212f355b3f33e"
+        },
+        "content/murlocs_p1.rs": {
+          "upstream_sha256": "5b41433403d33e2a5445d483b99fccf09de635bef604f4cc8182542006bdff45",
+          "fork_sha256": "5b41433403d33e2a5445d483b99fccf09de635bef604f4cc8182542006bdff45"
+        },
+        "content/naga.rs": {
+          "upstream_sha256": "0cbffe59fe59a0f256dfa054ec22db613dc30f95d39bed1198b955aff6ae09ec",
+          "fork_sha256": "0cbffe59fe59a0f256dfa054ec22db613dc30f95d39bed1198b955aff6ae09ec"
+        },
+        "content/neutral.rs": {
+          "upstream_sha256": "4be858d65fd3dcdc042ce508600b16c384f457fcf4486fec147c42c8f46228c0",
+          "fork_sha256": "4be858d65fd3dcdc042ce508600b16c384f457fcf4486fec147c42c8f46228c0"
+        },
+        "content/p3_batch_a.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "1bafbae936d890d58cec95c4e70042696cd4c3c9553b260479cdb215a5ca91d4",
+          "reason": "朋友已有 Naga/Spellcraft 扩展，保留定向测试"
+        },
+        "content/p3_batch_b.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "a8c3d586037fa982e95c1ad886ced1a83e355fca8d35b9a597468897c3354127",
+          "reason": "朋友已有 Naga/法术扩展，保留定向测试"
+        },
+        "content/p3_systems.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "e9bac27829a317b93f17ca5082dd9d847462993405d9a0a3006bcd2f435f5a31",
+          "reason": "朋友已有艾萨拉技能扩展，保留定向测试"
+        },
+        "content/pirates.rs": {
+          "upstream_sha256": "43d8f0c167371f2eb7722998869b95ddc091e8e6503516516b099f024a2b0df7",
+          "fork_sha256": "43d8f0c167371f2eb7722998869b95ddc091e8e6503516516b099f024a2b0df7"
+        },
+        "content/pirates_p1.rs": {
+          "upstream_sha256": "aad148fcc52d2a06879618a348edb3c9046cbbd086e86afe0d33ee4b3f65ddef",
+          "fork_sha256": "aad148fcc52d2a06879618a348edb3c9046cbbd086e86afe0d33ee4b3f65ddef"
+        },
+        "content/putricide.rs": {
+          "upstream_sha256": "ccdf6349126c42196c37360be3f9589a3ee39f172c264d66adab15f335e10f56",
+          "fork_sha256": "ccdf6349126c42196c37360be3f9589a3ee39f172c264d66adab15f335e10f56"
+        },
+        "content/quests.rs": {
+          "upstream_sha256": "c590f37796c0f3cbeb2acb016623a68307cf7c0a1890b33f6b564505d480994b",
+          "fork_sha256": "c590f37796c0f3cbeb2acb016623a68307cf7c0a1890b33f6b564505d480994b"
+        },
+        "content/quilboar.rs": {
+          "upstream_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b",
+          "fork_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b"
+        },
+        "content/quilboar_p1.rs": {
+          "upstream_sha256": "f55e4e9d3f84603a3354167a50a8fc9da4fcadf09face538bab44694bd0825a7",
+          "fork_sha256": "f55e4e9d3f84603a3354167a50a8fc9da4fcadf09face538bab44694bd0825a7"
+        },
+        "content/secrets.rs": {
+          "upstream_sha256": "39833ad779f4fc861d6c019ab8439a6827d077e86beb43412848a880ff938f14",
+          "fork_sha256": "39833ad779f4fc861d6c019ab8439a6827d077e86beb43412848a880ff938f14"
+        },
+        "content/spells.rs": {
+          "upstream_sha256": "3b192f1e71b4a49e95d7a1481065a2445fea2cd1e3a2faafeb8e814bf6552b01",
+          "fork_sha256": "3b192f1e71b4a49e95d7a1481065a2445fea2cd1e3a2faafeb8e814bf6552b01"
+        },
+        "content/spells_p2.rs": {
+          "upstream_sha256": "2a1ec634d822a1bbe1535847ccd383b6d8d6e65b35ae6bf5e16ec9e002aeba7e",
+          "fork_sha256": "2a1ec634d822a1bbe1535847ccd383b6d8d6e65b35ae6bf5e16ec9e002aeba7e"
+        },
+        "content/starcraft.rs": {
+          "upstream_sha256": "d4719dacace45513fadae241d00bcbb27e2002a8b796db22e0c7311dbf164130",
+          "fork_sha256": "d4719dacace45513fadae241d00bcbb27e2002a8b796db22e0c7311dbf164130"
+        },
+        "content/tier7.rs": {
+          "upstream_sha256": "63a35a923e2c52a40b613eb9c1aa648ec5eb9a32789b289a606dddec3685b0ac",
+          "fork_sha256": "63a35a923e2c52a40b613eb9c1aa648ec5eb9a32789b289a606dddec3685b0ac"
+        },
+        "content/timewarp.rs": {
+          "upstream_sha256": "5fa9c91996fcc9061f9bbe7a451730e8515cfbba85a62b457427b68f2f05e489",
+          "fork_sha256": "684311667435925c7f34214eeea7acd98c97972d9d724cd8ae23c272a7c08801",
+          "reason": "满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+        },
+        "content/trinket_offers.rs": {
+          "upstream_sha256": "92befb7f6a607ef4744a20933a75d4cfab6fd54d7578b45c442406f310318b3b",
+          "fork_sha256": "92befb7f6a607ef4744a20933a75d4cfab6fd54d7578b45c442406f310318b3b"
+        },
+        "content/trinkets.rs": {
+          "upstream_sha256": "f4a2ed76fbf5da6d82c088693dbc64b282d28d3ede63147109a8a71d85f91412",
+          "fork_sha256": "f4a2ed76fbf5da6d82c088693dbc64b282d28d3ede63147109a8a71d85f91412"
+        },
+        "content/trinkets_3702.rs": {
+          "upstream_sha256": "dfd92186a1e5f07903238b6701483263d55baa42463a12c211eb87a6d5b19c69",
+          "fork_sha256": "dfd92186a1e5f07903238b6701483263d55baa42463a12c211eb87a6d5b19c69"
+        },
+        "content/trinkets_p1.rs": {
+          "upstream_sha256": "8763903d63ce28a403f12cdb2b7bc26d20f50643cb803221839ff3b6fb210615",
+          "fork_sha256": "8763903d63ce28a403f12cdb2b7bc26d20f50643cb803221839ff3b6fb210615"
+        },
+        "content/trinkets_p2.rs": {
+          "upstream_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24",
+          "fork_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24"
+        },
+        "content/trinkets_p3.rs": {
+          "upstream_sha256": "8f4e8a0cb5630aaeedd333c9fe61a57a7869699d821a28ce2c096712c6721943",
+          "fork_sha256": "8f4e8a0cb5630aaeedd333c9fe61a57a7869699d821a28ce2c096712c6721943"
+        },
+        "content/trinkets_p4.rs": {
+          "upstream_sha256": "1c89a713d10e6c7b3ba565999f96a0736a54c12d573ab61a483d3d3c9f38aab2",
+          "fork_sha256": "1c89a713d10e6c7b3ba565999f96a0736a54c12d573ab61a483d3d3c9f38aab2"
+        },
+        "content/trinkets_p5.rs": {
+          "upstream_sha256": "77948d68c666a201d6a576088a7c66798962203ec115d1a44cf5c74eee3a5d88",
+          "fork_sha256": "77948d68c666a201d6a576088a7c66798962203ec115d1a44cf5c74eee3a5d88"
+        },
+        "content/trinkets_p6.rs": {
+          "upstream_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403",
+          "fork_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403"
+        },
+        "content/trinkets_p7.rs": {
+          "upstream_sha256": "f46f985b8d430fc533625c256b2de3056815fa2132b5051b2867fac30bcc58d2",
+          "fork_sha256": "f46f985b8d430fc533625c256b2de3056815fa2132b5051b2867fac30bcc58d2"
+        },
+        "content/trinkets_p8.rs": {
+          "upstream_sha256": "4f8cb55a65c75dd831d9ab2be37f85864f9f59c876727a14969f27b0673ba6d7",
+          "fork_sha256": "4f8cb55a65c75dd831d9ab2be37f85864f9f59c876727a14969f27b0673ba6d7"
+        },
+        "content/tw_beasts.rs": {
+          "upstream_sha256": "bf90dd34adf111ae02cd5be3a4af81beed9d923b0c70cb57853f7b7cb325546f",
+          "fork_sha256": "bf90dd34adf111ae02cd5be3a4af81beed9d923b0c70cb57853f7b7cb325546f"
+        },
+        "content/tw_demons.rs": {
+          "upstream_sha256": "516fa7c4de426d1a9f4752e389164a5f1815f25b0103c3d8188a1ee528e08006",
+          "fork_sha256": "516fa7c4de426d1a9f4752e389164a5f1815f25b0103c3d8188a1ee528e08006"
+        },
+        "content/tw_dragons_pirates.rs": {
+          "upstream_sha256": "a4e777537777f61ac3089e413dc4c60ef241af28e3004d9a399c0f90d413d4ca",
+          "fork_sha256": "a4e777537777f61ac3089e413dc4c60ef241af28e3004d9a399c0f90d413d4ca"
+        },
+        "content/tw_elementals.rs": {
+          "upstream_sha256": "beace9d59da8bfff7962ddaeb1d23f2919fcba4bb2a437f3a48da267798c0938",
+          "fork_sha256": "beace9d59da8bfff7962ddaeb1d23f2919fcba4bb2a437f3a48da267798c0938"
+        },
+        "content/tw_murlocs_mechs.rs": {
+          "upstream_sha256": "ce98772b0001ac4e1d8220ade0f424009a06f73a676a9f0bbf10c25418acd4ff",
+          "fork_sha256": "ce98772b0001ac4e1d8220ade0f424009a06f73a676a9f0bbf10c25418acd4ff"
+        },
+        "content/tw_quilboar_neutral.rs": {
+          "upstream_sha256": "3462fa3e5a37c2529a195bd58a630916244d2b15a3d70e4266ece211f6979918",
+          "fork_sha256": "3462fa3e5a37c2529a195bd58a630916244d2b15a3d70e4266ece211f6979918"
+        },
+        "content/tw_spells.rs": {
+          "upstream_sha256": "1fdf4dee2c6f593a8a4ff4e199dd13fa1a677337c950d10e84de8429aef7d1bd",
+          "fork_sha256": "1fdf4dee2c6f593a8a4ff4e199dd13fa1a677337c950d10e84de8429aef7d1bd"
+        },
+        "content/tw_undead.rs": {
+          "upstream_sha256": "fe7da8a20f99e328690c06620e50c7495589039b76ca3bb86c6eb99eacb2bc39",
+          "fork_sha256": "fe7da8a20f99e328690c06620e50c7495589039b76ca3bb86c6eb99eacb2bc39"
+        },
+        "content/undead.rs": {
+          "upstream_sha256": "60caf79485a5308f93895ee9bcfb3497b4dcb00e634f8b778ed1d147aac7d672",
+          "fork_sha256": "60caf79485a5308f93895ee9bcfb3497b4dcb00e634f8b778ed1d147aac7d672"
+        },
+        "content/yogg.rs": {
+          "upstream_sha256": "fa16ee0a9eb9c0eaf980e738398e4303aba157a13e99af3c2f783b1db68f805f",
+          "fork_sha256": "fa16ee0a9eb9c0eaf980e738398e4303aba157a13e99af3c2f783b1db68f805f"
+        },
+        "debug.rs": {
+          "upstream_sha256": "0c44f1e64779f7ee0ed980c4a96098927ff455ddee47d3fda0e40d5b3571aa28",
+          "fork_sha256": "9dd5d7f07e10f547a1f3442dce3f84fb8825398a27748ac477ec606814316f3d",
+          "reason": "版本输出跟随固定数据 meta"
+        },
+        "engine.rs": {
+          "upstream_sha256": "50b0d8d42c00e087fd12fa69ec71e5ee598f96602d6b0fa135378e72dbe1f440",
+          "fork_sha256": "bdd11185ff15c0e5cda5b3506170590efa939a60d47e296d16a37b3ab6720458",
+          "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；配对卡生成即时三连与实体失效引用不变量修复；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记"
+        },
+        "env.rs": {
+          "upstream_sha256": "99dfdd9dfe92cfd3fe6d7cf4f80fcbf4344fbfc9e67cb32e6f52c2e88247bf5a",
+          "fork_sha256": "99dfdd9dfe92cfd3fe6d7cf4f80fcbf4344fbfc9e67cb32e6f52c2e88247bf5a"
+        },
+        "event.rs": {
+          "upstream_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e",
+          "fork_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e"
+        },
+        "experimental.rs": {
+          "upstream_sha256": "3c174ea10d152d683ab52f3352f796018f3403edb9f4ad3f68b69848b8ac929b",
+          "fork_sha256": "2be05ad051a212e49dcb8e280b724cd2c534a7f1973259615f84def6c09a7f1e",
+          "reason": "满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+        },
+        "flow.rs": {
+          "upstream_sha256": "16186657f8fd65997d28eaca5e5385ff561f28ce2049b5416204a8afad923f16",
+          "fork_sha256": "acb983d33671eafec1da76918a180ae0dcbd254722d9fea6caf9f655e1d14aa2",
+          "reason": "HSRL 快照推进接口；待选修复、在线禁用池过滤、回合末失败保留现场；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记"
+        },
+        "guard.rs": {
+          "upstream_sha256": "005604a828d377950c59ac77dbd6a476bd90f68969c5c9c2ca058f21f98cc7d8",
+          "fork_sha256": "77809e6df19d42be7bae5fcccaf4533d85fa778729ec2f77952486f10ca0210c",
+          "reason": "诊断目录和前缀改为 HSBG_ENGINE"
+        },
+        "invariants.rs": {
+          "upstream_sha256": "0b9f919ec49c1a87f9d991747ea1d49a2f22e47d242554498a4ccb758d77d872",
+          "fork_sha256": "436f804b9d0dc66c3ac441b070c0fa8759fb032d2ceef204af7aaa67f74efc8b",
+          "reason": "配对卡生成即时三连与实体失效引用不变量修复"
+        },
+        "lib.rs": {
+          "upstream_sha256": "cab9ca0682f8d2bca615cd06fef0a490d636a891ed9f7213b79d307e01c33efb",
+          "fork_sha256": "b2da1a83a7ab67b0ccca681fa7f342047c59c9959239fbdaf0032d6fc1f37d1f",
+          "reason": "fork 模块与接口导出，版本 meta 读取和说明"
+        },
+        "obs.rs": {
+          "upstream_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1",
+          "fork_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1"
+        },
+        "recruit.rs": {
+          "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
+          "fork_sha256": "ec14d10f86bce17d8f31599a41e792d57899edccc7c68fa3a851b08f25387291",
+          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用"
+        },
+        "rng.rs": {
+          "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",
+          "fork_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e"
+        },
+        "script.rs": {
+          "upstream_sha256": "90e56e23b563952de3ee114dab9225f30845e815d06bcb038dedf574d4150385",
+          "fork_sha256": "90e56e23b563952de3ee114dab9225f30845e815d06bcb038dedf574d4150385"
+        },
+        "search.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "6f756d63c2cf7342c5a5ae132e0db0c41845d38c18d6336183f2b0f24fc6e96f",
+          "reason": "HSRL AZ 搜索接口"
+        },
+        "snapshot.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "a4cd22b23f149f4d72529a8ec4ee8edbd83dd03267952d23e1dca4ef9ee130bb",
+          "reason": "HSRL 严格快照注入及池账本"
+        },
+        "state.rs": {
+          "upstream_sha256": "ba8f1cd7191f20f864e91bbac42862537fa53676a4b1ad9a00a752d2f8083e00",
+          "fork_sha256": "e4a5cd3bd28659d27359828b63d49762ecc20f5dc719514c5877d3a086a6e8b4",
+          "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记；满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+        },
+        "turn_search.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "94d91b7cc6aa4b025f174fffa2c92bb728fba128796837fea70f61b6f27c6a17",
+          "reason": "既有可选回合搜索接口，不接入当前 sims=0 个人 PPO"
+        },
+        "types.rs": {
+          "upstream_sha256": "1b3bb9e4dd3395b1205a1eaaab8aa2bbd8e9152ac188a97bfd91038d6165dc21",
+          "fork_sha256": "1b3bb9e4dd3395b1205a1eaaab8aa2bbd8e9152ac188a97bfd91038d6165dc21"
+        },
+        "workers.rs": {
+          "upstream_sha256": "decec43d9a3483e8e68fc35569209306f7d34bc53f2abe98776ceecc7a42457f",
+          "fork_sha256": "decec43d9a3483e8e68fc35569209306f7d34bc53f2abe98776ceecc7a42457f"
+        }
+      },
+      "upstream_tests": [
+        "buddies_a.rs",
+        "buddies_b.rs",
+        "buddies_c.rs",
+        "cards_content.rs",
+        "cards_core.rs",
+        "cards_diagnostics.rs",
+        "cards_heroes.rs",
+        "combat_analytics.rs",
+        "common/mod.rs",
+        "complex_interactions.rs",
+        "experimental_rules.rs",
+        "games.rs",
+        "mechanics.rs",
+        "patch_3702.rs",
+        "persistence.rs",
+        "recruit_batches.rs",
+        "s_tier_engines.rs",
+        "scoreboard.rs",
+        "shown.rs",
+        "shown_heroes.rs",
+        "shown_minions_a.rs",
+        "shown_minions_b.rs",
+        "shown_spells.rs",
+        "shown_timewarp.rs",
+        "shown_trinkets_a.rs",
+        "shown_trinkets_b.rs",
+        "tw_beasts.rs",
+        "tw_demons.rs",
+        "tw_dragons_pirates.rs",
+        "tw_elementals.rs",
+        "tw_engine.rs",
+        "tw_murlocs_mechs.rs",
+        "tw_quilboar_neutral.rs",
+        "tw_spells.rs",
+        "tw_undead.rs",
+        "validation.rs"
+      ]
+    },
+    {
+      "local": "engine/crates/hsbg-engine-py/src",
+      "upstream": "crates/taverngym-py/src",
+      "files": {
+        "collector.rs": {
+          "upstream_sha256": null,
+          "fork_sha256": "2f46ccf777e0a0641d0f0aee63cf220cce2bb19c0dbaaf454e8212e08a4a6992",
+          "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口"
+        },
+        "lib.rs": {
+          "upstream_sha256": "043212d44e8e67975e2d1ba3af8db45d65e23aae98b857b5f119272736c64478",
+          "fork_sha256": "bb289e6908abc3101cb650f6e7f26c9a80609b9d469dca186d5f2b3524e21f76",
+          "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口；常数时间公开四项引擎质量诊断，保护采集与评测"
+        }
+      },
+      "upstream_tests": []
+    }
+  ]
+}

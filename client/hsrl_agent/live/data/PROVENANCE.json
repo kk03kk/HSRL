@@ -1,0 +1,8 @@
+{
+  "build": "255790",
+  "source": "local client dbf extraction recorded in runs/client-inspection-20261027/report.json",
+  "source_dbf_sha256": "40d9a232262d33eb670848ce3f87e58f5b4fd084632d9876216478a8b21e9456",
+  "mapping_sha256": "c7e3b9b7ecaaac45bbc4f7e6b74f517c3c70e52291025bf43feb48b6827a9922",
+  "numeric_to_symbolic_only": true,
+  "other_builds_not_assumed": true
+}

@@ -1,0 +1,16 @@
+{
+  "format": "hsrl.offline-regressions.v1",
+  "scenarios": [
+    {"id": "hero_loading_and_confirmation", "file": "tests/test_live_hero_protocol.py"},
+    {"id": "focus_queue_game_cycle", "file": "tests/test_live_focus_orchestration.py"},
+    {"id": "prior_session_two_frame_retirement", "file": "tests/test_live_session_retirement.py"},
+    {"id": "branch_target_slow_ocr", "file": "tests/test_live_1843_regressions.py"},
+    {"id": "spell_boundary_and_discovery", "file": "tests/test_live_2031_regressions.py"},
+    {"id": "connected_branch_external_completion", "file": "tests/test_live_2152_regressions.py"},
+    {"id": "activation_nested_choice_lobby_restart", "file": "tests/test_live_2233_regressions.py"},
+    {"id": "hover_press_hero_trinket_ocr_speed", "file": "tests/test_live_0006_regressions.py"},
+    {"id": "dropped_play_retry_and_next_options_sell", "file": "tests/test_live_0056_regressions.py"},
+    {"id": "combat_task_gaps_hover_colors_finley_upgrade", "file": "tests/test_live_1028_regressions.py"},
+    {"id": "shared_contract_and_wait_accounting", "file": "tests/test_live_lifecycle.py"}
+  ]
+}

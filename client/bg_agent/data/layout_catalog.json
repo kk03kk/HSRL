@@ -1,0 +1,3952 @@
+{
+  "schema": 1,
+  "reference": "independent_visual_calibration_and_cross_run_validation",
+  "layouts": [
+    {
+      "id": "7c00c4cc48e5416d",
+      "family": "recruit",
+      "zone": "hud",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "control:freeze": [
+          0.653125,
+          0.16,
+          0.015000000000000013,
+          0.013000000000000012
+        ],
+        "control:game_mode_slot:1": [
+          0.653125,
+          0.16,
+          0.015000000000000013,
+          0.013000000000000012
+        ],
+        "control:game_mode_slot:5": [
+          0.865625,
+          0.268,
+          0.016015624999999978,
+          0.024999999999999967
+        ],
+        "control:hero_power": [
+          0.5975,
+          0.754,
+          0.016953125000000013,
+          0.030999999999999917
+        ],
+        "control:refresh": [
+          0.573125,
+          0.114375,
+          0.04874999999999996,
+          0.137625
+        ],
+        "control:upgrade": [
+          0.37265625,
+          0.11625,
+          0.05976562499999999,
+          0.13674999999999998
+        ],
+        "region:bob": [
+          0.458203125,
+          0.106,
+          0.08632812500000003,
+          0.160875
+        ],
+        "region:hand": [
+          0.4984375,
+          0.944,
+          0.059765625000000044,
+          0.047875
+        ],
+        "scene:recruit": [
+          0.458203125,
+          0.106,
+          0.08632812500000003,
+          0.160875
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000025.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "2a001f227084c2173bc2bc226697ce1911000800ad52c74787b1c9a101b579af",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000027.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "d76b474e990ba06ca3528ca1ad46654bed9fc4f83ed87cac511716c3cbcf56a0",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000029.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "44858ec7ded2c944a9accacf4a33fe9e0b9cc7602c914d0398b27e60b87a1548",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000031.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "b655a3ea1be7cf89aeb30bcf65561bad474e3ec26f084906178c33847812dac8",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-x\\evidence\\frame-000021.json",
+          "group": "bridge/real-play-coverage-20261019-x",
+          "sha256": "c7b3e9100288c739c84e250dc9c3ebf934180d802bf639e592d7bd417f0bcd0c",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000570.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "d1adc0cbd89b4a5323512e08d2a95a5c78958bfc2498a1644604825a40d44003",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000572.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "5156e6b337eace76fadddc53feb77a2ad9247a5498d3a584288b3d41fb89f0b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000574.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "1b22da9d84e4264999df767d6c31fba218bded0f8a337edae430fed98b99a3e4",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000576.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "709b48abc3ed204d0d041b2e1f0de1162284c2d372321b8fc495f9892884c9c2",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-heuristic-20261019-ac\\preplay-frame.json",
+          "group": "bridge/real-play-heuristic-20261019-ac",
+          "sha256": "cba50cfff5ff7d852507565cffe797d5bf68a918e6621d2fb1583076922edd3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\after-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "71dfae15ae9e6830ab88b920d1a74ef28a399efe35d63200e77fbc488066d40f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\before-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "59926d0f20b6da3c30e9295fff6f6eecccca3ee8a242f804ed69372e423d8aeb",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000603.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "462c555442da8c8ca9e8c56ce5c1971182e9a7e7aeb7cd7bb5e577e85495e25f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000615.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "8414fc78b1f39d730df579500ef80ec420ec51532a4f82658b3352ded155a795",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000578.json",
+          "group": "live-20261020-hud",
+          "sha256": "613ab57bbbed88c52ad08ca8683402c0bd503ea5f57b1c129d8ed418724ee2e5",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000596.json",
+          "group": "live-20261020-hud",
+          "sha256": "807af23da8fe469ebe0cdb96752fc80311400d6d802d75fb11fcffcef8c96049",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-locked-hand\\hand.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "9c2657ec7c82003cd21e4c235ed0411698832086bc8a0665091603e0a7d15348",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-4.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4d8e20cefc511957909627efd9f0ffbfce02273f01e46bfcb00ff57527d16111",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-5.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "44a24ee214b2b532553035d6d8a80252d2d8ea2d5278cdb41f05b642e039fc3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-upgrade-idle\\failure.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "3a419e6be3fdd2bfc04dc308a53460945541b203affd142c873214a5581ef168",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000078.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "3dc13aa9a9c5db94f448068a63d944236403b830e3a6e48950b913d7079ee523",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000086.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "04c85913b39152f410e327294e352dbe3d63c77464a38fd1b0ebcf8fe0ab8c99",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000121.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "b91eec4be3d3d2951b1964826b44ecc7692ac6b69757a14a35ba9e4717fae297",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000122.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "87ad7f3e3601d39c6040f41861304e80e7cce6a23f9dac0467172489cd768ac7",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000124.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "7c13e036149628f18de07379ee74a8e4765debccb6ccd0363f1660a81276adf9",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000025.json",
+          "group": "v05-external",
+          "sha256": "25d93ae2d7771e4191ae66b26df997cb6a0cb033a5687824ce0eb69d61b6de66",
+          "role": "validation"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000037.json",
+          "group": "v05-external",
+          "sha256": "ae6d00e131e6ae1fe0694e9d32e900a491027d7768eb122ae532b33b7232475c",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000478.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "482dbc7acb0d2666ded3cf084b71fb3b7f10e653c126c9ed619d2b33fa10bc6f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000502.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "d2150715e78934896688b1e8d4109d1e44e470230f46bbc6caeeb96adff00b8a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\pending-action-1103-0-1792485921074917600.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "68690132a678f0a1bdf9c0d847e7029980f76afccda03575096dad207605543b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\failure-last-frame-1269-None-1792491481278798400.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "9d2690e9a3b1fa8f6ca8c57e3eadb8e50e402657b1b6d3568a1afb35b1a508bf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000117.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "bea8f619a6d142f2ab6029e573f131926c113b4c51c68ae71b44a78c6137c47b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000228.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "527a2a04df9624c8f1380c74e335e55289ddef5b2cdd8290b61616136ea0068f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000297.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8e92fb284031b0f69c2c8aa53864354b65ff02c853e62af742f21442875451d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000397.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c7e3421f0a0e19e2b4231622f3daac88816ff6f67989ca9e5123bacdc22ec84",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000458.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c32bba67f08bd7ddf88a00e709f65a232c383b4d905b760d2d5dadd92ef055d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000475.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "4978c0901dd48698a0d220d57411a2ccd6cb9bc2f3b2d18514548d58ed4a8cf5",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000157.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ed5db18f53d2e810a38dc5a047763ff39a043bb733370536b864c12df19965cb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000264.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "79a06a787bd4e70cada5bb4f83a80ea087da54f7b349a7af018bb649539328bb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000328.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "e0a30d2518ffeecab7b64b39371316478e2854999fcda69a50033256431f4419",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000439.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a5f74436a8d7ad50b6e51281b861c92dd84cee6966de43517adfc20d3ec696ff",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000501.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "531dbb888a5c6c13c516ec04ff41a63f2b14569f37f787e5076d66bc7faf2b27",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000513.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "96861f01074864fad9540c462ca895c45a432c129e8c5429b89460aaf778feee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000529.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "14aa2d71905e7f6035bc1a6ffc6cfd9dde485d9b99ed6eb06986df57c985d03f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000626.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "00c71b836cc35d8f3de192d2dc9b4b057e1512a5e2380957bbf061a7067cf45a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000713.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a2180a771c493924ce07f0b50fb6acceaaba0f998b5ee8a82da54b083c7554d1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000804.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "3eaecc557d901c74db564343767c09e321759d4f92ab7ae0b5fd4eb5232dd4ac",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000913.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ced9bc65f4a65263cec5b0e725e8cfe4363f44c14b284b3f915010fc61d9447d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000976.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "4e9945bda7b8f3776924be36cd06b77d9eb3703d0f10361128780ffbe941e60c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000990.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "27fcb0ab0c7fca9f8358cfbba1421de456975592e554b61892b59582a89a982e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001076.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "456e5e34bb85ecc5c17b177433c6fa8b8253785f3c448366d0189ec1afde0c95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001181.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a35c7523be2b177d20d97ee04ed34445788427cb349359d9fe0e29590b3e1270",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001327.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "7a38fa56443cca462e092dfa5547fb10d4cf16181cd6ac34d1982563fb295d97",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000331.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5b4ec434a4e3551d63f48d6884a9e36b1ad830981b53c275a6a2402e2b6bf799",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000437.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d778e03c3158c07376cf57302e365e34b1489783ab4b394cfdb3e6608b53b0e2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000484.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "010b601d8df11f89eac389e5eafff0c3765e0052692dcf344f15d023316bd15f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000572.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "787c4c4bce9f4dd7f563d4fa42f157a664197ba6df30fdaddbd9e60ee8884886",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000634.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2254b49a93a11a77b1f716ccb619cc1d59e722e75da9789ef43239c7c715ca8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000645.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "b6df639f82f09124f902a62ea3242f659c4e8f3b4c322ec5f6734219412dd74b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000721.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2c6091b52b9ef289b50b3b60b396acc9c4707fdf5dec503fd2627b9a15594b0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000818.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5599a07fc4dd84d8d411610356194e82b333105966b6604520261f05e170b939",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000835.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f29209cbb99938eac6167cc3c08253c70c956813f9c17481f1ce28c9efc447da",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000922.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "80e01766a65fc239929ce139634a58b66b0aa802042db91d732a2ef3d708d4c7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001021.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d83032f6bbb0557360116a6dd32fe9de054e2c14a5fe1ee383508e45283eaa9c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001070.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "c8ddb4d8bb0660d9e19ee2dd06fe45fb6375b9e2d47c4d3f35400f5d9e8c93b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001086.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "bfdd8b4dac71cb79ddc2caf9e8b8183721826faafebe0e057a5e9cb5c06e9033",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\failure-last-frame-872-None-1792502700259676500.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "51302867b0ac5d861457a0ca31bbe331862fee42895f1205b7a4d7fef94be0b7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000132.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "d0081a63a147fb3ba508588aee3c1e0c07381ab100499e28c76cd0312d744208",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000239.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "a0bf7a60c881ffd799b425af2fc938671f1024ea4c574c8df8fa55e6af7c7196",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000325.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "1e06d16857367aae092d8d5aab7bbfb2ff499b532c91809ca3497a04f0eb4d13",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000494.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "d57ef5792008416b04b3e6e7aea0f81054bd664913675dac480af92551b1349a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000510.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "be5a49b9bc7cdff1d43d3b56d572c73b04965dd5be3d3133a979d48c964d8a2b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\pending-action-1255-None-1792502680604118900.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "c71da9a4d639cbaaf9dc7d11e5e4a40e1e90382ff85ac457d4498de71e2562db",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000189.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5028a2642fba7d969baddf7b026d386be45f416dda67b7a8668c08f2aa237dfa",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000292.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "dfea127f43d27736a3a5e864217b97ec8ec07a4bcbe04e71544821601f19e451",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000347.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "997d7531eacf6c86e8ed64638d18e96639388239cf01aa626c77067098ce5480",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000364.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0ae85eb32c3583fd159b0ba3606a6130b345d64170ba1fed0243bae30b6da194",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000508.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "25e361a070f9d9348ccf8599e6574a2bb002ac918dfb76865e84c7e01ac3621f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000532.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "6aeff65085edfd1104f4ca50e0440811c97d9d92b7babf1fc630e07762f9f841",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000621.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "94f48c81737068ae3de455217ebbea95c224704dc286c9a9e63b45cf3321eadc",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000694.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "acfe3d28598cbd1293d44df269e37175e40f38c33d9b2fbabe086dc78c0c4286",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000773.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "4e019a38a77fad2f0f86fc2e5589fb0682153c322f1353fa91031e14f8960f43",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000878.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "752d60442b796d2a2942fd74f62fc984a882f6e07c87657658f93b38efea8f0b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001078.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "a6676572257d541232dd47a710e47a3ce90ad3f49e13caffe4704cabb69805c9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001090.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8185bff694648f560791f3a56fd835daa8dee0b670e274585e53d38731e8de22",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001111.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "35099d5c67735c0f311bfd0616397a0bbb11ec7fc328a0d617fec9cb0a1ce4a2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001216.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5d1cf0e880fccbe40eb2eca05b5764fe5b12e7ab46e0c3732d03f9cadbc008b3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001255.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "674b3b1b55814b68011f9ba13548bb469f16f6b8089b43f8194cb9fda7ba10ae",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001421.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "1c08bc3a96d20a16a2b2881939be1dd01c25efb9745f283fad4047a620ed9a9a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001449.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0dbd6f8acb2cc136964d5bec51b6a87f63ec0d5690df37458d74263739ac4409",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001464.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d48e805a5d103bd5638fa563f0945d3664faca3eeb0eec082c2399fbe86f8a95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001543.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "385577fa52572b3b75ee8aac2a392ff2fe6dea7e574e7e1adc9b02ef3fbc55be",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001639.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8d2e86b3dc827f9918414a373c66ea5b1827270772cf6c94cdf94d5823abfb2b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001788.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "2f39854fa657bb7a92245b26382805800d6421f5b9a8eea6b8ff4dd4f6a689ee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001807.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d4703c600bd32e2c5f9282c4637a37bebc5a8a6cad7d2e0d001d571082a50d69",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001870.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9e0846a06d1d5b5c41eb2912b641a5bac09b80a6cf8413399c417ba73afa6acf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001952.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "f55da90dac93e5767eb0a889136fec3e1e6f503c7ec85acab62c38b9c4c1012b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\pending-action-1740-0-1792503501621134300.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "ff1a715ea460fb22e79fd373c20792d9115fb2cad9d44761e4c037143eaece70",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\pending-action-2479-0-1792503847038324500.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9e80ad65f6604c53e8a99817d722658b9b472e9f6cdb583e4f5deade8be93b78",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000163.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f76f4869e9e6f74025d584aa8279737dae7fcd701247966196c7916359f2fd80",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000255.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "c0ca9f1188ea9161e6ed0a750985c7b1718c148949c2c92b9b15c3632c16d735",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000297.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ab5b101eff68a606f826ecb2905c0efb59fcd23659696d84f3d1dd3b47864989",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000376.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4e7b583a8585709d40d332944344a86482e46e479d3783ca21a8ca1605e3bd59",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000435.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "eef0babbefa3d3528023e3c289cd4a6a52b421073070fa26d0ebebdafc6d8cf0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000446.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "a9eae6090ed2d4e28ec313663a1feda298e2eaefa7bb25db2eedbb2565507e31",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000517.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12a5ae7fafad7be788da1f53008c5df8976423a4062ccbaf5f76dee2762c2c62",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000582.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad989225aa3fcdaf354ebe8f197e188613343b048c93ffdbf30a1df7805d4348",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000595.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0ff922e13a5624ed479e34a94689cdacb5241f39a62c91334f8743b94b78a389",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000670.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad9406071a8f0e75c938192c61b4d1141e0d7fda4051e3bccbd247ae0a01bdb2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000818.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12181fbb7f080a433a880c473cedb133e0eff4dd3460f86db7167bd827897047",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000832.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "868fe40c2377c7be3e52b5897114234b20f0678f95d3593fda63056048b034a8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000907.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0fccf1f94a6e2c6749be76b218426e8fa582e298aca0e9595723408998d91ffb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000996.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6be09219e7ca89305bca1795fac734c83d2c49541952411fc4cad82a9a41ab35",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001117.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "e1f06397864f63b32b869cfabe76ecac05ed609c445cc4a6a1e3b96bbdd36213",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001176.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "219d932c60159e6ba5622c4cda613b46a7cddc7b5bdcb8b81aaa44d1d3492a61",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001252.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "1d8f924f18bda7e67d532cabaed1cd978c02c2a7a56de9c209153af21a0cadc3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001402.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f3a43aade84ab2ce50fd91b2d27751353eefb09a4f1c572bc45c90cb1ffb18d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001468.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "96f46f70c3bd5f1c0f78ec4796ef7353ed771b430cd86958163b9d1ec325f68e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2495-None-1792513212133438500.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6b7fb80ded8339c8d2ed54241aa33b9cebbc174947c907d2fd7f3fa43702c413",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2517-None-1792513107383922700.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "265c88d00e8ac7bdceca9dae1307cfe24e7955f494a07f43168e038b25a9a3ba",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-4128-None-1792513223287388400.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "9dfd468ab2ddc21980b96ebf41fcfdb8fd40be8b950d4bb227b0406a83247c13",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000328.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "ce6540873afc1be9cc73627523518d28960a24c82389e80a0a06e03b336443e1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000430.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6c8028ce2a88b324f4dfd5c5eba8470cd0b08cc9af86b3f5b55f2ea43ae93c3d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000483.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "fe36e51ddabd24968885960c66e38ad79707cb5704d0e2694eb669914e82118b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\pending-action-469-None-1792579538941365800.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "95ad0be3b5686fe03665ff565404bbc2dfa8fe5a3a2915647fdde7f0217b96ff",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "f83f674551d8e403",
+      "family": "recruit",
+      "zone": "shop",
+      "count": 6,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000025.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "2a001f227084c2173bc2bc226697ce1911000800ad52c74787b1c9a101b579af",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000027.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "d76b474e990ba06ca3528ca1ad46654bed9fc4f83ed87cac511716c3cbcf56a0",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000029.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "44858ec7ded2c944a9accacf4a33fe9e0b9cc7602c914d0398b27e60b87a1548",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000031.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "b655a3ea1be7cf89aeb30bcf65561bad474e3ec26f084906178c33847812dac8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000494.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "d57ef5792008416b04b3e6e7aea0f81054bd664913675dac480af92551b1349a",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000510.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "be5a49b9bc7cdff1d43d3b56d572c73b04965dd5be3d3133a979d48c964d8a2b",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\pending-action-1255-None-1792502680604118900.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "c71da9a4d639cbaaf9dc7d11e5e4a40e1e90382ff85ac457d4498de71e2562db",
+          "role": "validation"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5001302083333333,
+        "cy": 0.3453125,
+        "pitch": 0.08085937500000007,
+        "size": [
+          0.037382812500000376,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.518359375,
+            0.28625,
+            0.04453125,
+            0.118125
+          ],
+          "slot:1": [
+            0.275390625,
+            0.28625,
+            0.04453125,
+            0.118125
+          ],
+          "slot:2": [
+            0.35625,
+            0.28625,
+            0.04453125,
+            0.118125
+          ],
+          "slot:5": [
+            0.59921875,
+            0.28625,
+            0.04453125,
+            0.118125
+          ],
+          "slot:6": [
+            0.68046875,
+            0.28625,
+            0.04453125,
+            0.125
+          ],
+          "slot:3": [
+            0.4375,
+            0.28625,
+            0.04453125,
+            0.118125
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "07683d3e1ae73aa1",
+      "family": "recruit",
+      "zone": "board",
+      "count": 4,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:1": [
+          0.326875,
+          0.54625,
+          0.0024218749999999623,
+          0.010000000000000009
+        ],
+        "position:board:5": [
+          0.67890625,
+          0.525,
+          0.010468750000000027,
+          0.04200000000000004
+        ],
+        "region:board": [
+          0.67890625,
+          0.525,
+          0.010468750000000027,
+          0.04200000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000025.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "2a001f227084c2173bc2bc226697ce1911000800ad52c74787b1c9a101b579af",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000027.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "d76b474e990ba06ca3528ca1ad46654bed9fc4f83ed87cac511716c3cbcf56a0",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000029.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "44858ec7ded2c944a9accacf4a33fe9e0b9cc7602c914d0398b27e60b87a1548",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-ab\\evidence\\frame-000031.json",
+          "group": "bridge/real-play-coverage-20261019-ab",
+          "sha256": "b655a3ea1be7cf89aeb30bcf65561bad474e3ec26f084906178c33847812dac8",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000570.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "d1adc0cbd89b4a5323512e08d2a95a5c78958bfc2498a1644604825a40d44003",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000572.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "5156e6b337eace76fadddc53feb77a2ad9247a5498d3a584288b3d41fb89f0b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000574.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "1b22da9d84e4264999df767d6c31fba218bded0f8a337edae430fed98b99a3e4",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000576.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "709b48abc3ed204d0d041b2e1f0de1162284c2d372321b8fc495f9892884c9c2",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-heuristic-20261019-ac\\preplay-frame.json",
+          "group": "bridge/real-play-heuristic-20261019-ac",
+          "sha256": "cba50cfff5ff7d852507565cffe797d5bf68a918e6621d2fb1583076922edd3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000086.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "04c85913b39152f410e327294e352dbe3d63c77464a38fd1b0ebcf8fe0ab8c99",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000804.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "3eaecc557d901c74db564343767c09e321759d4f92ab7ae0b5fd4eb5232dd4ac",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000913.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ced9bc65f4a65263cec5b0e725e8cfe4363f44c14b284b3f915010fc61d9447d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000976.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "4e9945bda7b8f3776924be36cd06b77d9eb3703d0f10361128780ffbe941e60c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000922.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "80e01766a65fc239929ce139634a58b66b0aa802042db91d732a2ef3d708d4c7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001021.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d83032f6bbb0557360116a6dd32fe9de054e2c14a5fe1ee383508e45283eaa9c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001070.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "c8ddb4d8bb0660d9e19ee2dd06fe45fb6375b9e2d47c4d3f35400f5d9e8c93b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000621.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "94f48c81737068ae3de455217ebbea95c224704dc286c9a9e63b45cf3321eadc",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000694.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "acfe3d28598cbd1293d44df269e37175e40f38c33d9b2fbabe086dc78c0c4286",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5015625,
+        "cy": 0.5509375,
+        "pitch": 0.08085937499999996,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.58671875,
+            0.474375,
+            0.07265625,
+            0.153125
+          ],
+          "slot:1": [
+            0.34375,
+            0.474375,
+            0.07265625,
+            0.153125
+          ],
+          "slot:2": [
+            0.425,
+            0.474375,
+            0.07265625,
+            0.153125
+          ],
+          "slot:3": [
+            0.505625,
+            0.474375,
+            0.07265625,
+            0.153125
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "b5678a7d20033f81",
+      "family": "recruit",
+      "zone": "shop",
+      "count": 5,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-x\\evidence\\frame-000021.json",
+          "group": "bridge/real-play-coverage-20261019-x",
+          "sha256": "c7b3e9100288c739c84e250dc9c3ebf934180d802bf639e592d7bd417f0bcd0c",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000570.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "d1adc0cbd89b4a5323512e08d2a95a5c78958bfc2498a1644604825a40d44003",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000572.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "5156e6b337eace76fadddc53feb77a2ad9247a5498d3a584288b3d41fb89f0b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000574.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "1b22da9d84e4264999df767d6c31fba218bded0f8a337edae430fed98b99a3e4",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-full-acceptance-20261019-o\\evidence\\frame-000576.json",
+          "group": "bridge/real-play-full-acceptance-20261019-o",
+          "sha256": "709b48abc3ed204d0d041b2e1f0de1162284c2d372321b8fc495f9892884c9c2",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-4.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4d8e20cefc511957909627efd9f0ffbfce02273f01e46bfcb00ff57527d16111",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000078.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "3dc13aa9a9c5db94f448068a63d944236403b830e3a6e48950b913d7079ee523",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000501.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "531dbb888a5c6c13c516ec04ff41a63f2b14569f37f787e5076d66bc7faf2b27",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000513.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "96861f01074864fad9540c462ca895c45a432c129e8c5429b89460aaf778feee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000529.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "14aa2d71905e7f6035bc1a6ffc6cfd9dde485d9b99ed6eb06986df57c985d03f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000713.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a2180a771c493924ce07f0b50fb6acceaaba0f998b5ee8a82da54b083c7554d1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000976.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "4e9945bda7b8f3776924be36cd06b77d9eb3703d0f10361128780ffbe941e60c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000990.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "27fcb0ab0c7fca9f8358cfbba1421de456975592e554b61892b59582a89a982e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001327.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "7a38fa56443cca462e092dfa5547fb10d4cf16181cd6ac34d1982563fb295d97",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000818.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5599a07fc4dd84d8d411610356194e82b333105966b6604520261f05e170b939",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000835.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f29209cbb99938eac6167cc3c08253c70c956813f9c17481f1ce28c9efc447da",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001070.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "c8ddb4d8bb0660d9e19ee2dd06fe45fb6375b9e2d47c4d3f35400f5d9e8c93b9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001086.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "bfdd8b4dac71cb79ddc2caf9e8b8183721826faafebe0e057a5e9cb5c06e9033",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\failure-last-frame-872-None-1792502700259676500.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "51302867b0ac5d861457a0ca31bbe331862fee42895f1205b7a4d7fef94be0b7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000132.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "d0081a63a147fb3ba508588aee3c1e0c07381ab100499e28c76cd0312d744208",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000325.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "1e06d16857367aae092d8d5aab7bbfb2ff499b532c91809ca3497a04f0eb4d13",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001078.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "a6676572257d541232dd47a710e47a3ce90ad3f49e13caffe4704cabb69805c9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001090.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8185bff694648f560791f3a56fd835daa8dee0b670e274585e53d38731e8de22",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001111.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "35099d5c67735c0f311bfd0616397a0bbb11ec7fc328a0d617fec9cb0a1ce4a2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001216.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5d1cf0e880fccbe40eb2eca05b5764fe5b12e7ab46e0c3732d03f9cadbc008b3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001421.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "1c08bc3a96d20a16a2b2881939be1dd01c25efb9745f283fad4047a620ed9a9a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001449.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0dbd6f8acb2cc136964d5bec51b6a87f63ec0d5690df37458d74263739ac4409",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001464.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d48e805a5d103bd5638fa563f0945d3664faca3eeb0eec082c2399fbe86f8a95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001788.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "2f39854fa657bb7a92245b26382805800d6421f5b9a8eea6b8ff4dd4f6a689ee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001807.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d4703c600bd32e2c5f9282c4637a37bebc5a8a6cad7d2e0d001d571082a50d69",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\pending-action-2479-0-1792503847038324500.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9e80ad65f6604c53e8a99817d722658b9b472e9f6cdb583e4f5deade8be93b78",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000818.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12181fbb7f080a433a880c473cedb133e0eff4dd3460f86db7167bd827897047",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000832.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "868fe40c2377c7be3e52b5897114234b20f0678f95d3593fda63056048b034a8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000907.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0fccf1f94a6e2c6749be76b218426e8fa582e298aca0e9595723408998d91ffb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000996.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6be09219e7ca89305bca1795fac734c83d2c49541952411fc4cad82a9a41ab35",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001117.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "e1f06397864f63b32b869cfabe76ecac05ed609c445cc4a6a1e3b96bbdd36213",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001402.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f3a43aade84ab2ce50fd91b2d27751353eefb09a4f1c572bc45c90cb1ffb18d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2495-None-1792513212133438500.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6b7fb80ded8339c8d2ed54241aa33b9cebbc174947c907d2fd7f3fa43702c413",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5000625,
+        "cy": 0.349,
+        "pitch": 0.08093750000000002,
+        "size": [
+          0.03420000000000003,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.5575,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:1": [
+            0.314375,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:2": [
+            0.395625,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:5": [
+            0.64,
+            0.286,
+            0.04375,
+            0.126
+          ],
+          "slot:3": [
+            0.476875,
+            0.286,
+            0.046875,
+            0.126
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "109eea5b7c404432",
+      "family": "recruit",
+      "zone": "board",
+      "count": 1,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:1": [
+          0.448046875,
+          0.54625,
+          0.003124999999999989,
+          0.010000000000000009
+        ],
+        "position:board:2": [
+          0.55703125,
+          0.525,
+          0.012890625000000044,
+          0.04200000000000004
+        ],
+        "region:board": [
+          0.55703125,
+          0.525,
+          0.012890625000000044,
+          0.04200000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-coverage-20261019-x\\evidence\\frame-000021.json",
+          "group": "bridge/real-play-coverage-20261019-x",
+          "sha256": "c7b3e9100288c739c84e250dc9c3ebf934180d802bf639e592d7bd417f0bcd0c",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-upgrade-idle\\failure.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "3a419e6be3fdd2bfc04dc308a53460945541b203affd142c873214a5581ef168",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000228.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "527a2a04df9624c8f1380c74e335e55289ddef5b2cdd8290b61616136ea0068f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000297.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8e92fb284031b0f69c2c8aa53864354b65ff02c853e62af742f21442875451d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000264.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "79a06a787bd4e70cada5bb4f83a80ea087da54f7b349a7af018bb649539328bb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000328.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "e0a30d2518ffeecab7b64b39371316478e2854999fcda69a50033256431f4419",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000439.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a5f74436a8d7ad50b6e51281b861c92dd84cee6966de43517adfc20d3ec696ff",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000501.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "531dbb888a5c6c13c516ec04ff41a63f2b14569f37f787e5076d66bc7faf2b27",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000513.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "96861f01074864fad9540c462ca895c45a432c129e8c5429b89460aaf778feee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000437.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d778e03c3158c07376cf57302e365e34b1489783ab4b394cfdb3e6608b53b0e2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000484.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "010b601d8df11f89eac389e5eafff0c3765e0052692dcf344f15d023316bd15f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000132.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "d0081a63a147fb3ba508588aee3c1e0c07381ab100499e28c76cd0312d744208",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000292.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "dfea127f43d27736a3a5e864217b97ec8ec07a4bcbe04e71544821601f19e451",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000347.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "997d7531eacf6c86e8ed64638d18e96639388239cf01aa626c77067098ce5480",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000364.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0ae85eb32c3583fd159b0ba3606a6130b345d64170ba1fed0243bae30b6da194",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000255.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "c0ca9f1188ea9161e6ed0a750985c7b1718c148949c2c92b9b15c3632c16d735",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000297.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ab5b101eff68a606f826ecb2905c0efb59fcd23659696d84f3d1dd3b47864989",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000430.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6c8028ce2a88b324f4dfd5c5eba8470cd0b08cc9af86b3f5b55f2ea43ae93c3d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000483.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "fe36e51ddabd24968885960c66e38ad79707cb5704d0e2694eb669914e82118b",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.501875,
+        "cy": 0.5505,
+        "pitch": 0.08,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.465625,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "ac5ff0d2c6e9c185",
+      "family": "recruit",
+      "zone": "shop",
+      "count": 4,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-heuristic-20261019-ac\\preplay-frame.json",
+          "group": "bridge/real-play-heuristic-20261019-ac",
+          "sha256": "cba50cfff5ff7d852507565cffe797d5bf68a918e6621d2fb1583076922edd3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\before-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "59926d0f20b6da3c30e9295fff6f6eecccca3ee8a242f804ed69372e423d8aeb",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000578.json",
+          "group": "live-20261020-hud",
+          "sha256": "613ab57bbbed88c52ad08ca8683402c0bd503ea5f57b1c129d8ed418724ee2e5",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000596.json",
+          "group": "live-20261020-hud",
+          "sha256": "807af23da8fe469ebe0cdb96752fc80311400d6d802d75fb11fcffcef8c96049",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-locked-hand\\hand.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "9c2657ec7c82003cd21e4c235ed0411698832086bc8a0665091603e0a7d15348",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-5.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "44a24ee214b2b532553035d6d8a80252d2d8ea2d5278cdb41f05b642e039fc3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-upgrade-idle\\failure.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "3a419e6be3fdd2bfc04dc308a53460945541b203affd142c873214a5581ef168",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000478.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "482dbc7acb0d2666ded3cf084b71fb3b7f10e653c126c9ed619d2b33fa10bc6f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000502.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "d2150715e78934896688b1e8d4109d1e44e470230f46bbc6caeeb96adff00b8a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\pending-action-1103-0-1792485921074917600.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "68690132a678f0a1bdf9c0d847e7029980f76afccda03575096dad207605543b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000117.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "bea8f619a6d142f2ab6029e573f131926c113b4c51c68ae71b44a78c6137c47b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000297.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8e92fb284031b0f69c2c8aa53864354b65ff02c853e62af742f21442875451d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000458.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c32bba67f08bd7ddf88a00e709f65a232c383b4d905b760d2d5dadd92ef055d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000475.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "4978c0901dd48698a0d220d57411a2ccd6cb9bc2f3b2d18514548d58ed4a8cf5",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000157.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ed5db18f53d2e810a38dc5a047763ff39a043bb733370536b864c12df19965cb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000328.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "e0a30d2518ffeecab7b64b39371316478e2854999fcda69a50033256431f4419",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000439.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a5f74436a8d7ad50b6e51281b861c92dd84cee6966de43517adfc20d3ec696ff",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000626.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "00c71b836cc35d8f3de192d2dc9b4b057e1512a5e2380957bbf061a7067cf45a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001076.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "456e5e34bb85ecc5c17b177433c6fa8b8253785f3c448366d0189ec1afde0c95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001181.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a35c7523be2b177d20d97ee04ed34445788427cb349359d9fe0e29590b3e1270",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000331.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5b4ec434a4e3551d63f48d6884a9e36b1ad830981b53c275a6a2402e2b6bf799",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000484.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "010b601d8df11f89eac389e5eafff0c3765e0052692dcf344f15d023316bd15f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000634.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2254b49a93a11a77b1f716ccb619cc1d59e722e75da9789ef43239c7c715ca8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000645.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "b6df639f82f09124f902a62ea3242f659c4e8f3b4c322ec5f6734219412dd74b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000922.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "80e01766a65fc239929ce139634a58b66b0aa802042db91d732a2ef3d708d4c7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-001021.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d83032f6bbb0557360116a6dd32fe9de054e2c14a5fe1ee383508e45283eaa9c",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000239.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "a0bf7a60c881ffd799b425af2fc938671f1024ea4c574c8df8fa55e6af7c7196",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000189.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5028a2642fba7d969baddf7b026d386be45f416dda67b7a8668c08f2aa237dfa",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000347.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "997d7531eacf6c86e8ed64638d18e96639388239cf01aa626c77067098ce5480",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000364.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0ae85eb32c3583fd159b0ba3606a6130b345d64170ba1fed0243bae30b6da194",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000508.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "25e361a070f9d9348ccf8599e6574a2bb002ac918dfb76865e84c7e01ac3621f",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000694.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "acfe3d28598cbd1293d44df269e37175e40f38c33d9b2fbabe086dc78c0c4286",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001543.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "385577fa52572b3b75ee8aac2a392ff2fe6dea7e574e7e1adc9b02ef3fbc55be",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001639.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8d2e86b3dc827f9918414a373c66ea5b1827270772cf6c94cdf94d5823abfb2b",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001870.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9e0846a06d1d5b5c41eb2912b641a5bac09b80a6cf8413399c417ba73afa6acf",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001952.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "f55da90dac93e5767eb0a889136fec3e1e6f503c7ec85acab62c38b9c4c1012b",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000163.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f76f4869e9e6f74025d584aa8279737dae7fcd701247966196c7916359f2fd80",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000297.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ab5b101eff68a606f826ecb2905c0efb59fcd23659696d84f3d1dd3b47864989",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000435.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "eef0babbefa3d3528023e3c289cd4a6a52b421073070fa26d0ebebdafc6d8cf0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000446.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "a9eae6090ed2d4e28ec313663a1feda298e2eaefa7bb25db2eedbb2565507e31",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000517.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12a5ae7fafad7be788da1f53008c5df8976423a4062ccbaf5f76dee2762c2c62",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000582.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad989225aa3fcdaf354ebe8f197e188613343b048c93ffdbf30a1df7805d4348",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000595.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0ff922e13a5624ed479e34a94689cdacb5241f39a62c91334f8743b94b78a389",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001468.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "96f46f70c3bd5f1c0f78ec4796ef7353ed771b430cd86958163b9d1ec325f68e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-4128-None-1792513223287388400.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "9dfd468ab2ddc21980b96ebf41fcfdb8fd40be8b950d4bb227b0406a83247c13",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000328.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "ce6540873afc1be9cc73627523518d28960a24c82389e80a0a06e03b336443e1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000483.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "fe36e51ddabd24968885960c66e38ad79707cb5704d0e2694eb669914e82118b",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.499765625,
+        "cy": 0.349,
+        "pitch": 0.0809375000000001,
+        "size": [
+          0.03895312499999975,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.35625,
+            0.286,
+            0.04375,
+            0.126
+          ],
+          "slot:4": [
+            0.5975,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:3": [
+            0.518125,
+            0.286,
+            0.04375,
+            0.126
+          ],
+          "slot:2": [
+            0.435625,
+            0.286,
+            0.046875,
+            0.126
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "1a4795de18769017",
+      "family": "recruit",
+      "zone": "hand",
+      "count": 1,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "slot:1": [
+          0.46015625,
+          0.897,
+          0.006093750000000009,
+          0.010000000000000009
+        ]
+      },
+      "variant": "spell_row",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\bridge\\real-play-heuristic-20261019-ac\\preplay-frame.json",
+          "group": "bridge/real-play-heuristic-20261019-ac",
+          "sha256": "cba50cfff5ff7d852507565cffe797d5bf68a918e6621d2fb1583076922edd3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\before-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "59926d0f20b6da3c30e9295fff6f6eecccca3ee8a242f804ed69372e423d8aeb",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000615.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "8414fc78b1f39d730df579500ef80ec420ec51532a4f82658b3352ded155a795",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\failure-last-frame-872-None-1792502700259676500.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "51302867b0ac5d861457a0ca31bbe331862fee42895f1205b7a4d7fef94be0b7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000508.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "25e361a070f9d9348ccf8599e6574a2bb002ac918dfb76865e84c7e01ac3621f",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001216.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5d1cf0e880fccbe40eb2eca05b5764fe5b12e7ab46e0c3732d03f9cadbc008b3",
+          "role": "validation"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.4559375,
+            0.895,
+            0.0477734375,
+            0.043875
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "fc43503d37d54ace",
+      "family": "recruit",
+      "zone": "shop",
+      "count": 3,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\after-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "71dfae15ae9e6830ab88b920d1a74ef28a399efe35d63200e77fbc488066d40f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000603.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "462c555442da8c8ca9e8c56ce5c1971182e9a7e7aeb7cd7bb5e577e85495e25f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000615.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "8414fc78b1f39d730df579500ef80ec420ec51532a4f82658b3352ded155a795",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000086.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "04c85913b39152f410e327294e352dbe3d63c77464a38fd1b0ebcf8fe0ab8c99",
+          "role": "validation"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000121.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "b91eec4be3d3d2951b1964826b44ecc7692ac6b69757a14a35ba9e4717fae297",
+          "role": "validation"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000124.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "7c13e036149628f18de07379ee74a8e4765debccb6ccd0363f1660a81276adf9",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000228.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "527a2a04df9624c8f1380c74e335e55289ddef5b2cdd8290b61616136ea0068f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000264.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "79a06a787bd4e70cada5bb4f83a80ea087da54f7b349a7af018bb649539328bb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000804.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "3eaecc557d901c74db564343767c09e321759d4f92ab7ae0b5fd4eb5232dd4ac",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000913.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ced9bc65f4a65263cec5b0e725e8cfe4363f44c14b284b3f915010fc61d9447d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000437.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d778e03c3158c07376cf57302e365e34b1489783ab4b394cfdb3e6608b53b0e2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000572.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "787c4c4bce9f4dd7f563d4fa42f157a664197ba6df30fdaddbd9e60ee8884886",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000721.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2c6091b52b9ef289b50b3b60b396acc9c4707fdf5dec503fd2627b9a15594b0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000292.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "dfea127f43d27736a3a5e864217b97ec8ec07a4bcbe04e71544821601f19e451",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000532.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "6aeff65085edfd1104f4ca50e0440811c97d9d92b7babf1fc630e07762f9f841",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001255.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "674b3b1b55814b68011f9ba13548bb469f16f6b8089b43f8194cb9fda7ba10ae",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000255.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "c0ca9f1188ea9161e6ed0a750985c7b1718c148949c2c92b9b15c3632c16d735",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000376.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4e7b583a8585709d40d332944344a86482e46e479d3783ca21a8ca1605e3bd59",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000670.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad9406071a8f0e75c938192c61b4d1141e0d7fda4051e3bccbd247ae0a01bdb2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000430.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6c8028ce2a88b324f4dfd5c5eba8470cd0b08cc9af86b3f5b55f2ea43ae93c3d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\pending-action-469-None-1792579538941365800.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "95ad0be3b5686fe03665ff565404bbc2dfa8fe5a3a2915647fdde7f0217b96ff",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5001041666666667,
+        "cy": 0.349,
+        "pitch": 0.08105468749999994,
+        "size": [
+          0.037429687499999933,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.395625,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:3": [
+            0.5575,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:2": [
+            0.476875,
+            0.286,
+            0.046875,
+            0.126
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "807973f8f7315fcd",
+      "family": "recruit",
+      "zone": "board",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "region:board": [
+          0.61953125,
+          0.47625,
+          0.07046874999999997,
+          0.09674999999999995
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\after-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "71dfae15ae9e6830ab88b920d1a74ef28a399efe35d63200e77fbc488066d40f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-empty-board\\before-buy.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "59926d0f20b6da3c30e9295fff6f6eecccca3ee8a242f804ed69372e423d8aeb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000478.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "482dbc7acb0d2666ded3cf084b71fb3b7f10e653c126c9ed619d2b33fa10bc6f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000502.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "d2150715e78934896688b1e8d4109d1e44e470230f46bbc6caeeb96adff00b8a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\pending-action-1103-0-1792485921074917600.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "68690132a678f0a1bdf9c0d847e7029980f76afccda03575096dad207605543b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000117.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "bea8f619a6d142f2ab6029e573f131926c113b4c51c68ae71b44a78c6137c47b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000157.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "ed5db18f53d2e810a38dc5a047763ff39a043bb733370536b864c12df19965cb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000331.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5b4ec434a4e3551d63f48d6884a9e36b1ad830981b53c275a6a2402e2b6bf799",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000189.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5028a2642fba7d969baddf7b026d386be45f416dda67b7a8668c08f2aa237dfa",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000163.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f76f4869e9e6f74025d584aa8279737dae7fcd701247966196c7916359f2fd80",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000328.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "ce6540873afc1be9cc73627523518d28960a24c82389e80a0a06e03b336443e1",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "46d7e0769fc1fdc9",
+      "family": "recruit",
+      "zone": "board",
+      "count": 2,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:1": [
+          0.406875,
+          0.542,
+          0.004375000000000018,
+          0.016000000000000014
+        ],
+        "position:board:3": [
+          0.5975,
+          0.524,
+          0.011874999999999969,
+          0.04300000000000004
+        ],
+        "region:board": [
+          0.5975,
+          0.524,
+          0.011874999999999969,
+          0.04300000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000603.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "462c555442da8c8ca9e8c56ce5c1971182e9a7e7aeb7cd7bb5e577e85495e25f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hand-source\\frame-000615.json",
+          "group": "live-20261020-hand-source",
+          "sha256": "8414fc78b1f39d730df579500ef80ec420ec51532a4f82658b3352ded155a795",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000578.json",
+          "group": "live-20261020-hud",
+          "sha256": "613ab57bbbed88c52ad08ca8683402c0bd503ea5f57b1c129d8ed418724ee2e5",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-hud\\frame-000596.json",
+          "group": "live-20261020-hud",
+          "sha256": "807af23da8fe469ebe0cdb96752fc80311400d6d802d75fb11fcffcef8c96049",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000397.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c7e3421f0a0e19e2b4231622f3daac88816ff6f67989ca9e5123bacdc22ec84",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000458.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c32bba67f08bd7ddf88a00e709f65a232c383b4d905b760d2d5dadd92ef055d",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000475.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "4978c0901dd48698a0d220d57411a2ccd6cb9bc2f3b2d18514548d58ed4a8cf5",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000529.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "14aa2d71905e7f6035bc1a6ffc6cfd9dde485d9b99ed6eb06986df57c985d03f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000626.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "00c71b836cc35d8f3de192d2dc9b4b057e1512a5e2380957bbf061a7067cf45a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000713.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a2180a771c493924ce07f0b50fb6acceaaba0f998b5ee8a82da54b083c7554d1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000572.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "787c4c4bce9f4dd7f563d4fa42f157a664197ba6df30fdaddbd9e60ee8884886",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000634.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2254b49a93a11a77b1f716ccb619cc1d59e722e75da9789ef43239c7c715ca8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000645.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "b6df639f82f09124f902a62ea3242f659c4e8f3b4c322ec5f6734219412dd74b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000721.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f2c6091b52b9ef289b50b3b60b396acc9c4707fdf5dec503fd2627b9a15594b0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000818.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "5599a07fc4dd84d8d411610356194e82b333105966b6604520261f05e170b939",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000835.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "f29209cbb99938eac6167cc3c08253c70c956813f9c17481f1ce28c9efc447da",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000508.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "25e361a070f9d9348ccf8599e6574a2bb002ac918dfb76865e84c7e01ac3621f",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000376.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4e7b583a8585709d40d332944344a86482e46e479d3783ca21a8ca1605e3bd59",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000435.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "eef0babbefa3d3528023e3c289cd4a6a52b421073070fa26d0ebebdafc6d8cf0",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000446.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "a9eae6090ed2d4e28ec313663a1feda298e2eaefa7bb25db2eedbb2565507e31",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000517.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12a5ae7fafad7be788da1f53008c5df8976423a4062ccbaf5f76dee2762c2c62",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000582.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad989225aa3fcdaf354ebe8f197e188613343b048c93ffdbf30a1df7805d4348",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000595.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0ff922e13a5624ed479e34a94689cdacb5241f39a62c91334f8743b94b78a389",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5015625,
+        "cy": 0.5505,
+        "pitch": 0.080625,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.425,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:2": [
+            0.505625,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "6a31d48949ab0487",
+      "family": "recruit",
+      "zone": "board",
+      "count": 6,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:1": [
+          0.245703125,
+          0.54625,
+          0.0030468750000000044,
+          0.010000000000000009
+        ],
+        "position:board:7": [
+          0.76,
+          0.525,
+          0.01187500000000008,
+          0.04200000000000004
+        ],
+        "region:board": [
+          0.76,
+          0.525,
+          0.01187500000000008,
+          0.04200000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-locked-hand\\hand.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "9c2657ec7c82003cd21e4c235ed0411698832086bc8a0665091603e0a7d15348",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001255.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "674b3b1b55814b68011f9ba13548bb469f16f6b8089b43f8194cb9fda7ba10ae",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000907.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "0fccf1f94a6e2c6749be76b218426e8fa582e298aca0e9595723408998d91ffb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000996.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6be09219e7ca89305bca1795fac734c83d2c49541952411fc4cad82a9a41ab35",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001117.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "e1f06397864f63b32b869cfabe76ecac05ed609c445cc4a6a1e3b96bbdd36213",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.50166015625,
+        "cy": 0.5505,
+        "pitch": 0.08124999999999996,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.5057421875,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:1": [
+            0.2625,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:2": [
+            0.34375,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:5": [
+            0.586875,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:6": [
+            0.668125,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:3": [
+            0.425,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "be2c625f3dd87a0d",
+      "family": "recruit",
+      "zone": "hand",
+      "count": 2,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "slot:2": [
+          0.499375,
+          0.895,
+          0.04359374999999999,
+          0.04125000000000001
+        ]
+      },
+      "variant": "locked",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-locked-hand\\hand.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "9c2657ec7c82003cd21e4c235ed0411698832086bc8a0665091603e0a7d15348",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000086.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "04c85913b39152f410e327294e352dbe3d63c77464a38fd1b0ebcf8fe0ab8c99",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001176.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "219d932c60159e6ba5622c4cda613b46a7cddc7b5bdcb8b81aaa44d1d3492a61",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001252.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "1d8f924f18bda7e67d532cabaed1cd978c02c2a7a56de9c209153af21a0cadc3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2517-None-1792513107383922700.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "265c88d00e8ac7bdceca9dae1307cfe24e7955f494a07f43168e038b25a9a3ba",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {
+          "slot:2": [
+            0.49808593749999996,
+            0.8775,
+            0.0530859375,
+            0.0915
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "a2b96d20b956ac2d",
+      "family": "menu",
+      "zone": "hud",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "control:enter": [
+          0.76375,
+          0.762,
+          0.04312499999999997,
+          0.07099999999999995
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261020-start-menu\\start-menu.json",
+          "group": "live-20261020-start-menu",
+          "sha256": "587bc60a607ca3b372252d1a2529f92a15e620242ac3fbca1188f5145cbb9403",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-171220\\evidence\\frame-000001.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "d5b1dfb7b94a1dc024c4df20a4f0961c8d95910421a08299fe13e8888654b062",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-171220\\evidence\\frame-000002.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "4891aaaf5b2c66e6ac135ad7214c505103530a1613bb41f42b83d4e9f1ee3608",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "a84fa5e024be2e12",
+      "family": "recruit",
+      "zone": "board",
+      "count": 7,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:8": [
+          0.796484375,
+          0.54625,
+          0.0010156249999999645,
+          0.010000000000000009
+        ],
+        "region:board": [
+          0.61953125,
+          0.47625,
+          0.07046874999999997,
+          0.09674999999999995
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-4.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4d8e20cefc511957909627efd9f0ffbfce02273f01e46bfcb00ff57527d16111",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\tests\\fixtures\\live-20261021-mixed-hand\\mixed-5.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "44a24ee214b2b532553035d6d8a80252d2d8ea2d5278cdb41f05b642e039fc3f",
+          "role": "calibration"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000037.json",
+          "group": "v05-external",
+          "sha256": "ae6d00e131e6ae1fe0694e9d32e900a491027d7768eb122ae532b33b7232475c",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001111.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "35099d5c67735c0f311bfd0616397a0bbb11ec7fc328a0d617fec9cb0a1ce4a2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001421.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "1c08bc3a96d20a16a2b2881939be1dd01c25efb9745f283fad4047a620ed9a9a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001449.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "0dbd6f8acb2cc136964d5bec51b6a87f63ec0d5690df37458d74263739ac4409",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001464.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d48e805a5d103bd5638fa563f0945d3664faca3eeb0eec082c2399fbe86f8a95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001543.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "385577fa52572b3b75ee8aac2a392ff2fe6dea7e574e7e1adc9b02ef3fbc55be",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001639.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8d2e86b3dc827f9918414a373c66ea5b1827270772cf6c94cdf94d5823abfb2b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001788.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "2f39854fa657bb7a92245b26382805800d6421f5b9a8eea6b8ff4dd4f6a689ee",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001807.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "d4703c600bd32e2c5f9282c4637a37bebc5a8a6cad7d2e0d001d571082a50d69",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001870.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9e0846a06d1d5b5c41eb2912b641a5bac09b80a6cf8413399c417ba73afa6acf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001952.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "f55da90dac93e5767eb0a889136fec3e1e6f503c7ec85acab62c38b9c4c1012b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001176.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "219d932c60159e6ba5622c4cda613b46a7cddc7b5bdcb8b81aaa44d1d3492a61",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001252.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "1d8f924f18bda7e67d532cabaed1cd978c02c2a7a56de9c209153af21a0cadc3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001402.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f3a43aade84ab2ce50fd91b2d27751353eefb09a4f1c572bc45c90cb1ffb18d8",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001468.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "96f46f70c3bd5f1c0f78ec4796ef7353ed771b430cd86958163b9d1ec325f68e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2495-None-1792513212133438500.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "6b7fb80ded8339c8d2ed54241aa33b9cebbc174947c907d2fd7f3fa43702c413",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2517-None-1792513107383922700.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "265c88d00e8ac7bdceca9dae1307cfe24e7955f494a07f43168e038b25a9a3ba",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-4128-None-1792513223287388400.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "9dfd468ab2ddc21980b96ebf41fcfdb8fd40be8b950d4bb227b0406a83247c13",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5016964285714286,
+        "cy": 0.5505,
+        "pitch": 0.08085937500000001,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.465625,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:7": [
+            0.708125,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:1": [
+            0.2225,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:2": [
+            0.30375,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:5": [
+            0.54625,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:6": [
+            0.6275,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:3": [
+            0.384375,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "2e55caef19777043",
+      "family": "recruit",
+      "zone": "board",
+      "count": 3,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:4": [
+          0.638125,
+          0.525,
+          0.011093749999999902,
+          0.01375000000000004
+        ],
+        "region:board": [
+          0.638125,
+          0.525,
+          0.011093749999999902,
+          0.01375000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000078.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "3dc13aa9a9c5db94f448068a63d944236403b830e3a6e48950b913d7079ee523",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\failure-last-frame-1269-None-1792491481278798400.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "9d2690e9a3b1fa8f6ca8c57e3eadb8e50e402657b1b6d3568a1afb35b1a508bf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\failure-last-frame-872-None-1792502700259676500.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "51302867b0ac5d861457a0ca31bbe331862fee42895f1205b7a4d7fef94be0b7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000532.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "6aeff65085edfd1104f4ca50e0440811c97d9d92b7babf1fc630e07762f9f841",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000670.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "ad9406071a8f0e75c938192c61b4d1141e0d7fda4051e3bccbd247ae0a01bdb2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000818.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "12181fbb7f080a433a880c473cedb133e0eff4dd3460f86db7167bd827897047",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5016666666666666,
+        "cy": 0.5505,
+        "pitch": 0.0810546875,
+        "size": [
+          0.031101562500000093,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.384375,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:2": [
+            0.465625,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:3": [
+            0.54625,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "4d2c7e5c1218b25e",
+      "family": "discover",
+      "zone": "choices",
+      "count": 3,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000115.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "f5f57e4c88851a9040c03cda127cb8bb529e365a4696eaa76a23fa68bf3587a4",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000488.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "162d19319bef36f51c89eee7d875abb0701ab497be29486268680b8f5e24a765",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000521.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "e29f92f7207a81726c0eedaa06fad5a5981ea8208c9b98d40b2e31748145ceab",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000353.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "60bbf3cae3362b27ea1e0b90f2301f4006454440c2b1048b61f60d50a097356e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000521.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8e39ec224dead337d3d9b715f669db94d99ecbc8d510c2a367315cbe39692320",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001102.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "fe41b88bc14030a1fabf4af206aab6d4322af9097eca3e6b579e2bd3c5c16cc4",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001245.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "6422d5d8b2490b7483e91037bcab86df03cafff743003bc6a2836d2917204e51",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001458.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "5c6dd39dc1a70babe3dc4862116fc0c7b28c43a30a99b121695afdfeffe772e8",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.5252083333333334,
+        "cy": 0.413,
+        "pitch": 0.22499999999999998,
+        "size": [
+          0.018375000000000075,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.22875,
+            0.266,
+            0.14375,
+            0.367
+          ],
+          "slot:3": [
+            0.676875,
+            0.266,
+            0.14875,
+            0.367
+          ],
+          "slot:2": [
+            0.45,
+            0.269,
+            0.153125,
+            0.363
+          ]
+        },
+        "local": {},
+        "visibility_bounds": {
+          "slot:1": [
+            0.19140625,
+            0.2875,
+            0.1625,
+            0.375
+          ],
+          "slot:2": [
+            0.41640625,
+            0.2875,
+            0.1625,
+            0.375
+          ],
+          "slot:3": [
+            0.64140625,
+            0.2875,
+            0.1625,
+            0.375
+          ]
+        },
+        "visibility_evidence": [
+          {
+            "capture": "Backup/development/runtime/v04-capture-20261019-095650/frame-000115.png",
+            "sha256": "f5f57e4c88851a9040c03cda127cb8bb529e365a4696eaa76a23fa68bf3587a4",
+            "role": "calibration"
+          },
+          {
+            "capture": "runtime/live-play-20261020-164241/evidence/frame-000488.jpg",
+            "sha256": "162d19319bef36f51c89eee7d875abb0701ab497be29486268680b8f5e24a765",
+            "role": "validation"
+          }
+        ]
+      },
+      "session": null
+    },
+    {
+      "id": "4544719d02a7b817",
+      "family": "recruit",
+      "zone": "board",
+      "count": 5,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "position:board:1": [
+          0.285625,
+          0.54625,
+          0.003046874999999949,
+          0.010000000000000009
+        ],
+        "position:board:6": [
+          0.71953125,
+          0.525,
+          0.011718750000000111,
+          0.04200000000000004
+        ],
+        "region:board": [
+          0.71953125,
+          0.525,
+          0.011718750000000111,
+          0.04200000000000004
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\runtime\\v04-capture-20261019-095650\\frame-000124.json",
+          "group": "v04-capture-20261019-095650",
+          "sha256": "7c13e036149628f18de07379ee74a8e4765debccb6ccd0363f1660a81276adf9",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001076.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "456e5e34bb85ecc5c17b177433c6fa8b8253785f3c448366d0189ec1afde0c95",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001181.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a35c7523be2b177d20d97ee04ed34445788427cb349359d9fe0e29590b3e1270",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001327.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "7a38fa56443cca462e092dfa5547fb10d4cf16181cd6ac34d1982563fb295d97",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000773.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "4e019a38a77fad2f0f86fc2e5589fb0682153c322f1353fa91031e14f8960f43",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000878.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "752d60442b796d2a2942fd74f62fc984a882f6e07c87657658f93b38efea8f0b",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001078.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "a6676572257d541232dd47a710e47a3ce90ad3f49e13caffe4704cabb69805c9",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001090.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "8185bff694648f560791f3a56fd835daa8dee0b670e274585e53d38731e8de22",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.50175,
+        "cy": 0.5505,
+        "pitch": 0.08062500000000006,
+        "size": [
+          0.04,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:4": [
+            0.54625,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:1": [
+            0.30375,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:2": [
+            0.384375,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:5": [
+            0.6275,
+            0.474,
+            0.0725,
+            0.153
+          ],
+          "slot:3": [
+            0.465625,
+            0.474,
+            0.0725,
+            0.153
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "ef6c4a4355f4d942",
+      "family": "trinket",
+      "zone": "choices",
+      "count": 4,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000017.json",
+          "group": "v05-external",
+          "sha256": "b59bf4be94bb0345856000c57334bfe2e2afe7ae178a973c161c45027d7ec232",
+          "role": "validation"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000018.json",
+          "group": "v05-external",
+          "sha256": "7c391910ff13476ea8f15b9fb1cbe21fb520ba732a46dc49c0c05194a11af6b8",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\choice-first-2919-None-1792492659337709500.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "d9ce9edaa3346f8c4da36e3b864c7375096ef73a2fee7e8d7847ec1ec4435216",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001322.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a25b279c2aea2d654e7d26ad543cd389327cc4d81d54c29a74e84b2b61fbb60a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\choice-first-3238-None-1792503705328036600.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "51d5c8d913a8f86955d3311dbd0a13e3c0483a97c3f0c15d2e417b0a793effca",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001213.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9d64c74fac6decaf010c054cdf0ec1614a04468e89d435d04c5165a6079642bf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\choice-first-2950-None-1792513082881428600.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f718f55ce71a664608667825bc38aec2b92bdadfd8021326ca229e9acecaa592",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001114.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "85bdc4147fb685c8471ab37c493c5ba384dd2245f63913ed7b7f9250952187f0",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.50400390625,
+        "cy": 0.5528125,
+        "pitch": 0.16109374999999998,
+        "size": [
+          0.04,
+          0.017662500000000005
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.198984375,
+            0.4925,
+            0.12691406249999998,
+            0.12
+          ],
+          "slot:4": [
+            0.6819531249999999,
+            0.4925,
+            0.12691406249999998,
+            0.12
+          ],
+          "slot:3": [
+            0.520859375,
+            0.4925,
+            0.12691406249999998,
+            0.12
+          ],
+          "slot:2": [
+            0.359765625,
+            0.4925,
+            0.12691406249999998,
+            0.12
+          ]
+        },
+        "local": {
+          "selection:2": [
+            0.3578125,
+            0.270625,
+            0.13203125,
+            0.07137500000000002
+          ],
+          "selection:1": [
+            0.196484375,
+            0.270625,
+            0.13203125,
+            0.07137500000000002
+          ],
+          "selection:3": [
+            0.51875,
+            0.270625,
+            0.13242187500000002,
+            0.07137500000000002
+          ],
+          "selection:4": [
+            0.680078125,
+            0.270625,
+            0.13203124999999993,
+            0.07137500000000002
+          ]
+        }
+      },
+      "session": null
+    },
+    {
+      "id": "0020855e76ce5c73",
+      "family": "trinket",
+      "zone": "hud",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "control:confirm": [
+          0.45703125,
+          0.669,
+          0.0859375,
+          0.05599999999999994
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000017.json",
+          "group": "v05-external",
+          "sha256": "b59bf4be94bb0345856000c57334bfe2e2afe7ae178a973c161c45027d7ec232",
+          "role": "validation"
+        },
+        {
+          "capture": "Backup\\development\\runtime\\v05-external\\source\\frame-000018.json",
+          "group": "v05-external",
+          "sha256": "7c391910ff13476ea8f15b9fb1cbe21fb520ba732a46dc49c0c05194a11af6b8",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\choice-first-2919-None-1792492659337709500.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "d9ce9edaa3346f8c4da36e3b864c7375096ef73a2fee7e8d7847ec1ec4435216",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-001322.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "a25b279c2aea2d654e7d26ad543cd389327cc4d81d54c29a74e84b2b61fbb60a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\choice-first-3238-None-1792503705328036600.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "51d5c8d913a8f86955d3311dbd0a13e3c0483a97c3f0c15d2e417b0a793effca",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-001213.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "9d64c74fac6decaf010c054cdf0ec1614a04468e89d435d04c5165a6079642bf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\choice-first-2950-None-1792513082881428600.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "f718f55ce71a664608667825bc38aec2b92bdadfd8021326ca229e9acecaa592",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001114.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "85bdc4147fb685c8471ab37c493c5ba384dd2245f63913ed7b7f9250952187f0",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "5ce9f39c337c8c30",
+      "family": "hero",
+      "zone": "choices",
+      "count": 4,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\choice-first-100-None-1792485796939748600.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "2ff19994b6c19f8b2a5998fe925b3efd2bffeb248f0f66e5f3f539b1b834d71a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000041.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "d8997315d8b7b1352af48d4d8b38d72bc49b074b6bff2eeb49551c7c14d891fb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-171220\\evidence\\choice-first-110-None-1792487601006751100.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "46fcdeb300ed791902ca0a40900cbcd253410497b548c09744b1572b4acd0045",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\choice-first-111-None-1792491339120409100.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "4e73222e7ffabd8587e5e360f8b9905d1cc4fc6c3a13772180ea74d10851b834",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\choice-first-91-None-1792492281748777600.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "9167312eb8fed45179205827d8bf696d150ca2237460d99ea355d498c2d1651f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\choice-first-106-None-1792496632906343500.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d73603ee2180cef91dc22fcd89fbdd35044dc309cc16cc61503ce2da8b0e3289",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000044.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "14a3523e80a377a969120475efcad0c15df0ce67db89e947d52bcecf26b2aca6",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\choice-first-102-None-1792502545118420900.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "a60c0173b32c06b417817c70440a84b2837b44dc2a07474a79df60d56923b4bc",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\choice-first-118-None-1792503291750861900.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "60178fa610793019935067b21f2fe45d0db3f4da1a99b05195667fece27ac19c",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\choice-first-94-None-1792512700216608000.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4f121f2a163b5a1d96b8544b8aed6f58fd4a1bde94242e3da8ec0ea1ccbb8239",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000067.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "70a6f1ff7664ff628b71b66794769efae56f6f72f3280f87e8d7bd25aa0d1e37",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\choice-first-111-None-1792579454167304500.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6e5fa3184af8eac641ddf10e7500f0c7699142b574312f52e368c474c306385b",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.50498046875,
+        "cy": 0.39449999999999996,
+        "pitch": 0.1986328125000001,
+        "size": [
+          0.03902343749999988,
+          0.013500000000000012
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.143359375,
+            0.304375,
+            0.12578125,
+            0.2175
+          ],
+          "slot:4": [
+            0.737109375,
+            0.304375,
+            0.125,
+            0.22
+          ],
+          "slot:3": [
+            0.530078125,
+            0.304375,
+            0.15234375,
+            0.3375
+          ],
+          "slot:2": [
+            0.330859375,
+            0.304375,
+            0.15234375,
+            0.3375
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "1fdc1e7acf316d46",
+      "family": "hero",
+      "zone": "hud",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "control:confirm": [
+          0.46015625,
+          0.750625,
+          0.08671875000000001,
+          0.08187500000000003
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\choice-first-100-None-1792485796939748600.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "2ff19994b6c19f8b2a5998fe925b3efd2bffeb248f0f66e5f3f539b1b834d71a",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-171220\\evidence\\choice-first-110-None-1792487601006751100.json",
+          "group": "live-20261020-empty-board",
+          "sha256": "46fcdeb300ed791902ca0a40900cbcd253410497b548c09744b1572b4acd0045",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\choice-first-111-None-1792491339120409100.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "4e73222e7ffabd8587e5e360f8b9905d1cc4fc6c3a13772180ea74d10851b834",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\choice-first-91-None-1792492281748777600.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "9167312eb8fed45179205827d8bf696d150ca2237460d99ea355d498c2d1651f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\choice-first-106-None-1792496632906343500.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "d73603ee2180cef91dc22fcd89fbdd35044dc309cc16cc61503ce2da8b0e3289",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\choice-first-102-None-1792502545118420900.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "a60c0173b32c06b417817c70440a84b2837b44dc2a07474a79df60d56923b4bc",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\choice-first-118-None-1792503291750861900.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "60178fa610793019935067b21f2fe45d0db3f4da1a99b05195667fece27ac19c",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\choice-first-94-None-1792512700216608000.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "4f121f2a163b5a1d96b8544b8aed6f58fd4a1bde94242e3da8ec0ea1ccbb8239",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\choice-first-111-None-1792579454167304500.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6e5fa3184af8eac641ddf10e7500f0c7699142b574312f52e368c474c306385b",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "bba325529cf74b15",
+      "family": "menu",
+      "zone": "hud",
+      "count": 0,
+      "build": null,
+      "aspect": 1.6,
+      "regions": {
+        "control:enter": [
+          0.76375,
+          0.762,
+          0.04249999999999987,
+          0.07099999999999995
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000001.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "c0a4595db0e773c32ffba523d03f8e985b475455aeaca633096e39429fe17659",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-164241\\evidence\\frame-000002.json",
+          "group": "live-play-20261020-164241",
+          "sha256": "08a0fcefe441ae6669dad541d9dbdf6e529196f7b89a179d741a064cc3502eef",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000001.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "57634ca5f99b6a529aecd96d0d80aa72a53d405a260bc26457ecbe4369891c07",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000002.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "c1a71fa04d36b2eb90ba845653f829fcae24fca55c50e57ecb9f21c5a4a160f1",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000001.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "1d4ce5ef0b6d093f1f437bcd9a40254e6b12afbae47b22e1668ae4932e12cf5e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-183018\\evidence\\frame-000003.json",
+          "group": "live-play-20261020-183018",
+          "sha256": "b8410696c660cd40b74d33dd5c77840cd95899aae44d93c3209dab416d863b53",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000001.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "2b6c4d6534455d12ed0d97e9080d8a1b60b3d93877dc1bd43c92545c3f7206ba",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-194313\\evidence\\frame-000002.json",
+          "group": "live-20261020-locked-hand",
+          "sha256": "4d7d9d0a3213e32ae8117e233b4e12f898ffa20b1936efdd7ec6e66e7c453d31",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000001.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "c19a378f175746c4e66147718b492511b7508efa5729dc4d316361e6dd4610fb",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-212132\\evidence\\frame-000002.json",
+          "group": "live-play-20261020-212132",
+          "sha256": "a1bc73508e210fcff2238c3e1a8adbadd313ab152cd0d6277669ea5d3505d4e2",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000001.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "47d366f1832986919be1c3f0100b64edea42361d27daf3e1721f62c70157b96f",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000003.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "89c5aa976c91da43a8889f975ea03dd755b6957c3fe6c8cdf3eec87ac6b7d9ea",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-000943\\evidence\\ui-stall-None-None-1792512589354886200.json",
+          "group": "live-play-20261021-000943",
+          "sha256": "6f198530a6ecb869ce18c58fc82a9ba171a90aa08ea55d50f5a5c30a86d5feef",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000001.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "29fe348f35f5480d992625bd869bfbd19fa76c51f185b3e0f634c18dfd6742d3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000002.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "c8c31592b262ebd5532e0bf139cc933c3545874fc3be0c05a0bb05585a7a3f6e",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000001.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "6bad4e66651475e18114c0c9bc97bf824bf083bb91f79c9715bd89a1e1f99ed7",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-184331\\evidence\\frame-000002.json",
+          "group": "live-20261021-upgrade-idle",
+          "sha256": "c817ddaf62e7a2bdaace2bf8115af3b9d1f80157bf3c6b7b15855df585923b8b",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "87b723630a78a7cf",
+      "family": "recruit",
+      "zone": "shop",
+      "count": 2,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {},
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\failure-last-frame-1269-None-1792491481278798400.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "9d2690e9a3b1fa8f6ca8c57e3eadb8e50e402657b1b6d3568a1afb35b1a508bf",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000397.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "8c7e3421f0a0e19e2b4231622f3daac88816ff6f67989ca9e5123bacdc22ec84",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000621.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "94f48c81737068ae3de455217ebbea95c224704dc286c9a9e63b45cf3321eadc",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000773.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "4e019a38a77fad2f0f86fc2e5589fb0682153c322f1353fa91031e14f8960f43",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\frame-000878.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "752d60442b796d2a2942fd74f62fc984a882f6e07c87657658f93b38efea8f0b",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261020-213348\\evidence\\pending-action-1740-0-1792503501621134300.json",
+          "group": "live-play-20261020-213348",
+          "sha256": "ff1a715ea460fb22e79fd373c20792d9115fb2cad9d44761e4c037143eaece70",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001176.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "219d932c60159e6ba5622c4cda613b46a7cddc7b5bdcb8b81aaa44d1d3492a61",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-001252.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "1d8f924f18bda7e67d532cabaed1cd978c02c2a7a56de9c209153af21a0cadc3",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\ui-slow-2517-None-1792513107383922700.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "265c88d00e8ac7bdceca9dae1307cfe24e7955f494a07f43168e038b25a9a3ba",
+          "role": "calibration"
+        }
+      ],
+      "model": {
+        "kind": "centered_row",
+        "cx": 0.50015625,
+        "cy": 0.349,
+        "pitch": 0.0808593749999999,
+        "size": [
+          0.03832031249999992,
+          0.05
+        ]
+      },
+      "probes": {
+        "slot_bounds": {
+          "slot:1": [
+            0.436875,
+            0.286,
+            0.046875,
+            0.126
+          ],
+          "slot:2": [
+            0.518125,
+            0.286,
+            0.04375,
+            0.126
+          ]
+        },
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "892c1afcf53dcd97",
+      "family": "discover",
+      "zone": "hud",
+      "count": 0,
+      "build": "254477",
+      "aspect": 1.6,
+      "regions": {
+        "control:confirm": [
+          0.473125,
+          0.7,
+          0.06125000000000003,
+          0.026000000000000023
+        ]
+      },
+      "variant": "default",
+      "status": "verified",
+      "provenance": [
+        {
+          "capture": "runtime\\live-play-20261020-181512\\evidence\\frame-000469.json",
+          "group": "live-play-20261020-181512",
+          "sha256": "915738d0ae4b94f044692262a7b64a751ba05652aed472cf2cc83f3df6b10985",
+          "role": "validation"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000441.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "7cfb50bf1eb11587d5af7e572e215de009745946679f321c7e14b4d43eeb9b35",
+          "role": "calibration"
+        },
+        {
+          "capture": "runtime\\live-play-20261021-001004\\evidence\\frame-000829.json",
+          "group": "live-20261021-mixed-hand",
+          "sha256": "eaae963c9aecdbf12829878f5d0328869e63be96cfb1c39c7ede739c1625cdd1",
+          "role": "calibration"
+        }
+      ],
+      "model": {},
+      "probes": {
+        "slot_bounds": {},
+        "local": {}
+      },
+      "session": null
+    },
+    {
+      "id": "dark-gift-3-20261022",
+      "family": "dark_gift",
+      "zone": "choices",
+      "count": 3,
+      "build": "254477",
+      "aspect": 1.6,
+      "status": "verified",
+      "regions": {
+        "slot:1": [
+          0.26015625,
+          0.3775,
+          0.0046875,
+          0.0075
+        ],
+        "slot:2": [
+          0.49765625,
+          0.3775,
+          0.0046875,
+          0.0075
+        ],
+        "slot:3": [
+          0.73515625,
+          0.3775,
+          0.0046875,
+          0.0075
+        ]
+      },
+      "probes": {
+        "local_profile": false,
+        "geometry_only_evidence": true,
+        "slot_bounds": {
+          "slot:1": [
+            0.175,
+            0.19375,
+            0.175,
+            0.41875
+          ],
+          "slot:2": [
+            0.4125,
+            0.19375,
+            0.175,
+            0.41875
+          ],
+          "slot:3": [
+            0.65,
+            0.19375,
+            0.175,
+            0.41875
+          ]
+        }
+      },
+      "provenance": [
+        {
+          "capture": "runtime/live-play-20261020-183018/evidence/frame-000508.jpg",
+          "sha256": "a8f71c3f24614b6109e018e20cad8a6b0b50d388d715ee1d2828990de9eee9a5",
+          "role": "calibration",
+          "geometry_only_review": true
+        },
+        {
+          "capture": "runtime/live-play-20261022-102302/evidence/pending-action-1227-None-1792635994438207900.png",
+          "sha256": "3e53ce6f27c6bf0d5d3fb4895cbcd7786f5f872a3589ff408d3eaf882e6f78c5",
+          "role": "validation",
+          "geometry_only_review": true
+        }
+      ]
+    }
+  ]
+}

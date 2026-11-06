@@ -1,0 +1,155 @@
+{
+  "1": {
+    "encounters": 96,
+    "observed_p50_strength": 5.0,
+    "min_minions": 1,
+    "p50_minions": 1.0,
+    "p50_max_minion_share": 1.0,
+    "max_minion_share": 1.0,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "2": {
+    "encounters": 96,
+    "observed_p50_strength": 12.0,
+    "min_minions": 1,
+    "p50_minions": 2.0,
+    "p50_max_minion_share": 0.6,
+    "max_minion_share": 1.0,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "3": {
+    "encounters": 96,
+    "observed_p50_strength": 16.5,
+    "min_minions": 1,
+    "p50_minions": 2.5,
+    "p50_max_minion_share": 0.5119047619047619,
+    "max_minion_share": 1.0,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "4": {
+    "encounters": 96,
+    "observed_p50_strength": 28.0,
+    "min_minions": 2,
+    "p50_minions": 4.0,
+    "p50_max_minion_share": 0.35294117647058826,
+    "max_minion_share": 0.631578947368421,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "5": {
+    "encounters": 96,
+    "observed_p50_strength": 34.0,
+    "min_minions": 2,
+    "p50_minions": 4.0,
+    "p50_max_minion_share": 0.35135135135135137,
+    "max_minion_share": 0.8928571428571429,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "6": {
+    "encounters": 96,
+    "observed_p50_strength": 58.5,
+    "min_minions": 3,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.2857142857142857,
+    "max_minion_share": 0.6138613861386139,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "7": {
+    "encounters": 96,
+    "observed_p50_strength": 61.5,
+    "min_minions": 6,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.29850746268656714,
+    "max_minion_share": 0.5555555555555556,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "8": {
+    "encounters": 96,
+    "observed_p50_strength": 116.5,
+    "min_minions": 6,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.2743516761543327,
+    "max_minion_share": 0.6396396396396397,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "9": {
+    "encounters": 92,
+    "observed_p50_strength": 236.0,
+    "min_minions": 6,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.30434782608695654,
+    "max_minion_share": 0.648936170212766,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "10": {
+    "encounters": 86,
+    "observed_p50_strength": 589.0,
+    "min_minions": 7,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.31626506024096385,
+    "max_minion_share": 0.6861167002012073,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "11": {
+    "encounters": 83,
+    "observed_p50_strength": 1157,
+    "min_minions": 7,
+    "p50_minions": 7,
+    "p50_max_minion_share": 0.3262146289375334,
+    "max_minion_share": 0.6375,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "12": {
+    "encounters": 88,
+    "observed_p50_strength": 2724.5,
+    "min_minions": 6,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.3052345343303875,
+    "max_minion_share": 0.5624753646038628,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "13": {
+    "encounters": 61,
+    "observed_p50_strength": 4278,
+    "min_minions": 6,
+    "p50_minions": 7,
+    "p50_max_minion_share": 0.30781920158363574,
+    "max_minion_share": 0.6200050903537796,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "14": {
+    "encounters": 22,
+    "observed_p50_strength": 7434.5,
+    "min_minions": 6,
+    "p50_minions": 7.0,
+    "p50_max_minion_share": 0.3122782279547476,
+    "max_minion_share": 0.5594690684996445,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "15": {
+    "encounters": 5,
+    "observed_p50_strength": 9297,
+    "min_minions": 7,
+    "p50_minions": 7,
+    "p50_max_minion_share": 0.2790194664744052,
+    "max_minion_share": 0.3160159191136926,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "16": {
+    "encounters": 3,
+    "observed_p50_strength": 8075,
+    "min_minions": 7,
+    "p50_minions": 7,
+    "p50_max_minion_share": 0.3499134267275303,
+    "max_minion_share": 0.42229102167182664,
+    "note": "conditional actual Dev encounters; not full library population"
+  },
+  "17": {
+    "encounters": 1,
+    "observed_p50_strength": 16306,
+    "min_minions": 7,
+    "p50_minions": 7,
+    "p50_max_minion_share": 0.22396663804734454,
+    "max_minion_share": 0.22396663804734454,
+    "note": "conditional actual Dev encounters; not full library population"
+  }
+}

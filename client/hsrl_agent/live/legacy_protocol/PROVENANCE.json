@@ -1,0 +1,30 @@
+{
+  "purpose": "Selected log parser and immutable wire model; own pipeline replaces legacy policy, action mapping, geometry, execution and recovery",
+  "source_repository": "D:/HearthstoneAI (read only user project)",
+  "files": {
+    "model.py": {
+      "source": "D:\\HearthstoneAI\\integrations\\hs_client\\src\\bg_agent\\model.py",
+      "source_sha256": "923497d581f954be2b2809a5ab13bcab347f939d351d45c5a36145d7385e51f5",
+      "sha256": "7323af4e4481e5b129ed3a3625be9acb5e8f1fd5e8eb256eca3f5e473e076c59",
+      "adaptations": [
+        "Protocol data/byte-log interpretation only; no policy/executor imported"
+      ]
+    },
+    "power.py": {
+      "source": "D:\\HearthstoneAI\\integrations\\hs_client\\src\\bg_agent\\power.py",
+      "source_sha256": "c90f5b8602ffd089d84ba0c1df3c66878e343c33c9c4ca82f510d3d5128d16b7",
+      "sha256": "d64d47d262c7d8e008e3bbf08be0b0fcc0b104a38c545c763c7b6a19aa444553",
+      "adaptations": [
+        "Receipt constant dependency isolated; legacy action projection is overridden and unused"
+      ]
+    },
+    "client_objects.py": {
+      "source": "D:\\HearthstoneAI\\integrations\\hs_client\\src\\bg_agent\\client_objects.py",
+      "source_sha256": "884043192e86e3fb930e9b92b556d276bdd96b50370daa410e04861a71031518",
+      "sha256": "04126a46e9878975c1821c24d50ca43755737000a1d7e490e0f18f10723c4cbf",
+      "adaptations": [
+        "Protocol data/byte-log interpretation only; no policy/executor imported"
+      ]
+    }
+  }
+}

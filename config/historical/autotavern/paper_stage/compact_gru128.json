@@ -1,0 +1,61 @@
+{
+  "device": "cuda",
+  "n_games": 16,
+  "learner_seats": 1,
+  "threads": 12,
+  "torch_threads": 2,
+  "iterations": 200,
+  "bc_waves": 4,
+  "bc_epochs": 1,
+  "epochs": 1,
+  "seq_len": 32,
+  "memory_horizon": 128,
+  "gae_lambda": 1.0,
+  "bc_rank_coef": 0.1,
+  "eval_seeds": [
+    900000000,
+    900100000
+  ],
+  "chunks_per_batch": 32,
+  "dim": 128,
+  "layers": 3,
+  "heads": 4,
+  "hidden": 256,
+  "eval_every": 10,
+  "eval_games": 16,
+  "rules": {
+    "content": "Implemented",
+    "record_log": false,
+    "max_turns": 100,
+    "turn_action_caps": [
+      200
+    ],
+    "max_actions_per_turn": 200,
+    "hero_bans": [],
+    "max_moves_per_turn": 0,
+    "block_move_cycles": false,
+    "lobby_types": [],
+    "dark_gift_pair_bans": [
+      [
+        "BG36_849",
+        "BG36_MidGameEffect_000t60"
+      ],
+      [
+        "BG23_318",
+        "BG36_MidGameEffect_000t16"
+      ],
+      [
+        "BG36_360t5",
+        "BG36_MidGameEffect_000t15"
+      ]
+    ]
+  },
+  "decision_budget": 200000,
+  "lr": 3e-05,
+  "entropy": 0.005,
+  "opponent_mode": "bots",
+  "bot_profile": "mixed",
+  "anchor_coef": 0.0,
+  "anchor_iterations": 0,
+  "policy_kind": "compact_gru"
+}

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "layout": "v05_single_battlegrounds",
+  "reference_size": [2560, 1600],
+  "provenance": "Existing v05 UI calibration and archived recruit frames; frame-000615 in live-play-20261020-135829 proves the resource HUD false-positive.",
+  "coordinate_note": "Normalized client bounds restrict candidates, never generate click coordinates. Modal choices use their separate measured layout.",
+  "zones": {
+    "hand": [0.18, 0.80, 0.82, 1.0],
+    "shop": [0.18, 0.23, 0.84, 0.49],
+    "board": [0.18, 0.43, 0.86, 0.72]
+  },
+  "forbidden": {
+    "resource_hud": [0.64, 0.90, 0.82, 1.0]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "timing": {
+    "iterations": 3551,
+    "ppo_s": 52033.78900000002,
+    "parent_read_s": 1638.2609999999972,
+    "build_batch_s": 1705.950000000004,
+    "checkpoint_save_publish_s": 2571.3158169810195,
+    "pipeline_fallback_wait_s": 68.696,
+    "ppo_inner_s": 39998.91601109505,
+    "batch_wait_s": 3147.451635870617,
+    "before_ppo_s": 1385.8399237249978,
+    "iteration_s": 60194.3131966067,
+    "post_ppo_s": 3627.2230460152496,
+    "samples": 400920544,
+    "processed": 399364028
+  },
+  "last200": {
+    "approx_kl": 0.005622387642872517,
+    "entropy": 0.5464866233002199,
+    "value_loss": 1.1480156975653462,
+    "policy_loss": 0.002816414695356707,
+    "anchor_kl": 0.1343708710576407,
+    "lr": 1.74631666661593e-06
+  },
+  "first200": {
+    "approx_kl": 0.0066969822140365565,
+    "entropy": 0.5251413496777311,
+    "value_loss": 1.2191981840521782,
+    "policy_loss": 0.0030652995103637175,
+    "anchor_kl": 0.11017644965888161,
+    "lr": 1.85801666663827e-06
+  },
+  "preexisting_pool_observation_iterations": 11
+}

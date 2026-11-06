@@ -1,0 +1,10 @@
+{
+  "schema": "hsai.live-model/v1",
+  "model_id": "nus-1080772-step-006039",
+  "checkpoint": "artifacts/models/nus-1080772/step-006039-210m/model.pt",
+  "sha256": "eb91fd41fa9957bd259d6f0fba7cb5eecdddc91dd85a8f212d2dafaa79ad3f66",
+  "trained_game_version": "37.0.2.256589",
+  "required_client_build": 256589,
+  "selection_reason": "最新已下载冻结模型；不是24小时训练终点，也不表示强于5506",
+  "real_game_accepted": false
+}

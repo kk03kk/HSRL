@@ -1,0 +1,26 @@
+{
+  "source_project": "D:\\HearthstoneAI",
+  "source_base_commit": "e527d7dab014c9604a5132c572a3546119455d92",
+  "source_files": {
+    "integrations/hs_client/src/bg_agent/live_interactions.py": "0460ec8031ae4e36645d2a7ce3c16a13249d2a3cd71ecdb0dba540e4bfb68c95",
+    "integrations/hs_client/src/bg_agent/trinket_mapping.py": "3c58bc72814d0de9866b650a222cd9014f2df683b62d01ddfac57509dafed988",
+    "integrations/hs_client/src/bg_agent/live_choices.py": "127ee77f2895d4785ffd316ee651f6c6b5c56168d0834f57ced352f11a64eb6b",
+    "integrations/hs_client/src/bg_agent/local_action_ready.py": "c6bbcd5012e8515bdba9c868a14d89cb11d5164d26f3b22ed775d966277ede0a",
+    "integrations/hs_client/src/bg_agent/client_readiness.py": "14a45ef9cef652d095dad80556094a7e610ae4c082ec3dc4a82742073306d52d"
+  },
+  "adaptation": [
+    "PIL input and normalized calibrated hits; no dependency on old project at runtime",
+    "Positive complete discovery/quest rails; calibrated fallback for split discovery contours",
+    "Purple lower-body paired trinket rails, without copying art/title templates",
+    "Freshness and binding remain HSRL controller responsibilities; no strategic policy reused",
+    "20:31 run: HERO_POWER wide-card bounds, measured paired green rails despite split legendary decoration, and stable measured choice geometry with a quiet selected hit patch",
+    "Prewarm known-interruption OCR during unavoidable choice entrance; keep positive row, fresh two-frame and pre-press proof",
+    "21:52 run: share independent per-slot long green rails with branch detection when background highlights distort outer contours; never borrow a neighboring candidate edge; preserve disabled-state and hover checks"
+  ],
+  "license_note": "User-owned local reference project; no root LICENSE file found. Local adaptation only, no publication performed.",
+  "verification": "tests/test_live_chain_audit.py; tests/test_live_2031_regressions.py; runs/live-2031-fix-20261029; historical 254477 corpus plus two saved current 255790 ready rows and shop/entrance negatives; tests/test_live_2152_regressions.py; runs/live-2152-fix-20261029/branch-corpus.json (two current 255790 flag frames plus shop/entrance negatives)",
+  "known_limits": [
+    "Two current 255790 ready rows are validated offline (triple and hero-power choice). End-to-end timing and continuous gameplay still require user-executed acceptance.",
+    "Two of 21 trinket crops lack complete first-card left rail and conservatively wait."
+  ]
+}

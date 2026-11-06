@@ -1,0 +1,25 @@
+{
+  "format": "hsrl.bot-continuation.v1",
+  "training_base": "configs/main_training_5m.json",
+  "target_total_decisions": 50000000,
+  "job_minutes": 390,
+  "final_reserve_minutes": 40,
+  "eval_every_decisions": 5000000,
+  "validation_games": 256,
+  "h2h_every_decisions": 10000000,
+  "diagnostic_h2h_games": 128,
+  "final_bot_games": 2048,
+  "final_h2h_games": 512,
+  "validation_seed": 2000290000,
+  "final_seed": 2100290000,
+  "parent": {
+    "job_id": "1031607",
+    "decisions": 5022890,
+    "iteration": 91,
+    "optimizer_steps": 654,
+    "identity": "61e0ce37cf4357b95ef0ac77167a0c7ee58f01f8cbcb5eed4c2e585da4d7c2a2",
+    "model_sha256": "4fff3db9224ee9d106b679e674d9647445cbbbdd3e8da0d645f11678421daf38",
+    "trainer_sha256": "b2f23dace48bac05d2aa1358d2e72d7f2e71fec3b48f6cec0926a5634b9a0821",
+    "initial_sha256": "116eb3df777ac0d0b47921372c4a41cd3ad5bf5fecac36af27354dc227a92dbb"
+  }
+}

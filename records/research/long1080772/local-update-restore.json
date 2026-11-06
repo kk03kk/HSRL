@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "source_version": 7357,
+  "final_probe_version": 7359,
+  "adam_step_before": 545990.0,
+  "adam_step_after": 545992.0,
+  "optimizer_steps": [
+    1,
+    1
+  ],
+  "source_unchanged": true,
+  "scope": "real16M_model_synthetic_two_sample_CPU_batch_not_gameplay_or_GPU_performance",
+  "probe_output_not_training_start": true
+}

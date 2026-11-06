@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "source_sample": "D:\\HS\\runtime\\v04-capture-20261019-095650\\frame-000013.json",
+  "source_sha256": "2c7a5764f45a648f402a313723ea595f1b443bf28a3efb87aabbbcd1a86eece3",
+  "source_window": "1575614:37420:134368484545659936:d:\\hearthstone\\hearthstone.exe:UnityWndClass",
+  "phase": "recruit",
+  "build": "254477",
+  "width": 2560,
+  "height": 1600,
+  "entries": [
+    {
+      "key": "scene:recruit",
+      "rect": [
+        1172,
+        169,
+        223,
+        258
+      ],
+      "patch": [
+        1225,
+        212,
+        110,
+        142
+      ],
+      "template": "template-004.png",
+      "rect_uv": [
+        0.4578125,
+        0.105625,
+        0.087109375,
+        0.16125
+      ],
+      "patch_uv": [
+        0.478515625,
+        0.1325,
+        0.04296875,
+        0.08875
+      ]
+    },
+    {
+      "key": "control:refresh",
+      "rect": [
+        1466,
+        183,
+        126,
+        221
+      ],
+      "patch": [
+        1492,
+        269,
+        82,
+        90
+      ],
+      "template": "template-005.png",
+      "rect_uv": [
+        0.57265625,
+        0.114375,
+        0.04921875,
+        0.138125
+      ],
+      "patch_uv": [
+        0.5828125,
+        0.168125,
+        0.03203125,
+        0.05625
+      ]
+    },
+    {
+      "key": "control:upgrade",
+      "rect": [
+        954,
+        186,
+        153,
+        219
+      ],
+      "patch": [
+        993,
+        271,
+        81,
+        82
+      ],
+      "template": "template-006.png",
+      "rect_uv": [
+        0.37265625,
+        0.11625,
+        0.059765625,
+        0.136875
+      ],
+      "patch_uv": [
+        0.387890625,
+        0.169375,
+        0.031640625,
+        0.05125
+      ]
+    },
+    {
+      "key": "control:freeze",
+      "rect": [
+        1625,
+        167,
+        133,
+        179
+      ],
+      "patch": [
+        1655,
+        237,
+        74,
+        74
+      ],
+      "template": "template-007.png",
+      "rect_uv": [
+        0.634765625,
+        0.104375,
+        0.051953125,
+        0.111875
+      ],
+      "patch_uv": [
+        0.646484375,
+        0.148125,
+        0.02890625,
+        0.04625
+      ]
+    },
+    {
+      "key": "control:hero_power",
+      "rect": [
+        1466,
+        1106,
+        162,
+        228
+      ],
+      "patch": [
+        1501,
+        1186,
+        83,
+        91
+      ],
+      "template": "template-008.png",
+      "rect_uv": [
+        0.57265625,
+        0.69125,
+        0.06328125,
+        0.1425
+      ],
+      "patch_uv": [
+        0.586328125,
+        0.74125,
+        0.032421875,
+        0.056875
+      ]
+    }
+  ],
+  "review_note": "Manually reviewed real screenshot frame-000013; entity links use logged card_id and zone position. Target rectangles and appearance crops annotated in physical client pixels. No native input tested."
+}

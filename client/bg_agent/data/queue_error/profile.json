@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "size": [
+    1280,
+    800
+  ],
+  "regions": {
+    "message": [
+      460,
+      358,
+      887,
+      407
+    ],
+    "title": [
+      580,
+      303,
+      696,
+      329
+    ],
+    "confirm": [
+      596,
+      460,
+      678,
+      498
+    ]
+  },
+  "source_sha256": "601c90d8cec060acdf45c4bcc181fcc736d7fba7908e0e11d132ccf351fd1a5e",
+  "message": "由于你的对手无法连接，游戏无法继续。请再试一次。",
+  "scope": "known pre-game matchmaking-cancelled modal only"
+}

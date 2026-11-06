@@ -1,0 +1,6 @@
+{
+  "game_directory_property": "HearthstoneDir",
+  "required_external_assemblies": ["BepInEx/core/BepInEx.dll", "BepInEx/core/0Harmony.dll", "Hearthstone_Data/Managed/Assembly-CSharp.dll", "Hearthstone_Data/Managed/UnityEngine.dll", "Hearthstone_Data/Managed/UnityEngine.CoreModule.dll", "Hearthstone_Data/Managed/Newtonsoft.Json.dll"],
+  "target_framework": "netstandard2.0",
+  "external_sdk_is_not_bundled": true
+}

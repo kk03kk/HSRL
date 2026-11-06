@@ -1,0 +1,15 @@
+{
+  "template": "currency-marker.png",
+  "width": 2560,
+  "height": 1600,
+  "source_image": "D:\\HS\\runtime\\v04-capture-20261019-095650\\frame-000086.png",
+  "sha256": "04c85913b39152f410e327294e352dbe3d63c77464a38fd1b0ebcf8fe0ab8c99",
+  "patch": [
+    1024,
+    1378,
+    1073,
+    1431
+  ],
+  "purpose": "generic UI currency emblem at card corner, not card art or a card-id template",
+  "development_frame": true
+}

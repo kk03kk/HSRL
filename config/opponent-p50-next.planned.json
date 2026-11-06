@@ -1,0 +1,79 @@
+{
+  "schema": "hsai.opponent_curve_proposal/v1",
+  "status": "implemented_pending_formal_nus_build_and_gpu_acceptance",
+  "date": "2026-11-06",
+  "primary_statistic": "weighted_P50_of_per_board_sum_attack_plus_health",
+  "reference": "Firestone 20261106 snapshot / build255790 / Train777 replays",
+  "train_targets": {
+    "1": 5,
+    "2": 5,
+    "3": 12,
+    "4": 20,
+    "5": 30,
+    "6": 50,
+    "7": 80,
+    "8": 140,
+    "9": 350,
+    "10": 700,
+    "11": 1500,
+    "12": 3000,
+    "13": 6000,
+    "14": 10000,
+    "15": 13000,
+    "16": 25000,
+    "17": 30000,
+    "18": 40000,
+    "19": 45000
+  },
+  "dev_test_targets": {
+    "1": 5,
+    "2": 5,
+    "3": 16,
+    "4": 27,
+    "5": 42,
+    "6": 70,
+    "7": 115,
+    "8": 190,
+    "9": 390,
+    "10": 790,
+    "11": 1625,
+    "12": 3485,
+    "13": 6765,
+    "14": 12000,
+    "15": 15865,
+    "16": 29345,
+    "17": 38000,
+    "18": 47000,
+    "19": 55000
+  },
+  "transition": {
+    "new_decisions": 30000000,
+    "turns_1_to_8": "target_from_start",
+    "turns_9_to_19": "linear_interpolation_of_P50_target_from_previous_verified_runtime_sampling_P50_to_final_target",
+    "initial_target_requires_previous_bank_frames": true,
+    "implementation": "four fixed stages at0/10M/20M/30M; progress0,1/3,2/3,1; rounded PPO iteration boundaries"
+  },
+  "tail": {
+    "after_turn": 19,
+    "train_target": 45000,
+    "dev_test_target": 55000,
+    "source": "last_qualified_source_turn",
+    "record_tail_reserve": true
+  },
+  "release_requirements": [
+    "implement P50 calibration; do not reuse mean-scaling targets as P50 claims",
+    "verify actual runtime sampling weights and per-turn P50; tolerance max(1 point,2% target)",
+    "preserve split-independent source games and seeds",
+    "report P25/P50/P75/P90, mean, source games, frame count, board count and tail source turn",
+    "verify strict live-seat injection and source coverage; never relabel sparse source turns",
+    "freeze new evaluation protocol; historical protocols remain separate"
+  ],
+  "late_reference_warning": "T16 has58 source replays; T17 has16; T18 has4; T19 has2. Targets17-19 are designed/smoothed, not reliable empirical human quantiles.",
+  "changes_running_training": false,
+  "performance_stop_policy": "normal rank fluctuation does not stop training; retain engineering and data-integrity guards",
+  "source_filter": "turn>=10 requires>=5 minions; preserve all minion identities and mechanism state",
+  "tail_distribution_bounds": [
+    0.25,
+    3.0
+  ]
+}

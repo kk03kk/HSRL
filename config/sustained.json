@@ -1,0 +1,10 @@
+{
+  "budget_decisions": 10000000,
+  "monitor_every": 2000000,
+  "monitor_games": 16,
+  "eval_games": 64,
+  "wall_minutes": 540,
+  "reserve_minutes": 75,
+  "anchor_iterations": 250,
+  "anchor_beta_tail": 0.02
+}

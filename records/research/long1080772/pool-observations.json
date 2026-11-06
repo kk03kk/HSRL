@@ -1,0 +1,889 @@
+[
+  {
+    "iter": 4215,
+    "observations": [
+      {
+        "turn": 11,
+        "balance_before": [
+          1558,
+          1558
+        ],
+        "balance_after": [
+          1558,
+          1558
+        ],
+        "species_before": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1558,
+          1558
+        ],
+        "balance_after": [
+          1558,
+          1558
+        ],
+        "species_before": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1558,
+          1558
+        ],
+        "balance_after": [
+          1558,
+          1558
+        ],
+        "species_before": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 14,
+        "balance_before": [
+          1558,
+          1558
+        ],
+        "balance_after": [
+          1558,
+          1558
+        ],
+        "species_before": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG34_170: pool 14 != 13",
+          "BG36_242: pool 10 != 11"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 4455,
+    "observations": [
+      {
+        "turn": 11,
+        "balance_before": [
+          1524,
+          1524
+        ],
+        "balance_after": [
+          1524,
+          1524
+        ],
+        "species_before": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1524,
+          1524
+        ],
+        "balance_after": [
+          1524,
+          1524
+        ],
+        "species_before": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1524,
+          1524
+        ],
+        "balance_after": [
+          1524,
+          1524
+        ],
+        "species_before": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 14,
+        "balance_before": [
+          1524,
+          1524
+        ],
+        "balance_after": [
+          1524,
+          1524
+        ],
+        "species_before": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG36_108: pool 14 != 13",
+          "BG36_372: pool 10 != 11"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 4535,
+    "observations": [
+      {
+        "turn": 9,
+        "balance_before": [
+          1604,
+          1604
+        ],
+        "balance_after": [
+          1604,
+          1604
+        ],
+        "species_before": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "species_after": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 10,
+        "balance_before": [
+          1604,
+          1604
+        ],
+        "balance_after": [
+          1604,
+          1604
+        ],
+        "species_before": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "species_after": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1604,
+          1604
+        ],
+        "balance_after": [
+          1604,
+          1604
+        ],
+        "species_before": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "species_after": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1604,
+          1604
+        ],
+        "balance_after": [
+          1604,
+          1604
+        ],
+        "species_before": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "species_after": [
+          "BG26_810: pool 12 != 11",
+          "BG33_821: pool 8 != 9"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 4592,
+    "observations": [
+      {
+        "turn": 10,
+        "balance_before": [
+          1580,
+          1580
+        ],
+        "balance_after": [
+          1580,
+          1580
+        ],
+        "species_before": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1580,
+          1580
+        ],
+        "balance_after": [
+          1580,
+          1580
+        ],
+        "species_before": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1580,
+          1580
+        ],
+        "balance_after": [
+          1580,
+          1580
+        ],
+        "species_before": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1580,
+          1580
+        ],
+        "balance_after": [
+          1580,
+          1580
+        ],
+        "species_before": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG36_763: pool 12 != 13",
+          "BGS_034: pool 16 != 15"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 5628,
+    "observations": [
+      {
+        "turn": 10,
+        "balance_before": [
+          1571,
+          1571
+        ],
+        "balance_after": [
+          1571,
+          1571
+        ],
+        "species_before": [
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15"
+        ],
+        "species_after": [
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1571,
+          1571
+        ],
+        "balance_after": [
+          1571,
+          1571
+        ],
+        "species_before": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "species_after": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1571,
+          1571
+        ],
+        "balance_after": [
+          1571,
+          1571
+        ],
+        "species_before": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "species_after": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1571,
+          1571
+        ],
+        "balance_after": [
+          1571,
+          1571
+        ],
+        "species_before": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "species_after": [
+          "BG26_152: pool 6 != 7",
+          "BG29_611: pool 16 != 15",
+          "BG31_320: pool 14 != 15",
+          "BG36_320: pool 10 != 9"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 6333,
+    "observations": [
+      {
+        "turn": 11,
+        "balance_before": [
+          1512,
+          1512
+        ],
+        "balance_after": [
+          1512,
+          1512
+        ],
+        "species_before": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "species_after": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1512,
+          1512
+        ],
+        "balance_after": [
+          1512,
+          1512
+        ],
+        "species_before": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "species_after": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1512,
+          1512
+        ],
+        "balance_after": [
+          1512,
+          1512
+        ],
+        "species_before": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "species_after": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 14,
+        "balance_before": [
+          1512,
+          1512
+        ],
+        "balance_after": [
+          1512,
+          1512
+        ],
+        "species_before": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "species_after": [
+          "BG29_611: pool 16 != 15",
+          "BG36_520: pool 14 != 15"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 7127,
+    "observations": [
+      {
+        "turn": 10,
+        "balance_before": [
+          1545,
+          1545
+        ],
+        "balance_after": [
+          1545,
+          1545
+        ],
+        "species_before": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "species_after": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1545,
+          1545
+        ],
+        "balance_after": [
+          1545,
+          1545
+        ],
+        "species_before": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "species_after": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 12,
+        "balance_before": [
+          1545,
+          1545
+        ],
+        "balance_after": [
+          1545,
+          1545
+        ],
+        "species_before": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "species_after": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1545,
+          1545
+        ],
+        "balance_after": [
+          1545,
+          1545
+        ],
+        "species_before": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "species_after": [
+          "BG36_115: pool 10 != 11",
+          "BG36_360t6: pool 14 != 13"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 7230,
+    "observations": [
+      {
+        "turn": 12,
+        "balance_before": [
+          1547,
+          1547
+        ],
+        "balance_after": [
+          1547,
+          1547
+        ],
+        "species_before": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 13,
+        "balance_before": [
+          1547,
+          1547
+        ],
+        "balance_after": [
+          1547,
+          1547
+        ],
+        "species_before": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 14,
+        "balance_before": [
+          1547,
+          1547
+        ],
+        "balance_after": [
+          1547,
+          1547
+        ],
+        "species_before": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 15,
+        "balance_before": [
+          1547,
+          1547
+        ],
+        "balance_after": [
+          1547,
+          1547
+        ],
+        "species_before": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG22_202: pool 14 != 15",
+          "BG26_146: pool 16 != 15"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 7354,
+    "observations": [
+      {
+        "turn": 8,
+        "balance_before": [
+          1542,
+          1542
+        ],
+        "balance_after": [
+          1542,
+          1542
+        ],
+        "species_before": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "species_after": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 9,
+        "balance_before": [
+          1542,
+          1542
+        ],
+        "balance_after": [
+          1542,
+          1542
+        ],
+        "species_before": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "species_after": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 10,
+        "balance_before": [
+          1542,
+          1542
+        ],
+        "balance_after": [
+          1542,
+          1542
+        ],
+        "species_before": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "species_after": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1542,
+          1542
+        ],
+        "balance_after": [
+          1542,
+          1542
+        ],
+        "species_before": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "species_after": [
+          "BG25_008: pool 16 != 15",
+          "BG36_330: pool 12 != 13"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 7637,
+    "observations": [
+      {
+        "turn": 8,
+        "balance_before": [
+          1559,
+          1559
+        ],
+        "balance_after": [
+          1559,
+          1559
+        ],
+        "species_before": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 9,
+        "balance_before": [
+          1559,
+          1559
+        ],
+        "balance_after": [
+          1559,
+          1559
+        ],
+        "species_before": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 10,
+        "balance_before": [
+          1559,
+          1559
+        ],
+        "balance_after": [
+          1559,
+          1559
+        ],
+        "species_before": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "unchanged": true
+      },
+      {
+        "turn": 11,
+        "balance_before": [
+          1559,
+          1559
+        ],
+        "balance_after": [
+          1559,
+          1559
+        ],
+        "species_before": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "species_after": [
+          "BG24_500: pool 14 != 13",
+          "BG36_764: pool 10 != 11"
+        ],
+        "unchanged": true
+      }
+    ]
+  },
+  {
+    "iter": 7700,
+    "observations": [
+      {
+        "turn": 12,
+        "balance_before": [
+          1543,
+          1543
+        ],
+        "balance_after": [
+          1543,
+          1543
+        ],
+        "species_before": [
+          "BG33_924: pool 12 != 13",
+          "BG36_360t3: pool 16 != 15"
+        ],
+        "species_after": [
+          "BG33_924: pool 12 != 13",
+          "BG36_360t3: pool 16 != 15"
+        ],
+        "unchanged": true
+      }
+    ]
+  }
+]

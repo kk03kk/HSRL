@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "rust_changed": false,
+  "rust_full_this_turn": false,
+  "rust_full_required_in_nus_cpu_job": true,
+  "clean_export_tests": {
+    "passed": 226,
+    "skipped": 8,
+    "failed": 0
+  },
+  "python_source_gates": [
+    {
+      "name": "cards",
+      "passed": true,
+      "seconds": 0.08
+    },
+    {
+      "name": "engine-source",
+      "passed": true,
+      "seconds": 0.07
+    },
+    {
+      "name": "python",
+      "passed": true,
+      "seconds": 48.48
+    }
+  ],
+  "native_source_games": 48,
+  "native_derived_frames": 1469,
+  "native_library_profiles": [
+    "train-start",
+    "train-ramp1",
+    "train-ramp2",
+    "train",
+    "dev",
+    "test"
+  ],
+  "native_live_injections": 533,
+  "native_smoke_only_not_formal_coverage": true,
+  "gpu_tested_on_nus_this_turn": false,
+  "source7357_audited": true,
+  "source7710_audited": true,
+  "7357_update_restore_probe_source_unchanged": true,
+  "slurm_bash_syntax_passed": true,
+  "standard_library_submit_precheck_tested": true,
+  "no_server_jobs_submitted": true,
+  "eot_diagnostic_regression": "native plain/detail same ranks; pre-EndTurn and real EOT separately recorded",
+  "publish_scan": {
+    "tracked_files": 644,
+    "bytes": 22743232,
+    "no_models_or_credentials_or_over10MiB_files": true
+  }
+}

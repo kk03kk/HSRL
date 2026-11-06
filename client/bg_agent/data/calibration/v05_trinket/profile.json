@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "purpose": "Generic localized UI chrome only; no card art, identities, costs or slot coordinates used at runtime",
+  "width": 2560,
+  "height": 1600,
+  "templates": {
+    "title": "title.png",
+    "confirm_gray": "confirm-gray.png"
+  },
+  "source_metadata": "runtime/v05-external/source/frame-000017.json",
+  "source_capture_sha256": "b59bf4be94bb0345856000c57334bfe2e2afe7ae178a973c161c45027d7ec232",
+  "reviewer": "Codex inspected cropped generic UI title and confirm label; no human clickability validation",
+  "source_boxes": {
+    "title": [
+      1140,
+      260,
+      300,
+      95
+    ],
+    "confirm_gray": [
+      1170,
+      1070,
+      220,
+      90
+    ]
+  }
+}

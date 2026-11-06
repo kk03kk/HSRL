@@ -1,0 +1,56 @@
+{
+  "format": "hsrl.native-entity-qualification.v1",
+  "seed": 2701,
+  "device": "cuda",
+  "n_games": 128,
+  "threads": 12,
+  "torch_threads": 2,
+  "decision_budget": 250000,
+  "checkpoint_every": 10,
+  "max_minutes": 45,
+  "lr_min_ratio": 0.833,
+  "schedule_iterations": 1000,
+  "anchor_decisions": 100000,
+  "rules": {
+    "content": "Implemented",
+    "record_log": false,
+    "max_turns": 100,
+    "turn_action_caps": [
+      200
+    ],
+    "max_actions_per_turn": 200,
+    "hero_bans": [],
+    "dark_gift_pair_bans": [
+      [
+        "BG36_849",
+        "BG36_MidGameEffect_000t60"
+      ],
+      [
+        "BG23_318",
+        "BG36_MidGameEffect_000t16"
+      ],
+      [
+        "BG36_360t5",
+        "BG36_MidGameEffect_000t15"
+      ]
+    ]
+  },
+  "ppo": {
+    "epochs": 1,
+    "minibatch": 512,
+    "grad_accum": 16,
+    "lr": 6e-06,
+    "clip": 0.2,
+    "gamma": 1.0,
+    "lam": 0.995,
+    "entropy_coef": 0.002,
+    "value_coef": 0.5,
+    "pi_coef": 0.0,
+    "anchor_coef": 0.1,
+    "amp": "off",
+    "value_loss": "rank",
+    "value_head_coef": 0.0,
+    "target_kl": 0.02,
+    "max_grad_norm": 1.0
+  }
+}

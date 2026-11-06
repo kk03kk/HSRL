@@ -1,0 +1,22 @@
+{
+  "format": "hsrl.batch-efficiency-benchmark.v1",
+  "parent_job": "1032782",
+  "identity": "61e0ce37cf4357b95ef0ac77167a0c7ee58f01f8cbcb5eed4c2e585da4d7c2a2",
+  "native": "e0d808b4eb1c966d",
+  "start_decisions": 45006005,
+  "start_iteration": 785,
+  "start_optimizer_steps": 5888,
+  "parameters": 14808254,
+  "pins": {
+    "stage/model.pt": "31ef205ab5497c11dc402c36f54d4ebdf3b00954b841b698cf7f79cbf9863ac5",
+    "stage/trainer.pt": "0b6c7dbbad3fc7346fbda988e856d789e079d469cf20e78ff580b87a470258d7",
+    "general-reference.pt": "116eb3df777ac0d0b47921372c4a41cd3ad5bf5fecac36af27354dc227a92dbb",
+    "selected-bot-model.pt": "363a130d914f76e7f8fd032310a9ac91906dbd3bafba33f58d8a62e82a175bdc"
+  },
+  "pairs": 4,
+  "warmup_batches": 1,
+  "measured_batches": 2,
+  "games": 256,
+  "max_minutes": 30,
+  "minimum_exploratory_speedup": 1.1
+}

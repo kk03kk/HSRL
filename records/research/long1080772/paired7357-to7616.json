@@ -1,0 +1,26 @@
+{
+  "schema": "hsrl.paired_delta/v1",
+  "protocol_sha256": "e51924edb562fb65a4e5f1b3511f658716b7e39ddf1e02aee46fb909fcc3f072",
+  "n": 96,
+  "independent_seeds": 12,
+  "bootstrap": 5000,
+  "mean_rank_before": 3.6666666666666665,
+  "mean_rank_after": 3.8229166666666665,
+  "delta": 0.15625,
+  "ci_low": -0.2085937499999999,
+  "ci_high": 0.5,
+  "top4_delta": -0.041666666666666664,
+  "top4_delta_ci95": [
+    -0.15625,
+    0.07291666666666667
+  ],
+  "win_delta": 0.0,
+  "win_delta_ci95": [
+    -0.08333333333333333,
+    0.07291666666666667
+  ],
+  "before_sha256": "60594db00a627884d47afd4a326639ab9b1fa7c48eb88618399051d971dcff82",
+  "after_sha256": "2b5ac868ed82ae1300dd764d21afdb4f869364d5f4c18c3820bfe4e8a223ecd1",
+  "passed_hard_criterion": false,
+  "note": "负rank差表示候选改善；晋级参考不决定训练是否继续，也不替代多训练seed和封存测试"
+}

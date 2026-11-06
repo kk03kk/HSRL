@@ -1,0 +1,26 @@
+[
+  {
+    "version": 6039,
+    "seed": 11000002,
+    "turn": 1,
+    "actions": 82,
+    "counts": {
+      "buy": 1,
+      "play": 40,
+      "cancel": 40,
+      "end_turn": 1
+    }
+  },
+  {
+    "version": 6039,
+    "seed": 11000010,
+    "turn": 1,
+    "actions": 82,
+    "counts": {
+      "buy": 1,
+      "play": 40,
+      "cancel": 40,
+      "end_turn": 1
+    }
+  }
+]
