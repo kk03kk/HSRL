@@ -1,4 +1,4 @@
-"""并行采集与串行采集的固定 seed 等价回归（需要引擎 + torch）。"""
+﻿"""并行采集与串行采集的固定 seed 等价回归（需要引擎 + torch）。"""
 
 from __future__ import annotations
 
@@ -123,3 +123,42 @@ def test_rust_collector_rank_backfill_not_cross_game():
             assert len(set(int(x) for x in done)) <= 1, (g, sorted(set(done.tolist())))
     finally:
         server.close()
+
+def test_lockstep_reports_forced_tier_meta():
+    """lock-step 采集必须把强制升本的逐局/汇总统计写进 meta，且真的执行了强制。
+
+    2026-11-07 GPU 验收 1091647（--lockstep 1）跑满两轮，history 里
+    ``forced_tier.prob=0.0 / forced_actions=0 / targets={}``：生产路径
+    ``collect_ppo_lockstep`` 没有把 ``forced_tier_game`` 汇总进 meta（只有
+    ``_one_game`` / ``collect_ppo_records_parallel`` 有）。验收门禁因此永远
+    拿不到证据，12 小时长训也会在"机制空转"下白跑。
+    """
+    pytest.importorskip("torch")
+    pytest.importorskip("hsbg_engine")
+    from hsbg.az.train.batch_eval import BatchLeafServer, BatchPPOEvaluator
+    from hsbg.az.train.model import build_net
+    from hsbg.az.train.parallel_collect import collect_ppo_lockstep
+    from hsbg.az.train.ppo import CollectConfig
+
+    model = build_net(arch="tiny")
+    model.eval()
+    server = BatchLeafServer(model, device="cpu", batch_size=32, max_wait_ms=1.0)
+    try:
+        cfg = CollectConfig(games=4, seed=17, opponent="bot", behavior="net",
+                            max_steps=20000, lockstep=True, fast_act=True,
+                            max_actions_per_turn=80,
+                            forced_tier_plan="2:2,5:3", forced_tier_carry=1,
+                            forced_tier_prob=1.0, forced_tier_teacher=True)
+        records, meta = collect_ppo_lockstep(model, cfg, eval_fn=BatchPPOEvaluator(server),
+                                             device="cpu", seed=17, games=4)
+    finally:
+        server.close()
+    assert "forced_tier" in meta, "lockstep meta 缺少 forced_tier 汇总"
+    forced = meta["forced_tier"]
+    assert forced["plan"] == "2:2,5:3"
+    assert forced["prob"] == pytest.approx(1.0)
+    assert int(forced["forced_actions"]) > 0, "强制升本一次都没执行"
+    assert "2" in (forced.get("targets") or {}), "目标统计里没有 2 本"
+    assert any(bool(r.get("forced")) for r in records), "记录里没有 forced 样本"
+    assert sum(1 for m in meta.get("games_meta") or []
+               if isinstance(m.get("forced_tier_game"), dict)) == 4

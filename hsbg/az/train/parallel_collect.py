@@ -845,6 +845,12 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                 "max_steps": max_steps, "state_json": g.state_json()})
         if tier_on:
             metas[-1].update(st["tier_target"].stats())
+        # 强制升本：逐局统计必须进 meta（历史上只有 _one_game 汇总，lockstep 漏了，
+        # 导致 --lockstep 1 的生产路径 history 里 forced_actions 恒为 0，
+        # 2026-11-07 GPU 验收 1091647 就是这样空转的）。
+        _ft_game = policy.forced_tier_game_meta()
+        if _ft_game:
+            metas[-1]["forced_tier_game"] = _ft_game
     meta = {"mode": "lockstep", "games": n, "pool_games": n,
             "rounds": int(rounds), "decisions": int(decisions_total),
             "curriculum_stage": str(getattr(cfg, "curriculum_stage", "none")),
@@ -930,4 +936,12 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     _bm = policy.behavior_mix_meta()
     if _bm:
         meta["behavior_mix"] = _bm
+    # 强制升本统计（默认关闭 -> 不新增键）：逐局 meta 汇总 + 本 iteration 的概率/教师开关。
+    # 注意 `aggregate_forced_tier` 吃的是**逐局 meta**（内部再取 forced_tier_game），
+    # 直接传内层 dict 会得到空汇总（2026-11-07 的 1091647 验收就栽在这里）。
+    _ft_agg = aggregate_forced_tier(metas)
+    if _ft_agg:
+        _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
+        _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
+        meta["forced_tier"] = _ft_agg
     return records, meta

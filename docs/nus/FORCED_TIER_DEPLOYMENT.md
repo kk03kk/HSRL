@@ -91,43 +91,50 @@ PY
 
 ## 2b. 性能事故与防复发（2026-11-07，作业 1091647）
 
-**现象**：强制升本 GPU 验收 1091647 两轮 PPO 用了 33m48s（第 3 轮未完，用户取消）；
-此前配方几乎相同的 P50 验收 1085078 三轮只用 4m54s。
+**实测事实（来自 1091647 的 history.jsonl + .out）**：
 
-**已核对（可复现的证据，不是猜测）**：
+| 阶段 | 实测 | 基线（1085131 长训 / 1085078 验收） |
+|---|---|---|
+| 单轮训练循环（1 iteration，512 局） | **73 s / 53 s**（含 8 卡池 collect 23 s + PPO 3.9–4.5 s + 落盘 0.7 s） | collect 中位 11.5 s、PPO 9 s；1085078 三轮共 294 s |
+| 采样速率 | 4,129 / 3,555 dec·s⁻¹（per-worker 600 dec/s） | 8,594 dec·s⁻¹（per-worker 1,127 dec/s） |
+| 每轮**进程启动到训练开始** | **~850–980 s**（两轮 iter 时间戳相差 15m07s，而循环本身只有 53 s） | ~40–60 s |
+
+**结论**：33m48s 不是"训练变慢"，而是**验收把训练器重启了 3 次，每次付一份 ~15 分钟的冷启动**；
+12 小时长训只在开头付一次，稳态仍是每轮几十秒。验收结构本身（3 × 进程冷启动）才是墙钟大头。
+
+**同时暴露的真实 bug（更严重）**：`--lockstep 1` 生产路径（`personal train` 唯一使用的路径）
+的 `collect_ppo_lockstep` **从来没有汇总强制升本统计**——`forced_tier_game` 只写进了
+`_one_game` / `collect_ppo_records_parallel`，lockstep 的 meta 里既没有逐局统计也没有汇总，
+于是 history 里 `prob=0.0 / forced_actions=0 / targets={}` 全是缺省值。后果：
+
+1. 验收的 `check_forced_tier` 永远拿不到证据（这次作业本来就过不了）；
+2. 12 小时长训会在"机制不可观测"的状态下跑完，事后无法判断升本是否执行。
+
+已修：`collect_ppo_lockstep` 逐局写 `forced_tier_game`，并按 `aggregate_forced_tier(metas)`
+（注意该函数吃**逐局 meta**，传内层 dict 会得到空汇总）写 `meta["forced_tier"]`；
+`tests/test_parallel_collect.py::test_lockstep_reports_forced_tier_meta` 锁定
+`forced_actions>0`、`targets["2"]` 存在、记录里有 `forced=True` 样本。
+
+**已核对（可复现证据）**：
 
 | 项 | 结论 | 证据 |
 |---|---|---|
-| 配方漂移 | 现役 `config/p50-forced-tier.json` 相对 `config/p50-7357-train.json` **只有 10 个已批准键不同**（entropy 0.002→0.008、anchor-beta 0.1→0.01、anchor-beta-tail 0.02→0.01、reset-anchor=1、6 个 forced-tier-*） | `tests/test_config_parity.py`；`hsbg/az/train/personal.config_drift` |
-| 战团库 | 与 1085131 长训**同一个库**（digest 逐项相同：train 04359ca4…、dev d493ef78…） | `artifacts/imports/nus-1085131-closeout/…/plan.json` |
-| Slurm 资源 | 32 CPU / 96 GiB / `gpu:h100-47:2` / 同一 `--exclude`，与 1085078 完全一致 | `deploy/slurm/p50_forced_preflight.sbatch` vs `p50_preflight.sbatch` |
-| 强制升本机制开销 | **1.89 µs/决策**（`_obs_tier` 走观测快路径 0.53 µs；`player_json` 慢路径 213 µs 未触发） | `artifacts/local/bench_forced_tier_overhead.py` |
-| 采集/更新热路径 | 新增代码全部在 `_forced is None` 之后短路；无逐决策 JSON/IO | `git show 9786df4 -- hsbg/az/train/ppo.py` |
+| 配方漂移 | 相对 `config/p50-7357-train.json` **只有 10 个已批准键不同** | `tests/test_config_parity.py` |
+| 战团库 | 与 1085131 长训**同一个库**（train 04359ca4…、dev d493ef78…） | closeout `plan.json` |
+| Slurm 资源 | 32 CPU / 96 GiB / `h100-47:2` / 同一 `--exclude` | 两个 sbatch 头 |
+| 强制升本机制开销 | **1.89 µs/决策**（观测快路径 0.53 µs；`player_json` 慢路径 213 µs 未触发） | `artifacts/local/bench_forced_tier_overhead.py` |
+| 采集/更新热路径 | 新代码全部在 `_forced is None` 之后短路 | `git show 9786df4` |
 
-**已修的真实缺陷**：
+**另修**：`train_entity_sync` 曾把 `forced-teacher-coef` 合并进 `teacher_bc_coef`
+（偷偷打开"在线缩放教师"的 CE 通路、两条 DAgger 标签共用同一字段），现为两个独立系数，
+同时 >0 时拒绝启动。
 
-1. `train_entity_sync` 把 `forced-teacher-coef` 合并进 `teacher_bc_coef`
-   （`teacher_bc_coef=max(teacher_bc_coef, forced_teacher_coef)`）：这会让
-   "在线缩放教师"的 CE 通路被 forced 系数悄悄打开，两条 DAgger 标签源共用
-   `record["teacher_action"]`，history 里再也分不清来源。现改为两个独立系数
-   （`PPOConfig.teacher_bc_coef` / `PPOConfig.forced_teacher_coef`，总损失取和），
-   并在两条都 >0 时**直接拒绝启动**。
-2. 没有任何吞吐门禁：验收成功了也不知道"跑得比基线慢 7 倍"。
+**新增两道门禁**：
 
-**新增两道门禁（机器可检，只会更严）**：
-
-- **配置漂移**：`--phase forced/forced-gpu` 与 `run_forced_tier_long.config()` 都会把
-  配置与快速基线逐键比对，只允许 `FORCED_ALLOWED_CONFIG_DIFF` 里的键不同；
-  改 `games/processes/pipeline/minibatch/leaf-fused/mirror-strict/…` 会**直接拒绝提交**。
-- **吞吐**：验收每轮打印并写入 `report.json.timings`：单轮墙钟、collect 墙钟、
-  decisions/s、ppo 秒、samples/updates；门禁 `MAX_ROUND_SECONDS=300`、
-  `MIN_DECISIONS_PER_S=3000`（基线 98 s / 8,600 dec·s⁻¹，阈值是基线的 3 倍/1/3）。
-  另外每轮加 `--run-minutes 8`，一轮卡死最多浪费 8 分钟而不是吃掉 35 分钟窗口。
-
-**仍需的现场证据**（用于把 33m48s 定位到具体阶段）：`artifacts/runs/p50-forced-tier-preflight/train/history.jsonl`
-的两条迭代记录（`collect.wall_s`、`decisions_per_s`、`workers[].forward_s/collect_s`、`ppo.seconds`、`samples`）
-与 `artifacts/runs/slurm/hsai-p50-forced-pre-1091647.out` 的计时行。下一轮验收会把这些数字
-直接写进 `report.json`，因此**即使仍然慢，也会在 ≤3 轮 × 8 分钟内失败并给出拆解**。
+- **配置漂移**：`--phase forced/forced-gpu` 与 `run_forced_tier_long.config()` 双侧逐键比对
+  快速基线，只允许 `FORCED_ALLOWED_CONFIG_DIFF`；改 `games/processes/pipeline/minibatch/…` 直接拒绝。
+- **吞吐**：每轮打印并写 `report.json.timings`（墙钟 / collect / dec·s⁻¹ / ppo / samples），
+  阈值 `MAX_ROUND_SECONDS=300`、`MIN_DECISIONS_PER_S=3000`；每轮 `--run-minutes 8` 封顶单轮最坏耗时。
 
 
 

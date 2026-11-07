@@ -19,16 +19,21 @@ ratio 依次 **0.70 / 0.80 / 0.88 / 0.95**（对应 0/40M/80M/120M），dev/test
 profile=`p50-v2-weaker`），旧库在 T12–T19 是模型的 **3.1–21.6 倍**、真实 bot 池的 8–50 倍。
 
 **性能事故（用户报告）**：强制升本 GPU 验收 1091647 两轮 33m48s，基线 1085078 三轮 4m54s。
-审计结论（每条都有可复现证据）：配方相对 `config/p50-7357-train.json` **只有 10 个已批准键不同**；
-**战团库与 1085131 长训是同一个**（digest 逐项相同）；Slurm 资源完全相同；**强制升本机制实测
-1.89 µs/决策**（`_obs_tier` 走观测快路径 0.53 µs，`player_json` 慢路径 213 µs 未触发）
-⇒ 机制不是瓶颈。**已修**：`train_entity_sync` 曾把 `forced-teacher-coef` 合并进
-`teacher_bc_coef`（会偷偷打开"在线缩放教师"的 CE 通路、两条 DAgger 标签共用同一字段），
-现改为两个独立系数并在同时 >0 时拒绝启动。**新增门禁**：①配置漂移（只允许
-`FORCED_ALLOWED_CONFIG_DIFF` 的键与快速基线不同，`--phase forced/forced-gpu` 与 runner 双侧生效）；
-②吞吐（每轮墙钟 ≤300 s、采样 ≥3,000 dec/s，并写 `report.json.timings`；每轮 `--run-minutes 8`
-把单轮最坏耗时封顶）。**尚未定位** 33m48s 的具体阶段：需要 1091647 的
-`train/history.jsonl` 两条记录与 `.out` 计时行；下一轮验收会在 ≤3 轮 × 8 分钟内给出拆解并失败。
+用现场 `history.jsonl` + `.out` 定死了三件事：
+
+1. **训练循环本身没坏**：单轮 `elapsed=73s / 53s`（collect 23 s、PPO 3.9–4.5 s、落盘 0.7 s）；
+2. **墙钟大头是"每轮重启训练器"的冷启动**：两轮 `[iter]` 时间戳相差 **15m07s**，而循环只有 53 s；
+3. **真 bug**：`--lockstep 1` 生产路径的 `collect_ppo_lockstep` **从未汇总强制升本统计**
+   （`forced_tier_game` 只写进 `_one_game`/`collect_ppo_records_parallel`），
+   于是 history 里 `prob=0.0 / forced_actions=0 / targets={}` 全是缺省值 ⇒ 验收门禁永远拿不到证据，
+   12h 长训会在"机制不可观测"下跑完。已修：lockstep 逐局写 meta + `aggregate_forced_tier(metas)`
+   （该函数吃逐局 meta，传内层 dict 会得空汇总），`tests/test_parallel_collect.py` 用
+   `test_lockstep_reports_forced_tier_meta` 锁定 `forced_actions>0`/`targets["2"]`/`forced=True` 样本。
+   另修 `teacher_bc_coef=max(...)` 的系数合并（会偷开在线缩放教师、两条 DAgger 标签互覆盖）。
+4. 已核对：配方相对快速基线**只有 10 个已批准键不同**、战团库与 1085131 同一个（digest 相同）、
+   Slurm 资源相同、强制升本机制实测 **1.89 µs/决策**（`player_json` 慢路径未被触发）。
+5. 新增门禁：**配置漂移**（双侧只允许 `FORCED_ALLOWED_CONFIG_DIFF`）+ **吞吐**
+   （每轮墙钟 ≤300 s、≥3,000 dec/s、写 `report.json.timings`、每轮 `--run-minutes 8` 封顶）。
 
 ## 2026-11-07（夜）：双模型 + 6 bot 的 128 局配对评测已实现（本地验证，待 NUS 运行）
 
