@@ -22,6 +22,56 @@ MIN_PROCESSED_RATIO=0.5
 MIN_TIER5_REACH=0.60
 MAX_TIER5_MISSED=0.25
 MIN_TIER5_SAMPLE_RATIO=0.25
+#: ── 吞吐门禁（2026-11-07 实测：作业 1091647 两轮 33m48s，而 1085078 三轮 4m54s）──
+#: 快速基线（1085131 长训 2,647 轮）：collect ≈11.5 s / 8,600 dec·s⁻¹ / ppo ≈9 s，
+#: 单轮（1 iteration，512 局）含进程启动 ≈98 s。这里把"单轮墙钟"和"采样速率"都上界化：
+#: 采样链路退化（worker 没上 GPU、批量叶服务失效、镜像库加载异常等）必须**当场失败**，
+#: 而不是静默吃掉 12 小时长训。阈值是基线的 3 倍/1/3，只拦"病态"，不拦正常波动。
+MAX_ROUND_SECONDS=300.0
+MIN_DECISIONS_PER_S=3000.0
+#: 单轮**进程内**预算（分钟）：``personal train --run-minutes`` 只缩短本次调用、不改配方。
+#: 一轮卡住时最多浪费这么久，而不是把 35 分钟的验收窗口整块吃掉。
+ROUND_MINUTES=8.0
+
+
+def history_tail(train):
+    """``train/history.jsonl`` 最后一条迭代记录（不含 header）；缺失返回 ``None``。"""
+    path=Path(train)/'history.jsonl'
+    last=None
+    if not path.is_file():return None
+    with path.open(encoding='utf-8') as fh:
+        for line in fh:
+            line=line.strip()
+            if not line:continue
+            rec=json.loads(line)
+            if rec.get('type')=='header':continue
+            last=rec
+    return last
+
+
+def check_throughput(timings):
+    """单轮墙钟与采样速率门禁；返回 ``_check``，失败时带着逐轮拆解。"""
+    rounds=timings.get('rounds') or []
+    if not rounds:
+        return _check('throughput',False,'没有拿到任何一轮的计时',rounds=rounds)
+    slow=[r for r in rounds if float(r.get('wall_s') or 0.0)>MAX_ROUND_SECONDS]
+    thin=[r for r in rounds if float(r.get('decisions_per_s') or 0.0)<MIN_DECISIONS_PER_S]
+    detail=dict(rounds=rounds,max_round_s=MAX_ROUND_SECONDS,
+                min_decisions_per_s=MIN_DECISIONS_PER_S,
+                slow_rounds=[r.get('round') for r in slow],
+                thin_rounds=[r.get('round') for r in thin])
+    if slow:
+        return _check('throughput',False,
+                      f'单轮墙钟超过 {MAX_ROUND_SECONDS:.0f}s：'+', '.join(
+                          f"{r.get('key')}={float(r.get('wall_s') or 0):.0f}s" for r in slow),
+                      **detail)
+    if thin:
+        return _check('throughput',False,
+                      f'采样速率低于 {MIN_DECISIONS_PER_S:.0f} dec/s：'+', '.join(
+                          f"{r.get('key')}={float(r.get('decisions_per_s') or 0):.0f}"
+                          for r in thin),
+                      **detail)
+    return _check('throughput',True,'',**detail)
 
 
 def _check(name,ok,reason='',**detail):
@@ -102,13 +152,31 @@ def main():
     deadline=time.monotonic()+35*60
     def run(*args):run_process([sys.executable,*map(str,args)],deadline)
     run('workflows/check_actor_tensor_path.py','--checkpoint',a.source_7357/'model.pt','--device','auto','--require-gpus',2,'--out',a.out/'actor.json')
+    t_inputs=time.time()
     parent,source,inherited,factor,paths,manifests,cfg,previous=inputs(a)
     write_json(a.out/'train.config.json',cfg);train=a.out/'train';versions=[]
+    timings={'inputs_s':round(time.time()-t_inputs,2),'rounds':[]}
+    base=dict(profile=a.profile,versions=versions,checks=[],timings=timings)
     for i,key in enumerate(('warm0','warm1','train')):
         extra=['--initial-trainer-state',source/'trainer.pt'] if i==0 else ['--resume','--library-transition-from',manifests[('warm0','warm1','train')[i-1]]['digest']]
-        run('-m','hsbg.az.train.personal','train','--config',a.out/'train.config.json','--checkpoint',source/'model.pt','--library',paths[key],'--out',train,'--device','cuda:0','--run-iterations',1,*extra)
+        t0=time.time()
+        run('-m','hsbg.az.train.personal','train','--config',a.out/'train.config.json','--checkpoint',source/'model.pt','--library',paths[key],'--out',train,'--device','cuda:0','--run-iterations',1,'--run-minutes',ROUND_MINUTES,*extra)
+        wall=round(time.time()-t0,2)
         latest=read(train/'latest.json');versions.append(latest['version'])
         if latest['version']!=7358+i:raise ValueError('更新版本不连续')
+        tail=history_tail(train) or {}
+        collect=tail.get('collect') or {};ppo=tail.get('ppo') or {}
+        row=dict(round=i,key=key,wall_s=wall,
+                 collect_wall_s=round(float(collect.get('wall_s') or 0.0),2),
+                 decisions=int(collect.get('decisions') or 0),
+                 decisions_per_s=round(float(collect.get('decisions_per_s') or 0.0),1),
+                 ppo_s=round(float(ppo.get('seconds') or 0.0),2),
+                 samples=int(ppo.get('samples') or 0),
+                 updates=int(ppo.get('updates') or 0))
+        timings['rounds'].append(row)
+        print(f"[preflight] round {i} ({key}): wall={row['wall_s']}s "
+              f"collect={row['collect_wall_s']}s {row['decisions_per_s']} dec/s "
+              f"ppo={row['ppo_s']}s samples={row['samples']} updates={row['updates']}",flush=True)
     quality=training_report(train,a.out/'health',versions[-1]);tot=quality['totals'];strict=quality['mirror_strict_counts']
     checks=[]
     inj_ok=bool(tot['mirror_attempt']==tot['mirror_applied']==strict['eligible_live_seats']
@@ -128,11 +196,13 @@ def main():
         # 局数只能用 engine_quality_checked_games（totals 里没有 'games' 键）
         checks.append(check_forced_tier(train,versions[-1],
                                         int(tot.get('engine_quality_checked_games') or 0)))
+    # 吞吐门禁：每轮墙钟与采样速率（基线 98 s / 8,600 dec·s⁻¹）
+    checks.append(check_throughput(timings))
     failed=[c for c in checks if not c['ok']]
-    base=dict(profile=a.profile,versions=versions,checks=checks,
-              training=quality,forced_tier=next((c for c in checks if c['name']=='forced_tier'),None),
-              fingerprint=fingerprint(),training_source_sha256=training_source_digest(),
-              runner_sha256=_sha_lf(ROOT/RUNNERS[a.profile]))
+    base.update(versions=versions,checks=checks,timings=timings,
+                training=quality,forced_tier=next((c for c in checks if c['name']=='forced_tier'),None),
+                fingerprint=fingerprint(),training_source_sha256=training_source_digest(),
+                runner_sha256=_sha_lf(ROOT/RUNNERS[a.profile]))
     if failed:
         write_json(a.out/'report.json',dict(passed=False,failed=[c['name'] for c in failed],**base))
         raise ValueError('预检未通过: '+'; '.join(f"{c['name']}({c['reason']})" for c in failed)

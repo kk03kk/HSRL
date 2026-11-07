@@ -1,4 +1,4 @@
-"""强制升本（forced tier-up）长训入口：7357 完整状态分叉 + 加压阶梯 + 逐步解除强制。
+﻿"""强制升本（forced tier-up）长训入口：7357 完整状态分叉 + 加压阶梯 + 逐步解除强制。
 
 与 ``run_7357_long.py`` 的区别（每一处都有机制依据，见 docs/FORCED_TIER.md）：
 
@@ -76,7 +76,14 @@ def shift_forced_schedule(cfg, base):
 def config():
     """本轮配置（结构校验交给 personal.validate_config）。"""
     cfg = read(ROOT / CONFIG)
-    from hsbg.az.train.personal import validate_config
+    from hsbg.az.train.personal import config_drift, validate_config
+    # 配置漂移门禁：除本轮显式批准的键以外，必须与快速基线配方完全一致。
+    # 2026-11-07 的 GPU 验收（1091647）两轮 33m48s，而基线三轮 4m54s；先把"配方
+    # 是否被无意改动"变成机检项，再谈吞吐。
+    drift = config_drift(cfg, read(ROOT / 'config/p50-7357-train.json'))
+    if drift:
+        raise ValueError('配置意外偏离快速基线 config/p50-7357-train.json: '
+                         + ','.join(drift))
     cfg = validate_config(cfg)
     if not str(cfg.get('forced-tier-plan', '')).strip():
         raise ValueError('本轮必须给出 forced-tier-plan；空计划等于关闭强制升本')
@@ -122,6 +129,20 @@ def check_inputs(args, require_gpu=True):
     if (not report.get('complete') or report.get('smoke')
             or report.get('primary_statistic') != 'P50(sum_attack+sum_health)'):
         raise ValueError('需要正式P50库验收报告')
+    # 校准档位：新旧库 driver 相同、目录结构相同，只有这两个字段能区分；指错
+    # HSAI_P50_BANK 就会拿上一轮"T12–T19 是模型 3–22 倍"的库跑满 12 小时。
+    from hsbg.az.train.personal import text_sha256
+    curve = Path(os.environ.get('HSAI_P50_CURVE',
+                                'config/opponent-p50-slightly-weaker.json'))
+    if not curve.is_file():
+        raise ValueError('缺少本轮对手曲线:' + str(curve))
+    spec = read(curve)
+    if report.get('calibration_profile') != spec.get('calibration_profile'):
+        raise ValueError(f'训练库校准档不符：库={report.get("calibration_profile")!r}，'
+                         f'要求={spec.get("calibration_profile")!r}；'
+                         '旧库不是"稍弱于模型"的校准，不能用于本轮')
+    if str(report.get('curve_sha256') or '') != text_sha256(curve):
+        raise ValueError('训练库不是用当前曲线构建的（curve_sha256 不符）：先重跑 --phase cpu')
     for key in ('train-start', 'train-ramp1', 'train-ramp2', 'train', 'dev', 'test'):
         m = read(bank / key / 'manifest.json')
         if m != report['splits'][key] or m['driver'] != 'bot_firestone_p50_3702':
@@ -187,7 +208,13 @@ def inputs(args):
         forced_tier_table=SCHEDULE,
         forced_tier_schedule=cfg.get('forced-tier-schedule'),
         forced_teacher_until=cfg.get('forced-teacher-until'),
-        forced_tier_base_decisions=base_decisions))
+        forced_tier_base_decisions=base_decisions,
+        # 对手库身份：本轮"稍弱于模型"的校准档 + 曲线摘要 + 库报告摘要，
+        # 让 12 小时后的复盘能证明训练用的是哪套对手。
+        bank=str(bank), bank_report_sha256=sha256(bank / 'report.json'),
+        calibration_profile=read(bank / 'report.json').get('calibration_profile'),
+        bank_curve_sha256=read(bank / 'report.json').get('curve_sha256'),
+        bank_model_reference=read(bank / 'report.json').get('model_reference')))
     args.reference_checkpoint = str(frozen / 'model.pt')
     args.train_schedule = SCHEDULE
     return parent, frozen, inherited, 'p50-forced-tier-v1', paths, manifests, cfg, {}

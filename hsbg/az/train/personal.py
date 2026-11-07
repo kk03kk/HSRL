@@ -63,6 +63,29 @@ def library_digest(root):
         [(p.name, sha256(p)) for p in files], separators=(",", ":")).encode()).hexdigest()
 
 
+#: 强制升本课程允许相对**快速基线配方**（``config/p50-7357-train.json``）改变的键。
+#: 其它任何差异都算"意外偏离高效长训配方"：必须显式说明后才能提交（见
+#: ``docs/nus/FORCED_TIER_DEPLOYMENT.md`` §配置漂移门禁）。``tools/nus_submit.py``
+#: 里有一份仅供登录节点（无 numpy）使用的同名清单，``tests/test_config_parity.py``
+#: 断言两份完全一致。
+FORCED_ALLOWED_CONFIG_DIFF = frozenset({
+    "entropy-coef", "anchor-beta", "anchor-beta-tail", "reset-anchor",
+    "forced-tier-plan", "forced-tier-carry", "forced-tier-schedule",
+    "forced-tier-prob", "forced-teacher-until", "forced-teacher-coef",
+})
+
+
+def config_drift(cfg, baseline, allowed=FORCED_ALLOWED_CONFIG_DIFF):
+    """返回 ``cfg`` 相对 ``baseline`` 的**未授权**差异键（排序后）。
+
+    只比较键值集合，不关心顺序；``allowed`` 之外的任何差异都会被返回，
+    调用方据此 fail-fast，避免把"跑得慢/学得不对"的配方带进 12 小时长训。
+    """
+    keys = set(cfg) | set(baseline)
+    return sorted(k for k in keys
+                  if cfg.get(k) != baseline.get(k) and k not in allowed)
+
+
 def training_source_digest():
     paths = sorted((ROOT / "hsbg/az/train").glob("*.py")) + [ROOT / "workflows/train_entity_sync.py"]
     h = hashlib.sha256()

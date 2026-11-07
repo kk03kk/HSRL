@@ -1167,6 +1167,11 @@ class PPOConfig:
     #: 在线缩放教师 DAgger 的 CE 系数（0=关闭，默认）。>0 时需要采集侧产出
     #: ``teacher_action``（``CollectConfig.teacher_bc=True``），CE 只在有标签的样本上算。
     teacher_bc_coef: float = 0.0
+    #: 强制升本 DAgger 标签（``CollectConfig.forced_tier_teacher=True``）的 CE 系数。
+    #: **必须与 ``teacher_bc_coef`` 分开**：两者共用 ``record["teacher_action"]`` 字段，
+    #: 合并成一个系数会让「在线缩放教师」与「强制升本教师」两条标签源互相覆盖且无法
+    #: 从 history 里区分来源（``docs/FORCED_TIER.md``）。
+    forced_teacher_coef: float = 0.0
     #: 过程价值辅助头系数（0=关闭，默认）：预测 log1p(酒馆永久 buff 总和) /
     #: log1p(施法数) / log1p(consume 数)，只在目标可得的样本上算 MSE。
     process_value_coef: float = 0.0
@@ -2578,9 +2583,10 @@ def ppo_losses(model: Any, batch: PPOBatch, config: PPOConfig,
     # 只在采集侧写了 teacher_action（gold>=10 & tier>=4 窗口）的样本上做 CE；
     # forced 样本（环境守卫）与无标签样本（-1）一律排除。策略 logits 已 masked。
     teacher_bc_coef = float(getattr(config, "teacher_bc_coef", 0.0) or 0.0)
+    forced_teacher_coef = float(getattr(config, "forced_teacher_coef", 0.0) or 0.0)
     teacher_loss = None
     teacher_n = 0
-    if teacher_bc_coef > 0.0:
+    if teacher_bc_coef > 0.0 or forced_teacher_coef > 0.0:
         ta_np = getattr(batch, "teacher_action", None)
         if ta_np is not None:
             ta = torch.from_numpy(
@@ -2589,7 +2595,8 @@ def ppo_losses(model: Any, batch: PPOBatch, config: PPOConfig,
             teacher_n = int(has_t.sum().item())
             if teacher_n > 0:
                 teacher_loss = F.cross_entropy(logits[has_t], ta[has_t])
-                total = total + teacher_bc_coef * teacher_loss
+                # 两条标签源共用同一个 CE 值，但系数各自记账（合并只发生在总损失里）
+                total = total + (teacher_bc_coef + forced_teacher_coef) * teacher_loss
     # ── 过程价值辅助头（默认 process_value_coef=0 时整段不执行）──────────────
     # 独立前向（forward_process），不改变策略/价值主干前向的输出；目标 NaN = 不可得，
     # 只在 (available & valid) 样本上算 MSE。梯度经辅助损失回传 trunk。
@@ -3240,13 +3247,15 @@ def train_ppo(model: Any, batch: PPOBatch, config: Optional[PPOConfig] = None,
             [r["teacher_bc_loss"] for r in _teach_recs]))
         stats["teacher_bc_coef"] = float(
             getattr(cfg, "teacher_bc_coef", 0.0) or 0.0)
+        stats["forced_teacher_coef"] = float(
+            getattr(cfg, "forced_teacher_coef", 0.0) or 0.0)
         stats["teacher_samples"] = float(np.mean(
             [r.get("teacher_samples", 0.0) for r in _teach_recs]))
         stats["teacher_steps"] = int(len(_teach_recs))
     else:
         cfg_echo = stats.get("config")
         if isinstance(cfg_echo, dict):
-            for key in ("teacher_bc_coef",):
+            for key in ("teacher_bc_coef", "forced_teacher_coef"):
                 cfg_echo.pop(key, None)
     _proc_recs = [r for r in logs if "process_value_loss" in r]
     if _proc_recs:

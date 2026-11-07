@@ -59,6 +59,33 @@ def select_rows(paths, engine, threshold, minimum_turns=15, limit=1024, expected
     selected={t:[x[1] for x in sorted(candidates[t].values(),key=lambda v:v[0])[:limit]] for t in range(1,last+1)}
     return selected,last,dict(dropped)
 
+def stage_spec(spec, name, split):
+    """返回 ``(wanted, explicit)``：优先用曲线里显式的 ``stage_targets[stage]``。
+
+    ``explicit=True`` 时**不做插值**——"稍弱于模型"的阶梯每档都是算好的，
+    从源库实测 P50 插值会让低目标档反而比高档强（阶梯反向）。
+    旧格式（无 ``stage_targets``）返回 ``explicit=False``，保持逐位等价的历史行为。
+    """
+    stage_targets = spec.get('stage_targets') or None
+    if stage_targets is not None:
+        missing = [s for s in ('train-start', 'train-ramp1', 'train-ramp2',
+                               'train', 'dev', 'test') if s not in stage_targets]
+        if missing:
+            raise ValueError('曲线 stage_targets 缺少档位:' + ','.join(missing))
+        if name in stage_targets:
+            return stage_targets[name], True
+    return spec['train_targets' if split == 'train' else 'dev_test_targets'], False
+
+
+def target_for(wanted, *, split, turn, progress, start_p50, explicit):
+    """单回合目标。``explicit`` 档位直接取曲线值；旧格式在 train/T9+ 从源库水平插值。"""
+    target = float(wanted[str(int(turn))])
+    if not explicit and split == 'train' and int(turn) >= 9:
+        previous = start_p50[min(int(turn), max(start_p50))]
+        target = previous + (target - previous) * float(progress)
+    return target
+
+
 def build(source,out,curve,workers=8,smoke=False):
     import hsbg_engine as E
     from hsbg.az.train.mirror_snapshots import engine_stamp,write_snapshot_file,MirrorSnapshotPool
@@ -98,13 +125,27 @@ def build(source,out,curve,workers=8,smoke=False):
         if seed_sets[a]&seed_sets[b]:raise ValueError('分割源对局重复')
     template=_drive_to_turn(E.Game(seed=730000),1).state_json()
     manifests={};audits={}
+    # 两种曲线格式：
+    # - ``stage_targets``（``hsai.opponent_curve/v2``）：每档显式目标，**不做插值**；
+    #   这是"稍弱于模型"梯队的唯一正确形式——旧实现从源库实测 P50 插值，一旦新目标低于
+    #   源库水平，warm0 就会比 train 还强（阶梯反向）。
+    # - 旧格式（无 ``stage_targets``）：保持逐位等价的历史行为，便于复现旧库。
+    stage_targets=spec.get('stage_targets') or None
+    if stage_targets is not None:
+        missing=[s for s in ('train-start','train-ramp1','train-ramp2','train','dev','test')
+                 if s not in stage_targets]
+        if missing:raise ValueError('曲线 stage_targets 缺少档位:'+','.join(missing))
+    curve_profile=str(spec.get('calibration_profile') or 'p50-v1')
+    model_ref=((spec.get('reference') or {}).get('model_p50') or None)
     profiles=[('train-start','train',0.),('train-ramp1','train',1/3),('train-ramp2','train',2/3),('train','train',1.),('dev','dev',1.),('test','test',1.)]
     for name,split,progress in profiles:
         dest=out/name;dest.mkdir();observed={};shard=[];count=0;last=source_last[split]
-        wanted=spec['train_targets' if split=='train' else 'dev_test_targets']
+        explicit=bool(stage_targets and (name in stage_targets))
+        wanted=(stage_targets[name] if explicit
+                else spec['train_targets' if split=='train' else 'dev_test_targets'])
         for turn in range(1,20):
             origin=min(turn,last);target=float(wanted[str(turn)])
-            if split=='train' and turn>=9:
+            if not explicit and split=='train' and turn>=9:
                 previous=start_p50[min(turn,max(start_p50))]
                 target=previous+(target-previous)*progress
             rows=calibrated(all_rows[split][origin],target)
@@ -116,10 +157,10 @@ def build(source,out,curve,workers=8,smoke=False):
                 if len(shard)>=512:write_snapshot_file(str(dest/f'snap_{count:08d}.json.gz'),shard,engine=stamp,meta={'driver':DRIVER,'split':split});shard=[]
             bodies=[sum(totals(f)) for f in rows]
             shares=[max(m['atk']+m['hp'] for m in f['player']['board'])/sum(totals(f)) for f in rows]
-            observed[turn]=dict(target_p50=target,**strength_quantiles(bodies),mean_strength=mean(bodies),frames=len(rows),source_games=len({f['source_game_seed'] for f in rows}),source_turn=origin,tail_reserve=origin!=turn,p50_board_count=median(len(f['player']['board']) for f in rows),max_body_share=max(shares),p50_body_share=median(shares),p90_body_share=sorted(shares)[int(.9*(len(shares)-1))],minimum_strength=min(bodies),maximum_strength=max(bodies))
+            observed[turn]=dict(target_p50=target,target_over_model=((target/float(model_ref[str(turn)])) if model_ref and str(turn) in model_ref else None),**strength_quantiles(bodies),mean_strength=mean(bodies),frames=len(rows),source_games=len({f['source_game_seed'] for f in rows}),source_turn=origin,tail_reserve=origin!=turn,p50_board_count=median(len(f['player']['board']) for f in rows),max_body_share=max(shares),p50_body_share=median(shares),p90_body_share=sorted(shares)[int(.9*(len(shares)-1))],minimum_strength=min(bodies),maximum_strength=max(bodies))
         if shard:write_snapshot_file(str(dest/f'snap_{count:08d}.json.gz'),shard,engine=stamp,meta={'driver':DRIVER,'split':split})
         write_json(dest/'calibration.json',observed)
-        manifests[name]=dict(schema='hsrl.library/v1',split=split,driver=DRIVER,digest=library_digest(dest),fingerprint=fp,last_turn=19,source_last_turn=last,smoke=smoke,calibration_profile='p50-v1',curriculum_progress=progress,source_digest=old[split]['digest'],curve_sha256=hashlib.sha256(curve.read_bytes().replace(b'\r\n',b'\n')).hexdigest(),source_games=len(seed_sets[split]),validation=dict(checked=count,accepted=count,quarantined=0),sampling='uniform_frames_single_seat_bucket',dropped_small_boards=drop_reports[split])
+        manifests[name]=dict(schema='hsrl.library/v1',split=split,driver=DRIVER,digest=library_digest(dest),fingerprint=fp,last_turn=19,source_last_turn=last,smoke=smoke,calibration_profile=curve_profile,curriculum_progress=progress,source_digest=old[split]['digest'],curve_sha256=hashlib.sha256(curve.read_bytes().replace(b'\r\n',b'\n')).hexdigest(),model_reference=((spec.get('reference') or {}).get('model')),source_games=len(seed_sets[split]),validation=dict(checked=count,accepted=count,quarantined=0),sampling='uniform_frames_single_seat_bucket',dropped_small_boards=drop_reports[split])
         write_json(dest/'manifest.json',manifests[name])
         pool=MirrorSnapshotPool(str(dest),sample='random')
         result=evaluate_policy(EngineBotPolicy(),EvalConfig(games=1 if smoke else 8,seed=9400000+profiles.index((name,split,progress))*1000,mirror_pool=pool,mirror_strict=True,collect_exposure=True))
@@ -127,7 +168,7 @@ def build(source,out,curve,workers=8,smoke=False):
         if (result['illegal_actions'] or result['truncated_games'] or result['truncated_combats'] or any(m.get(k,0) for k in ('mirror_errors','mirror_missing','mirror_rejected','mirror_fallback','mirror_pool_unbalanced','mirror_pool_species_unbalanced')) or not m['mirror_attempt']==m['mirror_applied']==c['eligible_live_seats']):raise RuntimeError('完整对局严格镜像验收失败')
         audits[name]=dict(mirror=m,strict=c)
         write_json(out/'strict-audit.json',audits)
-    write_json(out/'report.json',dict(complete=True,smoke=smoke,fingerprint=fp,splits=manifests,strict_audit=audits,source=str(source.resolve()),source_last_turns=source_last,primary_statistic='P50(sum_attack+sum_health)',start_p50=start_p50,source_games_disjoint=True))
+    write_json(out/'report.json',dict(complete=True,smoke=smoke,fingerprint=fp,splits=manifests,strict_audit=audits,source=str(source.resolve()),source_last_turns=source_last,primary_statistic='P50(sum_attack+sum_health)',start_p50=start_p50,source_games_disjoint=True,calibration_profile=curve_profile,curve=str(curve),curve_sha256=hashlib.sha256(curve.read_bytes().replace(b'\r\n',b'\n')).hexdigest(),model_reference=((spec.get('reference') or {}).get('model')),stage_targets=(spec.get('stage_targets') or None),stage_ratios=(spec.get('stage_ratios') or None)))
     return out
 
 if __name__=='__main__':

@@ -81,6 +81,94 @@ def audit_problem(audit_path, *, root=ROOT, runner='workflows/run_forced_tier_lo
         return 'GPU验收时的战团库与当前不一致（库被重建或替换过）：请重跑 --phase forced-gpu --submit'
     return ''
 
+#: 强制升本课程允许相对快速基线配方（``config/p50-7357-train.json``）改变的键。
+#: 与 ``hsbg/az/train/personal.FORCED_ALLOWED_CONFIG_DIFF`` 必须逐项一致
+#: （``tests/test_config_parity.py`` 断言）；这里是登录节点（python -S，无 numpy）用的副本。
+FORCED_ALLOWED_CONFIG_DIFF=frozenset({
+    'entropy-coef','anchor-beta','anchor-beta-tail','reset-anchor',
+    'forced-tier-plan','forced-tier-carry','forced-tier-schedule',
+    'forced-tier-prob','forced-teacher-until','forced-teacher-coef',
+})
+
+def config_drift(cfg,baseline,allowed=FORCED_ALLOWED_CONFIG_DIFF):
+    """返回未授权的配置差异键（排序）。用于拦住"意外偏离高效长训配方"。"""
+    return sorted(k for k in set(cfg)|set(baseline)
+                  if cfg.get(k)!=baseline.get(k) and k not in allowed)
+
+
+def check_curve(path, *, old_curve=None):
+    """校验对手战团库曲线（纯标准库，登录节点可用）。
+
+    "稍弱于模型"的阶梯必须可机检，否则一次手改就会重演上一轮的 3–22 倍过强课程：
+
+    - ``hsai.opponent_curve/v2``：必须有 ``calibration_profile`` 与六个档位的
+      ``stage_targets``（train-start / train-ramp1 / train-ramp2 / train / dev / test，
+      T1–T19 齐全）；
+    - 逐回合阶梯单调不减（warm0 ≤ ramp1 ≤ ramp2 ≤ train ≤ dev/test）；
+    - **T9–T19 的 train 档不得超过参考模型自身 P50**（"稍弱"就是这条）；
+    - T1–T8 必须与旧曲线 ``train_targets`` 逐值相同（早期局面不受本轮校准影响）。
+    """
+    p = Path(path)
+    if not p.is_file():
+        raise ValueError('缺少对手曲线:' + str(p))
+    curve = read(p)
+    if curve.get('schema') != 'hsai.opponent_curve/v2':
+        raise ValueError(f'曲线 schema 必须是 hsai.opponent_curve/v2，得到 {curve.get("schema")!r}')
+    profile = str(curve.get('calibration_profile') or '')
+    if not profile:
+        raise ValueError('曲线缺少 calibration_profile（库与训练入口靠它核对档位）')
+    stages = curve.get('stage_targets') or {}
+    ladder = ('train-start', 'train-ramp1', 'train-ramp2', 'train', 'dev', 'test')
+    for stage in ladder:
+        row = stages.get(stage) or {}
+        for turn in range(1, 20):
+            if str(turn) not in row:
+                raise ValueError(f'曲线 {stage} 缺少 T{turn}')
+            if int(row[str(turn)]) <= 0:
+                raise ValueError(f'曲线 {stage} T{turn} 目标必须为正')
+    for turn in range(1, 20):
+        values = [int(stages[s][str(turn)]) for s in ladder]
+        if any(b < a for a, b in zip(values, values[1:])):
+            raise ValueError(f'曲线 T{turn} 阶梯不单调:{dict(zip(ladder, values))}')
+    model_p50 = ((curve.get('reference') or {}).get('model_p50') or {})
+    if not model_p50:
+        raise ValueError('曲线缺少 reference.model_p50（"稍弱"判据无从核对）')
+    for turn in range(9, 20):
+        if str(turn) not in model_p50:
+            raise ValueError(f'曲线 reference.model_p50 缺少 T{turn}')
+        if int(stages['train'][str(turn)]) > float(model_p50[str(turn)]) + 1e-9:
+            raise ValueError(f'曲线 T{turn} 的 train 目标 {stages["train"][str(turn)]} '
+                             f'超过参考模型自身 P50 {model_p50[str(turn)]}（不再"稍弱"）')
+    if old_curve is not None and Path(old_curve).is_file():
+        old_train = read(old_curve)['train_targets']
+        for turn in range(1, 9):
+            if int(old_train[str(turn)]) != int(stages['train'][str(turn)]):
+                raise ValueError(f'曲线 T{turn} 早期目标被改动:{stages["train"][str(turn)]} '
+                                 f'!= 旧曲线 {old_train[str(turn)]}')
+    return dict(profile=profile, sha256=_sha_lf(p), schema=str(curve.get('schema')),
+                model=(curve.get('reference') or {}).get('model'),
+                report_sha256=(curve.get('reference') or {}).get('report_sha256'),
+                stage_ratios=curve.get('stage_ratios'))
+
+
+def _curve_env(root=ROOT):
+    """本轮曲线：默认指向"稍弱于模型"的分级曲线；可用 HSAI_P50_CURVE 覆盖。"""
+    return Path(os.environ.get('HSAI_P50_CURVE',
+                               str(root / 'config/opponent-p50-slightly-weaker.json')))
+
+
+def _require_bank_profile(bank_report, curve_info, root=ROOT):
+    """库报告必须是用**当前曲线**构建的；两个库 driver 相同，只有这里能区分。"""
+    actual = str(bank_report.get('calibration_profile') or '')
+    if actual != curve_info['profile']:
+        raise ValueError(f'训练库校准档不符:库是 {actual or "未标注"}，'
+                         f'当前曲线要求 {curve_info["profile"]}——'
+                         '不要用旧库（旧库 T12–T19 是模型的 3–22 倍）跑本轮长训')
+    if str(bank_report.get('curve_sha256') or '') != curve_info['sha256']:
+        raise ValueError('训练库不是用当前曲线构建的（curve_sha256 不符）；'
+                         '请先重跑 --phase cpu 重建库')
+
+
 def eval_precheck(root=ROOT):
     """``--phase eval``：2 模型 + 6 bot 的 128 局配对评测的登录节点预检。
 
@@ -149,6 +237,7 @@ def eval_precheck(root=ROOT):
 def precheck(phase,root=ROOT):
     if phase=='eval':
         return eval_precheck(root)
+    curve_info=None
     from workflows.run_7357_long import defaults,check_inputs,MODEL_SHA,TRAINER_SHA,SOURCE_CUM
     p=defaults(argparse.ArgumentParser());args=p.parse_args([])
     if phase in ('forced','forced-gpu'):
@@ -168,7 +257,14 @@ def precheck(phase,root=ROOT):
         for key in ('train-start','train-ramp1','train-ramp2','train','dev','test'):
             if not (bank/key/'manifest.json').is_file():raise ValueError('缺少库清单:'+key)
             if not next((bank/key).glob('snap_*.json.gz'),None):raise ValueError('只有库元数据，没有快照:'+key)
+        # 库档位：两个库 driver 相同、结构相同，只有 calibration_profile/curve_sha256 能区分，
+        # 指错环境变量就会用旧库（T12–T19 是模型的 3–22 倍）跑满 12 小时。
+        curve_info=check_curve(_curve_env(root))
+        _require_bank_profile(read(bank/'report.json'),curve_info)
         cfg=read(root/'config/p50-forced-tier.json')
+        _drift=config_drift(cfg,read(root/'config/p50-7357-train.json'))
+        if _drift:raise ValueError('配置意外偏离快速基线 config/p50-7357-train.json: '
+                                   +','.join(_drift)+'；确认是本轮设计后才更新允许清单')
         _ft=_stdlib_module('hsbg/az/train/forced_tier.py',root)
         if not _ft.parse_forced_tier_plan(str(cfg.get('forced-tier-plan',''))):raise ValueError('配置缺少强制升本计划')
         _ft.parse_prob_schedule(str(cfg.get('forced-tier-schedule','')))
@@ -201,6 +297,8 @@ def precheck(phase,root=ROOT):
                 if not file.exists():raise ValueError('缺少原始Bot源或库清单:'+str(file))
             if not next((old/'raw'/split/'frames').glob('snap_*.json.gz'),None):raise ValueError('原始Bot快照为空:'+split)
         if Path(args.bot_3702).exists():raise ValueError('新库输出已存在；保留证据，设置HSAI_P50_BANK为新路径')
+        # 本轮曲线：阶梯单调、T9–T19 不强于参考模型、T1–T8 与旧曲线逐值相同。
+        curve_info=check_curve(_curve_env(root),old_curve=root/'config/opponent-p50-next.planned.json')
     else:
         result=check_inputs(args,require_gpu=phase=='long')
         cpu=read(root/'artifacts/local/p50-cpu-validation.json')
@@ -229,7 +327,8 @@ def precheck(phase,root=ROOT):
                                 else 'p50_long.sbatch')
     for required in (script,root/'deploy/slurm/common.sh',root/'workflows/launch_nus_refinement.py'):
         if not required.is_file():raise ValueError('部署文件缺失:'+str(required))
-    return dict(passed=True,phase=phase,script=str(script),scope='bounded_standard_library_metadata_no_model_loading')
+    return dict(passed=True,phase=phase,script=str(script),scope='bounded_standard_library_metadata_no_model_loading',
+                **({'curve':curve_info} if curve_info else {}))
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced','forced-gpu','eval'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()

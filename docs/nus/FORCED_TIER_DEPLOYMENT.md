@@ -89,6 +89,48 @@ PY
 > `docs/research/FORCED_TIER_LOCAL.md` §6。若再次出现 `forced_actions=0`，先查
 > `train.config.json` 里的 `forced-tier-schedule` 是不是绝对累计值。
 
+## 2b. 性能事故与防复发（2026-11-07，作业 1091647）
+
+**现象**：强制升本 GPU 验收 1091647 两轮 PPO 用了 33m48s（第 3 轮未完，用户取消）；
+此前配方几乎相同的 P50 验收 1085078 三轮只用 4m54s。
+
+**已核对（可复现的证据，不是猜测）**：
+
+| 项 | 结论 | 证据 |
+|---|---|---|
+| 配方漂移 | 现役 `config/p50-forced-tier.json` 相对 `config/p50-7357-train.json` **只有 10 个已批准键不同**（entropy 0.002→0.008、anchor-beta 0.1→0.01、anchor-beta-tail 0.02→0.01、reset-anchor=1、6 个 forced-tier-*） | `tests/test_config_parity.py`；`hsbg/az/train/personal.config_drift` |
+| 战团库 | 与 1085131 长训**同一个库**（digest 逐项相同：train 04359ca4…、dev d493ef78…） | `artifacts/imports/nus-1085131-closeout/…/plan.json` |
+| Slurm 资源 | 32 CPU / 96 GiB / `gpu:h100-47:2` / 同一 `--exclude`，与 1085078 完全一致 | `deploy/slurm/p50_forced_preflight.sbatch` vs `p50_preflight.sbatch` |
+| 强制升本机制开销 | **1.89 µs/决策**（`_obs_tier` 走观测快路径 0.53 µs；`player_json` 慢路径 213 µs 未触发） | `artifacts/local/bench_forced_tier_overhead.py` |
+| 采集/更新热路径 | 新增代码全部在 `_forced is None` 之后短路；无逐决策 JSON/IO | `git show 9786df4 -- hsbg/az/train/ppo.py` |
+
+**已修的真实缺陷**：
+
+1. `train_entity_sync` 把 `forced-teacher-coef` 合并进 `teacher_bc_coef`
+   （`teacher_bc_coef=max(teacher_bc_coef, forced_teacher_coef)`）：这会让
+   "在线缩放教师"的 CE 通路被 forced 系数悄悄打开，两条 DAgger 标签源共用
+   `record["teacher_action"]`，history 里再也分不清来源。现改为两个独立系数
+   （`PPOConfig.teacher_bc_coef` / `PPOConfig.forced_teacher_coef`，总损失取和），
+   并在两条都 >0 时**直接拒绝启动**。
+2. 没有任何吞吐门禁：验收成功了也不知道"跑得比基线慢 7 倍"。
+
+**新增两道门禁（机器可检，只会更严）**：
+
+- **配置漂移**：`--phase forced/forced-gpu` 与 `run_forced_tier_long.config()` 都会把
+  配置与快速基线逐键比对，只允许 `FORCED_ALLOWED_CONFIG_DIFF` 里的键不同；
+  改 `games/processes/pipeline/minibatch/leaf-fused/mirror-strict/…` 会**直接拒绝提交**。
+- **吞吐**：验收每轮打印并写入 `report.json.timings`：单轮墙钟、collect 墙钟、
+  decisions/s、ppo 秒、samples/updates；门禁 `MAX_ROUND_SECONDS=300`、
+  `MIN_DECISIONS_PER_S=3000`（基线 98 s / 8,600 dec·s⁻¹，阈值是基线的 3 倍/1/3）。
+  另外每轮加 `--run-minutes 8`，一轮卡死最多浪费 8 分钟而不是吃掉 35 分钟窗口。
+
+**仍需的现场证据**（用于把 33m48s 定位到具体阶段）：`artifacts/runs/p50-forced-tier-preflight/train/history.jsonl`
+的两条迭代记录（`collect.wall_s`、`decisions_per_s`、`workers[].forward_s/collect_s`、`ppo.seconds`、`samples`）
+与 `artifacts/runs/slurm/hsai-p50-forced-pre-1091647.out` 的计时行。下一轮验收会把这些数字
+直接写进 `report.json`，因此**即使仍然慢，也会在 ≤3 轮 × 8 分钟内失败并给出拆解**。
+
+
+
 ## 3. 正式长训（12 小时）
 
 ```bash

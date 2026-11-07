@@ -1206,6 +1206,12 @@ def main() -> int:
             print("[error] Rust 采集器暂不支持强制升本；请设 --forced-tier-plan '' "
                   "或 --rust-collector 0", file=sys.stderr)
             return 2
+        if float(args.teacher_bc_coef) > 0.0 and float(args.forced_teacher_coef) > 0.0:
+            # 两条 DAgger 标签源写同一个 record 字段，同时开启会让标签互相覆盖且无法归因。
+            print("[error] --teacher-bc-coef 与 --forced-teacher-coef 不能同时 > 0："
+                  "两条教师标签共用 record['teacher_action']，会互相覆盖；"
+                  "强制升本课程只保留 --forced-teacher-coef", file=sys.stderr)
+            return 2
         _ft_teacher_on = bool(_ft_teacher_until > 0 and float(args.forced_teacher_coef) > 0)
         print(f"[forced-tier] 开启: plan={plan_spec_of(_ft_plan)} carry={int(args.forced_tier_carry)} "
               f"schedule={[(int(d), p) for d, p in _ft_schedule]} "
@@ -1728,9 +1734,11 @@ def main() -> int:
         strength_aux_every=int(args.strength_aux_every),
         strength_tier_pos_weight=float(args.strength_tier_pos_weight),
         # 缩放教师 DAgger / 过程价值（默认 0 = 逐位等价）
-        # 强制升本的 DAgger 标签与它是同一条 CE 通路，取较大值。
-        teacher_bc_coef=float(max(float(args.teacher_bc_coef),
-                                  float(args.forced_teacher_coef))),
+        # 强制升本的 DAgger 标签**单独记账**：两条标签源共用 record["teacher_action"]，
+        # 若把它们合并进 teacher_bc_coef，"在线缩放教师"的开关会被 forced 系数悄悄打开，
+        # history 也再分不清标签来源（docs/FORCED_TIER.md §标签源）。
+        teacher_bc_coef=float(args.teacher_bc_coef),
+        forced_teacher_coef=float(args.forced_teacher_coef),
         process_value_coef=float(args.process_value_coef),
         # 搜索行为混合（默认 eps=0 -> PPO 侧只用于回显/统计，未启用时整组键被移除）
         behavior_mix_eps=float(args.behavior_mix_eps),
