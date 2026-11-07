@@ -193,9 +193,13 @@ def main():
                          optimizer_steps=int(tot['optimizer_steps']),processed_ratio=round(ratio,4),
                          kl_early_stop_iterations=int(tot.get('kl_early_stop_iterations',0))))
     if a.profile=='forced':
-        # 局数只能用 engine_quality_checked_games（totals 里没有 'games' 键）
+        # 逐局目标统计只来自**最后一条 history 记录**（一次迭代 = 512 局）；样本比例必须与
+        # 那条记录的局数比，不能拿三个 round 的累计局数（1536）当分母——否则阈值被稀释 3 倍，
+        # 或者反过来把正常的 512/1536 判成"样本过少"。
+        _last = history_tail(train) or {}
+        _last_games = int((_last.get('collect') or {}).get('engine_quality_checked_games') or 0)
         checks.append(check_forced_tier(train,versions[-1],
-                                        int(tot.get('engine_quality_checked_games') or 0)))
+                                        _last_games or int(tot.get('engine_quality_checked_games') or 0)))
     # 吞吐门禁：每轮墙钟与采样速率（基线 98 s / 8,600 dec·s⁻¹）
     checks.append(check_throughput(timings))
     failed=[c for c in checks if not c['ok']]

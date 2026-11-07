@@ -234,6 +234,78 @@ def eval_precheck(root=ROOT):
                         for label, sha in shas.items()})
 
 
+def _parse_parsable(text):
+    """``sbatch --parsable`` 输出 -> 作业号。多集群时是 ``12345;cluster``。"""
+    raw=str(text or '').strip().splitlines()
+    if not raw:raise ValueError('sbatch --parsable 没有输出作业号')
+    jid=raw[-1].split(';')[0].strip()
+    if not jid.isdigit():raise ValueError(f'sbatch --parsable 输出无法解析:{raw[-1]!r}')
+    return jid
+
+
+def chain_dirs(root=ROOT):
+    """``forced-chain`` 的两个输出目录：必须显式、互不相同、都还不存在。
+
+    验收目录与长训目录都由 env 给出，**不能靠默认值**：默认值会把验收写进
+    ``p50-forced-tier-preflight``、长训写进 ``long-001``，一旦上一次失败留了现场，
+    依赖链上的长训会在半夜以"输出目录非空"退出。
+    """
+    out_gpu=os.environ.get('HSAI_P50_AUDIT','').strip()
+    out_long=os.environ.get('HSAI_LONG_OUT','').strip()
+    if not out_gpu:raise ValueError('forced-chain 必须显式设置 HSAI_P50_AUDIT（验收输出目录）')
+    if not out_long:raise ValueError('forced-chain 必须显式设置 HSAI_LONG_OUT（长训输出目录）')
+    gpu_p=Path(root)/out_gpu if not Path(out_gpu).is_absolute() else Path(out_gpu)
+    long_p=Path(root)/out_long if not Path(out_long).is_absolute() else Path(out_long)
+    if gpu_p.resolve()==long_p.resolve():raise ValueError('验收目录与长训目录不能相同')
+    if gpu_p.exists() and any(gpu_p.iterdir()):
+        raise ValueError('验收输出目录已存在且非空:'+str(gpu_p))
+    if long_p.exists() and any(long_p.iterdir()):
+        raise ValueError('长训输出目录已存在且非空；换新目录或显式 resume:'+str(long_p))
+    if (long_p/'STOP_REQUESTED').exists():
+        raise ValueError('长训目录里还有 STOP_REQUESTED；先改名留档')
+    return {'audit':str(gpu_p),'long':str(long_p)}
+
+
+def chain_precheck(root=ROOT):
+    """两作业链的登录节点预检：元数据 + 目录（不要求已存在验收报告）。"""
+    gpu_meta=precheck('forced-gpu',root)
+    dirs=chain_dirs(root)
+    scripts={'gpu':str(root/'deploy/slurm/p50_forced_preflight.sbatch'),
+             'long':str(root/'deploy/slurm/p50_forced.sbatch')}
+    for name,path in scripts.items():
+        if not Path(path).is_file():raise ValueError(f'缺少{name}作业脚本:'+path)
+    return dict(passed=True,phase='forced-chain',scope='metadata_file_precheck_only',
+                dirs=dirs,scripts=scripts,gpu_precheck=gpu_meta)
+
+
+def submit_chain(root=ROOT):
+    """一次提交两个作业：GPU 验收，然后 ``--dependency=afterok`` 的长训。
+
+    长训作业在验收**退出码为 0** 之后才启动；验收失败时 Slurm 会把长训标成
+    ``DependencyNeverSatisfied``，不会白跑 12 小时。长训自己的作业内预检
+    （``--phase forced --check-only``）仍会复核源码/入口/库摘要，两处任一处不符都会立刻失败。
+    """
+    info=chain_precheck(root)
+    (Path(root)/'artifacts/runs/slurm').mkdir(parents=True,exist_ok=True)
+    for name,path in info['scripts'].items():
+        printed=subprocess.run(['bash','-n',path],cwd=str(root),capture_output=True,text=True)
+        if printed.returncode:raise ValueError(f'{name} 作业脚本语法错误:{printed.stderr.strip()[:400]}')
+    test=subprocess.run(['sbatch','--test-only',info['scripts']['gpu']],
+                        cwd=str(root),capture_output=True,text=True)
+    if test.returncode:raise ValueError('sbatch --test-only 失败:'+(test.stderr.strip()[:400]))
+    gpu_submit=subprocess.run(['sbatch','--parsable',info['scripts']['gpu']],
+                              cwd=str(root),capture_output=True,text=True)
+    if gpu_submit.returncode:raise ValueError('提交验收作业失败:'+(gpu_submit.stderr.strip()[:400]))
+    gpu_job=_parse_parsable(gpu_submit.stdout)
+    long_submit=subprocess.run(['sbatch','--parsable','--dependency=afterok:'+gpu_job,
+                                info['scripts']['long']],
+                               cwd=str(root),capture_output=True,text=True)
+    if long_submit.returncode:raise ValueError('提交长训作业失败:'+(long_submit.stderr.strip()[:400]))
+    long_job=_parse_parsable(long_submit.stdout)
+    return dict(passed=True,phase='forced-chain',gpu_job=gpu_job,long_job=long_job,
+                dependency='afterok:'+gpu_job,**info)
+
+
 def precheck(phase,root=ROOT):
     if phase=='eval':
         return eval_precheck(root)
@@ -331,8 +403,20 @@ def precheck(phase,root=ROOT):
                 **({'curve':curve_info} if curve_info else {}))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced','forced-gpu','eval'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced','forced-gpu','eval','forced-chain'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
     os.chdir(ROOT)
+    if a.phase=='forced-chain':
+        # 一次提交两作业：GPU 验收 + afterok 依赖的长训（验收退出码 0 才启动）。
+        try:
+            chain=submit_chain(ROOT) if a.submit else chain_precheck(ROOT)
+        except (OSError,ValueError,KeyError,subprocess.SubprocessError) as exc:
+            p.exit(2,"PRECHECK FAILED: "+str(exc)+"\n")
+        print(json.dumps(chain,ensure_ascii=False,indent=2),flush=True)
+        if a.submit:
+            print(f"[chain] GPU验收={chain['gpu_job']}  长训={chain['long_job']}  "
+                  f"依赖=afterok:{chain['gpu_job']}",flush=True)
+            print(f"[chain] squeue -u \"$USER\" -o '%.12i %.24j %.12T %.12M %R'",flush=True)
+        return
     try:result=precheck(a.phase)
     except (OSError,ValueError,KeyError) as exc:p.exit(2,"PRECHECK FAILED: "+str(exc)+"\n")
     print(json.dumps(result,ensure_ascii=False),flush=True)

@@ -138,6 +138,33 @@ PY
 
 
 
+## 2c. 一次提交两作业（验收 → 长训自动接力，推荐）
+
+重跑验收要排队：2026-11-08 的验收作业在 `gpu` 分区排了近两小时，长训只能干等。
+现在有一条命令把两个作业一次交给 Slurm，长训用 `afterok` 依赖，**验收 ExitCode 0 才启动**；
+验收失败时长训被标成 `DependencyNeverSatisfied`，不会白跑 12 小时。
+
+```bash
+cd ~/projects/HSAI || exit
+export HSAI_P50_CURVE=config/opponent-p50-slightly-weaker.json
+export HSAI_P50_BANK=<CPU 作业用的新库目录>
+export HSAI_P50_AUDIT=artifacts/runs/p50-forced-tier-preflight-<日期>   # 必须新目录
+export HSAI_LONG_OUT=artifacts/runs/p50-forced-tier-long-002             # 必须新目录
+
+/usr/bin/python3 -S tools/nus_submit.py --phase forced-chain --check-only   # 只做元数据+目录检查
+/usr/bin/python3 -S tools/nus_submit.py --phase forced-chain --submit
+```
+
+`--submit` 会：`bash -n` 两个作业脚本 → `sbatch --test-only` 验收脚本 → 提交验收（作业 A）→
+用 `--dependency=afterok:<A>` 提交长训（作业 B），并打印两个作业号。长训作业内仍会跑
+`--phase forced --check-only`，再复核源码/入口/库摘要（与 A 的产出同源，正常不会失败）。
+
+早上看结果：
+
+```bash
+sacct -j <A>,<B> -X --format=JobID,JobName%24,State,Elapsed,ExitCode
+```
+
 ## 3. 正式长训（12 小时）
 
 ```bash
