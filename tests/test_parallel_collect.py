@@ -162,3 +162,10 @@ def test_lockstep_reports_forced_tier_meta():
     assert any(bool(r.get("forced")) for r in records), "记录里没有 forced 样本"
     assert sum(1 for m in meta.get("games_meta") or []
                if isinstance(m.get("forced_tier_game"), dict)) == 4
+    # 每个目标只有一局一个结局：逐局 meta 必须先按 (game_id, seat) 过滤。
+    # 不过滤时每局都带"N 局合计"，顶层再求和 ⇒ 计数被放大 N 倍
+    # （2026-11-08 的 GPU 验收里 forced_actions 虚高 512 倍）。
+    for want, row in (forced.get("targets") or {}).items():
+        total = sum(int(row.get(k, 0)) for k in ("self", "on_time", "deferred", "missed"))
+        assert total == 4, f"目标 {want} 的结局计数 {total} != 局数 4（逐局统计被重复计）"
+    assert int(forced["forced_actions"]) <= 4 * int(cfg.forced_tier_carry + 1) * len(forced["targets"]) * 4

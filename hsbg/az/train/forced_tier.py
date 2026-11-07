@@ -415,16 +415,26 @@ class ForcedTierTracker:
             return 0.0
 
     # ---- 统计 ----
-    def game_stats(self) -> Dict[str, object]:
+    def game_stats(self, game_id=None, seat=None) -> Dict[str, object]:
         """当前（尚未折叠的）对局统计：每个目标一行。
 
         采集器在每局结束、下一次 ``reset()`` 之前调用它，把结果写进该局的 meta；
         顶层再用 :func:`aggregate_forced_tier` 汇总。未启用时返回 ``{}``。
+
+        ``game_id``/``seat`` 给定时**只返回这一局**的统计：lock-step 用同一个 policy
+        服务 N 局，``_state`` 里同时存在所有局；不按局过滤就会把「全部局的合计」写进
+        每一局的 meta，再被顶层求和 ⇒ 计数被放大 N 倍（2026-11-08 验收里
+        ``forced_actions`` 虚高 512 倍即由此而来；比率仍然正确，绝对数不对）。
         """
         if not self.plan:
             return {}
+        if game_id is None:
+            keys = sorted(self._state)
+        else:
+            key = (int(game_id), int(seat) if seat is not None else 0)
+            keys = [key] if key in self._state else []
         agg: Dict[str, Dict[str, int]] = {}
-        for key in sorted(self._state):
+        for key in keys:
             for t in self._state[key]:
                 row = agg.setdefault(str(t.want), {"self": 0, "on_time": 0,
                                                    "deferred": 0, "missed": 0,

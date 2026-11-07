@@ -3410,9 +3410,15 @@ class PPOSelfPlayPolicy(Policy):
         """强制升本统计（默认关闭 -> ``{}``，不新增 meta 键）。"""
         return {} if self._forced is None else self._forced.stats()
 
-    def forced_tier_game_meta(self) -> Dict[str, Any]:
-        """本局强制升本统计（写进逐局 meta；默认关闭 -> ``{}``）。"""
-        return {} if self._forced is None else self._forced.game_stats()
+    def forced_tier_game_meta(self, game_id: Any = None, seat: Any = None) -> Dict[str, Any]:
+        """本局强制升本统计（写进逐局 meta；默认关闭 -> ``{}``）。
+
+        ``game_id``/``seat`` 必须给：lock-step 里一个 policy 同时服务 N 局，
+        不带过滤会把 N 局的合计写进每一局、再被顶层求和放大 N 倍。
+        """
+        if self._forced is None:
+            return {}
+        return self._forced.game_stats(game_id, seat)
 
     # ── 强制升本（见 docs/FORCED_TIER.md）──
     def _obs_tier(self, f: Any, game: Any, seat: int) -> int:

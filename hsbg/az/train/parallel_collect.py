@@ -848,7 +848,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         # 强制升本：逐局统计必须进 meta（历史上只有 _one_game 汇总，lockstep 漏了，
         # 导致 --lockstep 1 的生产路径 history 里 forced_actions 恒为 0，
         # 2026-11-07 GPU 验收 1091647 就是这样空转的）。
-        _ft_game = policy.forced_tier_game_meta()
+        _ft_game = policy.forced_tier_game_meta(st["gid"], seat)
         if _ft_game:
             metas[-1]["forced_tier_game"] = _ft_game
     meta = {"mode": "lockstep", "games": n, "pool_games": n,

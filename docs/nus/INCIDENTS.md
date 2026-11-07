@@ -16,5 +16,6 @@
 | 1080016启动9秒缺plan.json | 长训要求工程父目录没有产出的文件 | 显式source-fork.json契约，真实产物布局连通测试，提交前标准库预检 |
 | PPO采样多但只学6.8% | lag1旧策略批次KL超阈值，甚至零optimizer.step | 降低独立分叉LR、零步同步回退，保留KL保护；训练iteration版本不等于Adam步数 |
 | 1092598 CPU作业15秒失败 | PowerShell 改写把 UTF-8 BOM(U+FEFF) 写进 `workflows/run_forced_tier_long.py`（另有 `tests/test_parallel_collect.py`），而 `tools/verify_workspace.py` 用 `read_text(encoding='utf-8')` + `ast.parse`，把 BOM 当非法字符报 SyntaxError；这两个文件此前都不在检查器的语法清单里 | 两个文件去 BOM；检查器改 `utf-8-sig` 解析 + **代码目录一律拒绝 BOM** 的独立门禁，排在所有构建/测试之前；`tools/strip_source_bom.py --check/--fix`；`tests/test_source_hygiene.py` 11 项回归（含"清单必须覆盖 tests/ 与 workflows/"）。`records/`、`artifacts/` 的历史证据不动 |
+| GPU验收forced_actions虚高512倍 | lock-step 里一个 policy 服务 N 局，`game_stats()` 汇总**全部局**，却被写进每一局的 meta，顶层再求和 ⇒ 计数×N（比率仍然正确） | `game_stats(game_id, seat)` 按 `(game_id, seat)` 过滤；lockstep 传 `st["gid"]`；`tests/test_parallel_collect.py` 断言「每目标结局计数 == 局数」 |
 
 旧目录完整失败现场、Slurm文本和修复报告已归档。请通过 `tools/resource_catalog.py` 搜索原始路径/作业号；归档里的旧命令不是当前指令。不能凭过去941项Rust测试通过，就承诺没有任何未覆盖游戏机制；公开信息重建、近似机制与新补丁仍需独立验证。
