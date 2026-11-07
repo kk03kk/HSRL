@@ -40,28 +40,36 @@ cd ~/projects/HSAI || exit
 ## 2. GPU 工程验收（1 小时上限，必做）
 
 ```bash
-# 先跑一次工程验收：真实 7357 → 1 轮 PPO → 保存/恢复 → 换库 → 1 轮
-/usr/bin/python3 -S tools/nus_submit.py --phase gpu --submit
+# 用强制升本专用的预检任务（会真的跑一遍强制升本并验收执行统计）
+/usr/bin/python3 -S tools/nus_submit.py --phase forced-gpu --submit
 sacct -j <GPU作业号> -X --format=JobID,State,Elapsed,ExitCode
 /usr/bin/python3 -S - <<'PY'
 import json
 from pathlib import Path
 r=json.loads(Path('artifacts/runs/p50-forced-tier-preflight/report.json').read_text())
-print('passed:',r['passed'],'versions:',r['versions'])
+print('passed:',r['passed'],'profile:',r.get('profile'),'versions:',r['versions'])
 print('source Adam:',r['source_adam_step_min'],'final:',r['final_restore']['adam_step_min'])
+print('forced_tier:',json.dumps(r.get('forced_tier'),ensure_ascii=False))
 PY
 ```
 
-要额外确认（本轮新增）：
+`--phase forced-gpu` 与 `--phase gpu` 的区别只有两点：提交的是
+`deploy/slurm/p50_forced_preflight.sbatch`（task=`p50-forced-preflight`），且预检用
+**新 runner 的 `inputs()`**——上一轮的 `run_7357_preflight.py` 复用了旧 runner，里面有
+"配方必须等于上一轮"的硬断言，会直接拒绝本轮配方（已修：加 `--profile forced`）。
 
-```bash
-# 强制升本的统计必须出现在 history 的 collect 段
-grep -o '"forced_tier":{[^}]*' artifacts/runs/p50-forced-tier-preflight/*/history.jsonl | head
-# 被强制的样本必须被策略损失排除：trainer 里 forced 计数 > 0 且 policy_loss 非 NaN
-```
+预检额外验收（失败会直接 `raise`，不会写 `passed:true`）：
 
-验收不过就改 `HSAI_P50_AUDIT` 用新目录重试，**不要绕过**。注意 GPU 验收用的是上一轮的
-`run_7357_preflight.py`；如果它不覆盖强制升本路径，就以第 3 步的前 10M 作为实际验收。
+| 检查 | 判据 |
+|---|---|
+| `forced_tier` 段存在 | `history.jsonl` 最后一条记录里有该段 |
+| 强制执行过 | `forced_actions > 0` |
+| 5 本样本足够 | `tier5_samples ≥ 0.25 × games`（否则说明多数局在 T8 前就结束） |
+| 5 本到达率 | `on_time + deferred ≥ 0.60` |
+| 未达比例 | `missed ≤ 0.25` |
+
+通过后会打印 `forced_tier: {...}`，其中的 `tier5_on_time / tier5_deferred / tier5_missed`
+就是长训最该盯的三个数。若失败：改 `HSAI_P50_AUDIT` 用新目录重试，**不要绕过**。
 
 ## 3. 正式长训（24 小时）
 

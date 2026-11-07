@@ -130,6 +130,7 @@ def main():
         'p50-preflight': ('run_7357_preflight.py', 'p50-7357-preflight'),
         'p50-long': ('run_7357_long.py', 'p50-7357-long-001'),
         'p50-forced': ('run_forced_tier_long.py', 'p50-forced-tier-long-001'),
+        'p50-forced-preflight': ('run_forced_tier_preflight.py', 'p50-forced-tier-preflight'),
     }
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--task', choices=tasks, default='refine')
@@ -157,7 +158,7 @@ def main():
             raise RuntimeError('nvidia-smi设备清单不可用，已保留诊断，禁止猜测GPU映射')
         selected,mapping=mig_mapping(evidence.get('nvidia_smi',''),os.environ,
                                      evidence.get('original_driver_instance_uuids'))
-        if args.task in ('pending-audit','long-4159','p50-preflight','p50-long','p50-forced') and len(evidence.get('original_driver_instance_uuids', [])) != 2:
+        if args.task in ('pending-audit','long-4159','p50-preflight','p50-long','p50-forced','p50-forced-preflight') and len(evidence.get('original_driver_instance_uuids', [])) != 2:
             raise ValueError('恢复工程验收需要两个Driver设备；当前作业步并未完整分配双GPU，禁止进入模型加载')
         evidence.update(mapping=mapping)
     except Exception as exc:
