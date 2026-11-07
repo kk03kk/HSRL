@@ -2,7 +2,7 @@
 #SBATCH --job-name=hsai-p50-forced-pre
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=gpu-long
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:2
 #SBATCH --exclude=xgpi15,xgpi17
 #SBATCH --cpus-per-task=32
