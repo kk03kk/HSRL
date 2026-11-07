@@ -131,6 +131,8 @@ def main():
         'p50-long': ('run_7357_long.py', 'p50-7357-long-001'),
         'p50-forced': ('run_forced_tier_long.py', 'p50-forced-tier-long-001'),
         'p50-forced-preflight': ('run_forced_tier_preflight.py', 'p50-forced-tier-preflight'),
+        # 纯评测：2 模型 + 6 bot 的 128 局配对评测（只读，不训练；单卡足够）
+        'eval-duel': ('eval_two_models_six_bots.py', 'duel-eval-001'),
     }
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--task', choices=tasks, default='refine')

@@ -32,6 +32,15 @@ def _stdlib_module(relpath,root=ROOT):
         raise
     return module
 
+def _sha_file(path):
+    """原始字节 SHA256（权重文件；不做 CRLF 归一化）。流式读取，登录节点内存安全。"""
+    h = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _sha_lf(path):
     """按 LF 归一化后的 SHA256（与服务端 ``training_source_digest`` 同口径）。"""
     return hashlib.sha256(Path(path).read_bytes().replace(b'\r\n', b'\n')).hexdigest()
@@ -72,7 +81,74 @@ def audit_problem(audit_path, *, root=ROOT, runner='workflows/run_forced_tier_lo
         return 'GPU验收时的战团库与当前不一致（库被重建或替换过）：请重跑 --phase forced-gpu --submit'
     return ''
 
+def eval_precheck(root=ROOT):
+    """``--phase eval``：2 模型 + 6 bot 的 128 局配对评测的登录节点预检。
+
+    只做**元数据/摘要**检查（不 import torch、不 import hsbg、不解析大 JSON）：
+
+    - 协议配置存在且仍是用户批准的规则（128 局 / 80 动作 / 5 换位 / 去抖 2）；
+    - A/B 两份权重存在、字节数与 SHA256 与配置一致、且不是同一份权重；
+    - 输出目录不存在（保留失败证据，禁止覆盖旧基线）；
+    - sbatch / common.sh / 启动器 / 评测入口都在；
+    - 其它路径假设一律显式失败，不猜目录。
+    """
+    cfg_path = root / os.environ.get('HSAI_EVAL_CONFIG', 'config/eval-duel-7357-vs-10004.json')
+    if not cfg_path.is_file():
+        raise ValueError('缺少评测协议配置:' + str(cfg_path))
+    cfg = read(cfg_path)
+    approved = {'games': 128, 'max_actions_per_turn': 80, 'move_cap': 5,
+                'move_repeat_limit': 2}
+    for key, expected in approved.items():
+        if int(cfg.get(key, -1)) != expected:
+            raise ValueError(f'评测协议被改动：{key}={cfg.get(key)!r}，本轮批准值是 {expected}')
+    if str(cfg.get('decode', 'greedy')) != 'greedy':
+        raise ValueError('评测协议被改动：decode 必须是 greedy（采样会改变名次口径）')
+    models = cfg.get('models') or {}
+    shas = {}
+    for label, env in (('A', 'HSAI_EVAL_MODEL_A'), ('B', 'HSAI_EVAL_MODEL_B')):
+        entry = models.get(label) or {}
+        path = Path(os.environ.get(env) or entry.get('path') or '')
+        if str(path) and not path.is_absolute():
+            # 相对路径按仓库根解析：登录节点与作业内 cwd 都是仓库根，单测也能指向临时树
+            path = Path(root) / path
+        if not str(path) or not path.is_file():
+            raise ValueError(f'缺少模型 {label} 权重:{path}（先用 tools/stage_duel_models.py '
+                             '准备并上传，或用 ' + env + ' 指定）')
+        expected_bytes = int(entry.get('bytes') or 0)
+        if expected_bytes and path.stat().st_size != expected_bytes:
+            raise ValueError(f'模型 {label} 字节数不符: {path.stat().st_size} != {expected_bytes}')
+        expected_sha = str(entry.get('file_sha256') or '')
+        if not expected_sha:
+            raise ValueError(f'协议配置缺少 models.{label}.file_sha256')
+        actual = _sha_file(path)
+        if actual != expected_sha:
+            raise ValueError(f'模型 {label} SHA256 不符:{actual} != {expected_sha}')
+        shas[label] = actual
+    if shas['A'] == shas['B']:
+        raise ValueError('A/B 两个模型是同一份权重，不能当作两模型评测')
+    out = Path(os.environ.get('HSAI_EVAL_OUT', 'artifacts/runs/duel-eval-001'))
+    if not out.is_absolute():
+        out = Path(root) / out
+    if out.exists() and (not out.is_dir() or any(out.iterdir())):
+        raise ValueError('评测输出目录已存在且非空，请改用新目录:' + str(out))
+    script = root / 'deploy/slurm/p50_eval.sbatch'
+    for required in (script, root / 'deploy/slurm/common.sh',
+                     root / 'workflows/launch_nus_refinement.py',
+                     root / 'workflows/eval_two_models_six_bots.py',
+                     root / 'tools/stage_duel_models.py'):
+        if not required.is_file():
+            raise ValueError('部署文件缺失:' + str(required))
+    return dict(passed=True, phase='eval', script=str(script),
+                scope='metadata_file_precheck_only',
+                config=str(cfg_path), games=int(cfg['games']),
+                seed=int(cfg.get('seed', 0)), out=str(out),
+                models={label: {'path': str(models[label]['path']), 'file_sha256': sha}
+                        for label, sha in shas.items()})
+
+
 def precheck(phase,root=ROOT):
+    if phase=='eval':
+        return eval_precheck(root)
     from workflows.run_7357_long import defaults,check_inputs,MODEL_SHA,TRAINER_SHA,SOURCE_CUM
     p=defaults(argparse.ArgumentParser());args=p.parse_args([])
     if phase in ('forced','forced-gpu'):
@@ -156,7 +232,7 @@ def precheck(phase,root=ROOT):
     return dict(passed=True,phase=phase,script=str(script),scope='bounded_standard_library_metadata_no_model_loading')
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced','forced-gpu'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced','forced-gpu','eval'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
     os.chdir(ROOT)
     try:result=precheck(a.phase)
     except (OSError,ValueError,KeyError) as exc:p.exit(2,"PRECHECK FAILED: "+str(exc)+"\n")

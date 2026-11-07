@@ -1,0 +1,33 @@
+{
+  "schema": "hsai.eval-duel-config/v1",
+  "note": "2 模型 + 6 引擎 bot 的 128 局配对评测协议。改动任何字段都会改变 protocol_sha256，禁止与旧榜混榜。评测环境 = 当前项目模拟器（37.0.2.256589），无修改。",
+  "models": {
+    "A": {
+      "id": "entity16m-nus-7357",
+      "label": "7357（NUS 1080772 末段，AGENTS 批准的续训起点）",
+      "path": "artifacts/models/duel/7357/model.pt",
+      "file_sha256": "60594db00a627884d47afd4a326639ab9b1fa7c48eb88618399051d971dcff82",
+      "bytes": 67864188,
+      "library_path": "artifacts/models/library-v1/models/entity16m-nus-7357/model.pt"
+    },
+    "B": {
+      "id": "entity16m-p50-10004-820m",
+      "label": "10004（P50 1085131 末段 820.3M）",
+      "path": "artifacts/models/duel/10004/model.pt",
+      "file_sha256": "32ec7a5c249fd8591ccda4d40100cbb76664f2f20ffe1ebda6011ea02f428a4a",
+      "bytes": 67864188,
+      "library_path": "artifacts/models/library-v1/models/entity16m-p50-10004-820m/model.pt"
+    }
+  },
+  "games": 128,
+  "seed": 73000000,
+  "decode": "greedy",
+  "max_actions_per_turn": 80,
+  "move_cap": 5,
+  "move_repeat_limit": 2,
+  "max_steps": 50000,
+  "best_games": 5,
+  "top_power_games": 3,
+  "action_cap_semantics": "同一座位同一回合第 81 个决策在 EndTurn 合法时强制结束回合（与训练配方同口径）",
+  "move_cap_semantics": "每回合最多 5 次换位；同一 (from,to) 累计 2 次后屏蔽；逆换位屏蔽"
+}
