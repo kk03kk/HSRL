@@ -35,6 +35,14 @@ profile=`p50-v2-weaker`），旧库在 T12–T19 是模型的 **3.1–21.6 倍**
 5. 新增门禁：**配置漂移**（双侧只允许 `FORCED_ALLOWED_CONFIG_DIFF`）+ **吞吐**
    （每轮墙钟 ≤300 s、≥3,000 dec/s、写 `report.json.timings`、每轮 `--run-minutes 8` 封顶）。
 
+**源码卫生事故（NUS CPU 1092598，15 秒失败）**：此前用 PowerShell 改写文件时把 UTF-8 BOM
+写进了 `workflows/run_forced_tier_long.py` 与 `tests/test_parallel_collect.py`；`tools/verify_workspace.py`
+用 `read_text(encoding='utf-8')` + `ast.parse` 把 BOM 当非法字符，且这两个文件都不在它的语法清单里。
+已修：两文件去 BOM（现仓库代码目录 368 个 `.py` 全部无 BOM、全部可解析）；检查器改为
+`utf-8-sig` 解析 + 独立 **BOM 门禁**（排在构建/测试之前，失败即停）；新增
+`tools/strip_source_bom.py`（`--check`/`--fix`）与 `tests/test_source_hygiene.py`（11 项，
+含"清单必须覆盖 tests/ 与 workflows/"的回归）。`records/`、`artifacts/` 里的历史 BOM 证据不动。
+
 ## 2026-11-07（夜）：双模型 + 6 bot 的 128 局配对评测已实现（本地验证，待 NUS 运行）
 
 用户指定：用 7357 与 10004 在 NUS 跑一次评测，环境为当前模拟器（37.0.2.256589，**无修改**），

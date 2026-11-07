@@ -1,4 +1,4 @@
-﻿"""并行采集与串行采集的固定 seed 等价回归（需要引擎 + torch）。"""
+"""并行采集与串行采集的固定 seed 等价回归（需要引擎 + torch）。"""
 
 from __future__ import annotations
 
