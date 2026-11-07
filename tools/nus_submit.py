@@ -12,13 +12,24 @@ def _stdlib_module(relpath,root=ROOT):
     登录节点与 ``python -S`` 都没有 numpy/torch，而 ``import hsbg.az…`` 会经过
     ``hsbg/az/__init__.py`` → ``belief.py`` → numpy。预检只需要 ``forced_tier``
     的解析器，所以直接按文件加载（该模块只依赖 re/dataclasses/typing）。
+
+    注意：必须在 ``exec_module`` **之前**把模块登记进 ``sys.modules``。
+    ``@dataclass`` 会通过 ``sys.modules[cls.__module__].__dict__`` 反查注解类型，
+    未登记时在部分 Python 版本（如 3.12）会抛
+    ``AttributeError: 'NoneType' object has no attribute '__dict__'``。
     """
     import importlib.util
     path=(Path(root)/relpath).resolve()
     if not path.is_file():raise ValueError('缺少预检模块:'+str(path))
-    spec=importlib.util.spec_from_file_location('_hsai_stdlib_'+path.stem,path)
+    name='_hsai_stdlib_'+path.stem
+    spec=importlib.util.spec_from_file_location(name,path)
     module=importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[name]=module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name,None)
+        raise
     return module
 
 def precheck(phase,root=ROOT):

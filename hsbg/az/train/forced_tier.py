@@ -36,7 +36,6 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
 #: 默认强制升本计划（回合 → 目标酒馆等级）。T9 以后自由经营，六本不强制。
@@ -201,40 +200,58 @@ def prob_at(schedule: List[Tuple[float, float]], decisions: float) -> float:
     return float(p)
 
 
-@dataclass
 class ForcedTierDecision:
-    """一次 learner 决策上的强制判定结果。"""
+    """一次 learner 决策上的强制判定结果（纯数据类，不用 dataclass）。
 
-    #: 是否强制把动作改成 Upgrade
-    force: bool = False
-    #: 是否写教师标签（目标未达成、Upgrade 合法、但本次没有强制）
-    teacher: bool = False
-    #: 本次命中的目标等级（None = 本回合没有适用目标）
-    target: Optional[int] = None
-    #: 该目标的截止回合
-    deadline: Optional[int] = None
-    #: 本回合是"顺延补做"（turn > deadline）
-    deferred: bool = False
-    #: 目标适用但 Upgrade 不合法（金币不足/待选阶段/已到上限）——只用于记账
-    blocked: bool = False
+    刻意不依赖 ``dataclasses``：本模块要能在登录节点按文件路径加载执行，
+    ``@dataclass`` 会在 ``exec_module`` 期间通过 ``sys.modules`` 反查注解类型，
+    跨 Python 版本行为不一致（3.12 会抛 AttributeError）。
+    """
+
+    __slots__ = ("force", "teacher", "target", "deadline", "deferred", "blocked")
+
+    def __init__(self) -> None:
+        #: 是否强制把动作改成 Upgrade
+        self.force: bool = False
+        #: 是否写教师标签（目标未达成、Upgrade 合法、但本次没有强制）
+        self.teacher: bool = False
+        #: 本次命中的目标等级（None = 本回合没有适用目标）
+        self.target: Optional[int] = None
+        #: 该目标的截止回合
+        self.deadline: Optional[int] = None
+        #: 本回合是"顺延补做"（turn > deadline）
+        self.deferred: bool = False
+        #: 目标适用但 Upgrade 不合法（金币不足/待选阶段/已到上限）——只用于记账
+        self.blocked: bool = False
 
     def as_record(self) -> Dict[str, object]:
         return {"force": bool(self.force), "target": self.target,
                 "deadline": self.deadline, "deferred": bool(self.deferred)}
 
+    def __repr__(self) -> str:  # 仅调试/日志用
+        return (f"ForcedTierDecision(force={self.force}, teacher={self.teacher}, "
+                f"target={self.target}, deadline={self.deadline}, "
+                f"deferred={self.deferred}, blocked={self.blocked})")
 
-@dataclass
+
 class _TargetState:
-    deadline: int
-    want: int
-    achieved_turn: Optional[int] = None
-    achieved_by: str = ""          # self | forced
-    missed: bool = False
-    forced_actions: int = 0
-    teacher_labels: int = 0
-    teacher_turn: int = -1
-    blocked: int = 0
-    blocked_turn: int = -1
+    """单个目标（回合 → 等级）在一局内的状态。"""
+
+    __slots__ = ("deadline", "want", "achieved_turn", "achieved_by", "missed",
+                 "forced_actions", "teacher_labels", "teacher_turn", "blocked",
+                 "blocked_turn")
+
+    def __init__(self, deadline: int, want: int) -> None:
+        self.deadline = int(deadline)
+        self.want = int(want)
+        self.achieved_turn: Optional[int] = None
+        self.achieved_by: str = ""          # self | forced
+        self.missed: bool = False
+        self.forced_actions: int = 0
+        self.teacher_labels: int = 0
+        self.teacher_turn: int = -1
+        self.blocked: int = 0
+        self.blocked_turn: int = -1
 
 
 class ForcedTierTracker:
