@@ -1,5 +1,5 @@
 """登录节点纯标准库预检；检查完成后才调用sbatch，避免排队数小时后路径秒失败。"""
-import argparse,hashlib,json,os,subprocess,sys
+import argparse,hashlib,json,os,subprocess,sys,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -151,6 +151,44 @@ def check_curve(path, *, old_curve=None):
                 stage_ratios=curve.get('stage_ratios'))
 
 
+def resolve_bank(root=ROOT):
+    """确定本轮训练库：``HSAI_P50_BANK`` 显式优先，否则按"曲线身份"自动找。
+
+    为什么要自动找：旧库和新库的 ``driver``、目录结构完全一样，只有
+    ``calibration_profile`` + ``curve_sha256`` 能区分。手填路径一次写错（或占位符没替换），
+    就会拿旧库跑 12 小时。自动找 = 扫 ``artifacts/libraries/*/report.json``，只认
+    **与当前曲线同 profile 且同 curve_sha256** 的那一个；0 个或多个都直接失败并列出候选。
+    """
+    explicit = os.environ.get('HSAI_P50_BANK', '').strip()
+    if explicit:
+        return Path(explicit)
+    curve_path = _curve_env(root)
+    curve = read(curve_path)
+    want_profile = str(curve.get('calibration_profile') or '')
+    want_sha = _sha_lf(curve_path)
+    if not want_profile:
+        raise ValueError('当前曲线缺少 calibration_profile，无法自动定位训练库')
+    hits, seen = [], []
+    for report in sorted((Path(root) / 'artifacts/libraries').glob('*/report.json')):
+        try:
+            rep = read(report)
+        except (OSError, ValueError):
+            continue
+        seen.append(f"{report.parent.name}={rep.get('calibration_profile') or '未标注'}")
+        if (str(rep.get('calibration_profile') or '') == want_profile
+                and str(rep.get('curve_sha256') or '') == want_sha):
+            hits.append(report.parent)
+    if len(hits) == 1:
+        return hits[0]
+    if not hits:
+        raise ValueError(
+            f'找不到 profile={want_profile} 且 curve_sha256={want_sha[:12]}… 的训练库；'
+            f'artifacts/libraries 下的候选:{", ".join(seen) or "（空）"}；'
+            '如新库不在该目录，请显式 export HSAI_P50_BANK=<库目录>')
+    raise ValueError('多个库都匹配当前曲线，请显式 export HSAI_P50_BANK：'
+                     + ', '.join(str(h) for h in hits))
+
+
 def _curve_env(root=ROOT):
     """本轮曲线：默认指向"稍弱于模型"的分级曲线；可用 HSAI_P50_CURVE 覆盖。"""
     return Path(os.environ.get('HSAI_P50_CURVE',
@@ -250,10 +288,12 @@ def chain_dirs(root=ROOT):
     ``p50-forced-tier-preflight``、长训写进 ``long-001``，一旦上一次失败留了现场，
     依赖链上的长训会在半夜以"输出目录非空"退出。
     """
-    out_gpu=os.environ.get('HSAI_P50_AUDIT','').strip()
-    out_long=os.environ.get('HSAI_LONG_OUT','').strip()
-    if not out_gpu:raise ValueError('forced-chain 必须显式设置 HSAI_P50_AUDIT（验收输出目录）')
-    if not out_long:raise ValueError('forced-chain 必须显式设置 HSAI_LONG_OUT（长训输出目录）')
+    stamp=time.strftime('%Y%m%d-%H%M%S')
+    out_gpu=os.environ.get('HSAI_P50_AUDIT','').strip() or f'artifacts/runs/p50-forced-tier-preflight-{stamp}'
+    out_long=os.environ.get('HSAI_LONG_OUT','').strip() or f'artifacts/runs/p50-forced-tier-long-{stamp}'
+    # 缺省值写回环境：两个作业（以及作业内的预检/训练器）必须用**同一条**路径。
+    os.environ['HSAI_P50_AUDIT']=out_gpu
+    os.environ['HSAI_LONG_OUT']=out_long
     gpu_p=Path(root)/out_gpu if not Path(out_gpu).is_absolute() else Path(out_gpu)
     long_p=Path(root)/out_long if not Path(out_long).is_absolute() else Path(out_long)
     if gpu_p.resolve()==long_p.resolve():raise ValueError('验收目录与长训目录不能相同')
@@ -268,8 +308,8 @@ def chain_dirs(root=ROOT):
 
 def chain_precheck(root=ROOT):
     """两作业链的登录节点预检：元数据 + 目录（不要求已存在验收报告）。"""
+    dirs=chain_dirs(root)          # 先定目录并写回 env
     gpu_meta=precheck('forced-gpu',root)
-    dirs=chain_dirs(root)
     scripts={'gpu':str(root/'deploy/slurm/p50_forced_preflight.sbatch'),
              'long':str(root/'deploy/slurm/p50_forced.sbatch')}
     for name,path in scripts.items():
@@ -312,6 +352,12 @@ def precheck(phase,root=ROOT):
     curve_info=None
     from workflows.run_7357_long import defaults,check_inputs,MODEL_SHA,TRAINER_SHA,SOURCE_CUM
     p=defaults(argparse.ArgumentParser());args=p.parse_args([])
+    if phase in ('forced','forced-gpu','forced-chain'):
+        # 库按曲线身份自动定位，并把解析结果写进环境变量：两个作业（验收/长训）
+        # 继承同一路径，训练器 inputs() 读的也是它，避免"预检用新库、训练用旧库"。
+        args.bot_3702=resolve_bank(root)
+        os.environ['HSAI_P50_BANK']=str(args.bot_3702)
+        print(f'[bank] {args.bot_3702}',flush=True)
     if phase in ('forced','forced-gpu'):
         # 强制升本长训：来源/父实验/现成库（不新建库）；配方由新 runner 在计算节点校验。
         needs_gpu_audit=phase=='forced'

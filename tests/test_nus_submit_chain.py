@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -31,14 +32,16 @@ def test_parse_parsable_rejects_garbage(bad):
         nus._parse_parsable(bad)
 
 
-def test_chain_dirs_requires_explicit_env(monkeypatch, tmp_path):
+def test_chain_dirs_defaults_to_timestamped_dirs(monkeypatch, tmp_path):
+    """不给环境变量也要能用：默认生成两个带时间戳的新目录，并写回环境供两个作业继承。"""
     monkeypatch.delenv("HSAI_P50_AUDIT", raising=False)
     monkeypatch.delenv("HSAI_LONG_OUT", raising=False)
-    with pytest.raises(ValueError, match="HSAI_P50_AUDIT"):
-        nus.chain_dirs(tmp_path)
-    monkeypatch.setenv("HSAI_P50_AUDIT", str(tmp_path / "a"))
-    with pytest.raises(ValueError, match="HSAI_LONG_OUT"):
-        nus.chain_dirs(tmp_path)
+    dirs = nus.chain_dirs(tmp_path)
+    assert "p50-forced-tier-preflight-" in dirs["audit"]
+    assert "p50-forced-tier-long-" in dirs["long"]
+    assert dirs["audit"] != dirs["long"]
+    assert Path(os.environ["HSAI_P50_AUDIT"]).name == Path(dirs["audit"]).name
+    assert Path(os.environ["HSAI_LONG_OUT"]).name == Path(dirs["long"]).name
 
 
 def test_chain_dirs_rejects_same_directory(monkeypatch, tmp_path):
@@ -102,3 +105,59 @@ def test_chain_phase_fails_cleanly_without_server_inputs(tmp_path, monkeypatch):
     finally:
         os.chdir(old_cwd)
     assert exc.value.code == 2
+
+
+# ── 训练库自动定位（按曲线身份，不靠手填路径）────────────────────────────
+def _bank_tree(root, name, *, profile, curve_sha):
+    d = root / "artifacts/libraries" / name
+    d.mkdir(parents=True)
+    (d / "report.json").write_text(
+        json.dumps({"calibration_profile": profile, "curve_sha256": curve_sha,
+                    "splits": {"train": {"digest": "x"}}}), encoding="utf-8")
+    return d
+
+
+def test_resolve_bank_finds_the_round_curve(monkeypatch, tmp_path):
+    curve = tmp_path / "config/curve.json"
+    curve.parent.mkdir(parents=True)
+    curve.write_text(json.dumps({"calibration_profile": "p50-v2-weaker"}), encoding="utf-8")
+    monkeypatch.setenv("HSAI_P50_CURVE", str(curve))
+    monkeypatch.delenv("HSAI_P50_BANK", raising=False)
+    want = nus._sha_lf(curve)
+    old = _bank_tree(tmp_path, "bot-p50-3702-v1", profile=None, curve_sha="other")
+    # 旧库没有 profile（None -> 写成 null），新库匹配当前曲线
+    (old / "report.json").write_text(json.dumps({"splits": {}}), encoding="utf-8")
+    new = _bank_tree(tmp_path, "bot-p50-3702-v2-weaker", profile="p50-v2-weaker",
+                     curve_sha=want)
+    assert nus.resolve_bank(tmp_path) == new
+
+
+def test_resolve_bank_explains_when_nothing_matches(monkeypatch, tmp_path):
+    curve = tmp_path / "config/curve.json"
+    curve.parent.mkdir(parents=True)
+    curve.write_text(json.dumps({"calibration_profile": "p50-v2-weaker"}), encoding="utf-8")
+    monkeypatch.setenv("HSAI_P50_CURVE", str(curve))
+    monkeypatch.delenv("HSAI_P50_BANK", raising=False)
+    _bank_tree(tmp_path, "bot-p50-3702-v1", profile=None, curve_sha="other")
+    with pytest.raises(ValueError) as exc:
+        nus.resolve_bank(tmp_path)
+    msg = str(exc.value)
+    assert "找不到" in msg and "bot-p50-3702-v1" in msg and "HSAI_P50_BANK" in msg
+
+
+def test_resolve_bank_prefers_explicit_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("HSAI_P50_BANK", str(tmp_path / "hand-picked"))
+    assert nus.resolve_bank(tmp_path) == tmp_path / "hand-picked"
+
+
+def test_resolve_bank_refuses_ambiguity(monkeypatch, tmp_path):
+    curve = tmp_path / "config/curve.json"
+    curve.parent.mkdir(parents=True)
+    curve.write_text(json.dumps({"calibration_profile": "p50-v2-weaker"}), encoding="utf-8")
+    monkeypatch.setenv("HSAI_P50_CURVE", str(curve))
+    monkeypatch.delenv("HSAI_P50_BANK", raising=False)
+    want = nus._sha_lf(curve)
+    _bank_tree(tmp_path, "bank-a", profile="p50-v2-weaker", curve_sha=want)
+    _bank_tree(tmp_path, "bank-b", profile="p50-v2-weaker", curve_sha=want)
+    with pytest.raises(ValueError, match="多个库"):
+        nus.resolve_bank(tmp_path)
