@@ -161,3 +161,31 @@ def test_resolve_bank_refuses_ambiguity(monkeypatch, tmp_path):
     _bank_tree(tmp_path, "bank-b", profile="p50-v2-weaker", curve_sha=want)
     with pytest.raises(ValueError, match="多个库"):
         nus.resolve_bank(tmp_path)
+
+
+def test_submit_chain_returns_both_job_ids(monkeypatch, tmp_path):
+    """回归：submit_chain 必须把两个作业号返回出来（曾因 dict(**info) 重复键 TypeError，
+    而两个 sbatch 已经提交，作业号没打印 ⇒ 半夜误判成"没提交"）。"""
+    monkeypatch.setattr(nus, "chain_precheck",
+                        lambda root=None: dict(passed=True, phase="forced-chain",
+                                               dirs={"audit": "a", "long": "l"},
+                                               scripts={"gpu": "gpu-script", "long": "long-script"}))
+    calls = []
+
+    class _R:
+        def __init__(self, rc, out=""):
+            self.returncode, self.stdout, self.stderr = rc, out, ""
+
+    def fake_run(argv, **kw):
+        calls.append(list(argv))
+        if "--parsable" in argv:
+            return _R(0, "1111\n" if argv[-1] == "gpu-script" else "2222\n")
+        return _R(0, "")
+
+    monkeypatch.setattr(nus.subprocess, "run", fake_run)
+    out = nus.submit_chain(tmp_path)
+    assert out["passed"] is True and out["phase"] == "forced-chain"
+    assert out["gpu_job"] == "1111" and out["long_job"] == "2222"
+    assert out["dependency"] == "afterok:1111"
+    assert any("--dependency=afterok:1111" in argv for argv in calls
+               if "--parsable" in argv and "long-script" in argv)

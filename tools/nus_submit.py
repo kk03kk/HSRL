@@ -342,8 +342,11 @@ def submit_chain(root=ROOT):
                                cwd=str(root),capture_output=True,text=True)
     if long_submit.returncode:raise ValueError('提交长训作业失败:'+(long_submit.stderr.strip()[:400]))
     long_job=_parse_parsable(long_submit.stdout)
-    return dict(passed=True,phase='forced-chain',gpu_job=gpu_job,long_job=long_job,
-                dependency='afterok:'+gpu_job,**info)
+    # 注意：info 里已经有 passed/phase/dirs/scripts，不能再用同名关键字（曾因此 TypeError，
+    # 而两个 sbatch 其实都已提交——作业号没打印出来，容易误判成失败）。
+    result=dict(info)
+    result.update(gpu_job=gpu_job,long_job=long_job,dependency='afterok:'+gpu_job)
+    return result
 
 
 def precheck(phase,root=ROOT):
