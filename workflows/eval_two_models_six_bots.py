@@ -133,13 +133,19 @@ def load_config(path: Path) -> Dict[str, Any]:
 
 def build_protocol(cfg: Dict[str, Any], *, fingerprint: Dict[str, Any],
                    source_sha: str, model_audits: Dict[str, Dict[str, Any]],
-                   runner_sha: str) -> Dict[str, Any]:
-    """协议字典：只放**决定可比性**的字段（不放路径/时间/设备）。"""
+                   runner_sha: str, runtime: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """协议字典：只放**决定可比性**的字段（不放路径/时间）。
+
+    ``runtime``（torch/cuda/设备类型/OS）按 ``hsbg/az/train/personal.py`` 的既有口径
+    写进协议：greedy argmax 在 CPU 与 GPU 上可能因浮点差异翻转，所以两种设备**不是**
+    同一个可复现协议，不能同榜。
+    """
     return {
         "schema": SCHEMA,
         "fingerprint": fingerprint,
         "training_source_sha256": str(source_sha),
         "runner_sha256": str(runner_sha),
+        "runtime": dict(runtime or {}),
         "models": {label: {"id": audit["id"], "file_sha256": audit["file_sha256"],
                            "weights_sha256": audit.get("weights_sha256"),
                            "params": audit.get("params")}
@@ -915,7 +921,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     protocol = build_protocol(cfg, fingerprint=fingerprint(),
                               source_sha=training_source_digest(), model_audits=audits,
-                              runner_sha=sha256_text(Path(__file__)))
+                              runner_sha=sha256_text(Path(__file__)),
+                              runtime={
+                                  "torch": torch.__version__,
+                                  "cuda": torch.version.cuda,
+                                  "device_type": torch.device(device).type,
+                                  "os": platform.system(),
+                              })
     print(f"[duel] protocol_sha256={protocol_sha256(protocol)}", flush=True)
 
     run = run_games(engine=E, cards=CardNames(E), policies=policies,

@@ -37,8 +37,10 @@
 
 `protocol` 里记录：模型 SHA、引擎/词表指纹、`training_source_sha256`、评测入口 SHA、
 `games/seed_start/seed_end`、座位轮换规则、解码方式、三个规则参数、`max_steps`、
-`forced_tier_plan=""`、`engine_unmodified=true`。任何一项变化都会改变 `protocol_sha256`，
-**不同 `protocol_sha256` 的结果不能同榜**。
+`forced_tier_plan=""`、`engine_unmodified=true`，以及 `runtime`（torch/cuda/设备类型/OS，
+沿用 `hsbg/az/train/personal.py` 的既有口径）。任何一项变化都会改变 `protocol_sha256`，
+**不同 `protocol_sha256` 的结果不能同榜**——包括 CPU 与 GPU 两种设备（greedy argmax 可能在
+浮点并列处翻转，所以设备不同就不是同一个可复现协议）。
 
 ## 3. 记录口径
 

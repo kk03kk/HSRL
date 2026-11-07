@@ -258,6 +258,11 @@ def test_protocol_sha_is_stable_and_rule_sensitive(tmp_path: Path):
     assert protocol_sha256(build_protocol(cfg_cap, **kwargs)) != protocol_sha256(first)
     cfg_games = base_cfg(games=64)
     assert protocol_sha256(build_protocol(cfg_games, **kwargs)) != protocol_sha256(first)
+    # CPU 与 GPU 不是同一个可复现协议（greedy argmax 可能在浮点并列处翻转）
+    cpu = build_protocol(cfg, runtime={"torch": "2.10.0", "device_type": "cpu"}, **kwargs)
+    gpu = build_protocol(cfg, runtime={"torch": "2.10.0", "device_type": "cuda"}, **kwargs)
+    assert protocol_sha256(cpu) != protocol_sha256(gpu)
+    assert protocol_sha256(build_protocol(cfg, **kwargs)) != protocol_sha256(cpu)
 
 
 def test_load_config_rejects_same_weights(tmp_path: Path):
