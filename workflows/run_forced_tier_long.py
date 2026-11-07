@@ -51,6 +51,27 @@ def defaults(p):
     return p
 
 
+def shift_forced_schedule(cfg, base):
+    """把强制升本的**相对**计划（本轮新增决策）平移成**绝对**累计决策。
+
+    训练器（``train_entity_sync``）拿到的是 ``cum_decisions``，它从 7357 的
+    558,873,732 起算；而配置里 ``0:1.0,90M:0.6,...`` 指的是"本轮新增"。
+    不平移的话所有阈值都在过去，``prob_at`` 会直接返回 0.0，强制一次都不会发生
+    （2026-11-07 的 GPU 预检就是这样空转的）。
+    """
+    from hsbg.az.train.forced_tier import parse_decisions, parse_prob_schedule
+    out = dict(cfg)
+    spec = str(cfg.get('forced-tier-schedule', '') or '').strip()
+    if spec:
+        sched = parse_prob_schedule(spec, default=float(cfg.get('forced-tier-prob', 1.0)))
+        out['forced-tier-schedule'] = ','.join(
+            f"{int(base) + int(d)}:{p:g}" for d, p in sched)
+    until = str(cfg.get('forced-teacher-until', '') or '').strip()
+    if until:
+        out['forced-teacher-until'] = str(int(base) + int(parse_decisions(until)))
+    return out
+
+
 def config():
     """本轮配置（结构校验交给 personal.validate_config）。"""
     cfg = read(ROOT / CONFIG)
@@ -114,6 +135,8 @@ def inputs(args):
     manifests = {k: checked_library(p) for k, p in paths.items()}
     actual = fingerprint()
     cfg = config()
+    base_decisions = int(read(source / 'checkpoint.json')['actual_decisions'])
+    cfg = shift_forced_schedule(cfg, base_decisions)
     proof = audit(source, 7357, {'model.pt': MODEL_SHA, 'trainer.pt': TRAINER_SHA},
                   device='cpu')
     if not getattr(args, 'preflight_mode', False):
@@ -141,7 +164,10 @@ def inputs(args):
         source_plan_sha256=sha256(old / 'plan.json'),
         source_report_sha256=sha256(old / 'report.json'),
         restore_audit=proof, config=cfg, config_file=CONFIG,
-        forced_tier_table=SCHEDULE))
+        forced_tier_table=SCHEDULE,
+        forced_tier_schedule=cfg.get('forced-tier-schedule'),
+        forced_teacher_until=cfg.get('forced-teacher-until'),
+        forced_tier_base_decisions=base_decisions))
     args.reference_checkpoint = str(frozen / 'model.pt')
     args.train_schedule = SCHEDULE
     return parent, frozen, inherited, 'p50-forced-tier-v1', paths, manifests, cfg, {}

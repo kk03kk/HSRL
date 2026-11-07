@@ -4,7 +4,10 @@
 
 - ``long``（默认）：上一轮 P50 四阶段（``run_7357_long``）；
 - ``forced``：本轮强制升本（``run_forced_tier_long``），并额外验收强制升本的
-  执行统计（``forced_tier`` 段必须出现，且 5 本目标 on_time 占比达标）。
+  执行统计（``forced_tier`` 段必须出现、5 本目标到达率达标、未达比例受限）。
+
+失败时**先写 report.json（passed=false + 各项检查明细）再抛错**：一次失败就能看到
+"注入/效率/强制升本/Adam" 四类指标，不必逐项重跑。
 """
 import argparse, json, os, sys, time
 from pathlib import Path
@@ -12,6 +15,60 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from workflows.run_7357_long import MODEL_SHA,TRAINER_SHA,read
 
 RUNNERS={'long':'workflows/run_7357_long.py','forced':'workflows/run_forced_tier_long.py'}
+
+#: 样本有效学习率下限（早期 KL 早停会丢掉部分 minibatch；0.5 是"还能学"的安全线）
+MIN_PROCESSED_RATIO=0.5
+#: 5 本目标 on_time+deferred 下限、missed 上限、样本下限（占局数比例）
+MIN_TIER5_REACH=0.60
+MAX_TIER5_MISSED=0.25
+MIN_TIER5_SAMPLE_RATIO=0.25
+
+
+def _check(name,ok,reason='',**detail):
+    return dict(name=name,ok=bool(ok),reason=str(reason),**detail)
+
+
+def check_forced_tier(train,version,games=0):
+    """返回 ``_check(...)``：强制升本统计是否存在、是否真的执行、5 本是否可达。"""
+    forced=None
+    with (train/'history.jsonl').open(encoding='utf-8') as fh:
+        for line in fh:
+            line=line.strip()
+            if not line:continue
+            rec=json.loads(line)
+            if rec.get('type')=='header':continue
+            forced=rec.get('forced_tier') or forced
+    if not forced:
+        return _check('forced_tier',False,'history 没有 forced_tier 段')
+    targets=forced.get('targets') or {}
+    five=targets.get('5') or {}
+    total=(int(five.get('on_time') or 0)+int(five.get('deferred') or 0)
+           +int(five.get('missed') or 0)+int(five.get('self') or 0))
+    detail=dict(version=int(version),plan=forced.get('plan'),prob=forced.get('prob'),
+                teacher=forced.get('teacher'),
+                forced_actions=int(forced.get('forced_actions') or 0),
+                teacher_labels=int(forced.get('teacher_labels') or 0),
+                blocked=int(forced.get('blocked') or 0),
+                targets=targets,tier5_samples=int(total))
+    if int(forced.get('forced_actions') or 0)<=0:
+        return _check('forced_tier',False,'一次强制都没执行（检查计划是否被平移成累计决策）',**detail)
+    if total<=0:
+        return _check('forced_tier',False,'5 本目标没有任何样本',**detail)
+    on_time=float(five.get('on_time') or 0)/total
+    deferred=float(five.get('deferred') or 0)/total
+    missed=float(five.get('missed') or 0)/total
+    detail.update(tier5_on_time=round(on_time,4),tier5_deferred=round(deferred,4),
+                  tier5_missed=round(missed,4))
+    if games and total < MIN_TIER5_SAMPLE_RATIO*float(games):
+        return _check('forced_tier',False,
+                      f'5 本目标样本过少({total}/{games})：多数局在 T8 前结束，先查训练场难度',**detail)
+    if on_time+deferred<MIN_TIER5_REACH:
+        return _check('forced_tier',False,
+                      f'5 本到达率过低 on_time={on_time:.2f} deferred={deferred:.2f}',**detail)
+    if missed>MAX_TIER5_MISSED:
+        return _check('forced_tier',False,f'5 本未达比例过高 {missed:.2f}',**detail)
+    return _check('forced_tier',True,'',**detail)
+
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -21,7 +78,6 @@ def main():
     if not os.environ.get('SLURM_JOB_ID'):p.error('GPU计算节点专用')
     if a.out.exists() and any(not f.name.startswith('visibility-') for f in a.out.iterdir()):p.error('预检输出必须新目录，保留上次证据')
     a.preflight_mode=True
-    # 按 profile 选择来源/配方校验逻辑（forced 版不再要求"配方等于上一轮"）
     if a.profile=='forced':
         from workflows.run_forced_tier_long import inputs
     else:
@@ -42,55 +98,44 @@ def main():
         latest=read(train/'latest.json');versions.append(latest['version'])
         if latest['version']!=7358+i:raise ValueError('更新版本不连续')
     quality=training_report(train,a.out/'health',versions[-1]);tot=quality['totals'];strict=quality['mirror_strict_counts']
-    if not tot['mirror_attempt']==tot['mirror_applied']==strict['eligible_live_seats'] or any(tot.get(k,0) for k in ('illegal_actions','truncated_games','mirror_errors','mirror_missing','mirror_fallback')):raise ValueError('工程注入验收失败')
-    if tot['optimizer_steps']<=0 or tot['processed_samples']/tot['decisions']<.8:raise ValueError('样本有效学习率过低，保留诊断')
-    forced_tier=None
+    checks=[]
+    inj_ok=bool(tot['mirror_attempt']==tot['mirror_applied']==strict['eligible_live_seats']
+                and not any(tot.get(k,0) for k in ('illegal_actions','truncated_games','mirror_errors','mirror_missing','mirror_fallback')))
+    checks.append(_check('injection',inj_ok,'' if inj_ok else '工程注入验收失败',
+                         mirror_attempt=int(tot['mirror_attempt']),mirror_applied=int(tot['mirror_applied']),
+                         eligible_live_seats=int(strict['eligible_live_seats']),
+                         illegal_actions=int(tot.get('illegal_actions',0)),
+                         truncated_games=int(tot.get('truncated_games',0))))
+    ratio=float(tot['processed_samples'])/max(float(tot['decisions']),1.0)
+    eff_ok=bool(int(tot['optimizer_steps'])>0 and ratio>=MIN_PROCESSED_RATIO)
+    checks.append(_check('efficiency',eff_ok,
+                         '' if eff_ok else f'样本有效学习率过低 processed/decisions={ratio:.3f}',
+                         optimizer_steps=int(tot['optimizer_steps']),processed_ratio=round(ratio,4),
+                         kl_early_stop_iterations=int(tot.get('kl_early_stop_iterations',0))))
     if a.profile=='forced':
-        forced_tier=check_forced_tier(train,versions[-1],int(tot.get('games') or 0))
+        checks.append(check_forced_tier(train,versions[-1],int(tot.get('games') or 0)))
+    failed=[c for c in checks if not c['ok']]
+    base=dict(profile=a.profile,versions=versions,checks=checks,
+              training=quality,forced_tier=next((c for c in checks if c['name']=='forced_tier'),None),
+              fingerprint=fingerprint(),training_source_sha256=training_source_digest(),
+              runner_sha256=sha256(ROOT/RUNNERS[a.profile]))
+    if failed:
+        write_json(a.out/'report.json',dict(passed=False,failed=[c['name'] for c in failed],**base))
+        raise ValueError('预检未通过: '+'; '.join(f"{c['name']}({c['reason']})" for c in failed)
+                         +f" -> 明细见 {a.out/'report.json'}")
     final=audit(train/'snapshots'/f"step_{versions[-1]:06d}",versions[-1],device='cuda:0')
     initial=read(parent/'source-fork.json')['restore_audit']
     if final['adam_step_min']<=initial['adam_step_min']:raise ValueError('Adam未连续推进')
     # 八局只验收诊断链路，不作棋力资格门；正式长训仍有96局冻结起点。
     run('-m','hsbg.az.train.personal','eval','--checkpoint',source/'model.pt','--library',paths['hard'],'--device','cuda:0','--games',1,'--seed',14000000,'--out',a.out/'evaluation.json','--mirror-strict','--economy','--exposure',1,'--max-actions-per-turn',80,'--move-guard',1,'--move-cap',5,'--move-repeat-limit',2)
     evaluation=read(a.out/'evaluation.json');write_json(a.out/'diagnostics.json',panel_diagnostics(evaluation,a.out/'evaluation.json'))
-    result=dict(passed=True,profile=a.profile,runner_sha256=sha256(ROOT/RUNNERS[a.profile]),source_sha256=inherited['sha256'],fingerprint=fingerprint(),training_source_sha256=training_source_digest(),libraries={k:v['digest'] for k,v in read(a.bot_3702/'report.json')['splits'].items()},versions=versions,training=quality,final_restore=final,source_adam_step_min=initial['adam_step_min'],forced_tier=forced_tier,probe_weights_not_used_for_long_training=True)
-    write_json(a.out/'report.json',result);print(json.dumps({'passed':True,'profile':a.profile,'versions':versions,'training':quality['rates'],'forced_tier':forced_tier},ensure_ascii=False))
-
-
-def check_forced_tier(train,version,games=0,max_missed_ratio=0.25):
-    """强制升本验收：统计必须存在、5 本目标可达、未达比例受限。
-
-    ``games`` 用来判断「样本是不是太少」——如果大部分局在 T8 前就结束，说明训练场
-    难度或计划有问题，必须在长训前发现（这正是本轮最需要早发现的一类失败）。
-    """
-    forced=None
-    with (train/'history.jsonl').open(encoding='utf-8') as fh:
-        for line in fh:
-            line=line.strip()
-            if not line:continue
-            rec=json.loads(line)
-            if rec.get('type')=='header':continue
-            forced=rec.get('forced_tier') or forced
-    if not forced:raise ValueError('强制升本统计缺失（history 没有 forced_tier 段）')
-    if int(forced.get('forced_actions') or 0)<=0:raise ValueError('强制升本一次都没执行')
-    targets=forced.get('targets') or {}
-    five=targets.get('5') or {}
-    total=(int(five.get('on_time') or 0)+int(five.get('deferred') or 0)
-           +int(five.get('missed') or 0)+int(five.get('self') or 0))
-    if total<=0:raise ValueError('5 本目标没有任何样本')
-    on_time=float(five.get('on_time') or 0)/total
-    deferred=float(five.get('deferred') or 0)/total
-    missed=float(five.get('missed') or 0)/total
-    if games and total < 0.25*float(games):
-        raise ValueError(f'5 本目标样本过少({int(total)}/{games})：多数局在 T8 前结束，'
-                         '先查训练场难度/计划，不要直接长训')
-    if on_time+deferred<0.60:raise ValueError(f'5 本目标到达率过低: on_time={on_time:.2f} deferred={deferred:.2f}')
-    if missed>max_missed_ratio:raise ValueError(f'5 本目标未达比例过高: {missed:.2f}')
-    return dict(version=int(version),plan=forced.get('plan'),prob=forced.get('prob'),
-                teacher=forced.get('teacher'),forced_actions=int(forced.get('forced_actions') or 0),
-                blocked=int(forced.get('blocked') or 0),targets=targets,
-                tier5_samples=int(total),tier5_on_time=round(on_time,4),
-                tier5_deferred=round(deferred,4),tier5_missed=round(missed,4))
+    result=dict(passed=True,source_sha256=inherited['sha256'],libraries={k:v['digest'] for k,v in read(a.bot_3702/'report.json')['splits'].items()},
+                final_restore=final,source_adam_step_min=initial['adam_step_min'],
+                probe_weights_not_used_for_long_training=True,**base)
+    write_json(a.out/'report.json',result)
+    print(json.dumps({'passed':True,'profile':a.profile,'versions':versions,
+                      'processed_ratio':round(ratio,4),
+                      'forced_tier':result['forced_tier']},ensure_ascii=False))
 
 
 if __name__=='__main__':main()

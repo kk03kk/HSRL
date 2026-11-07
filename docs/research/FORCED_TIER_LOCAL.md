@@ -1,4 +1,4 @@
-﻿# 强制升本与解除强制的本地验证（2026-11-07）
+# 强制升本与解除强制的本地验证（2026-11-07）
 
 本轮研发的本地证据。**CPU + `--opponent bot`（无镜像库注入）**，只证明机制与数据通路，
 不作为棋力结论；正式结论必须在 NUS 用 dev 库评测。
@@ -92,7 +92,26 @@
 `hsbg/az/train/dpo_upgrade.py` / `UpgradeSamples` / 训练入口 `dpo_upgrade_probe.py`），
 而不是继续加教师系数。
 
-## 6. 复现命令（本地）
+## 6. 2026-11-07 GPU 预检失败复盘（三个根因与修复）
+
+预检作业 `1090732` 在 4 分 08 秒后 FAILED，`ValueError: 样本有效学习率过低`。日志同时显示
+`teach=7.7 teach_n=30`（每 minibatch 约 3% 的标签，属正常），但**没有 forced_actions 的任何证据**。
+
+| # | 根因 | 证据 | 修复 |
+|---|---|---|---|
+| 1 | **时间轴用错**：配置的 `0:1.0,90M:0.6,…` 是"本轮新增决策"，训练器比较的是累计 `cum_decisions`（558.9M），四个阈值全部在过去 ⇒ `prob_at=0.0`，**一次都没强制** | 预检 3 轮 `forced_actions=0`；本地同配置也复现 | runner 在写 `train.config.json` 前把计划平移成绝对值（`shift_forced_schedule`），并写进 provenance |
+| 2 | `target-kl 0.03` 太紧：观测 epoch KL≈0.0146（上一轮 0.005），minibatch 会超过 1.5×0.03=0.045 ⇒ 每轮早停、丢弃大部分 minibatch ⇒ `processed/decisions<0.8` 触发旧门槛 | 三轮都打印"KL 早停" | 恢复 `target-kl 0.05`（阈值 0.075，与"允许比上一轮动得更快"的意图一致） |
+| 3 | 预检的检查顺序把"效率"放在"强制升本"之前，一抛错就丢掉了本轮最该看的信息 | 失败报告里没有 forced_tier | 预检改为**先把所有检查算完、写 `report.json`（passed=false + checks 明细）再抛错** |
+
+修复后本地复跑（4 局、绝对计划、prob=1.0）：
+
+```
+iter 7357 prob 1.0 forced 16 blocked 6
+targets: 2/3/4 各 on_time 4/4；5 本 on_time 3 + deferred 1，missed 0
+check_forced_tier -> ok=True  tier5_on_time=0.75 tier5_deferred=0.25 tier5_missed=0.0
+```
+
+## 7. 复现命令（本地）
 
 ```powershell
 # 单测

@@ -79,6 +79,25 @@ rec["action"]      = 3          # 实际执行的 Upgrade
 
 概率门控与采样用 policy 自己的 RNG，重放可复现；`prob=0` 且无教师时等价于"只观察"。
 
+### 2.5 时间轴必须是**累计决策**（绝对），不是"本轮新增"
+
+`train_entity_sync` 比较的是 `cum_decisions`，它从 7357 的 558,873,732 起算。
+而配置里写 `0:1.0,90M:0.6,...` 是"本轮新增"的语义——**不平移就会全部落在过去，
+`prob_at` 直接返回 0.0，强制一次都不会发生**（2026-11-07 的 GPU 预检就是这样空转的）。
+
+因此 `workflows/run_forced_tier_long.py::shift_forced_schedule()` 在写
+`train.config.json` / `plan.json` 之前，把相对计划平移成绝对：
+
+```
+配置（相对）    0:1.0,90000000:0.6,180000000:0.3,260000000:0.0
+写入（绝对）    558873732:1,648873732:0.6,738873732:0.3,818873732:0
+teacher-until   260000000 → 818873732
+```
+
+平移后的值随 `train.config.json` 持久化，**跨段重启仍然正确**；`provenance-source/source-fork.json`
+里另记 `forced_tier_schedule / forced_teacher_until / forced_tier_base_decisions` 便于事后核对。
+预检与长训都会因为 `forced_actions<=0` 直接失败，不会静默空转。
+
 ### 2.4 记录与统计
 
 - 逐局 record 只在命中计划时多三个字段：`forced_tier_target / _deadline / _deferred`

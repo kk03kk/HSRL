@@ -71,18 +71,23 @@ PY
 **新 runner 的 `inputs()`**——上一轮的 `run_7357_preflight.py` 复用了旧 runner，里面有
 "配方必须等于上一轮"的硬断言，会直接拒绝本轮配方（已修：加 `--profile forced`）。
 
-预检额外验收（失败会直接 `raise`，不会写 `passed:true`）：
+预检额外验收（**先把全部检查算完、写 `report.json` 再抛错**，失败也能看到四类指标）：
 
-| 检查 | 判据 |
+| 检查项 | 判据 |
 |---|---|
-| `forced_tier` 段存在 | `history.jsonl` 最后一条记录里有该段 |
-| 强制执行过 | `forced_actions > 0` |
-| 5 本样本足够 | `tier5_samples ≥ 0.25 × games`（否则说明多数局在 T8 前就结束） |
-| 5 本到达率 | `on_time + deferred ≥ 0.60` |
-| 未达比例 | `missed ≤ 0.25` |
+| `injection` | `mirror_attempt==mirror_applied==eligible_live_seats`，非法/截断/缺失/回退全 0 |
+| `efficiency` | `optimizer_steps>0` 且 `processed_samples/decisions ≥ 0.5`（早停丢批的容忍线）；同时记录 `kl_early_stop_iterations` |
+| `forced_tier` | 段存在、`forced_actions>0`、`tier5_samples ≥ 0.25×games`、`on_time+deferred ≥ 0.60`、`missed ≤ 0.25` |
 
 通过后会打印 `forced_tier: {...}`，其中的 `tier5_on_time / tier5_deferred / tier5_missed`
-就是长训最该盯的三个数。若失败：改 `HSAI_P50_AUDIT` 用新目录重试，**不要绕过**。
+就是长训最该盯的三个数。失败时 `report.json` 里有 `passed:false`、`failed:[...]`、`checks:[...]`；
+改 `HSAI_P50_AUDIT` 用**新目录**重试，**不要绕过**、不要把阈值调低。
+
+> 已知一次真实失败（2026-11-07，作业 1090732）：配置里的强制计划是"本轮新增决策"语义，
+> 而训练器用累计决策比较，阈值全在过去 ⇒ `prob=0`、一次没强制。已由
+> `run_forced_tier_long.shift_forced_schedule()` 平移为绝对时间轴修复，详见
+> `docs/research/FORCED_TIER_LOCAL.md` §6。若再次出现 `forced_actions=0`，先查
+> `train.config.json` 里的 `forced-tier-schedule` 是不是绝对累计值。
 
 ## 3. 正式长训（24 小时）
 
