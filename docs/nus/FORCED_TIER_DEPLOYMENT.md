@@ -28,14 +28,27 @@ export HSAI_LONG_OUT=artifacts/runs/p50-forced-tier-long-001     # 新长训目�
 
 ## 1. 登录节点：只读预检（不上 GPU）
 
+**第一次部署必须先跑 `forced-gpu`**：`--phase forced` 会校验"GPU 验收报告与当前源码一致"，
+在验收作业跑完之前它必然报 `GPU验收后训练源码变化`（这是守卫在正常工作，不是配置错误）。
+
 ```bash
 cd ~/projects/HSAI || exit
-/usr/bin/python3 -S tools/nus_submit.py --phase forced --check-only
+export HSAI_P50_AUDIT=artifacts/runs/p50-forced-tier-preflight   # 本次验收目录，全程不变
+/usr/bin/python3 -S tools/nus_submit.py --phase forced-gpu --check-only
 ```
 
-`--phase forced` 检查：7357 元数据/SHA/文件长度、父实验三件套、`bot-p50-3702-v1` 六套库
+通过了再去第 2 步。等第 2 步的 `report.json` 落地后，`--phase forced --check-only` 才有意义：
+
+```bash
+/usr/bin/python3 -S tools/nus_submit.py --phase forced --check-only   # 验收后、正式提交前
+```
+
+`--phase forced-gpu` 检查：7357 元数据/SHA/文件长度、父实验三件套、`bot-p50-3702-v1` 六套库
 清单与快照存在、`config/p50-forced-tier.json` 的强制计划与**顺延/教师/`reset-anchor` 约束**
-（缺 `reset-anchor=1` 会直接拒绝，避免又继承旧 anchor）。
+（缺 `reset-anchor=1` 会直接拒绝，避免又继承旧 anchor）。它**不要求**已有 GPU 验收报告。
+
+`--phase forced` 额外要求：存在 `profile=forced` 的 GPU 验收报告，且
+`training_source_sha256` / `runner_sha256` 与当前代码一致。
 
 ## 2. GPU 工程验收（1 小时上限，必做）
 

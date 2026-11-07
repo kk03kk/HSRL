@@ -62,11 +62,24 @@ def precheck(phase,root=ROOT):
         if not cpu_path.is_file():raise ValueError('缺少CPU门禁结果:'+str(cpu_path)+'（先跑 --phase cpu）')
         if not read(cpu_path).get('passed'):raise ValueError('CPU完整门禁没有通过')
         if needs_gpu_audit:
-            gpu=read(Path(args.gpu_audit)/'report.json')
+            audit_path=Path(args.gpu_audit)/'report.json'
+            if not audit_path.is_file():
+                raise ValueError(
+                    '缺少GPU验收报告: '+str(audit_path)+'。本轮应先跑 '
+                    '`--phase forced-gpu --submit` 生成它，并用 HSAI_P50_AUDIT 指向同一个目录')
+            gpu=read(audit_path)
+            if str(gpu.get('profile') or '')!='forced':
+                raise ValueError(
+                    '这份GPU验收报告不是强制升本预检（profile='+str(gpu.get('profile'))+'）：'
+                    '请指向 --phase forced-gpu 的输出目录，或重跑 --phase forced-gpu --submit')
             paths=sorted((root/'hsbg/az/train').glob('*.py'))+[root/'workflows/train_entity_sync.py'];h=hashlib.sha256()
             for path in paths:h.update(path.relative_to(root).as_posix().encode());h.update(path.read_bytes().replace(b'\r\n',b'\n'))
-            if gpu['training_source_sha256']!=h.hexdigest():raise ValueError('GPU验收后训练源码变化，不能提交长训')
-            if gpu.get('runner_sha256')!=hashlib.sha256((root/'workflows/run_forced_tier_long.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest():raise ValueError('长训入口改变，需要重验')
+            if gpu['training_source_sha256']!=h.hexdigest():
+                raise ValueError(
+                    'GPU验收后训练源码变化，不能提交长训：请重跑 --phase forced-gpu --submit'
+                    '（验收目录='+str(args.gpu_audit)+'）')
+            if gpu.get('runner_sha256')!=hashlib.sha256((root/'workflows/run_forced_tier_long.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest():
+                raise ValueError('长训入口改变，需要重验：请重跑 --phase forced-gpu --submit')
         result=dict(passed=True,phase=phase,scope='metadata_file_precheck_only',
                     config=str(root/'config/p50-forced-tier.json'),needs_gpu_audit=needs_gpu_audit)
     elif phase=='cpu':
