@@ -192,7 +192,7 @@ def resolve_bank(root=ROOT):
 def _curve_env(root=ROOT):
     """本轮曲线：默认指向"稍弱于模型"的分级曲线；可用 HSAI_P50_CURVE 覆盖。"""
     return Path(os.environ.get('HSAI_P50_CURVE',
-                               str(root / 'config/opponent-p50-slightly-weaker.json')))
+                               str(Path(root) / 'config/opponent-p50-slightly-weaker.json')))
 
 
 def _require_bank_profile(bank_report, curve_info, root=ROOT):
