@@ -67,10 +67,15 @@ rec["action"]      = 3          # 实际执行的 Upgrade
 
 | 累计 decisions | 强制概率 | 教师标签 | 含义 |
 |---|---:|---|---|
-| 0–90M | 1.0 | 关（强制已覆盖） | 保证每局都到 5 本，学会高本经营 |
-| 90–180M | 0.6 | 开 | 40% 回合由模型自己决定；没升的回合给 DAgger 标签 |
-| 180–260M | 0.3 | 开 | 70% 自主，标签继续纠偏 |
-| ≥260M | 0.0 | 关 | **完全自主**，长训后段本身就是"解除规则"的验证窗口 |
+| 0–40M | 1.0 | 关（强制已覆盖） | 保证每局都到 5 本，学会高本经营 |
+| 40–80M | 0.6 | 开 | 40% 回合由模型自己决定；没升的回合给 DAgger 标签 |
+| 80–120M | 0.3 | 开 | 70% 自主，标签继续纠偏 |
+| ≥120M | 0.0 | 关 | **完全自主**，长训后段本身就是"解除规则"的验证窗口 |
+
+节点与**训练场阶梯同界**（40M→ramp1、80M→ramp2、120M→train）：帮助越少、对手越强。
+本轮 12 小时预算下（约 230–270M 新决策）自主段占 45–55%。三个时间轴
+（强制概率 / teacher 截止 / 换库）在启动期由 `run_forced_tier_long.config()` 断言同界，
+任一处不一致都 fail-fast。
 
 教师标签写进 `record["teacher_action"]=3`，由 `teacher_bc_coef`（本轮取
 `max(--teacher-bc-coef, --forced-teacher-coef)`）产生 CE 梯度；只在**目标未达成、Upgrade
@@ -79,7 +84,48 @@ rec["action"]      = 3          # 实际执行的 Upgrade
 
 概率门控与采样用 policy 自己的 RNG，重放可复现；`prob=0` 且无教师时等价于"只观察"。
 
-### 2.5 时间轴必须是**累计决策**（绝对），不是"本轮新增"
+### 2.4 时间轴必须是**累计决策**（绝对），不是"本轮新增"
+
+`train_entity_sync` 比较的是 `cum_decisions`，它从 7357 的 558,873,732 起算。
+而配置里写 `0:1.0,40M:0.6,...` 是"本轮新增"的语义——**不平移就会全部落在过去，
+`prob_at` 直接返回 0.0，强制一次都不会发生**（2026-11-07 的 GPU 预检就是这样空转的）。
+
+因此 `workflows/run_forced_tier_long.py::shift_forced_schedule()` 在写
+`train.config.json` / `plan.json` 之前，把相对计划平移成绝对：
+
+```
+配置（相对）    0:1.0,40000000:0.6,80000000:0.3,120000000:0.0
+写入（绝对）    558873732:1,598873732:0.6,638873732:0.3,678873732:0
+teacher-until   120000000 → 678873732
+```
+
+平移后的值随 `train.config.json` 持久化，**跨段重启仍然正确**（`cum_decisions` 也在
+trainer state 的 `extra` 里一起保存/恢复）；`provenance-source/source-fork.json`
+里另记 `forced_tier_schedule / forced_teacher_until / forced_tier_base_decisions` 便于事后核对。
+预检与长训都会因为 `forced_actions<=0` 直接失败，不会静默空转。
+静态配置误写成绝对值会被 `parse_prob_schedule(require_zero_start=True)` 在启动期拒绝。
+
+### 2.5 与最初方案的两处偏差（实施时的修正）
+
+**(a) lr 实际是 1.7547666666e-6，不是 2e-6。** 续训时 `PPOTrainer.load` 会恢复
+optimizer 与 scheduler 的 state，`load_state_dict` 直接把 `base_lrs`、`lr_min_ratio`、
+`max_updates` 覆盖成检查点里的值（`[2e-6]`、`0.8333333333`、`10000`）；`LambdaLR` 的
+闭包读的是实例属性，所以**命令行/配置里的调度参数在续训时不生效**。于是：
+
+```
+lr(step) = 2e-6 × max(0.8333, 1 − 0.1667×step/10000)
+step 7357 → 1.7547666666e-6      step ≥ 10000 → 1.6666666666e-6（此后恒定）
+```
+
+即"2e-6 只是 base，实际从 1.7547e-6 缓降到 1.6667e-6（约 −5%）"。这与"lr 量级不变"的
+设计一致，所以本轮不改行为；但把配置里的 `lr-min-ratio`/`max-updates` 改成与 state
+一致的 `0.8333333333`/`10000`（原来写的 `1.0`/`20000` 是死配置，会误导），并在启动时
+打印 `base_lrs / last_epoch / lr_min_ratio / max_updates / effective lr`，不一致时告警。
+
+**(b) 时长 12 小时，课程节点按比例压缩。** 12h 预算下可跑约 230–270M 新决策，原来的
+90M/180M/260M 会把自主段压到几乎没有；按同一比例（约 15%/15%/15% + 自主 55%）改为
+**40M/80M/120M**。`target-kl` 曾试 0.03，实测 epoch KL≈0.0146 会让 minibatch 早停、
+丢掉大半 batch，已回到 **0.05**（阈值 0.075）。
 
 `train_entity_sync` 比较的是 `cum_decisions`，它从 7357 的 558,873,732 起算。
 而配置里写 `0:1.0,90M:0.6,...` 是"本轮新增"的语义——**不平移就会全部落在过去，
@@ -98,7 +144,7 @@ teacher-until   260000000 → 818873732
 里另记 `forced_tier_schedule / forced_teacher_until / forced_tier_base_decisions` 便于事后核对。
 预检与长训都会因为 `forced_actions<=0` 直接失败，不会静默空转。
 
-### 2.4 记录与统计
+### 2.6 记录与统计
 
 - 逐局 record 只在命中计划时多三个字段：`forced_tier_target / _deadline / _deferred`
   （默认关闭时 record 集合不变）；

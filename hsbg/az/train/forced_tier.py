@@ -151,12 +151,17 @@ def parse_decisions(value: object) -> float:
     return float(d)
 
 
-def parse_prob_schedule(spec: object, *, default: float = 1.0
+def parse_prob_schedule(spec: object, *, default: float = 1.0,
+                        require_zero_start: bool = False
                         ) -> List[Tuple[float, float]]:
     """解析强制概率计划 ``"0:1.0,40M:0.75,120M:0.0"`` → ``[(0,1.0),(4e7,0.75),…]``。
 
     空 / ``None`` / ``"none"`` → ``[(0.0, default)]``。分段常数：每段从该 decisions
     起生效，直到下一段。非法概率（不在 [0,1]）或 decisions 非单调 → ``ValueError``。
+
+    ``require_zero_start=True`` 时，首段必须显式是 0（不自动补），用于区分
+    "相对本轮新增决策的计划"与"误写成绝对累计值的计划"——后者会让整段课程落在过去，
+    强制概率恒为 0（2026-11-07 GPU 预检就是这样空转的）。
     """
     if spec is None:
         return [(0.0, float(default))]
@@ -168,6 +173,7 @@ def parse_prob_schedule(spec: object, *, default: float = 1.0
         piece = raw.strip()
         if not piece:
             continue
+
         if ":" not in piece:
             raise ValueError(f"强制概率计划片段缺少 ':': {piece!r}")
         left, right = piece.split(":", 1)
@@ -185,6 +191,10 @@ def parse_prob_schedule(spec: object, *, default: float = 1.0
     if len({d for d, _ in out}) != len(out):
         raise ValueError("强制概率计划的 decisions 不能重复")
     if out[0][0] > 0.0:
+        if require_zero_start:
+            raise ValueError(
+                f"强制概率计划必须从 0 开始（相对本轮新增决策），得到首段 {int(out[0][0])}；"
+                "是不是误写成了绝对累计决策？")
         out.insert(0, (0.0, out[0][1]))
     return out
 

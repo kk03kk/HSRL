@@ -7,9 +7,9 @@ HSAI 已从代码工作区扩充为代码、模型、数据、研究和服务器
 用户批准三项决定（配方可改、训练场降压、强制升本）。本轮**已实现并本地验证**，不是方案讨论：
 
 - **强制升本**（`docs/FORCED_TIER.md`、`hsbg/az/train/forced_tier.py`）：计划 `2:2,5:3,6:4,8:5`，T9+ 自由、六本不强制；判据只用引擎合法掩码的 Upgrade 位（不读/不补金币）；被强制的决策按守卫口径 `forced=True / old_logprob=0`，**不进策略梯度但保留价值链**；`carry=1` 顺延并如实记 `deferred`，超期记 `missed`，每目标都有归类。
-- **逐步解除**：`forced-tier-schedule 0:1.0,90M:0.6,180M:0.3,260M:0.0` + `forced-teacher-untile 260M`（DAgger 标签，每回合最多一条，coef 0.05）；260M 之后完全自主，长训后段本身即验收窗口。
-- **训练场**：从现成库 `train-start`（T12=1135）起步，按 0/90M/180M/260M 升到 ramp1/ramp2/train，**与解除强制的时间点对齐**——帮助越少、对手越强。不新建库。
-- **配方**（`config/p50-forced-tier.json`）：lr 恒定（`lr-min-ratio 1.0`，去掉继承来的地板钉死；量级不变，抬 lr 留作 E3 A/B）、`entropy-coef 0.002→0.008`、`target-kl 0.05→0.03`、`anchor-beta 0.02→0.01` 且 **`reset-anchor 1` 修正"anchor 指向更早旧策略"**（本地实测 L2=9.00 的缺陷已修）。minibatch/lr 量级不动，避免与课程改动混淆。
+- **逐步解除**：`forced-tier-schedule 0:1.0,40M:0.6,80M:0.3,120M:0.0` + `forced-teacher-until 120M`（DAgger 标签，每回合最多一条，coef 0.05）；120M 之后完全自主，长训后段本身即验收窗口。12h 预算下自主段约占 45–55%。
+- **训练场**：从现成库 `train-start`（T12=1135）起步，按 0/40M/80M/120M 升到 ramp1/ramp2/train，**与解除强制的时间点对齐**——帮助越少、对手越强。不新建库。强制概率/teacher 截止/换库三条时间轴在启动期断言同界。
+- **配方**（`config/p50-forced-tier.json`）：lr 量级不变——base 2e-6，续训实际 **1.7547666666e-6 缓降到 1.6667e-6（iteration 10000 触底）后恒定**（`lr_min_ratio/max_updates` 由 trainer state 决定，配置已改成与 state 一致并在启动时打印/告警）；`entropy-coef 0.002→0.008`、`target-kl 0.05`（曾试 0.03，因早停丢批回退）、`anchor-beta 0.02→0.01` 且 **`reset-anchor 1` 修正"anchor 指向更早旧策略"**（本地实测 L2=9.00 的缺陷已修）。minibatch/lr 量级不动，避免与课程改动混淆。
 - **本地证据**：37 项单测通过；CPU 端到端短跑（真实 16.4M 模型，2 轮）T2/T5/T8 全部 on_time 4/4、T6 3/4+1 deferred（小饰品冲突，与 200 局扫描一致）、非法 0、截断 0；lockstep+教师标签通路 `teach_n` 正常。详见 `docs/research/FORCED_TIER_LOCAL.md`。
 - **已知限制（写进文档）**：初始策略给 Upgrade 的概率 ≈1e-6（CE≈13 nat），`lr=1.75e-6` 下 6000 轮只能移动 ~1 nat，**教师 CE 补不平差距**；自主性依赖"稀有 on-policy 样本 + 高本价值已学会"的自我强化。若长训最后 100M 的 T8–T12 升本执行率 <0.05，下一轮改用定向机制（动作头单独大 lr / 反事实 DPO）。
 - **部署**：`tools/nus_submit.py --phase forced`、`deploy/slurm/p50_forced.sbatch`、`workflows/run_forced_tier_long.py`、launcher task `p50-forced`、配置 `config/p50-forced-tier.json`。**尚未在 NUS 运行**，需用户按 `docs/FORCED_TIER.md` §部署 执行 CPU→GPU→长训三步验收。
@@ -23,7 +23,7 @@ HSAI 已从代码工作区扩充为代码、模型、数据、研究和服务器
 - **两个必须修的工程缺陷**：trainer 的 `anchor_model` **不是 7357**（本地实测 L2=9.00，是更早的旧策略）；`anchor_beta 0.1/250` 与 lr 调度因继承 b10m 的全局迭代号从未生效（全程序列 lr 只降 5% 后钉地板）。
 - 详细复盘 `docs/research/LONG1085131_REVIEW.md`（含 6 张图），下一轮方案 `docs/research/NEXT_TRAINING_PLAN_1085131.md`，派生数据与脚本 `records/research/long1085131/`（`README.md` 有一键重算命令）。
 - **下一轮建议起点仍是 7357**（与 AGENTS.md 批准一致），但需先修 anchor 与调度计数；训练场回落到现成库 `bot-p50-3702-v1/train-start`（**不必新建库**，四个库共用同一 `source_digest`，可直接当四级阶梯），主指标改为逐回合自身/场地比值 + 等级分布 + 升本执行率。
-- **治理提醒**：方案里对探索（ε-mix/entropy）、`minibatch`、`value_coef`、`target_kl`、teacher BC 的改动**改变了 AGENTS.md 当前冻结的 PPO 配方**，必须先经用户批准并逐项 A/B（`NEXT_TRAINING_PLAN` §4，约 9 GPU·小时），不得直接进 24h 长训。
+- **治理提醒**：方案里对探索（ε-mix/entropy）、`minibatch`、`value_coef`、`target_kl`、teacher BC 的改动**改变了 AGENTS.md 当前冻结的 PPO 配方**，必须先经用户批准并逐项 A/B（`NEXT_TRAINING_PLAN` §4，约 9 GPU·小时），不得直接进长训（本轮为 12h）。
 
 ## 先读这些
 
@@ -46,7 +46,7 @@ HSAI 已从代码工作区扩充为代码、模型、数据、研究和服务器
 - **用户批准下一轮7357完整Trainer**，累计558873732、16.44M参数、Adam545990、实际lr1.7547666666e-6；已核SHA、卡表/Adam/调度器/RNG/CPU前向。真实网络合成小批次更新/保存/恢复/更新通过且源文件不变。探针7359不作为起点。7357与7710规范资源在artifacts/models/nus-1080772。
 - 下一轮P50库按config/opponent-p50-next.planned.json制作；本地48局Bot源和六套smoke库1469派生帧通过。正式源复用服务器同引擎原始Bot，缺口才补采。第10回合起至少5怪；目标四阶段0/10M/20M/30M；晚回合source_turn/tail_reserve诚实计数，尾部总量限目标0.25–3倍。正式NUS库尚未制作，不把smoke当正式库。
 - 保留原PPO/奖励/网络/80动作保护/5换位/去抖2；当前主要经营问题是T10–12低本刷新、后期样本稀少，暂无数值崩溃或熵塌缩证据。下一轮96起点/每30M96/正常收尾512局详细配对评测，所有报告突出P50与到达样本量。正常棋力波动不停止，Test留候选确认。
-- 新NUS布局必须独立~/projects/HSAI clone、独立.venv和artifacts，旧HSRL只读。CPU全门禁/建库→一次GPU更新保存恢复换库验收→用户提交24h长训。入口tools/nus_submit.py会在排队前做轻量路径/来源检查；不伪造plan.json，不取消Slurm隔离、不用srun缩小双卡。详见docs/nus/NEXT_P50_DEPLOYMENT.md。所有NUS验收仍由用户操作，代理未访问服务器。
+- 新NUS布局必须独立~/projects/HSAI clone、独立.venv和artifacts，旧HSRL只读。CPU全门禁/建库→一次GPU更新保存恢复换库验收→用户提交12h长训。入口tools/nus_submit.py会在排队前做轻量路径/来源检查；不伪造plan.json，不取消Slurm隔离、不用srun缩小双卡。详见docs/nus/NEXT_P50_DEPLOYMENT.md。所有NUS验收仍由用户操作，代理未访问服务器。
 - Firestone20261106快照1000条feed/999回放，仍998条255790及2条254477，没有256589。主分析777份Train/17666板。强度主参考统一P50；晚期来源58/16/4/2，18/19目标是人为平滑设计，不宣称可靠真人分布。
 - 实机链路仍固定离线验收6039，55条公开历史快照dry-run通过；未自动切7357，当前真实游戏未验收。客户端公开近似观测不等于模拟器完整状态。
 - Git发布只含代码、配置、必要数据、当前文档和精选研究摘要；模型/库/大历史归档/私密配置全部本地保留并忽略。旧项目和游戏目录未修改；不能据此整目录删除旧环境或工具链。

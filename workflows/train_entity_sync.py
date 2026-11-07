@@ -1755,6 +1755,22 @@ def main() -> int:
             write(Path(args.out) / "adam-step-devices.json", dict(devices))
         print(f"[trainer] loaded updates={trainer.updates} "
               f"lr={trainer.optimizer.param_groups[0]['lr']:.3g}", flush=True)
+        # 续训时 lr 调度参数以 **trainer state** 为准（load_state_dict 会覆盖
+        # lr_min_ratio / max_updates，LambdaLR 的闭包读的是实例属性），命令行/配置
+        # 里的值不生效。历史复盘里这一点被当成"配置了 2e-6 却跑 1.75e-6"的疑惑，
+        # 这里显式打印并对不一致给出警告（不改变行为）。
+        _eff_lr = float(trainer.optimizer.param_groups[0]['lr'])
+        _cfg_lr = float(getattr(args, "lr", 0.0) or 0.0)
+        _cfg_ratio = float(getattr(args, "lr_min_ratio", 0.0) or 0.0)
+        _cfg_max = int(getattr(args, "max_updates", 0) or 0)
+        print(f"[lr] base={trainer.scheduler.base_lrs} last_epoch={trainer.scheduler.last_epoch} "
+              f"lr_min_ratio={trainer.lr_min_ratio:g} max_updates={trainer.max_updates} "
+              f"-> effective={_eff_lr:.10g} (config lr={_cfg_lr:g} "
+              f"ratio={_cfg_ratio:g} max_updates={_cfg_max})", flush=True)
+        if (abs(float(trainer.lr_min_ratio) - _cfg_ratio) > 1e-9
+                or int(trainer.max_updates) != _cfg_max):
+            print("[lr][warn] 续训沿用 trainer state 的 lr_min_ratio/max_updates，"
+                  "命令行值被忽略；如需改退火曲线必须先 fork 新 trainer state", flush=True)
     else:
         trainer = PPOTrainer(model, p_cfg, lr_min_ratio=float(args.lr_min_ratio),
                              max_updates=int(args.max_updates), bc_pool=bc_pool,

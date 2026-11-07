@@ -3,14 +3,14 @@
 与 ``run_7357_long.py`` 的区别（每一处都有机制依据，见 docs/FORCED_TIER.md）：
 
 1. **新配方** ``config/p50-forced-tier.json``（不再断言"必须等于上一轮配方"）：
-   lr 恒定 2e-6（上一轮实际从 1.75e-6 钉在地板，等价于没退火）、
-   entropy 0.002→0.008、target-kl 0.05→0.03、anchor 0.02→0.01 且 **重建 anchor**、
-   value-coef 不变；并开启强制升本计划 ``2:2,5:3,6:4,8:5``。
+   lr 量级不变、entropy 0.002→0.008、target-kl 0.05、anchor 0.02→0.01 且
+   **重建 anchor**、value-coef 不变；并开启强制升本计划 ``2:2,5:3,6:4,8:5``。
 2. **训练场阶梯**从 ``train-start``（上一库实测水平，T12=1135）起步，按
-   ``0 / 90M / 180M / 260M`` 逐级升到 ``ramp1 / ramp2 / train``——**与解除强制的
+   ``0 / 40M / 80M / 120M`` 逐级升到 ``ramp1 / ramp2 / train``——**与解除强制的
    时间点对齐**：帮助越少，对手越强，逼它把学到的升本能力转成自主决策。
-3. 强制概率 ``1.0 → 0.6 → 0.3 → 0``，教师标签（DAgger）到 260M 为止；
-   260M 之后 **完全自主**，因此长训后段本身就是"解除规则"的验证窗口。
+3. 强制概率 ``1.0 → 0.6 → 0.3 → 0``，教师标签（DAgger）到 120M 为止；
+   120M 之后 **完全自主**，因此长训后段本身就是"解除规则"的验证窗口。
+   12 小时预算下（按 6,000–7,100 dec/s 估算约 230–270M 新决策）自主段约占 45–55%。
 
 安全约束与上一轮相同：只在 Slurm 计算节点运行、输出目录非空必须显式 resume、
 ``STOP_REQUESTED`` 先改名再恢复、失败写 ``failure-states``、完成不重复训练。
@@ -28,8 +28,8 @@ sys.path.insert(0, str(ROOT))
 MODEL_SHA = '60594db00a627884d47afd4a326639ab9b1fa7c48eb88618399051d971dcff82'
 TRAINER_SHA = '13ef5b03338a7fd31a96a7e024f4431e2dd41183aa49f590d026299a41aca2ab'
 SOURCE_CUM = 558873732
-#: 训练场阶梯：与解除强制的时间点对齐（0/90M/180M/260M）
-SCHEDULE = [[0, 'warm0'], [90000000, 'warm1'], [180000000, 'warm2'], [260000000, 'train']]
+#: 训练场阶梯：与解除强制的时间点对齐（0/40M/80M/120M，本轮 12 小时预算）
+SCHEDULE = [[0, 'warm0'], [40000000, 'warm1'], [80000000, 'warm2'], [120000000, 'train']]
 CONFIG = 'config/p50-forced-tier.json'
 
 
@@ -63,7 +63,8 @@ def shift_forced_schedule(cfg, base):
     out = dict(cfg)
     spec = str(cfg.get('forced-tier-schedule', '') or '').strip()
     if spec:
-        sched = parse_prob_schedule(spec, default=float(cfg.get('forced-tier-prob', 1.0)))
+        sched = parse_prob_schedule(spec, default=float(cfg.get('forced-tier-prob', 1.0)),
+                                    require_zero_start=True)
         out['forced-tier-schedule'] = ','.join(
             f"{int(base) + int(d)}:{p:g}" for d, p in sched)
     until = str(cfg.get('forced-teacher-until', '') or '').strip()
@@ -83,6 +84,25 @@ def config():
         raise ValueError('anchor-beta 必须 <= 0.05（anchor 指向更早旧策略，强约束会拖住策略）')
     if int(cfg.get('reset-anchor', 0)) != 1:
         raise ValueError('必须 reset-anchor=1：否则 anchor 仍是继承来的旧策略')
+    # ── 时间轴一致性（本轮审计要求）─────────────────────────────────────────
+    # 静态配置必须是"相对本轮新增决策"（首段 0），绝对化由 shift_forced_schedule 在
+    # fork 时完成；强制概率节点必须与训练场阶梯完全同界，teacher 截止点必须等于撤除
+    # 强制的那个节点。三条任一条不满足都在启动期 fail-fast，不让长训跑到一半才发现。
+    from hsbg.az.train.forced_tier import parse_decisions, parse_prob_schedule
+    sched = parse_prob_schedule(str(cfg.get('forced-tier-schedule', '')),
+                                default=float(cfg.get('forced-tier-prob', 1.0)),
+                                require_zero_start=True)
+    if int(sched[0][0]) != 0:
+        raise ValueError('forced-tier-schedule 必须从 0 开始（相对本轮新增决策）；'
+                         f'得到首段 {int(sched[0][0])}——是不是误写成了绝对累计值？')
+    offsets = [int(d) for d, _ in sched]
+    lib_offsets = [int(o) for o, _ in SCHEDULE]
+    if offsets != lib_offsets:
+        raise ValueError(f'强制升本时间轴 {offsets} 与训练场阶梯 {lib_offsets} 不一致：'
+                         '两者必须同界，否则"帮助越少、对手越强"的对齐关系会被破坏')
+    until = parse_decisions(str(cfg.get('forced-teacher-until', '') or 0))
+    if int(until) != offsets[-1]:
+        raise ValueError(f'teacher-until 必须等于撤除强制的节点 {offsets[-1]}，得到 {int(until)}')
     return cfg
 
 
@@ -194,13 +214,15 @@ def main():
     if (out / 'report.json').exists() and read(out / 'report.json').get('complete'):
         print('本轮已完成，不重复训练')
         return
-    # 24h 预算；里程碑 30M 一次（96 局详细评测在 run_sustained 里用 monitor_games 控制）
-    a.wall_minutes = 1410
+    # 12h 预算：wall 690min（11.5h）+ Slurm 30min 余量；45min 终评预留。
+    # 训练窗口 ≈10.75h，按上一轮 7,095 dec/s 与 30M 一次的 96 局评测开销估算
+    # ≈260M 新决策 ⇒ 自主段（>120M）约占 54%。
+    a.wall_minutes = 690
     a.reserve_minutes = 45
-    a.budget_decisions = 1000000000
+    a.budget_decisions = 400000000
     a.monitor_every = 30000000
     a.monitor_games = 12
-    a.eval_games = 64
+    a.eval_games = 192
     a.strict_mirror = True
     a.curriculum_parent = None
     a.continue_from = None

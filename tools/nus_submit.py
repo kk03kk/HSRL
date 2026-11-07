@@ -32,6 +32,46 @@ def _stdlib_module(relpath,root=ROOT):
         raise
     return module
 
+def _sha_lf(path):
+    """按 LF 归一化后的 SHA256（与服务端 ``training_source_digest`` 同口径）。"""
+    return hashlib.sha256(Path(path).read_bytes().replace(b'\r\n', b'\n')).hexdigest()
+
+def _training_source_sha(root=ROOT):
+    """训练源码指纹：``hsbg/az/train/*.py`` + ``workflows/train_entity_sync.py``。"""
+    paths=sorted((Path(root)/'hsbg/az/train').glob('*.py'))
+    paths.append(Path(root)/'workflows/train_entity_sync.py')
+    h=hashlib.sha256()
+    for path in paths:
+        h.update(path.relative_to(root).as_posix().encode())
+        h.update(path.read_bytes().replace(b'\r\n',b'\n'))
+    return h.hexdigest()
+
+def audit_problem(audit_path, *, root=ROOT, runner='workflows/run_forced_tier_long.py',
+                  expected_libraries=None, expect_profile='forced'):
+    """校验 GPU 验收报告；返回 ``''`` 表示通过，否则返回可操作的原因。
+
+    纯函数（只读文件），登录节点可用；这样"报告缺失/用错 profile/源码变了/库变了"
+    四类错误都能被单测覆盖，而不是等排队后才发现。
+    """
+    p=Path(audit_path)
+    if not p.is_file():
+        return (f'缺少GPU验收报告: {p}。本轮应先跑 `--phase forced-gpu --submit`，'
+                '并用 HSAI_P50_AUDIT 指向同一个目录')
+    try:
+        gpu=read(p)
+    except (OSError,ValueError) as exc:
+        return f'GPU验收报告不可读: {p} ({exc})'
+    if str(gpu.get('profile') or '')!=expect_profile:
+        return (f'这份GPU验收报告不是 {expect_profile} 预检（profile={gpu.get("profile")}）：'
+                '请指向 --phase forced-gpu 的输出目录，或重跑 --phase forced-gpu --submit')
+    if gpu.get('training_source_sha256')!=_training_source_sha(root):
+        return 'GPU验收后训练源码变化，不能提交长训：请重跑 --phase forced-gpu --submit'
+    if gpu.get('runner_sha256')!=_sha_lf(Path(root)/runner):
+        return '长训入口改变，需要重验：请重跑 --phase forced-gpu --submit'
+    if expected_libraries is not None and gpu.get('libraries')!=expected_libraries:
+        return 'GPU验收时的战团库与当前不一致（库被重建或替换过）：请重跑 --phase forced-gpu --submit'
+    return ''
+
 def precheck(phase,root=ROOT):
     from workflows.run_7357_long import defaults,check_inputs,MODEL_SHA,TRAINER_SHA,SOURCE_CUM
     p=defaults(argparse.ArgumentParser());args=p.parse_args([])
@@ -62,24 +102,10 @@ def precheck(phase,root=ROOT):
         if not cpu_path.is_file():raise ValueError('缺少CPU门禁结果:'+str(cpu_path)+'（先跑 --phase cpu）')
         if not read(cpu_path).get('passed'):raise ValueError('CPU完整门禁没有通过')
         if needs_gpu_audit:
-            audit_path=Path(args.gpu_audit)/'report.json'
-            if not audit_path.is_file():
-                raise ValueError(
-                    '缺少GPU验收报告: '+str(audit_path)+'。本轮应先跑 '
-                    '`--phase forced-gpu --submit` 生成它，并用 HSAI_P50_AUDIT 指向同一个目录')
-            gpu=read(audit_path)
-            if str(gpu.get('profile') or '')!='forced':
-                raise ValueError(
-                    '这份GPU验收报告不是强制升本预检（profile='+str(gpu.get('profile'))+'）：'
-                    '请指向 --phase forced-gpu 的输出目录，或重跑 --phase forced-gpu --submit')
-            paths=sorted((root/'hsbg/az/train').glob('*.py'))+[root/'workflows/train_entity_sync.py'];h=hashlib.sha256()
-            for path in paths:h.update(path.relative_to(root).as_posix().encode());h.update(path.read_bytes().replace(b'\r\n',b'\n'))
-            if gpu['training_source_sha256']!=h.hexdigest():
-                raise ValueError(
-                    'GPU验收后训练源码变化，不能提交长训：请重跑 --phase forced-gpu --submit'
-                    '（验收目录='+str(args.gpu_audit)+'）')
-            if gpu.get('runner_sha256')!=hashlib.sha256((root/'workflows/run_forced_tier_long.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest():
-                raise ValueError('长训入口改变，需要重验：请重跑 --phase forced-gpu --submit')
+            _libs={k:v['digest'] for k,v in read(bank/'report.json')['splits'].items()}
+            _why=audit_problem(Path(args.gpu_audit)/'report.json',root=root,
+                               expected_libraries=_libs)
+            if _why:raise ValueError(_why+f'（验收目录={args.gpu_audit}）')
         result=dict(passed=True,phase=phase,scope='metadata_file_precheck_only',
                     config=str(root/'config/p50-forced-tier.json'),needs_gpu_audit=needs_gpu_audit)
     elif phase=='cpu':

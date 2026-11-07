@@ -89,7 +89,7 @@ PY
 > `docs/research/FORCED_TIER_LOCAL.md` §6。若再次出现 `forced_actions=0`，先查
 > `train.config.json` 里的 `forced-tier-schedule` 是不是绝对累计值。
 
-## 3. 正式长训（24 小时）
+## 3. 正式长训（12 小时）
 
 ```bash
 cd ~/projects/HSAI || exit
@@ -102,13 +102,18 @@ export HSAI_LONG_OUT=artifacts/runs/p50-forced-tier-long-001
 | 项 | 值 |
 |---|---|
 | 起点 | 7357 完整 Trainer（558,873,732 / Adam 545,990），冻结到 `initial-state/` |
-| 训练场 | `train-start`(0) → `ramp1`(90M) → `ramp2`(180M) → `train`(260M) |
+| 训练场 | `train-start`(0) → `ramp1`(40M) → `ramp2`(80M) → `train`(120M) |
 | 强制升本 | `2:2,5:3,6:4,8:5`，carry 1 |
-| 解除强制 | 概率 1.0 → 0.6(90M) → 0.3(180M) → 0.0(260M)；教师标签到 260M，coef 0.05 |
-| PPO | lr 2e-6（`lr-min-ratio 1.0` = 不退火）、entropy 0.008、target-kl 0.03、clip 0.2、minibatch 1024、单 epoch |
+| 解除强制 | 概率 1.0 → 0.6(40M) → 0.3(80M) → 0.0(120M)；教师标签到 120M，coef 0.05 |
+| PPO | base lr 2e-6，**实际 1.7548e-6 → 1.6667e-6（iteration 10000 触底）后恒定**；entropy 0.008、target-kl 0.05、clip 0.2、minibatch 1024、单 epoch |
 | anchor | `anchor-beta 0.01` + **`reset-anchor 1`**（修正继承的旧 anchor） |
-| 预算 | 24h Slurm、1410 分钟控制、45 分钟收尾、最多 10 亿新决策 |
-| 评测 | 起点 96 局；每 30M 一次 96 局配对；终评 512 局；**Dev/Test 不带强制计划** |
+| 预算 | **12h Slurm、690 分钟控制、45 分钟终评预留、4 亿决策上限**（时间绑定） |
+| 评测 | 起点 96 局；每 30M 一次 96 局配对；终评 192 局 ×2（参考/候选）；**Dev/Test 不带强制计划** |
+
+12h 的时间账：690 min 控制预算 − 45 min 终评 = 645 min 训练窗口；扣除每 30M 一次的
+96 局评测开销，按上一轮 7,095 dec/s 估算约 **230–270M** 新决策 ⇒ 120M 之后仍有
+**45–55% 的完全自主训练**。若实测吞吐明显低于 6,000 dec/s，milestone 会自然减少，
+但 120M 节点与自主段比例不变（由调度节点而非时间决定）。
 
 **注意**：正式 Dev/Test 评测必须**不带** `--forced-tier-plan`（`personal eval` 默认为空）。
 "规则内"探针另建目录并显式加参数，且 `protocol_sha256` 会不同——不要和正式评测混榜。
@@ -139,7 +144,8 @@ PY
 1. `targets` 里 5 本的 `on_time` 比例应 ≥0.8；`deferred` 高是 T6 小饰品的预期现象；
    `missed` 持续出现说明计划与引擎规则冲突，必须先分析再继续。
 2. `blocked` 每局约 0–2 属正常（待选阶段）；若远高，检查是否到达上限或金币异常。
-3. 260M 之后 `prob=0.0`：此时看 `dev` 的 T8–T12 升本执行率是否 >0.05，作为"自主性"判据。
+3. **120M 之后** `prob=0.0`：此时看 `dev` 的 T8–T12 升本执行率是否 >0.05，作为"自主性"判据；
+   同时看逐回合自身/场地 P50 比值是否在后续里程碑继续上升（自主段仍在成长才算成功）。
 
 ## 5. 安全暂停与恢复
 
@@ -160,6 +166,10 @@ export HSAI_LONG_OUT=artifacts/runs/p50-forced-tier-long-001
 ```
 
 恢复会继承 latest 的完整 Trainer 与课程位置（含强制概率所在的累计决策），不会倒回 7357。
+具体地：`cum_decisions` 存在 trainer state 的 `extra` 里随快照一起保存/恢复，
+`train.config.json` 里是**绝对**的 `forced-tier-schedule`（`558873732:1,598873732:0.6,…`），
+两者相乘决定恢复后第一步的强制概率；`--phase forced` 的预检会重新核对源码/入口/库摘要，
+所以**任何代码或配置改动都会要求重跑 GPU 验收**，这是设计而非故障。
 若改了源码/配置/库，**必须换新目录**（预检会因输出目录非空而拒绝）。
 
 ## 6. 若 GPU 验收不通过

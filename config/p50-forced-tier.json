@@ -6,8 +6,8 @@
   "minibatch": 1024,
   "grad-accum": 1,
   "lr": 2e-06,
-  "lr-min-ratio": 1.0,
-  "max-updates": 20000,
+  "lr-min-ratio": 0.8333333333,
+  "max-updates": 10000,
   "clip": 0.2,
   "target-kl": 0.05,
   "gamma": 1.0,
@@ -48,8 +48,8 @@
   "mirror-strict": 1,
   "forced-tier-plan": "2:2,5:3,6:4,8:5",
   "forced-tier-carry": 1,
-  "forced-tier-schedule": "0:1.0,90000000:0.6,180000000:0.3,260000000:0.0",
+  "forced-tier-schedule": "0:1.0,40000000:0.6,80000000:0.3,120000000:0.0",
   "forced-tier-prob": 1.0,
-  "forced-teacher-until": "260000000",
+  "forced-teacher-until": "120000000",
   "forced-teacher-coef": 0.05
 }

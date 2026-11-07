@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --propagate=NONE
-#SBATCH --time=1-00:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=artifacts/runs/slurm/%x-%j.out
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 set -euo pipefail

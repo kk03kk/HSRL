@@ -28,8 +28,18 @@ def _check(name,ok,reason='',**detail):
     return dict(name=name,ok=bool(ok),reason=str(reason),**detail)
 
 
+def _sha_lf(path):
+    """按 LF 归一化的 SHA256——与 ``tools/nus_submit._sha_lf`` / 训练源码指纹同口径。"""
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes().replace(b'\r\n',b'\n')).hexdigest()
+
+
 def check_forced_tier(train,version,games=0):
-    """返回 ``_check(...)``：强制升本统计是否存在、是否真的执行、5 本是否可达。"""
+    """返回 ``_check(...)``：强制升本统计是否存在、是否真的执行、5 本是否可达。
+
+    ``games`` 必须是本轮的**完整对局数**（``engine_quality_checked_games``）；拿不到就
+    直接判失败——样本比例检查是这条门禁的核心，不能因为缺字段而静默跳过。
+    """
     forced=None
     with (train/'history.jsonl').open(encoding='utf-8') as fh:
         for line in fh:
@@ -49,7 +59,9 @@ def check_forced_tier(train,version,games=0):
                 forced_actions=int(forced.get('forced_actions') or 0),
                 teacher_labels=int(forced.get('teacher_labels') or 0),
                 blocked=int(forced.get('blocked') or 0),
-                targets=targets,tier5_samples=int(total))
+                games=int(games),targets=targets,tier5_samples=int(total))
+    if int(games)<=0:
+        return _check('forced_tier',False,'无法确定本轮局数（totals 缺少 engine_quality_checked_games）',**detail)
     if int(forced.get('forced_actions') or 0)<=0:
         return _check('forced_tier',False,'一次强制都没执行（检查计划是否被平移成累计决策）',**detail)
     if total<=0:
@@ -59,7 +71,7 @@ def check_forced_tier(train,version,games=0):
     missed=float(five.get('missed') or 0)/total
     detail.update(tier5_on_time=round(on_time,4),tier5_deferred=round(deferred,4),
                   tier5_missed=round(missed,4))
-    if games and total < MIN_TIER5_SAMPLE_RATIO*float(games):
+    if total < MIN_TIER5_SAMPLE_RATIO*float(games):
         return _check('forced_tier',False,
                       f'5 本目标样本过少({total}/{games})：多数局在 T8 前结束，先查训练场难度',**detail)
     if on_time+deferred<MIN_TIER5_REACH:
@@ -113,12 +125,14 @@ def main():
                          optimizer_steps=int(tot['optimizer_steps']),processed_ratio=round(ratio,4),
                          kl_early_stop_iterations=int(tot.get('kl_early_stop_iterations',0))))
     if a.profile=='forced':
-        checks.append(check_forced_tier(train,versions[-1],int(tot.get('games') or 0)))
+        # 局数只能用 engine_quality_checked_games（totals 里没有 'games' 键）
+        checks.append(check_forced_tier(train,versions[-1],
+                                        int(tot.get('engine_quality_checked_games') or 0)))
     failed=[c for c in checks if not c['ok']]
     base=dict(profile=a.profile,versions=versions,checks=checks,
               training=quality,forced_tier=next((c for c in checks if c['name']=='forced_tier'),None),
               fingerprint=fingerprint(),training_source_sha256=training_source_digest(),
-              runner_sha256=sha256(ROOT/RUNNERS[a.profile]))
+              runner_sha256=_sha_lf(ROOT/RUNNERS[a.profile]))
     if failed:
         write_json(a.out/'report.json',dict(passed=False,failed=[c['name'] for c in failed],**base))
         raise ValueError('预检未通过: '+'; '.join(f"{c['name']}({c['reason']})" for c in failed)
