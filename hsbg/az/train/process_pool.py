@@ -52,6 +52,7 @@ from .runlog import aggregate_injection
 from .reward_shaping import aggregate_shaping
 from .tier_target import aggregate_tier_target
 from .move_guard import aggregate_move_guard
+from .forced_tier import aggregate_forced_tier
 from .archetype_bias import aggregate_archetype_bias
 from .ppo import (CollectConfig, PPOBatch, PPOSelfPlayPolicy, build_batch_from_arrays,
                   build_batch_from_records, pack_records_arrays)
@@ -1339,6 +1340,20 @@ class ProcessActorPool:
         # 换位去抖守卫：逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_move_guard(metas))
         meta.update(aggregate_archetype_bias(metas))
+        # 强制升本统计：逐 shard 的逐局 meta 汇总（默认关闭 -> 不新增键）
+        _ft_games = []
+        for _m in metas:
+            for _g in (_m.get("games_meta") or []):
+                if isinstance(_g, dict) and isinstance(_g.get("forced_tier_game"), dict):
+                    _ft_games.append(_g)
+        _ft_agg = aggregate_forced_tier(_ft_games)
+        if _ft_agg:
+            # 概率/教师开关由 worker 回传（同一 iteration 所有 shard 相同）
+            _first = next((m.get("forced_tier") for m in metas
+                           if isinstance(m.get("forced_tier"), dict)), {}) or {}
+            _ft_agg["prob"] = float(_first.get("prob", 0.0) or 0.0)
+            _ft_agg["teacher"] = bool(_first.get("teacher", False))
+            meta["forced_tier"] = _ft_agg
         # 搜索行为混合（默认关闭 -> 空 dict，不新增键）：worker meta 逐 shard 汇总。
         _bm_agg = aggregate_behavior_mix(metas)
         if _bm_agg:

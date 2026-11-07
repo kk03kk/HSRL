@@ -20,12 +20,17 @@ OPTIONS = {
     "lr", "lr-min-ratio", "max-updates", "clip", "target-kl", "lam", "gamma",
     "entropy-coef", "value-coef", "pi-coef", "seq-coef", "max-grad-norm",
     "seed", "processes", "workers", "batch-size", "max-actions-per-turn",
-    "anchor-beta", "anchor-iterations", "anchor-beta-tail", "snapshot-every",
+    "anchor-beta", "anchor-iterations", "anchor-beta-tail", "reset-anchor", "snapshot-every",
     "keep-snapshots", "mirror-sample", "sims", "rc-threads", "local-batch-inference",
     "pipeline", "amp", "anchor-amp", "gpus", "gpu-index-space", "threads",
     "leaf-amp", "leaf-wait-ms", "ipc-mode", "records-dtype", "pipeline-guard",
     "leaf-fused", "mirror-strict",
     "move-guard", "move-cap", "move-repeat-limit", "pipeline-zero-step-fallback",
+    # 强制升本课程（默认空计划 = 关闭；见 docs/FORCED_TIER.md）。
+    # 注意：教师标签只由 ``forced-teacher-coef`` 驱动，不要用 ``teacher-bc-coef``，
+    # 否则会同时打开「缩放教师」在线查询，两条标签会互相覆盖。
+    "forced-tier-plan", "forced-tier-carry", "forced-tier-schedule",
+    "forced-tier-prob", "forced-teacher-until", "forced-teacher-coef",
 }
 
 
@@ -380,6 +385,11 @@ def evaluate(args):
         protocol["mirror_strict"] = True
     if getattr(args, "economy", False):
         protocol["end_turn_economy"] = "before_end_turn/v3_board_gold"
+    # 强制升本探针（空 = 关闭）。写进 protocol 使配对门禁把「规则内/规则外」区分开。
+    _ft_plan = str(getattr(args, "forced_tier_plan", "") or "").strip()
+    if _ft_plan:
+        protocol["forced_tier_plan"] = _ft_plan
+        protocol["forced_tier_carry"] = int(getattr(args, "forced_tier_carry", 1))
     audit = None
     if args.policy == "net":
         audit = inspect_checkpoint(args.checkpoint, args.device)
@@ -395,7 +405,9 @@ def evaluate(args):
         rows.append(evaluate_policy(policy, EvalConfig(
             games=args.games, seed=args.seed, policy_seat=seat, mirror_pool=pool,
             collect_exposure=bool(getattr(args, 'exposure', 0)),
-            collect_economy=bool(getattr(args, 'economy', False)), mirror_strict=strict)))
+            collect_economy=bool(getattr(args, 'economy', False)), mirror_strict=strict,
+            forced_tier_plan=_ft_plan,
+            forced_tier_carry=int(getattr(args, "forced_tier_carry", 1)))))
     ranks = np.asarray([r for row in rows for r in row["rank_sequence"]])
     valid = bool(np.all((ranks >= 1) & (ranks <= 8)) and all(
         r["illegal_actions"] == r["truncated_combats"] == r["truncated_games"] == 0 for r in rows))
@@ -539,6 +551,11 @@ def main(argv=None):
     ev.add_argument("--device", default="cuda")
     ev.add_argument("--mirror-strict", action="store_true", help="仅使用校准库对手并验证每场交手")
     ev.add_argument("--economy", action="store_true", help="记录学习席每回合EndTurn前的经营状态")
+    ev.add_argument("--forced-tier-plan", default="",
+                    help="评测期强制升本计划（如 2:2,5:3,6:4,8:5）；空=模型完全自主（正式"
+                         "Dev/Test 必须为空，否则棋力不可比）")
+    ev.add_argument("--forced-tier-carry", type=int, default=1,
+                    help="强制升本的顺延回合数（默认 1）")
     ev.add_argument("--exposure", type=int, choices=[0, 1], default=0)
     ev.add_argument('--max-actions-per-turn',type=int,default=40)
     ev.add_argument('--move-guard',type=int,choices=[0,1],default=0)

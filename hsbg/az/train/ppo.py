@@ -87,6 +87,12 @@ from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              DEFAULT_MODEL as ARCH_MODEL)
 from .reward_shaping import RewardShaper
 from .tier_target import TierTargetTracker, aggregate_tier_target
+from .forced_tier import (
+    ForcedTierTracker,
+    UPGRADE_ACTION,
+    aggregate_forced_tier,
+    summarize_forced_tier,
+)
 from .power_trace import compact_diagnostics, compute_credit
 from .process_value import process_value_loss
 from .process_value import consume_count as _consume_count
@@ -94,6 +100,7 @@ from .process_value import process_target as _process_target
 from .curriculum import apply_turn_gold as _apply_turn_gold
 from .scaling_teacher import ScalingTeacher as _ScalingTeacher
 from .scaling_teacher import in_scaling_window as _in_scaling_window
+from hsbg.env.obs_std import GLOBAL_FIELD_INDEX as _GLOBAL_FIELD_INDEX
 
 # ── 数值边界 ──────────────────────────────────────────────────────────────
 #: torch 侧非法 logits 的填充值（float32 下 ``exp(-1e30)=0``，避免 -inf 制造 NaN 梯度）。
@@ -432,6 +439,16 @@ class CollectConfig:
     tier_bonus: float = 0.15
     #: 目标曲线 ``turn:tier``（逗号分隔），默认 ``7:4,9:5,12:6``。
     tier_target_table: str = "7:4,9:5,12:6"
+    #: ── 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）──
+    #: 计划 ``turn:tier``（逗号分隔），默认空 = 关闭（不构造对象、不读状态、
+    #: 不新增 record 字段，采集/打包/GAE 与旧路径逐位一致）。
+    forced_tier_plan: str = ""
+    #: 目标回合没做到时允许顺延的回合数（记为 deferred，不静默跳过）。
+    forced_tier_carry: int = 1
+    #: 本 iteration 生效的强制概率（1.0 = 每回合必强制；0.0 = 只写教师标签）。
+    forced_tier_prob: float = 1.0
+    #: 未强制但目标未达成且 Upgrade 合法时，是否写 ``teacher_action``（DAgger 标签）。
+    forced_tier_teacher: bool = False
     #: ── 流派（archetype）软偏置（默认关闭；见 docs/ARCHETYPE_BIAS.md）──
     #: 系数：**0 = 关闭**（不构造对象、不碰 logits、不新增 meta 键，旧路径逐位等价）。
     #: 建议 0.5–2.0：对「当前流派在当前 turn 的偏好动作」加 ``coef * 相对增益`` 的 logit，
@@ -3320,6 +3337,13 @@ class PPOSelfPlayPolicy(Policy):
         self.eval_fn = eval_fn
         self.engine_backend = str(engine_backend)
         self.game_id = 0
+        # 强制升本课程（空计划 -> None，零开销、零 record 字段）
+        _ft_plan = str(getattr(self.config, "forced_tier_plan", "") or "").strip()
+        self._forced = (ForcedTierTracker(
+            _ft_plan, carry=int(getattr(self.config, "forced_tier_carry", 1) or 0))
+            if _ft_plan else None)
+        self._forced_prob = float(getattr(self.config, "forced_tier_prob", 1.0) or 0.0)
+        self._forced_teacher = bool(getattr(self.config, "forced_tier_teacher", False))
         self.records: List[Dict[str, Any]] = []
         self._rng = np.random.default_rng(int(seed))
         self._n = 0
@@ -3359,6 +3383,9 @@ class PPOSelfPlayPolicy(Policy):
         self.records = []
         self._n = 0
         self._turn_counts = {}
+        # 强制升本：把上一局的目标结果折叠进累计，再清空按局状态
+        if self._forced is not None:
+            self._forced.reset()
         # 守卫的**累计统计**跨局保留（采集 meta 需要整次采集的汇总）；
         # 只清「本回合已选动作」历史（key 本身含 game_id，状态天然按局隔离）。
         if self._guard is not None:
@@ -3369,6 +3396,42 @@ class PPOSelfPlayPolicy(Policy):
     def move_guard_meta(self) -> Dict[str, Any]:
         """守卫统计（默认关闭 -> ``{}``，不新增 meta 键）。"""
         return {} if self._guard is None else self._guard.to_meta()
+
+    def forced_tier_meta(self) -> Dict[str, Any]:
+        """强制升本统计（默认关闭 -> ``{}``，不新增 meta 键）。"""
+        return {} if self._forced is None else self._forced.stats()
+
+    def forced_tier_game_meta(self) -> Dict[str, Any]:
+        """本局强制升本统计（写进逐局 meta；默认关闭 -> ``{}``）。"""
+        return {} if self._forced is None else self._forced.game_stats()
+
+    # ── 强制升本（见 docs/FORCED_TIER.md）──
+    def _obs_tier(self, f: Any, game: Any, seat: int) -> int:
+        """读当前酒馆等级：优先观测 global 块（``raw = round(float*6)``），失败退回状态。"""
+        try:
+            t = int(round(float(np.asarray(f, dtype=np.float32).reshape(-1)[
+                _GLOBAL_FIELD_INDEX["tier"]]) * 6.0))
+            if 1 <= t <= 7:
+                return t
+        except Exception:  # noqa: BLE001 - 观测形状异常时退回状态，不阻断采集
+            pass
+        try:
+            return int(json.loads(game.player_json(int(seat))).get("tier") or 1)
+        except Exception:  # noqa: BLE001
+            return 1
+
+    def _forced_decide(self, game: Any, seat: int, f: Any, mask: Any,
+                       guard_forced: bool = False) -> Optional[Any]:
+        """本决策的强制升本判定（未启用 / 守卫接管 / 回合上限时返回 None）。"""
+        if self._forced is None:
+            return None
+        if guard_forced or self._turn_is_forced(game, seat, mask):
+            return None
+        return self._forced.decide(
+            game_id=int(self.game_id), seat=int(seat),
+            turn=int(getattr(game, "turn", -1)), tier=self._obs_tier(f, game, seat),
+            upgrade_legal=bool(np.asarray(mask, dtype=bool).reshape(-1)[UPGRADE_ACTION]),
+            force_prob=float(self._forced_prob), rng=self._rng)
 
     def behavior_mix_meta(self) -> Dict[str, Any]:
         """搜索行为混合统计（未启用 -> ``{}``，不新增 meta 键）。"""
@@ -3469,7 +3532,8 @@ class PPOSelfPlayPolicy(Policy):
                 guard_forced: bool = False,
                 logp_mu: Optional[float] = None,
                 logp_pi: Optional[float] = None,
-                action_source: str = "pi") -> Decision:
+                action_source: str = "pi",
+                forced_decision: Optional[Any] = None) -> Decision:
         """收尾：回合守卫 → 写 record → 构造 Decision（decide/decide_batch 共用）。
 
         ``guard_forced=True``：换位守卫把合法动作清空后回退到 EndTurn（``mask`` 此时
@@ -3488,11 +3552,19 @@ class PPOSelfPlayPolicy(Policy):
         n_turn = self._turn_counts.get(key, 0) + 1
         self._turn_counts[key] = n_turn
         forced_turn = bool(limit > 0 and n_turn > limit and bool(mask[0]))
-        forced = bool(forced_turn or guard_forced)
+        script_forced = bool(forced_decision is not None
+                             and getattr(forced_decision, "force", False))
+        # 回合上限/守卫优先于脚本强制：那时 mask 只剩 EndTurn，强升会变成非法动作
+        policy_forced = bool(script_forced and not forced_turn and not guard_forced)
+        forced = bool(forced_turn or guard_forced or policy_forced)
 
         legal = np.flatnonzero(mask)
         if legal.size == 0:
             action, logprob = 0, 0.0
+        elif policy_forced:
+            # 强制升本：动作固定为 Upgrade，logprob=0（同守卫口径：不进策略梯度，
+            # 不当成 on-policy 样本；价值/回报链照常保留）。
+            action, logprob = int(UPGRADE_ACTION), 0.0
         elif forced:
             # 守卫动作是**环境确定性约束**（delta 在 EndTurn 上），不是行为分布采样。
             # 记录 logprob=0 且 forced=True；PPO 的策略/aux loss 会排除这些样本，
@@ -3525,6 +3597,16 @@ class PPOSelfPlayPolicy(Policy):
             "game_id": int(self.game_id),
             "forced": bool(forced),
         }
+        if (forced_decision is not None and self._forced is not None
+                and getattr(forced_decision, "target", None) is not None):
+            # 只在本局本回合命中计划时写这三个字段（未启用时 record 集合不变）
+            rec["forced_tier_target"] = forced_decision.target
+            rec["forced_tier_deadline"] = forced_decision.deadline
+            rec["forced_tier_deferred"] = bool(forced_decision.deferred)
+            if bool(getattr(forced_decision, "teacher", False)) \
+                    and not policy_forced and not guard_forced:
+                # DAgger 标签：目标未达成、Upgrade 此刻合法、但本回合没强制
+                rec["teacher_action"] = int(UPGRADE_ACTION)
         if self._mix is not None and self._mix.enabled:
             # 搜索行为混合：μ 的 logprob（ratio 分母）与 π 的 logprob（KL 口径）。
             # 未混合/搜索失败的决策两者都等于按 π 采样的 logprob。
@@ -3540,7 +3622,9 @@ class PPOSelfPlayPolicy(Policy):
         return Decision(int(action), np.asarray(out_pi, dtype=np.float32),
                         {"search": target_pi is not None, "policy": self.name,
                          "logprob": float(logprob), "value": float(value),
-                         "forced": bool(forced)})
+                         "forced": bool(forced),
+                         "forced_tier": (None if forced_decision is None
+                                         else forced_decision.as_record())})
 
     def decide(self, game: Any, seat: int) -> Decision:
         seat = int(seat)
@@ -3554,6 +3638,9 @@ class PPOSelfPlayPolicy(Policy):
         # 流派软偏置：先用可见观测 + 己方动作历史做检测，拿到 245 维非负 bias。
         abias = (self._abias.bias(f, c, mask, game_id=self.game_id, seat=seat)
                  if self._abias is not None else None)
+        # 强制升本判定（未启用 -> None；守卫/回合上限时也不会强制）
+        fdec = self._forced_decide(game, seat, f, mask, guard_forced)
+        script_force = bool(fdec is not None and getattr(fdec, "force", False))
         if self._can_fast_act():
             # worker 侧采样：省掉 prior 回传 + 调用方 numpy softmax/采样
             seed = int(self._rng.integers(0, 2 ** 63 - 1))
@@ -3568,6 +3655,7 @@ class PPOSelfPlayPolicy(Policy):
             # 搜索作为行为策略（默认关闭）：fast-act 路径同样在采样后混合
             mix = None
             if (self._mix is not None and self._mix.enabled and not guard_forced
+                    and not script_force
                     and bool(np.asarray(mask, dtype=bool).any())
                     and not self._turn_is_forced(game, seat, mask)):
                 mix = self._mix.propose(
@@ -3576,15 +3664,21 @@ class PPOSelfPlayPolicy(Policy):
                     temperature=float(self.config.temperature), rng=self._rng)
             if mix is not None:
                 a, lp = int(mix.action), float(mix.logp_pi)
+            if script_force:
+                a, lp = int(UPGRADE_ACTION), 0.0
+                _src = "forced_tier"
+            elif mix is not None:
+                _src = "search_mix" if mix.used_search else "pi_mix"
+            else:
+                _src = "pi"
             return self._finish(game, seat, f, c, mask, action=int(a),
                                 logprob=float(lp),
                                 value=float(value), target_pi=None, out_pi=None,
                                 guard_forced=guard_forced,
                                 logp_mu=(None if mix is None else mix.logp_mu),
                                 logp_pi=(None if mix is None else mix.logp_pi),
-                                action_source=(("search_mix" if mix.used_search
-                                                else "pi_mix") if mix is not None
-                                               else "pi"))
+                                action_source=_src,
+                                forced_decision=fdec)
 
         logits, value = self._net_predict(f, c, mask, seat)
         if abias is not None:
@@ -3614,7 +3708,7 @@ class PPOSelfPlayPolicy(Policy):
         # ── 搜索作为行为策略：以概率 ε 换成 μ=(1−ε)π+ε·π_search 采样 ──
         mix = None
         if (self._mix is not None and self._mix.enabled and not guard_forced
-                and legal.size > 0
+                and not script_force and legal.size > 0
                 and not self._turn_is_forced(game, seat, mask)):
             mix = self._mix.propose(
                 game, seat, self.game_id, action=int(action),
@@ -3622,14 +3716,20 @@ class PPOSelfPlayPolicy(Policy):
                 temperature=float(self.config.temperature), rng=self._rng)
         if mix is not None:
             action, logprob = int(mix.action), float(mix.logp_pi)
+        if script_force:
+            action, logprob = int(UPGRADE_ACTION), 0.0
+            _src = "forced_tier"
+        elif mix is not None:
+            _src = "search_mix" if mix.used_search else "pi_mix"
+        else:
+            _src = "pi"
         return self._finish(game, seat, f, c, mask, action=action, logprob=logprob,
                             value=float(value), target_pi=target_pi, out_pi=mu,
                             guard_forced=guard_forced,
                             logp_mu=(None if mix is None else mix.logp_mu),
                             logp_pi=(None if mix is None else mix.logp_pi),
-                            action_source=(("search_mix" if mix.used_search
-                                            else "pi_mix") if mix is not None
-                                           else "pi"))
+                            action_source=_src,
+                            forced_decision=fdec)
 
     def decide_batch(self, pairs: Sequence[Any]) -> List[Decision]:
         """lock-step：对若干 ``(game, seat)`` 一次批量前向，再逐个收尾。"""
@@ -3662,7 +3762,8 @@ class PPOSelfPlayPolicy(Policy):
                     turn=int(getattr(g, "turn", -1)))
             abias = (self._abias.bias(f, c, mask, game_id=self.game_id, seat=s)
                      if self._abias is not None else None)
-            prepared.append((g, s, gid, f, c, mask, guard_forced, abias))
+            fdec = self._forced_decide(g, s, f, mask, guard_forced)
+            prepared.append((g, s, gid, f, c, mask, guard_forced, abias, fdec))
         F = np.stack([p[3] for p in prepared]).astype(np.float32, copy=False)
         C = np.stack([p[4] for p in prepared]).astype(np.int64, copy=False)
         M = np.stack([p[5] for p in prepared]).astype(bool, copy=False)
@@ -3682,13 +3783,15 @@ class PPOSelfPlayPolicy(Policy):
             acts, lps, vals = self.eval_fn.act_batch(F, C, M,
                                                      float(self.config.temperature), seed,
                                                      bias=B)
-        for i, (g, s, gid, f, c, mask, gf, _ab) in enumerate(prepared):
+        for i, (g, s, gid, f, c, mask, gf, _ab, fdec) in enumerate(prepared):
             if gid is not None:
                 self.game_id = int(gid)
             a_i, lp_i = int(acts[i]), float(lps[i])
+            script_force = bool(fdec is not None and getattr(fdec, "force", False))
             # 搜索作为行为策略（默认关闭）：只在非 forced 的关键决策上混合
             mix = None
             if (self._mix is not None and self._mix.enabled and not gf
+                    and not script_force
                     and not self._turn_is_forced(g, s, mask)):
                 mix = self._mix.propose(
                     g, s, self.game_id, action=a_i, logprob=lp_i, f=f, c=c,
@@ -3696,15 +3799,21 @@ class PPOSelfPlayPolicy(Policy):
                     rng=self._rng)
             if mix is not None:
                 a_i, lp_i = int(mix.action), float(mix.logp_pi)
+            if script_force:
+                a_i, lp_i = int(UPGRADE_ACTION), 0.0
+                _src = "forced_tier"
+            elif mix is not None:
+                _src = "search_mix" if mix.used_search else "pi_mix"
+            else:
+                _src = "pi"
             out.append(self._finish(g, s, f, c, mask, action=a_i,
                                     logprob=float(lp_i),
                                     value=float(vals[i]), target_pi=None, out_pi=None,
                                     guard_forced=gf,
                                     logp_mu=(None if mix is None else mix.logp_mu),
                                     logp_pi=(None if mix is None else mix.logp_pi),
-                                    action_source=(("search_mix"
-                                                    if mix.used_search else "pi_mix")
-                                                   if mix is not None else "pi")))
+                                    action_source=_src,
+                                    forced_decision=fdec))
         return out
 
 
@@ -4103,7 +4212,9 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
                                               phi_prev, phi_now)
                         dec = policy.decide(game, int(p))
                         _rec = policy.records[-1]
-                        if _teacher_on:
+                        if _teacher_on and int(teacher_a) >= 0:
+                            # 只有真正的教师标签才覆盖（-1 = 本决策无标签；不能把
+                            # 强制升本写下 的 teacher_action 抹掉）
                             _rec["teacher_action"] = int(teacher_a)
                         if _process_on:
                             _rec["process_target"] = process_t
@@ -4156,6 +4267,9 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
                          else int(list(game.placements())[int(cfg.learner_seat)])),
             })
             games_meta[-1].update(tracker.stats())
+            _ft_game = policy.forced_tier_game_meta()
+            if _ft_game:
+                games_meta[-1]["forced_tier_game"] = _ft_game
             if progress:
                 print(f"[collect] vs-bot game {gi + 1}/{cfg.games} "
                       f"decisions={game_decisions} truncated={game_truncated}",
@@ -4193,6 +4307,13 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
     collect_meta.update(aggregate_tier_target(games_meta))
     # 换位去抖守卫统计（默认关闭 -> 空 dict，不新增键）。
     collect_meta.update(policy.move_guard_meta())
+    # 强制升本统计（默认关闭 -> 空 dict，不新增键）。嵌套在 ``forced_tier`` 下，
+    # 避免与缩放教师的 ``teacher_labels`` / 守卫计数等顶层键重名。
+    _ft_agg = aggregate_forced_tier(games_meta)
+    if _ft_agg:
+        _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
+        _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
+        collect_meta["forced_tier"] = _ft_agg
     # 流派软偏置统计（默认关闭 -> 空 dict，不新增键）。
     collect_meta.update(policy.archetype_bias_meta())
     if not records:

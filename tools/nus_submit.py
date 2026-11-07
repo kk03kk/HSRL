@@ -9,7 +9,38 @@ def read(p):return json.loads(Path(p).read_text(encoding='utf-8'))
 def precheck(phase,root=ROOT):
     from workflows.run_7357_long import defaults,check_inputs,MODEL_SHA,TRAINER_SHA,SOURCE_CUM
     p=defaults(argparse.ArgumentParser());args=p.parse_args([])
-    if phase=='cpu':
+    if phase=='forced':
+        # 强制升本长训：来源/父实验/现成库（不新建库）；配方由新 runner 自己校验。
+        source=Path(args.source_7357)
+        for name in ('checkpoint.json','model.pt','trainer.pt'):
+            if not (source/name).is_file():raise ValueError('缺少7357输入:'+str(source/name))
+        cp=read(source/'checkpoint.json')
+        if cp['version']!=7357 or cp['actual_decisions']!=SOURCE_CUM or cp['sha256']!={'model.pt':MODEL_SHA,'trainer.pt':TRAINER_SHA}:raise ValueError('7357来源元数据不符')
+        for name,size in [('model.pt',67864188),('trainer.pt',254312873)]:
+            if (source/name).stat().st_size!=size:raise ValueError('7357文件长度不符:'+name)
+        for name in ('plan.json','report.json','train.config.json'):
+            if not (Path(args.source_run)/name).is_file():raise ValueError('缺少真实父实验文件:'+name)
+        bank=Path(args.bot_3702)
+        if not (bank/'report.json').is_file():raise ValueError('缺少P50库正式报告:'+str(bank/'report.json'))
+        for key in ('train-start','train-ramp1','train-ramp2','train','dev','test'):
+            if not (bank/key/'manifest.json').is_file():raise ValueError('缺少库清单:'+key)
+            if not next((bank/key).glob('snap_*.json.gz'),None):raise ValueError('只有库元数据，没有快照:'+key)
+        cfg=read(root/'config/p50-forced-tier.json')
+        from hsbg.az.train.forced_tier import parse_forced_tier_plan, parse_prob_schedule
+        if not parse_forced_tier_plan(str(cfg.get('forced-tier-plan',''))):raise ValueError('配置缺少强制升本计划')
+        parse_prob_schedule(str(cfg.get('forced-tier-schedule','')))
+        if int(cfg.get('reset-anchor',0))!=1:raise ValueError('配置必须 reset-anchor=1（修正继承的旧 anchor）')
+        if float(cfg.get('anchor-beta',0.0))>0.05:raise ValueError('anchor-beta 过大')
+        cpu=read(root/'artifacts/local/p50-cpu-validation.json')
+        if not cpu.get('passed'):raise ValueError('CPU完整门禁没有通过')
+        gpu=read(Path(args.gpu_audit)/'report.json')
+        paths=sorted((root/'hsbg/az/train').glob('*.py'))+[root/'workflows/train_entity_sync.py'];h=hashlib.sha256()
+        for path in paths:h.update(path.relative_to(root).as_posix().encode());h.update(path.read_bytes().replace(b'\r\n',b'\n'))
+        if gpu['training_source_sha256']!=h.hexdigest():raise ValueError('GPU验收后训练源码变化，不能提交长训')
+        if gpu.get('runner_sha256')!=hashlib.sha256((root/'workflows/run_forced_tier_long.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest():raise ValueError('长训入口改变，需要重验')
+        result=dict(passed=True,phase=phase,scope='metadata_file_precheck_only',
+                    config=str(root/'config/p50-forced-tier.json'))
+    elif phase=='cpu':
         source=Path(args.source_7357)
         for name in ('checkpoint.json','model.pt','trainer.pt'):
             if not (source/name).is_file():raise ValueError('缺少7357输入:'+str(source/name))
@@ -37,18 +68,18 @@ def precheck(phase,root=ROOT):
             for path in paths:h.update(path.relative_to(root).as_posix().encode());h.update(path.read_bytes().replace(b'\r\n',b'\n'))
             if gpu['training_source_sha256']!=h.hexdigest():raise ValueError('GPU验收后训练源码变化，不能提交长训')
             if gpu.get('runner_sha256')!=hashlib.sha256((root/'workflows/run_7357_long.py').read_bytes().replace(b'\r\n',b'\n')).hexdigest():raise ValueError('长训入口改变，需要重验')
-    out=Path(os.environ.get('HSAI_P50_AUDIT' if phase=='gpu' else 'HSAI_LONG_OUT','artifacts/runs/p50-7357-preflight' if phase=='gpu' else 'artifacts/runs/p50-7357-long-001'))
+    out=Path(os.environ.get('HSAI_P50_AUDIT' if phase=='gpu' else 'HSAI_LONG_OUT','artifacts/runs/p50-7357-preflight' if phase=='gpu' else ('artifacts/runs/p50-forced-tier-long-001' if phase=='forced' else 'artifacts/runs/p50-7357-long-001')))
     if phase!='cpu' and out.exists():
         non_visibility=[p for p in out.iterdir() if not p.name.startswith('visibility-') and p.name!='pool-evidence']
-        if non_visibility and not (phase=='long' and os.environ.get('HSAI_RESUME')=='1'):raise ValueError('输出目录非空，保留失败证据；使用新目录或显式恢复:'+str(out))
-    if phase=='long' and (out/'STOP_REQUESTED').exists():raise ValueError('恢复前先重命名STOP_REQUESTED并保留记录')
-    script=root/'deploy/slurm'/('p50_cpu.sbatch' if phase=='cpu' else 'p50_preflight.sbatch' if phase=='gpu' else 'p50_long.sbatch')
+        if non_visibility and not (phase in ('long','forced') and os.environ.get('HSAI_RESUME')=='1'):raise ValueError('输出目录非空，保留失败证据；使用新目录或显式恢复:'+str(out))
+    if phase in ('long','forced') and (out/'STOP_REQUESTED').exists():raise ValueError('恢复前先重命名STOP_REQUESTED并保留记录')
+    script=root/'deploy/slurm'/('p50_cpu.sbatch' if phase=='cpu' else 'p50_preflight.sbatch' if phase=='gpu' else ('p50_forced.sbatch' if phase=='forced' else 'p50_long.sbatch'))
     for required in (script,root/'deploy/slurm/common.sh',root/'workflows/launch_nus_refinement.py'):
         if not required.is_file():raise ValueError('部署文件缺失:'+str(required))
     return dict(passed=True,phase=phase,script=str(script),scope='bounded_standard_library_metadata_no_model_loading')
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--phase',choices=['cpu','gpu','long','forced'],required=True);g=p.add_mutually_exclusive_group();g.add_argument('--submit',action='store_true');g.add_argument('--check-only',action='store_true');a=p.parse_args()
     os.chdir(ROOT)
     try:result=precheck(a.phase)
     except (OSError,ValueError,KeyError) as exc:p.exit(2,"PRECHECK FAILED: "+str(exc)+"\n")

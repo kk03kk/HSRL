@@ -49,6 +49,12 @@ from hsbg.az.train.checkpoint_io import publish_checkpoint  # noqa: E402
 from hsbg.az.train.reward_shaping import (parse_tier_bonus,  # noqa: E402
                                           shaping_gamma_warning)
 from hsbg.az.train.tier_target import parse_tier_target_table  # noqa: E402
+from hsbg.az.train.forced_tier import (  # noqa: E402
+    parse_forced_tier_plan,
+    parse_prob_schedule,
+    plan_spec_of,
+    prob_at,
+)
 from hsbg.az.train.model import (  # noqa: E402
     attach_bc_card_head,
     attach_move_head_split,
@@ -625,6 +631,23 @@ def main() -> int:
                     help="首次达标某回合目标时的一次性奖励（乘 coef；默认 0.15）")
     ap.add_argument("--tier-target-table", default="7:4,9:5,12:6",
                     help="目标曲线 turn:tier，逗号分隔（默认 7:4,9:5,12:6）")
+    # ---- 强制升本课程（默认关闭，见 docs/FORCED_TIER.md）----
+    ap.add_argument("--forced-tier-plan", default="",
+                    help="强制升本计划 turn:tier，逗号分隔（如 2:2,5:3,6:4,8:5）；"
+                         "空=关闭（默认，records/GAE 与旧路径逐位等价）")
+    ap.add_argument("--forced-tier-carry", type=int, default=1,
+                    help="目标回合没做到时允许顺延的回合数（记为 deferred；默认 1）")
+    ap.add_argument("--forced-tier-schedule", default="",
+                    help="强制概率随累计 decisions 的分段常数计划，如 "
+                         "'0:1.0,40M:0.75,80M:0.4,120M:0.0'；空=全程用 --forced-tier-prob")
+    ap.add_argument("--forced-tier-prob", type=float, default=1.0,
+                    help="未给 schedule 时的强制概率（1.0=每回合必强制）")
+    ap.add_argument("--forced-teacher-until", default="",
+                    help="在这段累计 decisions 之前，目标未达成且 Upgrade 合法时写 "
+                         "teacher 标签（DAgger），如 '160M'；空=不写")
+    ap.add_argument("--forced-teacher-coef", type=float, default=0.0,
+                    help="teacher 标签的 CE 系数（>0 才真的产生梯度；与 "
+                         "--teacher-bc-coef 取较大值）")
     ap.add_argument("--library-p", type=float, default=0.0,
                     help="每回合每个 bot 座位的注入概率（建议 0.3 起）")
     ap.add_argument("--lockstep", type=int, default=0,
@@ -802,6 +825,8 @@ def main() -> int:
                     help="只保留最近 K 个 snapshot 目录（0=不清理）")
     ap.add_argument("--anchor-beta", type=float, default=0.0,
                     help="KL anchor 系数 β（论文 Table 7 = 0.1；0=关闭）")
+    ap.add_argument("--reset-anchor", type=int, default=0,
+                    help="1=把 anchor 重建为当前策略（fork/续训时修正「anchor 指向更早旧策略」）")
     ap.add_argument("--anchor-iterations", type=int, default=100,
                     help="β 生效的前 N 个 iteration（论文 300 个中的前 100）")
     ap.add_argument("--anchor-beta-tail", type=float, default=0.0,
@@ -1155,6 +1180,44 @@ def main() -> int:
         if not int(args.lockstep):
             print("[info] 非 lockstep 路径：等级进度奖励在逐局采集"
                   "（collect_ppo_records_parallel / collect_ppo_batch）内生效", flush=True)
+
+    # ---- 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）----
+    _ft_plan = parse_forced_tier_plan(str(args.forced_tier_plan))
+    try:
+        _ft_schedule = parse_prob_schedule(
+            str(args.forced_tier_schedule), default=float(args.forced_tier_prob))
+        _ft_teacher_until = (parse_decisions(str(args.forced_teacher_until))
+                             if str(args.forced_teacher_until).strip() else 0.0)
+    except ValueError as exc:
+        print(f"[error] 强制升本参数非法: {exc}", file=sys.stderr)
+        return 2
+    if int(args.forced_tier_carry) < 0:
+        print("[error] --forced-tier-carry 必须 >= 0", file=sys.stderr)
+        return 2
+    if float(args.forced_teacher_coef) < 0.0:
+        print("[error] --forced-teacher-coef 必须 >= 0", file=sys.stderr)
+        return 2
+    if _ft_plan:
+        if str(args.opponent) == "self":
+            print("[error] 强制升本只支持 --opponent bot|weak（单 learner seat），"
+                  "self 模式请关闭", file=sys.stderr)
+            return 2
+        if int(args.rust_collector):
+            print("[error] Rust 采集器暂不支持强制升本；请设 --forced-tier-plan '' "
+                  "或 --rust-collector 0", file=sys.stderr)
+            return 2
+        _ft_teacher_on = bool(_ft_teacher_until > 0 and float(args.forced_teacher_coef) > 0)
+        print(f"[forced-tier] 开启: plan={plan_spec_of(_ft_plan)} carry={int(args.forced_tier_carry)} "
+              f"schedule={[(int(d), p) for d, p in _ft_schedule]} "
+              f"teacher_until={int(_ft_teacher_until)} teacher_coef={float(args.forced_teacher_coef):g}",
+              flush=True)
+        if _ft_teacher_until > 0 and float(args.forced_teacher_coef) <= 0.0:
+            print("[warn] --forced-teacher-until 已设置但 --forced-teacher-coef=0："
+                  "标签会写进 record，但不会产生梯度", file=sys.stderr)
+        if not _ft_teacher_on:
+            pass
+        if float(args.forced_tier_prob) <= 0.0 and not _ft_schedule[-1][1] > 0.0:
+            print("[warn] 强制概率恒为 0：等价于只观察、不干预", file=sys.stderr)
 
     # ---- 动作序列辅助任务：系数 ramp（默认关闭 = 零影响）----
     try:
@@ -1665,7 +1728,9 @@ def main() -> int:
         strength_aux_every=int(args.strength_aux_every),
         strength_tier_pos_weight=float(args.strength_tier_pos_weight),
         # 缩放教师 DAgger / 过程价值（默认 0 = 逐位等价）
-        teacher_bc_coef=float(args.teacher_bc_coef),
+        # 强制升本的 DAgger 标签与它是同一条 CE 通路，取较大值。
+        teacher_bc_coef=float(max(float(args.teacher_bc_coef),
+                                  float(args.forced_teacher_coef))),
         process_value_coef=float(args.process_value_coef),
         # 搜索行为混合（默认 eps=0 -> PPO 侧只用于回显/统计，未启用时整组键被移除）
         behavior_mix_eps=float(args.behavior_mix_eps),
@@ -1746,6 +1811,13 @@ def main() -> int:
     print(f"[resume] start_iter={start_i} updates={trainer.updates}", flush=True)
 
     # ---- KL anchor（AutoTavern Table 7：β=0.1，仅前 100 个 iteration）----
+    # ``--reset-anchor 1``：在 fork/续训时把 anchor 重建为**当前**策略。
+    # 动机（docs/research/LONG1085131_REVIEW.md §4.3）：``load_state_dict`` 优先恢复
+    # state 里的 anchor_model，本轮实测它是更早阶段的旧策略（与 7357 L2=9.00），
+    # 于是「拉回 stage 起点」实际变成「拉回一个更弱的老策略」。
+    if int(getattr(args, "reset_anchor", 0)) and trainer.anchor_model is not None:
+        trainer.set_anchor()
+        print("[anchor] 已按 --reset-anchor 重建为当前策略（fork 起点）", flush=True)
     if float(args.anchor_beta) > 0.0 and trainer.anchor_model is None:
         trainer.set_anchor()
         print(f"[anchor] beta={args.anchor_beta} for first "
@@ -2155,6 +2227,10 @@ def main() -> int:
         if int(args.dyn_curriculum) > 0:
             _hb_seats = int(_dyn["seats"])
             _hb_p = float(args.dyn_p)
+        # 强制升本：本 iteration 生效的概率与教师开关（按累计 decisions 求值）
+        _ft_prob = prob_at(_ft_schedule, cum_decisions) if _ft_plan else 0.0
+        _ft_teacher = bool(_ft_plan and _ft_teacher_until > 0
+                           and float(cum_decisions) < _ft_teacher_until)
         c_cfg = CollectConfig(
             games=int(args.games), seed=int(args.seed) + idx * 1000,
             opponent=str(args.opponent), behavior=str(args.behavior),
@@ -2185,6 +2261,11 @@ def main() -> int:
             human_board_fast_inject=bool(int(args.human_board_fast_inject)),
             frozen_opponent=str(args.frozen_opponent),
             frozen_seats=int(args.frozen_seats),
+            # 强制升本课程（默认空计划 -> 逐位等价旧路径）
+            forced_tier_plan=str(args.forced_tier_plan),
+            forced_tier_carry=int(args.forced_tier_carry),
+            forced_tier_prob=float(_ft_prob),
+            forced_tier_teacher=bool(_ft_teacher),
             rust_collector=bool(int(args.rust_collector)),
             rc_threads=int(args.rc_threads), leaf_amp=str(args.leaf_amp),
             leaf_fused=bool(args.leaf_fused),
@@ -2200,8 +2281,7 @@ def main() -> int:
             shaping_mode=str(args.shaping_mode),
             shaping_tier_bonus=str(args.shaping_tier_bonus),
             # 等级进度奖励（默认 coef=0 -> 零影响）
-            tier_target_coef=float(args.tier_target_coef),
-            tier_penalty=float(args.tier_penalty),
+            tier_target_coef=float(args.tier_target_coef),            tier_penalty=float(args.tier_penalty),
             tier_bonus=float(args.tier_bonus),
             tier_target_table=str(args.tier_target_table),
             # 经济课程（默认 none+1.0 -> 采集侧不碰金币，逐位等价）
@@ -2554,6 +2634,23 @@ def main() -> int:
                 "anneal_progress": round(_curr_prog, 6),
                 "decisions": int(cum_decisions),
             }
+            # 强制升本课程：本 iter 生效的概率/教师开关 + 实际执行统计
+            # 概率/开关取自 collect meta（由采集侧按当时的 CollectConfig 回传，
+            # 与 pipeline 滞后无关），不用主循环里的下一轮取值。
+            if str(args.forced_tier_plan).strip():
+                _ft = _cmeta.get("forced_tier") or {}
+                rec["forced_tier"] = {
+                    "plan": str(_ft.get("plan") or args.forced_tier_plan),
+                    "carry": int(_ft.get("carry", args.forced_tier_carry) or 0),
+                    "prob": round(float(_ft.get("prob", 0.0) or 0.0), 6),
+                    "teacher": bool(_ft.get("teacher", False)),
+                    "forced_actions": int(_ft.get("forced_actions", 0) or 0),
+                    "teacher_labels": int(_ft.get("teacher_labels", 0) or 0),
+                    "blocked": int(_ft.get("blocked", 0) or 0),
+                    "prob_skips": int(_ft.get("prob_skips", 0) or 0),
+                    "targets": dict(_ft.get("targets") or {}),
+                    "decisions": int(cum_decisions),
+                }
             history.append(rec)
             print(f"[iter {i}] ts={time.strftime('%H:%M:%S')} samples={len(batch)} "
                   f"updates={stats['trainer_updates']} "

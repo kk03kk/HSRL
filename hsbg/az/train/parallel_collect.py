@@ -39,6 +39,7 @@ from .move_guard import aggregate_move_guard
 from .archetype_bias import aggregate_archetype_bias
 from .reward_shaping import RewardShaper, aggregate_shaping
 from .tier_target import TierTargetTracker, aggregate_tier_target
+from .forced_tier import aggregate_forced_tier
 from .curriculum import apply_turn_gold
 from .scaling_teacher import ScalingTeacher, in_scaling_window
 from .process_value import consume_count, process_target
@@ -166,8 +167,10 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
     meta.update(tracker.stats())
     meta.update(policy.move_guard_meta())
     meta.update(policy.archetype_bias_meta())
+    _ft_game = policy.forced_tier_game_meta()
+    if _ft_game:
+        meta["forced_tier_game"] = _ft_game
     return records, meta
-
 
 def collect_ppo_records_parallel(
         model: Any, config: Optional[CollectConfig] = None, *,
@@ -251,6 +254,12 @@ def collect_ppo_records_parallel(
     meta_out.update(aggregate_move_guard(games_meta))
     # 流派软偏置统计（默认关闭 -> 空 dict，不新增键）
     meta_out.update(aggregate_archetype_bias(games_meta))
+    # 强制升本统计（默认关闭 -> 空 dict，不新增键）
+    _ft_agg = aggregate_forced_tier(games_meta)
+    if _ft_agg:
+        _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
+        _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
+        meta_out["forced_tier"] = _ft_agg
     return records, meta_out
 
 

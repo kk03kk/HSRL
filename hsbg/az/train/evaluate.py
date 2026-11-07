@@ -36,6 +36,7 @@ from .common import (
 )
 from .human_board_pool import HumanBoardStats, inject_turn
 from .policies import EngineBotPolicy, Policy
+from .forced_tier import ForcedTierTracker
 from .mirror_snapshots import MirrorStats, inject_turn as inject_mirror_turn
 
 
@@ -58,6 +59,10 @@ class EvalConfig:
     mirror_strict: bool = False
     collect_economy: bool = False
     collect_exposure: bool = False  # 有界研究面板才读取实际战斗，不影响默认热路径
+    #: 评测期强制升本计划（``"2:2,5:3,6:4,8:5"``；空 = 关闭，模型完全自主）。
+    #: 只用于「规则内」探针；正式 Dev 评测必须保持空，否则棋力不可比。
+    forced_tier_plan: str = ""
+    forced_tier_carry: int = 1
 
 
 def _mix_seed(*parts: int) -> int:
@@ -112,6 +117,11 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     if config.mirror_pool is not None and config.human_board_pool is not None:
         raise ValueError("两个战团注入源不能同时启用")
     seat0 = int(config.policy_seat)
+    ft_plan = str(getattr(config, "forced_tier_plan", "") or "").strip()
+    ft_tracker = (ForcedTierTracker(ft_plan,
+                                    carry=int(getattr(config, "forced_tier_carry", 1) or 0))
+                  if ft_plan else None)
+    forced_tier_actions = 0
     ranks: List[int] = []
     truncated = 0
     decisions = 0
@@ -244,6 +254,16 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                     mask = mask_from_bytes(game.legal_mask(seat))
                     dec = policy.decide(game, seat)
                     action = int(dec.action)
+                    forced_tier_here = 0
+                    if ft_tracker is not None:
+                        _pj = json.loads(game.player_json(seat))
+                        _fd = ft_tracker.decide(
+                            game_id=gi, seat=seat, turn=int(game.turn),
+                            tier=int(_pj.get("tier") or 1),
+                            upgrade_legal=bool(mask[3]), force_prob=1.0)
+                        if bool(getattr(_fd, "force", False)) and bool(mask[3]):
+                            action, forced_tier_here = 3, 1
+                            forced_tier_actions += 1
                     if not (0 <= action < mask.size and bool(mask[action])):
                         illegal += 1
                         legal = np.flatnonzero(mask)
@@ -375,6 +395,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         **({"end_turn_economy": economy} if config.collect_economy else {}),
         "human_board_turns": int(hb_turns),
         "examples": examples,
+        # 强制升本探针（默认关闭 -> 0，不影响默认热路径与报告口径）
+        "forced_tier_actions": int(forced_tier_actions),
+        **({"forced_tier": ft_tracker.stats()} if ft_tracker is not None else {}),
     }
 
 
