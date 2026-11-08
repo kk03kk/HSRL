@@ -207,6 +207,29 @@ def _require_bank_profile(bank_report, curve_info, root=ROOT):
                          '请先重跑 --phase cpu 重建库')
 
 
+def check_inputs_wiring(root=ROOT):
+    """启动链静态核对（登录节点、纯标准库）：长训必须绑定**本入口**的 inputs()。
+
+    1093247 的根因：``run_sustained_learning.parent_inputs`` 按 ``--source-7357`` 嗅探，
+    强制升本入口同样带这个参数，于是选中旧的 ``run_7357_long.inputs``（曲线摘要写死旧曲线、
+    课程表是旧 0/10/20/30M）⇒ 9 秒失败。这里保证三处接线都在，提交前就能发现。
+    """
+    root=Path(root)
+    sbatch=(root/'deploy/slurm/p50_forced.sbatch')
+    launcher=(root/'workflows/launch_nus_refinement.py')
+    harness=(root/'workflows/run_sustained_learning.py')
+    for p in (sbatch,launcher,harness):
+        if not p.is_file():raise ValueError('缺少启动链文件:'+str(p))
+    if 'HSAI_INPUTS_RUNNER=workflows.run_forced_tier_long' not in sbatch.read_text(encoding='utf-8'):
+        raise ValueError('p50_forced.sbatch 缺少 export HSAI_INPUTS_RUNNER=workflows.run_forced_tier_long'
+                         '（长训会退回旧入口的 inputs()：冻结错父状态并撞旧曲线摘要，1093247）')
+    if 'inputs_runner_env' not in launcher.read_text(encoding='utf-8'):
+        raise ValueError('启动器没有按 task→runner 写 HSAI_INPUTS_RUNNER')
+    if 'HSAI_INPUTS_RUNNER' not in harness.read_text(encoding='utf-8'):
+        raise ValueError('run_sustained_learning 没有支持 HSAI_INPUTS_RUNNER 绑定')
+    return dict(sbatch=str(sbatch),launcher=str(launcher),harness=str(harness))
+
+
 def eval_precheck(root=ROOT):
     """``--phase eval``：2 模型 + 6 bot 的 128 局配对评测的登录节点预检。
 
@@ -382,6 +405,7 @@ def precheck(phase,root=ROOT):
         # 指错环境变量就会用旧库（T12–T19 是模型的 3–22 倍）跑满 12 小时。
         curve_info=check_curve(_curve_env(root))
         _require_bank_profile(read(bank/'report.json'),curve_info)
+        check_inputs_wiring(root)   # 启动链三处接线（见函数注释）
         cfg=read(root/'config/p50-forced-tier.json')
         _drift=config_drift(cfg,read(root/'config/p50-7357-train.json'))
         if _drift:raise ValueError('配置意外偏离快速基线 config/p50-7357-train.json: '

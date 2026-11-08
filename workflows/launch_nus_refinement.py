@@ -118,6 +118,15 @@ def visibility_evidence():
     return evidence
 
 
+def inputs_runner_env(runner):
+    """task→runner 的 ``inputs()`` 绑定（``workflows.<模块名>``）。
+
+    与 ``run_sustained_learning.parent_inputs`` 配合：显式绑定后不会再靠
+    ``--source-7357`` 之类参数嗅探，避免 ``p50-forced`` 被当成旧四阶段入口。
+    """
+    return 'workflows.' + Path(str(runner)).stem
+
+
 def main():
     from workflows.run_learning_experiment import write
     tasks = {
@@ -171,7 +180,9 @@ def main():
         raise
     write(out/f'visibility-{job}.json',evidence)
     env=dict(os.environ,CUDA_VISIBLE_DEVICES=selected,
-        HSRL_ORIGINAL_CUDA_VISIBLE_DEVICES=os.environ['CUDA_VISIBLE_DEVICES'])
+        HSRL_ORIGINAL_CUDA_VISIBLE_DEVICES=os.environ['CUDA_VISIBLE_DEVICES'],
+        HSAI_INPUTS_RUNNER=inputs_runner_env(runner))
+    print('[inputs] HSAI_INPUTS_RUNNER='+env['HSAI_INPUTS_RUNNER'],flush=True)
     print('[visibility] '+json.dumps(mapping,ensure_ascii=False),flush=True)
     # exec为全新进程入口，Torch/模型/常驻worker均继承相同已核验的UUID列表。
     os.execve(sys.executable,[sys.executable,'-u',str(ROOT/'workflows'/runner),'--out',str(out)],env)

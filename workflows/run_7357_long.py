@@ -25,7 +25,10 @@ def check_inputs(args,require_gpu=True):
     if cp['version']!=7357 or cp['actual_decisions']!=SOURCE_CUM or cp['sha256']!={'model.pt':MODEL_SHA,'trainer.pt':TRAINER_SHA}:raise ValueError('7357来源元数据不符')
     report=read(bank/'report.json')
     import hashlib
-    curve_digest=hashlib.sha256((ROOT/'config/opponent-p50-next.planned.json').read_bytes().replace(b'\r\n',b'\n')).hexdigest()
+    # 曲线可以换（本轮是 opponent-p50-slightly-weaker.json）：写死旧路径会让新库
+    # 在这个检查里被误判为"库清单不符"（1093247）。默认仍是旧曲线，保持旧入口行为。
+    curve_path=Path(os.environ.get('HSAI_P50_CURVE',ROOT/'config/opponent-p50-next.planned.json'))
+    curve_digest=hashlib.sha256(curve_path.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
     if not report.get('complete') or report.get('smoke') or report.get('primary_statistic')!='P50(sum_attack+sum_health)':raise ValueError('需要正式P50库验收报告')
     for key in ('train-start','train-ramp1','train-ramp2','train','dev','test'):
         m=read(bank/key/'manifest.json')

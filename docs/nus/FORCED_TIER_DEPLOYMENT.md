@@ -138,6 +138,31 @@ PY
 
 
 
+## 2b-2. 启动链接线：长训必须绑定**本入口**的 `inputs()`（2026-11-08，作业 1093247）
+
+**现象**：GPU 验收 `1093246` 通过，`afterok` 自动启动的长训 `1093247` 在 **9 秒**后失败，
+`run_7357_long.py:32 ValueError: 库清单不符:train-start`。
+
+**根因**：`run_sustained_learning.parent_inputs()` 按参数嗅探选 `inputs()`——强制升本入口同样带
+`--source-7357`，于是被判定为**旧的 P50 四阶段入口**，调用 `run_7357_long.inputs()`；而它把曲线摘要
+写死成 `config/opponent-p50-next.planned.json`，拿新库（`p50-v2-weaker`，curve `c9bfe40c…`）去比旧曲线，
+必然失败。**即使不失败**，它也会冻结错父状态、用错课程表（旧 0/10/20/30M），等于跑错实验。
+
+**修法（不动 `run_forced_tier_long.py`，因此保住 `1093246` 的验收有效性）**：
+
+| 位置 | 改动 |
+|---|---|
+| `workflows/launch_nus_refinement.py` | 按 task→runner 写 `HSAI_INPUTS_RUNNER=workflows.<runner 模块名>` 后再 `execve` |
+| `workflows/run_sustained_learning.py` | `parent_inputs()` 优先用该环境变量（动态 import，缺 `inputs` 直接报错）；未设置时**打印告警**并回退旧嗅探 |
+| `deploy/slurm/p50_forced.sbatch` | 显式 `export HSAI_INPUTS_RUNNER=workflows.run_forced_tier_long`（双保险） |
+| `workflows/run_7357_long.py` | 曲线摘要改为读 `HSAI_P50_CURVE`（默认仍是旧曲线），旧入口不会再误判新库 |
+| `tools/nus_submit.py` | `check_inputs_wiring()`：登录节点静态核对上面三处接线，缺一即拒绝提交 |
+
+**为什么不用重跑 GPU 验收**：`training_source_digest`（`4f0b4ba9…`）与 `runner_sha256`
+（`8bbc0cb7…`）都没变——本修复只碰启动器/harness/旧 checker/部署脚本/预检，**没有碰** `hsbg/az/train/*`、
+`workflows/train_entity_sync.py` 和 `workflows/run_forced_tier_long.py`；配置与库也未变。
+`--phase forced --check-only` 会复核这两条摘要，对不上才要求重验。
+
 ## 2c. 一次提交两作业（验收 → 长训自动接力，推荐）
 
 重跑验收要排队：2026-11-08 的验收作业在 `gpu` 分区排了近两小时，长训只能干等。

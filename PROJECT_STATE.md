@@ -2,6 +2,21 @@
 
 HSAI 已从代码工作区扩充为代码、模型、数据、研究和服务器经验的统一工作区。旧 D:\HSBG、D:\HearthstoneAI、D:\HearthstoneRL 全程只读。没有访问 NUS、提交作业、打开游戏或操作游戏输入。
 
+## 2026-11-08（上午）：长训 1093247 九秒失败——启动链把 `inputs()` 绑错入口
+
+GPU 验收 `1093246` 通过，`afterok` 自动启动的长训 `1093247` 9 秒失败：
+`run_7357_long.py:32 ValueError: 库清单不符:train-start`。根因：`run_sustained_learning.parent_inputs()`
+按 `--source-7357` 嗅探 `inputs()`，而强制升本入口同样带这个参数 ⇒ 选中**旧的** `run_7357_long.inputs`，
+它把曲线摘要写死成 `config/opponent-p50-next.planned.json`，用新库（`p50-v2-weaker`）去比旧曲线必然失败；
+即便不失败也会冻结错父状态、用错课程表（旧 0/10/20/30M）。
+
+修复（**不碰 `run_forced_tier_long.py`，保住 1093246 验收有效性**）：启动器按 task→runner 写
+`HSAI_INPUTS_RUNNER=workflows.<runner>` 再 exec；`parent_inputs` 优先用它（动态 import，缺 `inputs` 直接报错，
+未设置时告警回退）；`p50_forced.sbatch` 显式 export 双保险；`run_7357_long.check_inputs` 的曲线摘要改为读
+`HSAI_P50_CURVE`（默认旧曲线）；`tools/nus_submit.check_inputs_wiring()` 在**登录节点、提交前**静态核对三处接线。
+`training_source_digest=4f0b4ba9…`、`runner_sha256=8bbc0cb7…` 均未变 ⇒ 1093246 仍有效，长训换新目录直接提交。
+回归 `tests/test_inputs_binding.py`（11 项，含"缺 export 必须拒绝""显式绑定优先""旧 checker 认环境曲线"）。
+
 ## 2026-11-07（深夜）：GPU 验收 1091647 性能事故审计、双模型评测结论、下一轮配方确认
 
 **128 局双模型评测已在 NUS 完成**（作业 1092254，4m23s，`valid=true`，0 非法/0 截断/0 引擎异常，

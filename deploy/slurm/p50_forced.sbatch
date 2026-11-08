@@ -18,6 +18,8 @@ hsrl_require_compute
 source .venv/bin/activate
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 RAYON_NUM_THREADS=1
 export HSRL_TORCH_THREADS=2 PYTHONUTF8=1 PYTHONUNBUFFERED=1
+# inputs() 必须绑定到本入口：否则 --source-7357 会被当成旧四阶段入口（1093247）
+export HSAI_INPUTS_RUNNER=workflows.run_forced_tier_long
 out="${HSAI_LONG_OUT:-artifacts/runs/p50-forced-tier-long-001}"
 export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
 python -S tools/nus_submit.py --phase forced --check-only

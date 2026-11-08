@@ -57,7 +57,28 @@ def learning_activity(train):
 
 
 def parent_inputs(args):
+    """选出本轮的 ``inputs()``（决定冻结哪个父状态、用哪套课程表与哪个库）。
+
+    **为什么需要显式绑定**：强制升本入口同样带 ``--source-7357``，靠参数嗅探会把
+    ``p50-forced`` 判成旧的 P50 四阶段入口，于是冻结错父状态、用错课程表，并在
+    ``run_7357_long.check_inputs`` 里撞上"曲线摘要写死旧曲线"（2026-11-08 长训 1093247
+    9 秒失败）。启动器（``launch_nus_refinement.py``）按 task→runner 关系写入
+    ``HSAI_INPUTS_RUNNER=workflows.<runner 模块名>``，这里优先采用它。
+    """
+    explicit = str(getattr(args, 'inputs_runner', '')
+                   or os.environ.get('HSAI_INPUTS_RUNNER', '')).strip()
+    if explicit:
+        import importlib
+        try:
+            module = importlib.import_module(explicit)
+        except ImportError as exc:
+            raise ValueError(f'HSAI_INPUTS_RUNNER={explicit!r} 无法导入: {exc}') from exc
+        if not callable(getattr(module, 'inputs', None)):
+            raise ValueError(f'HSAI_INPUTS_RUNNER={explicit!r} 没有 inputs()')
+        print(f'[inputs] 使用显式绑定的 {explicit}.inputs', flush=True)
+        return module.inputs(args)
     from hsbg.az.train.personal import checked_library, validate_config
+    print('[inputs][warn] 未设置 HSAI_INPUTS_RUNNER，回退到按参数嗅探（旧行为）', flush=True)
     if getattr(args, 'source_7357', None):
         from workflows.run_7357_long import inputs
         return inputs(args)
