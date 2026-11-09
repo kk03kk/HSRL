@@ -57,7 +57,7 @@ class DistillConfig:
     seed_base: int = 700000
     lockstep_games: int = 16
     max_steps: int = 30000
-    max_actions_per_turn: int = 40
+    max_actions_per_turn: int = 80
     human_board_sample: str = "p75"
     #: 候选集 = 大模型 top-k ∪ 小专家 top-k（非 Move）
     topk: int = 8

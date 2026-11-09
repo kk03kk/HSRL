@@ -11,8 +11,8 @@ SCHEDULE=[[0,'warm0'],[10000000,'warm1'],[20000000,'warm2'],[30000000,'train']]
 def read(p):return json.loads(Path(p).read_text(encoding='utf-8'))
 
 def defaults(p):
-    p.add_argument('--source-7357',type=Path,default=os.environ.get('HSAI_SOURCE_7357','../HSRL/personal/runs/nus-4159-economy-long-002/milestones/decisions-558819917'))
-    p.add_argument('--source-run',type=Path,default=os.environ.get('HSAI_SOURCE_RUN','../HSRL/personal/runs/nus-4159-economy-long-002'))
+    p.add_argument('--source-7357',type=Path,default=os.environ.get('HSAI_SOURCE_7357','artifacts/runs/nus-4159-economy-long-002/milestones/decisions-558819917'))
+    p.add_argument('--source-run',type=Path,default=os.environ.get('HSAI_SOURCE_RUN','artifacts/runs/nus-4159-economy-long-002'))
     p.add_argument('--bot-3702',type=Path,default=os.environ.get('HSAI_P50_BANK','artifacts/libraries/bot-p50-3702-v1'))
     p.add_argument('--gpu-audit',type=Path,default=os.environ.get('HSAI_P50_AUDIT','artifacts/runs/p50-7357-preflight'))
     return p

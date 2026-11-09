@@ -11,7 +11,7 @@
 2. 同动作上限：同一 ``(from,to)`` 在本回合出现 ``>= repeat_limit`` 次后屏蔽
    （默认 2 = 最多连续/累计两次）；
 3. 每回合换位上限：本回合已选换位 ``>= cap`` 次后屏蔽**全部** 49 个换位动作
-   （默认 3）。
+   （默认 5）。
 
 实现方式：在采样**之前**把对应动作位的 mask 清 0，再让原策略在剩余合法动作上
 重新归一/采样。若清 0 后**只剩 EndTurn**（或没有任何合法动作），回退 ``EndTurn``
@@ -24,7 +24,7 @@
 - ``move_guard_decisions`` / ``move_guard_moves``：守卫下的 learner 决策数 / 实际
   选中的换位次数（用于核对去抖效果）。
 
-**默认关闭**（``CollectConfig.move_guard=False``）：不构造本对象、不碰 mask、
+**新训练默认开启**（``CollectConfig.move_guard=True``）：构造本对象并在采样前改写 mask；
 不新增 record/meta 字段 —— 与旧路径逐位等价。规则见 ``docs/MOVE_GUARD.md``。
 """
 
@@ -43,7 +43,7 @@ MOVE_HI = MOVE_LO + int(N_BOARD) * int(N_BOARD)
 N_MOVES = MOVE_HI - MOVE_LO
 
 #: 默认参数（与 CLI ``--move-cap`` / ``--move-repeat-limit`` 一致）。
-DEFAULT_MOVE_CAP = 3
+DEFAULT_MOVE_CAP = 5
 DEFAULT_MOVE_REPEAT_LIMIT = 2
 
 

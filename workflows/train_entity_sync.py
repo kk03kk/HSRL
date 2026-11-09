@@ -417,11 +417,13 @@ def main() -> int:
                     help="1=Move 段（196..244）用有向双投影（move_from/move_to），"
                          "方向差不再只由 move_bias 决定；旧 checkpoint 自动只初始化新投影。"
                          "默认 0=保持对称实现（逐位兼容旧 ckpt）")
-    ap.add_argument("--move-guard", type=int, default=0, choices=[0, 1],
+    ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
                     help="1=换位去抖守卫：采样前屏蔽「逆换位 / 同动作超限 / 本回合换位"
                          "超 cap」的 Move 动作位（见 docs/MOVE_GUARD.md）。"
                          "默认 0=关闭（与旧路径逐位等价）")
-    ap.add_argument("--move-cap", type=int, default=3,
+    ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
+                    help="1=always remove Cancel action 7; fail if no legal action remains")
+    ap.add_argument("--move-cap", type=int, default=5,
                     help="每回合换位次数上限：>=cap 后屏蔽全部 Move（默认 3；0=本回合禁止换位）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
                     help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2；1=不允许重复）")
@@ -440,7 +442,7 @@ def main() -> int:
                     help="1=流派特征/分类走输入哈希缓存（输出逐位相同，但实测命中率≈0，"
                          "默认 0 关闭；见 docs/PERF_COLLECT.md）")
     ap.add_argument("--device", default="cuda")
-    ap.add_argument("--sims", type=int, default=4)
+    ap.add_argument("--sims", type=int, default=0)
     ap.add_argument("--determinizations", type=int, default=1)
     ap.add_argument("--opponent", default="bot", choices=["bot", "self", "weak"])
     ap.add_argument("--behavior", default="net", choices=["net", "mcts", "mixed"])
@@ -773,7 +775,7 @@ def main() -> int:
                     help="过程价值辅助头系数（0=关闭，默认）：预测 log1p(酒馆永久 buff) / "
                          "log1p(施法数) / log1p(consume 数)")
     ap.add_argument("--entropy-coef", type=float, default=0.005)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--log-every", type=int, default=10)
     ap.add_argument("--workers", type=int, default=1,
@@ -909,6 +911,11 @@ def main() -> int:
     ap.add_argument("--trainer-state", default="")
     ap.add_argument("--out", default="runs/az_entity_sync")
     args = ap.parse_args()
+    if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
+            or int(args.move_cap) != 5 or int(args.move_repeat_limit) != 2
+            or int(args.forbid_cancel) != 1 or int(args.sims) != 0):
+        ap.error("强制动作规则：max-actions=80, move-guard=1, move-cap=5, "
+                 "move-repeat=2, forbid-cancel=1, sims=0")
     if args.local_batch_inference and (int(args.processes) != 1 or int(args.workers) != 1
                                       or not int(args.lockstep) or int(args.sims) != 0):
         ap.error("local-batch-inference仅支持processes=workers=1、lockstep=1、sims=0")
@@ -2262,6 +2269,7 @@ def main() -> int:
             max_steps=int(args.max_steps), fast_act=bool(int(args.fast_act)),
             lockstep=bool(int(args.lockstep)),
             move_guard=bool(int(args.move_guard)),
+            forbid_cancel=bool(int(args.forbid_cancel)),
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),

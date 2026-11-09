@@ -245,7 +245,19 @@ def _shm_put(arrays: Dict[str, np.ndarray], *, slots: Dict[int, Any], slot_idx: 
         _shm_close_slot(slots, int(slot_idx))
         seg = None
     if seg is None:
-        seg = shared_memory.SharedMemory(name=name, create=True, size=size)
+        try:
+            seg = shared_memory.SharedMemory(name=name, create=True, size=size)
+        except FileExistsError:
+            # worker 被 kill/重启时旧 slot 可能仍留在 /dev/shm；段名包含 worker
+            # index + slot，新的 worker 是唯一写者，unlink 旧段后重建即可。
+            # 父进程若仍 attach 旧段，Linux 的 unlink 语义保证其映射继续可读。
+            try:
+                stale = shared_memory.SharedMemory(name=name)
+                stale.close()
+                stale.unlink()
+            except BaseException:  # noqa: BLE001 - 竞态下别人已清理
+                pass
+            seg = shared_memory.SharedMemory(name=name, create=True, size=size)
         slots[int(slot_idx)] = seg
     buf = seg.buf
     buf[:_SHM_HEADER] = bytes(_SHM_HEADER)      # 清掉上一轮 JSON 尾巴

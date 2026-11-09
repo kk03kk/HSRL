@@ -4,11 +4,11 @@
 #SBATCH --qos=normal
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:2
-#SBATCH --exclude=xgpi15,xgpi17
+#SBATCH --exclude=xgpi11,xgpi15,xgpi17
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=96G
+#SBATCH --mem=48G
 #SBATCH --propagate=NONE
-#SBATCH --time=01:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=artifacts/runs/slurm/%x-%j.out
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 set -euo pipefail

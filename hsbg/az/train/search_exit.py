@@ -109,7 +109,7 @@ class ExitConfig:
     seed_base: int = 600000
     seats: int = 8
     max_steps: int = 50000
-    max_actions_per_turn: int = 40
+    max_actions_per_turn: int = 80
     #: greedy = π_base 的 argmax（= 部署/评测口径）；sample = 按 π_base 采样
     behavior: str = "greedy"
     #: 人类战团注入（与 256 局 human 面板同口径；空 = 纯 bot 对手）

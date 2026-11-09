@@ -1,4 +1,4 @@
-> HSAI迁移说明：以下保留截至c7b5f27d6f40d1d2的原始fork差异记录。历史路径rust/在新工作区对应engine/；原字节版本保存在records/source-docs/hsbg/rust/FORK.md。
+> HSAI迁移说明：以下保留截至c4c71014e3d41760的原始fork差异记录。历史路径rust/在新工作区对应engine/；原字节版本保存在records/source-docs/hsbg/rust/FORK.md。
 
 # FORK.md — hsbg_engine（AutoTavern TavernGym fork）
 
@@ -52,6 +52,8 @@
 
 13. **满手队列追加与质量诊断**：随机种子1078368在Timewarp开启时复现，满手时空购买向hand_queue追加而没追加QueueMark，重建时丢掉受保护队列的hid/link/gifts。修复时空购买与实验伙伴两处同类入口，追加默认标记但保留已有项；定向回归保留配对身份，六配置随机测试覆盖。PyO3新增diagnostic_counts常数时间返回战斗/招募截断、回合上限、诊断停止，供Python采集与评测失败关闭；观测与动作空间不变。
 
+14. **37.0.2 Jar o' Gems 每战斗一次修复（2026-11-09 审计）**：37.0.2 将饰品文本从“after 2 friendly minions attack each combat”改为“After a friendly Quilboar attacks each combat”，语义是每个战斗首次友方野猪人攻击后触发一次；原实现既用了 `Attacks`（攻击伤害前）而不是 `AttackDone`（攻击结算后），又删掉了旧计数却没有加入每战斗门槛，导致每次野猪人攻击都在伤害前触发。现改用 `AttackDone`，并用 `Ctx::combat_data` 记录本战斗是否已触发；非野猪人攻击不消耗额度，新战斗重置。新增 `patch_3702::jar_of_gems_triggers_once_per_combat_on_the_first_quilboar_attack`。卡表、动作、观测和序列化格式不变；源码指纹由 `c7b5f27d6f40d1d2` 变为 `c4c71014e3d41760`，旧库必须复验并发布新 manifest。
+
 245 动作、3227+124 观测与卡牌下标保持上游契约。上游是第三方模拟器；上述测试不构成与真实服务器机制完全等价的证明。
 
 ## 4. 数据
@@ -70,7 +72,7 @@ cargo test --release -p hsbg-engine
 python -m pytest ../tests/test_rust_engine.py -q
 ```
 
-当前：Rust 39 套件全绿；Python 适配测试全绿；`N_ACTIONS=245`、`OBS_FLOATS=3227`、`OBS_CARDS=124`。
+当前（2026-11-09 审计）：Rust 942 passed / 0 failed / 1 ignored（43 个测试二进制）；Python 381 passed / 14 skipped；`N_ACTIONS=245`、`OBS_FLOATS=3227`、`OBS_CARDS=124`。
 
 ## 6. 规则权威
 

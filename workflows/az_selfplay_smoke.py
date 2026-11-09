@@ -97,7 +97,7 @@ def main() -> int:
                     help="game=Game 逐步(可搜索)；batch=BatchEnv 8 座批量(仅纯策略)")
     ap.add_argument("--selfplay-seed", type=int, default=1000)
     ap.add_argument("--sample-stride", type=int, default=1)
-    ap.add_argument("--search-sims", type=int, default=4)
+    ap.add_argument("--search-sims", type=int, default=0)
     ap.add_argument("--search-temperature", type=float, default=1.0,
                     help="自对弈数据生成建议 1.0（探索）；评测用 <=0 = argmax")
     ap.add_argument("--search-det", type=int, default=1, help="search_az 的 determinizations")

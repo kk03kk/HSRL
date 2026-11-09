@@ -271,25 +271,30 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
                 ..E
             },
         ),
-        // Jar o' Gems: after every 2 friendly attacks in a combat, a Blood Gem on each Quilboar.
+        // Jar o' Gems: after the first friendly Quilboar attack each combat, a Blood Gem on
+        // each friendly Quilboar. "After ... attacks" is AttackDone, not Attacks (the attack
+        // itself already resolved); 37.0.2 removed the old "after 2 friendly attacks"
+        // countdown, and the new text still triggers once per combat.
         (
             "BG30_MagicItem_546",
             Script {
                 on_event: Some(|c, me, e| {
-                    let Event::Attacks { side, attacker, .. } = e else {
+                    let Event::AttackDone { side, attacker } = e else {
                         return;
                     };
                     if !c.combat
                         || *side != me.side
                         || !c.minion(*attacker).is_some_and(|m| m.is(Races::QUILBOAR))
+                        || c.combat_data(me.side, me.card) >= 1
                     {
                         return;
                     }
+                    c.add_combat_data(me.side, me.card, 1);
                     for q in c.friendly_where(me.side, |m| m.is(Races::QUILBOAR)) {
                         c.play_gem(me.side, q);
                     }
                 }),
-                listens: ev::ATTACKS,
+                listens: ev::ATTACK_DONE,
                 ..E
             },
         ),

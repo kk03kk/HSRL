@@ -122,7 +122,7 @@ def main() -> int:
     t0 = time.time()
     c_cfg = CollectConfig(
         games=int(args.games), seed=int(args.seed), opponent="bot", behavior="net",
-        max_actions_per_turn=40, max_steps=20000, move_guard=bool(int(args.move_guard)),
+        max_actions_per_turn=80, max_steps=20000, move_guard=bool(int(args.move_guard)),
         lockstep=True, fast_act=True, seq_aux=bool(seq_on))
     batch, c_meta = collect_ppo_batch(
         model, c_cfg, device=args.device, seed=int(args.seed), gamma=1.0,

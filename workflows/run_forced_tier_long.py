@@ -40,12 +40,12 @@ def read(p):
 def defaults(p):
     p.add_argument('--source-7357', type=Path,
                    default=os.environ.get('HSAI_SOURCE_7357',
-                                          '../HSRL/personal/runs/nus-4159-economy-long-002/milestones/decisions-558819917'))
+                                          'artifacts/runs/nus-4159-economy-long-002/milestones/decisions-558819917'))
     p.add_argument('--source-run', type=Path,
                    default=os.environ.get('HSAI_SOURCE_RUN',
-                                          '../HSRL/personal/runs/nus-4159-economy-long-002'))
+                                          'artifacts/runs/nus-4159-economy-long-002'))
     p.add_argument('--bot-3702', type=Path,
-                   default=os.environ.get('HSAI_P50_BANK', 'artifacts/libraries/bot-p50-3702-v1'))
+                   default=os.environ.get('HSAI_P50_BANK', 'artifacts/libraries/bot-p50-3702-v2-weaker'))
     p.add_argument('--gpu-audit', type=Path,
                    default=os.environ.get('HSAI_P50_AUDIT', 'artifacts/runs/p50-forced-tier-preflight'))
     return p
@@ -249,7 +249,7 @@ def main():
     a.budget_decisions = 400000000
     a.monitor_every = 30000000
     a.monitor_games = 12
-    a.eval_games = 192
+    a.eval_games = 64
     a.strict_mirror = True
     a.curriculum_parent = None
     a.continue_from = None

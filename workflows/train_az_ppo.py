@@ -73,7 +73,7 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--out", default="runs/az_ppo/ppo_smoke", help="输出目录")
     ap.add_argument("--seed", type=int, default=0, help="采集/训练随机种子")
     # MCTS 采集
-    ap.add_argument("--sims", type=int, default=8,
+    ap.add_argument("--sims", type=int, default=0,
                     help="每次决策的 MCTS 模拟数（0=关闭搜索，退化为纯网络自对弈）")
     ap.add_argument("--determinizations", type=int, default=1,
                     help="PIMC 世界数 W（determinizations）")
@@ -99,12 +99,12 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--step-penalty", type=float, default=0.0,
                     help="每决策小 step penalty（进入 reward）")
     ap.add_argument("--max-steps", type=int, default=20000, help="单局步数守卫")
-    ap.add_argument("--max-actions-per-turn", type=int, default=40,
+    ap.add_argument("--max-actions-per-turn", type=int, default=80,
                     help="单座位单回合动作上限（超过且 EndTurn 合法则强制结束回合；"
                          "0=关闭。未训练网络防 Play/Cancel 死循环）")
-    ap.add_argument("--move-guard", type=int, default=0, choices=[0, 1],
+    ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
                     help="1=换位去抖守卫（默认 0=关闭，逐位等价；见 docs/MOVE_GUARD.md）")
-    ap.add_argument("--move-cap", type=int, default=3,
+    ap.add_argument("--move-cap", type=int, default=5,
                     help="每回合换位次数上限（默认 3；0=本回合禁止换位）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
                     help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2）")
@@ -168,6 +168,12 @@ def _eval_summary(res: Dict[str, Any]) -> Dict[str, Any]:
 
 def main() -> int:
     args = _parse_args()
+    if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
+            or int(args.move_cap) != 5 or int(args.move_repeat_limit) != 2
+            or int(args.sims) != 0):
+        print("[error] 强制动作规则：max-actions=80, move-guard=1, move-cap=5, "
+              "move-repeat=2, sims=0", file=sys.stderr)
+        return 2
     if not engine_available():
         print("[error] hsbg_engine 不可用：需要先构建安装 Rust 主引擎 "
               "(`cd engine && python -m pip install -e .`)，见 docs/RUST_ENGINE.md",

@@ -328,12 +328,15 @@ class ForcedTierTracker:
     # ---- 主判定 ----
     def decide(self, *, game_id: int, seat: int, turn: int, tier: int,
                upgrade_legal: bool, force_prob: float = 1.0,
-               rng: Optional[object] = None) -> ForcedTierDecision:
+               rng: Optional[object] = None,
+               teacher_enabled: bool = True) -> ForcedTierDecision:
         """判断本次决策是否强制升本 / 是否写教师标签。
 
         ``upgrade_legal`` 必须来自引擎合法掩码的 Upgrade 位（唯一权威口径）。
         ``rng``：``force_prob < 1`` 时用于伯努利抽样（传 ``np.random.Generator`` 或
         ``random.Random``，只要求有 ``random()``）。
+        ``teacher_enabled=False``：即使目标未达成也不写 DAgger 标签；用于
+        ``forced_teacher_until`` 截止之后，避免“关闭教师”后仍继续产生 CE。
         """
         out = ForcedTierDecision()
         if not self.plan:
@@ -388,7 +391,7 @@ class ForcedTierTracker:
             active.forced_actions += 1
             self.forced_actions += 1
             self._last_force_turn[(int(game_id), int(seat))] = int(turn)
-        elif active.teacher_turn != turn:
+        elif teacher_enabled and active.teacher_turn != turn:
             # 教师标签**每回合最多一条**：同回合后续决策不再重复标注，
             # 否则 CE 会在一整个回合的十几条决策上重复同一标签，权重失衡。
             out.teacher = True

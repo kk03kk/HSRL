@@ -82,6 +82,7 @@ from .seq_aux import (
 from .dpo_upgrade import UpgradeSamples, dpo_pair_loss
 from .move_guard import (MoveGuard, DEFAULT_MOVE_CAP,
                          DEFAULT_MOVE_REPEAT_LIMIT, aggregate_move_guard)
+from .pending_guard import PendingGuard, without_cancel
 from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              engine_card_id_lookup, DEFAULT_TABLE as ARCH_TABLE,
                              DEFAULT_MODEL as ARCH_MODEL)
@@ -338,16 +339,17 @@ class CollectConfig:
     step_penalty: float = 0.0      # 每决策小惩罚（进入 reward）
     #: 单座位单回合决策数上限（超过且 EndTurn 合法则强制结束回合；0=关闭）。
     #: 未训练网络容易陷入 Play/Cancel 循环，默认 40 保证采集/评测能走到终局。
-    max_actions_per_turn: int = 40
-    #: ── 换位去抖守卫（默认关闭；见 docs/MOVE_GUARD.md）──
+    max_actions_per_turn: int = 80
+    #: ── 换位去抖守卫（新训练默认开启；见 docs/MOVE_GUARD.md）──
     #: True=采样前清掉「逆换位 / 重复超限 / 本回合换位超 cap」的 Move 动作位，
-    #: 再按剩余合法动作采样。**默认 False = 不构造守卫、不碰 mask、不新增
-    #: record/meta 字段，与旧路径逐位等价。**
-    move_guard: bool = False
+    #: 再按剩余合法动作采样。
+    move_guard: bool = True
     #: 每回合换位次数上限（>=cap 后屏蔽全部 49 个 Move；0=本回合禁止换位）。
-    move_cap: int = DEFAULT_MOVE_CAP
+    move_cap: int = 5
     #: 同一 ``(from,to)`` 本回合出现 >= 该次数后屏蔽（1=不允许重复）。
     move_repeat_limit: int = DEFAULT_MOVE_REPEAT_LIMIT
+    #: 完全禁止 Cancel（动作 7）；默认 False 保持旧行为。
+    forbid_cancel: bool = True
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -2099,28 +2101,45 @@ class PPOGreedyPolicy(Policy):
     name = "ppo_net"
     supports_pi = False
 
-    def __init__(self, evaluator: Any, *, max_actions_per_turn: int = 40,
-                 move_guard: bool = False, move_cap: int = 3, move_repeat_limit: int = 2) -> None:
+    def __init__(self, evaluator: Any, *, max_actions_per_turn: int = 80,
+                 move_guard: bool = True, move_cap: int = 5, move_repeat_limit: int = 2,
+                 pending_guard: bool = False, cancel_cap: int = 2,
+                 commit_play: bool = True, forbid_cancel: bool = True) -> None:
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
+        if (self.max_actions_per_turn != 80 or not bool(move_guard)
+                or int(move_cap) != 5 or int(move_repeat_limit) != 2
+                or not bool(forbid_cancel)):
+            raise ValueError("强制动作规则：max=80, move_guard=1, move_cap=5, "
+                             "move_repeat=2, forbid_cancel=1")
         self._turn_counts: Dict[tuple, int] = {}
         self.forced_actions = 0
         self._guard=MoveGuard(cap=move_cap,repeat_limit=move_repeat_limit,hard_cap=True) if move_guard else None
+        self._pending_guard=(PendingGuard(cancel_cap=cancel_cap, commit_play=commit_play)
+                             if pending_guard else None)
+        self.forbid_cancel = bool(forbid_cancel)
 
     def reset(self) -> None:
         self._turn_counts = {}
         if self._guard is not None:self._guard.clear_state()
+        if self._pending_guard is not None:self._pending_guard.clear_state()
 
     def decide(self, game: Any, seat: int) -> Decision:
         seat = int(seat)
+        turn = int(getattr(game, "turn", -1))
         f, c = obs_arrays(game.observe(seat))
         mask = mask_from_bytes(game.legal_mask(seat))
+        if self.forbid_cancel:
+            mask = without_cancel(mask)
+            if not bool(mask.any()):
+                raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} turn={turn}")
         guard_forced=False
         if self._guard is not None:
-            mask,guard_forced=self._guard.guarded_mask(mask,game_id=0,seat=seat,turn=int(game.turn))
+            mask,guard_forced=self._guard.guarded_mask(mask,game_id=0,seat=seat,turn=turn)
+        if self._pending_guard is not None:
+            mask,_=self._pending_guard.guarded_mask(mask,game_id=0,seat=seat,turn=turn,game=game)
         prior, value = self.evaluator(f, c, mask, seat)
         pi = masked_normalize(prior, mask)
-        turn = int(getattr(game, "turn", -1))
         key = (seat, turn)
         n_turn = self._turn_counts.get(key, 0) + 1
         self._turn_counts[key] = n_turn
@@ -2135,8 +2154,12 @@ class PPOGreedyPolicy(Policy):
             legal = np.flatnonzero(mask)
             action = int(legal[0]) if legal.size else 0
         if self._guard is not None:self._guard.note_action(action,game_id=0,seat=seat,turn=turn)
+        if self._pending_guard is not None:self._pending_guard.note_action(action,game_id=0,seat=seat,turn=turn)
         return Decision(int(action), pi, {"search": False, "policy": self.name,
                                           "value": float(value), "forced": forced})
+
+    def pending_guard_meta(self) -> Dict[str, Any]:
+        return {} if self._pending_guard is None else self._pending_guard.to_meta()
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -3336,6 +3359,15 @@ class PPOSelfPlayPolicy(Policy):
         self.model = model
         self.device = self.torch.device(device)
         self.config = config or CollectConfig()
+        if search_fn is not None:
+            raise ValueError("强制动作规则：sims=0，不能传入 search_fn")
+        if (int(self.config.max_actions_per_turn) != 80
+                or not bool(getattr(self.config, "move_guard", False))
+                or int(getattr(self.config, "move_cap", 0)) != 5
+                or int(getattr(self.config, "move_repeat_limit", 0)) != 2
+                or not bool(getattr(self.config, "forbid_cancel", False))):
+            raise ValueError("强制动作规则：max=80, move_guard=1, move_cap=5, "
+                             "move_repeat=2, forbid_cancel=1")
         # 搜索作为行为策略的混合器（``BehaviorMixer``；None = 关闭，逐位等价旧路径）
         self._mix = behavior_mix
         # 续训 CE checkpoint 时沿用其输入标准化统计（新训练模型为 None = 原始特征）
@@ -3446,7 +3478,8 @@ class PPOSelfPlayPolicy(Policy):
             game_id=int(self.game_id), seat=int(seat),
             turn=int(getattr(game, "turn", -1)), tier=self._obs_tier(f, game, seat),
             upgrade_legal=bool(np.asarray(mask, dtype=bool).reshape(-1)[UPGRADE_ACTION]),
-            force_prob=float(self._forced_prob), rng=self._rng)
+            force_prob=float(self._forced_prob), rng=self._rng,
+            teacher_enabled=bool(self._forced_teacher))
 
     def behavior_mix_meta(self) -> Dict[str, Any]:
         """搜索行为混合统计（未启用 -> ``{}``，不新增 meta 键）。"""
@@ -3527,6 +3560,11 @@ class PPOSelfPlayPolicy(Policy):
         """取观测与合法动作掩码（与 decide 一致）。"""
         f, c = obs_arrays(game.observe(int(seat)))
         mask = mask_from_bytes(game.legal_mask(int(seat)))
+        if bool(getattr(self.config, "forbid_cancel", False)):
+            mask = without_cancel(mask)
+            if not bool(mask.any()):
+                raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} "
+                                   f"turn={getattr(game, 'turn', -1)}")
         return f, c, mask
 
     def _turn_is_forced(self, game: Any, seat: int, mask: Any) -> bool:
@@ -4310,6 +4348,10 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
         "search_failures": int(policy.search_failures),
         "forced_end_turns": int(policy.forced_actions),
         "max_actions_per_turn": int(cfg.max_actions_per_turn),
+        "forbid_cancel": bool(getattr(cfg, "forbid_cancel", False)),
+        "move_guard": bool(getattr(cfg, "move_guard", False)),
+        "move_cap": int(getattr(cfg, "move_cap", DEFAULT_MOVE_CAP)),
+        "move_repeat_limit": int(getattr(cfg, "move_repeat_limit", DEFAULT_MOVE_REPEAT_LIMIT)),
         "search_enabled": bool(search_fn is not None),
         "features_normalized": bool(norm_mean is not None),
         "elapsed_s": float(time.time() - t0),

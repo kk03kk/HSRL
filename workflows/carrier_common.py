@@ -615,7 +615,7 @@ def _make_policy(cfg: dict):
                 cfg.get("teacher_upgrade_curve", "4,6,8,10")).split(",")),
             cast_when_no_carrier_after=int(
                 cfg.get("teacher_cast_late_turn", 11)),
-            max_actions_per_turn=int(cfg.get("max_actions_per_turn", 40)),
+            max_actions_per_turn=int(cfg.get("max_actions_per_turn", 80)),
             sell_cap=int(cfg.get("teacher_sell_cap", 3)),
             buy_spells=bool(int(cfg.get("teacher_buy_spells", 1))),
             spell_max_price=int(cfg.get("teacher_spell_max_price", 2)),

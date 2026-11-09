@@ -436,7 +436,7 @@ def precheck(phase,root=ROOT):
         for name in ('plan.json','report.json','train.config.json'):
             if not (Path(args.source_run)/name).is_file():raise ValueError('缺少真实父实验文件:'+name)
         if read(Path(args.source_run)/'train.config.json')!=read(root/'config/p50-7357-train.json'):raise ValueError('原配方与新配置意外不同')
-        old=Path(os.environ.get('HSAI_OLD_BANK','../HSRL/personal/artifacts/libraries/bot-firestone-3702-economy-v2-live-v1'))
+        old=Path(os.environ.get('HSAI_OLD_BANK','artifacts/libraries/bot-firestone-3702-economy-v2-live-v1'))
         for split in ('train','dev','test'):
             for file in (old/split/'manifest.json',old/'raw'/split/'frames'):
                 if not file.exists():raise ValueError('缺少原始Bot源或库清单:'+str(file))

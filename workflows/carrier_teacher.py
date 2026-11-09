@@ -56,7 +56,7 @@ class CarrierTeacher:
                  refresh_cap: int = 2,
                  upgrade_curve=(4, 6, 8, 10),
                  cast_when_no_carrier_after: int = 11,
-                 max_actions_per_turn: int = 40,
+                 max_actions_per_turn: int = 80,
                  sell_cap: int = 3, buy_spells: bool = True,
                  spell_max_price: int = 2, replace_margin: int = 2):
         cat = C.load_or_build_catalog(carriers_json)
@@ -627,7 +627,7 @@ def main() -> int:
                     help="无载体时第几回合起把法术打出去换身材")
     # 与 s15 采集同口径
     ap.add_argument("--gold", type=int, default=0)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--record-log", type=int, default=1)
     ap.add_argument("--human-boards",

@@ -349,7 +349,7 @@ def main() -> int:
                     help="独立封存面板数；正式面板必须 >=2")
     ap.add_argument("--bootstrap", type=int, default=5000)
     ap.add_argument("--max-steps", type=int, default=50000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--quantile", default="auto", choices=list(SAMPLE_MODES),
                     help="人类战团桶内分位：auto=t<=8 p50 / 9-12 p75 / >=13 p90")
     ap.add_argument("--human-boards", default="",

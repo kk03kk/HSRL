@@ -39,3 +39,26 @@ def test_owned_shm_fp16_upcast_does_not_change_other_fields():
         assert np.array_equal(result['features'],arrays['features'].astype(np.float32))
         assert result['actions'].dtype==np.int64
     finally:pp._shm_close_slot(slots,0)
+
+
+def test_shm_put_recovers_from_stale_worker_segment():
+    """worker 重启后旧段仍在 /dev/shm：create=True 不能把长训直接打挂。"""
+    import uuid as _uuid
+    from multiprocessing import shared_memory
+    name = 'hsb_owned_' + _uuid.uuid4().hex
+    stale = shared_memory.SharedMemory(name=name, create=True, size=pp._SHM_ROUND)
+    stale.close()
+    slots = {}
+    arrays = {'features': np.arange(16, dtype=np.float32).reshape(4, 4),
+              'actions': np.arange(4, dtype=np.int64)}
+    try:
+        meta = pp._shm_put(arrays, slots=slots, slot_idx=0, name=name)
+        read = pp._shm_read_owned(meta)
+        for k, v in arrays.items():
+            assert np.array_equal(read[k], v)
+    finally:
+        pp._shm_close_slot(slots, 0)
+        try:
+            stale.unlink()
+        except FileNotFoundError:
+            pass

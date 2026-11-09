@@ -41,7 +41,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -120,10 +120,10 @@ def load_config(path: Path) -> Dict[str, Any]:
             raise ValueError(f"配置 models.{label} 需要 id/path: {path}")
     if int(cfg["games"]) <= 0:
         raise ValueError("games 必须 > 0")
-    if int(cfg["max_actions_per_turn"]) <= 0:
-        raise ValueError("max_actions_per_turn 必须 > 0")
-    if int(cfg["move_cap"]) < 0 or int(cfg["move_repeat_limit"]) < 1:
-        raise ValueError("move_cap>=0 且 move_repeat_limit>=1")
+    if int(cfg["max_actions_per_turn"]) != 80:
+        raise ValueError("max_actions_per_turn 必须固定为 80")
+    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
+        raise ValueError("move_cap 必须为 5，move_repeat_limit 必须为 2")
     sha_a = str(cfg["models"]["A"].get("file_sha256") or "")
     sha_b = str(cfg["models"]["B"].get("file_sha256") or "")
     if sha_a and sha_a == sha_b:
@@ -159,6 +159,7 @@ def build_protocol(cfg: Dict[str, Any], *, fingerprint: Dict[str, Any],
         "decode": str(cfg.get("decode", "greedy")),
         "max_actions_per_turn": int(cfg["max_actions_per_turn"]),
         "move_guard": 1,
+        "forbid_cancel": 1,
         "move_cap": int(cfg["move_cap"]),
         "move_repeat_limit": int(cfg["move_repeat_limit"]),
         "max_steps": int(cfg.get("max_steps", 50000)),
@@ -236,23 +237,26 @@ def audit_model(path: Path, label: str, *, expected_sha: str, device: str,
 class DuelSeatPolicy:
     """一个模型的座位策略。
 
-    与 ``PPOGreedyPolicy`` 用**同一个** :class:`MoveGuard`（规则完全一致），差异只有两点，
-    都如实计数并写进报告：
-
-    1. ``hard_cap=False``：换位上限触发后若引擎只给换位动作，退回原掩码继续（记
-       ``move_cap_overflow``），而不是抛 ``RuntimeError`` 中断整局评测；
-    2. 换位与回合计数在本类里可见（``stats``），便于把 5 换位 / 80 动作规则写进报告。
+    与 ``PPOGreedyPolicy`` 用**同一个** :class:`MoveGuard`（规则完全一致），并强制
+    移除 Cancel。换位上严格 ``hard_cap=True``：5 次后不再回退到换位；若没有其他
+    合法动作则失败关闭，不生成违反规则的样本。
     """
 
     def __init__(self, label: str, evaluator: Any, *, max_actions_per_turn: int = 80,
-                 move_cap: int = 5, move_repeat_limit: int = 2) -> None:
+                 move_cap: int = 5, move_repeat_limit: int = 2,
+                 forbid_cancel: bool = True) -> None:
         from hsbg.az.train.move_guard import MoveGuard, is_move
 
         self.label = str(label)
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
+        self.forbid_cancel = bool(forbid_cancel)
+        if (self.max_actions_per_turn != 80 or not self.forbid_cancel
+                or int(move_cap) != 5 or int(move_repeat_limit) != 2):
+            raise ValueError("强制动作规则：max=80, move_cap=5, move_repeat=2, "
+                             "forbid_cancel=1")
         self.guard = MoveGuard(cap=int(move_cap), repeat_limit=int(move_repeat_limit),
-                               hard_cap=False)
+                               hard_cap=True)
         self._is_move = is_move
         self.turn_counts: Dict[tuple, int] = {}
         self.turn_moves: Dict[tuple, int] = {}
@@ -284,6 +288,11 @@ class DuelSeatPolicy:
 
         seat, turn = int(seat), int(game.turn)
         mask = mask_from_bytes(game.legal_mask(seat))
+        if self.forbid_cancel:
+            from hsbg.az.train.pending_guard import without_cancel
+            mask = without_cancel(mask)
+            if not bool(mask.any()):
+                raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} turn={turn}")
         guarded, guard_forced = self.guard.guarded_mask(
             mask, game_id=0, seat=seat, turn=turn)
         key = (seat, turn)
@@ -339,7 +348,7 @@ class CardNames:
         index = int(index)
         if index not in self.cache:
             try:
-                self.cache[index] = tuple(self.engine.card_info(index))
+                self.cache[index] = tuple(self.engine.card_info((index & 0x0fff) + 1))
             except Exception:  # noqa: BLE001 - 卡表外索引不应出现，但不能中断整局评测
                 self.cache[index] = (f"card#{index}", f"card#{index}", f"card#{index}", 0)
         return self.cache[index]
@@ -368,6 +377,23 @@ def describe_board(cards: CardNames, board: Sequence[Dict[str, Any]]) -> List[Di
     return out
 
 
+def trinket_state(cards: CardNames, player: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Current trinkets with their card ids and the per-card counter used by the engine."""
+    counters = {int(k): int(v) for k, v in (player.get("counters") or [])}
+    out: List[Dict[str, Any]] = []
+    for raw in player.get("trinkets") or []:
+        index = int(raw)
+        card_id, name_en, name_zh, tier = cards.get(index)
+        out.append({
+            "card": index,
+            "id": card_id,
+            "name": name_en,
+            "name_zh": name_zh,
+            "counter": counters.get(index, 0),
+        })
+    return out
+
+
 def snapshot(game: Any, cards: CardNames, seat: int, *, gi: int, turn: int,
              detail: bool) -> Dict[str, Any]:
     """回合末帧：等级/金币/血量 + 战团总值；``detail=True`` 时附逐格详情。"""
@@ -383,6 +409,7 @@ def snapshot(game: Any, cards: CardNames, seat: int, *, gi: int, turn: int,
         "alive": bool(player.get("alive")),
         "size": len(board), "atk": int(atk), "hp": int(hp), "body": int(atk + hp),
         "hero": int(player.get("hero") or 0),
+        "trinkets": trinket_state(cards, player),
     }
     if detail:
         frame["board"] = describe_board(cards, board)
@@ -394,7 +421,8 @@ def snapshot(game: Any, cards: CardNames, seat: int, *, gi: int, turn: int,
 # ══════════════════════════════════════════════════════════════════════════
 def run_games(*, engine: Any, cards: CardNames, policies: Dict[str, DuelSeatPolicy],
               games: int, seed0: int, max_steps: int, collect_opponents: bool,
-              progress_every: int = 16) -> Dict[str, Any]:
+              progress_every: int = 16,
+              seats_for: Optional[Callable[[int], Dict[str, int]]] = None) -> Dict[str, Any]:
     """跑 ``games`` 局：A/B 各 1 座（逐局交换）+ 6 个引擎 bot。
 
     帧时点约定：模型在**执行 EndTurn 之前**取帧（招募结束、战斗未结算），bot 在
@@ -414,7 +442,7 @@ def run_games(*, engine: Any, cards: CardNames, policies: Dict[str, DuelSeatPoli
     t0 = time.time()
     for gi in range(int(games)):
         seed = int(seed0) + gi
-        seats = seats_for_game(gi)
+        seats = (seats_for or seats_for_game)(gi)
         game = engine.Game(seed=int(seed))
         for policy in policies.values():
             policy.reset()

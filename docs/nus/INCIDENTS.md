@@ -1,5 +1,7 @@
 # 故障与防复发记录
 
+> 状态：历史故障与防复发参考；当前命令以 [ENVIRONMENT.md](ENVIRONMENT.md) 和 [EVAL_DEPLOYMENT.md](EVAL_DEPLOYMENT.md) 为准。
+
 | 现象 | 已查明原因 | 已采用措施/不可重复的做法 |
 |---|---|---|
 | 登录节点卡顿/内存错误 | 1GiB虚拟内存下安装Rust或pytest | 重操作只在Slurm计算节点，不能靠重登录当修复 |

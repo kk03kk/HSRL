@@ -1,0 +1,38 @@
+{
+  "schema": "hsai.eval-two-model-trinket/v1",
+  "note": "9691 vs 7936，2 model + 6 engine bot，20 局；记录所有回合末饰品（重点 BG36_MagicItem_414 加重护手）和双方每局最终阵容。",
+  "status": "ready",
+  "models": {
+    "A": {
+      "id": "m1095539-v9691",
+      "label": "9691（新最优/最新）",
+      "short": "9691",
+      "path": "artifacts/models/duel/9691/model.pt",
+      "library_path": "artifacts/runs/p50-forced-tier-long-20261108-135823/last-committed/step_009691/model.pt",
+      "file_sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+      "bytes": 67864188
+    },
+    "B": {
+      "id": "m1095539-v7936",
+      "label": "7936（60M 已知退化点）",
+      "short": "7936",
+      "path": "artifacts/models/duel/7936/model.pt",
+      "library_path": "artifacts/runs/p50-forced-tier-long-20261108-135823/milestones/decisions-618873732/model.pt",
+      "file_sha256": "b24ace1c81a2787f2babe91254639cc9ea5ab468f15cef5f74998db71aacb6eb",
+      "bytes": 67864188
+    }
+  },
+  "games": 20,
+  "seed": 89000000,
+  "decode": "greedy",
+  "max_actions_per_turn": 80,
+  "move_cap": 5,
+  "move_repeat_limit": 2,
+  "max_steps": 50000,
+  "seat_schedule": "first 10 games A=k%8/B=(k+1)%8; second 10 swapped",
+  "target_trinket": "BG36_MagicItem_414",
+  "engine": {
+    "game_version": "37.0.2.256589",
+    "source_hash": "c4c71014e3d41760"
+  }
+}

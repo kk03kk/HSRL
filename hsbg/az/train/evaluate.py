@@ -140,7 +140,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         for position, minion in enumerate(board):
             index = int(minion['card'])
             if index not in card_names:
-                card_names[index] = E.card_info(index)[:2]
+                card_names[index] = E.card_info((index & 0x0fff) + 1)[:2]
             card_id, name = card_names[index]
             result.append({**minion, 'position':position, 'card_id':card_id, 'name':name})
         return result

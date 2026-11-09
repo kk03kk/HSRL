@@ -17,7 +17,7 @@ def probe_config(config: Dict[str, Any], *, iteration: int):
     return CollectConfig(games=int(config.get("games", 8)),
         seed=int(config.get("seed", 100000000)) + int(iteration) * 1000,
         opponent="bot", behavior="net", lockstep=True, fast_act=True,
-        max_steps=20000, max_actions_per_turn=int(config.get("max-actions-per-turn", 40)),
+        max_steps=20000, max_actions_per_turn=int(config.get("max-actions-per-turn", 80)),
         mirror_seats=7, mirror_p=1.0,
         mirror_sample=str(config.get("mirror-sample", "random")))
 

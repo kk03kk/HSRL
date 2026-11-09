@@ -320,10 +320,10 @@ def main() -> int:
     # ∞金币课程：>0 = 每回合开始把 learner 金币设为该值（0=真实经济）
     ap.add_argument("--gold", type=int, default=0)
     # 训练同口径的回合动作上限（ceiling probe 用 120 探索「资源更松」的更大档位）
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1])
-    ap.add_argument("--move-cap", type=int, default=3)
+    ap.add_argument("--move-cap", type=int, default=5)
     ap.add_argument("--move-repeat-limit", type=int, default=2)
     # 对手当前战团快照（阈值平坦性 / 相对身材分析用；与策略观测无关）
     ap.add_argument("--record-opponents", type=int, default=1)

@@ -275,7 +275,7 @@ def main() -> int:
     ap.add_argument("--mirror-p", type=float, default=0.2)
     ap.add_argument("--mirror-sample", default="p75")
     ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1])
-    ap.add_argument("--move-cap", type=int, default=3)
+    ap.add_argument("--move-cap", type=int, default=5)
     ap.add_argument("--move-repeat-limit", type=int, default=2)
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--out", default=DEFAULT_PROBLEM_PATH)

@@ -138,7 +138,7 @@ class InferSearchConfig:
     skip_move: bool = True
     #: rollout 内 learner 每回合动作上限（与评测 ``max_actions_per_turn`` 同口径；
     #: 超限强制 EndTurn，防止 greedy rollout 陷入 Play/Cancel 死循环）
-    rollout_max_actions_per_turn: int = 40
+    rollout_max_actions_per_turn: int = 80
     #: rollout 硬步数上限（0 = 自动 ``64*turns + 64``）
     max_rollout_steps: int = 0
     #: 单次搜索墙钟上限（ms；0 = 不限）。超时立即放弃搜索、退回 π_base 动作 ——

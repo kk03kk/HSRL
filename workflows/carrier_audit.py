@@ -275,7 +275,7 @@ def main() -> int:
     ap.add_argument("--source", action="append", default=[],
                     help="已有 rollout jsonl（可多次）")
     ap.add_argument("--gold", type=int, default=0)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--record-log", type=int, default=1)
     ap.add_argument("--human-boards",

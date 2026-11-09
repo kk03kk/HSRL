@@ -45,7 +45,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=90000)
     ap.add_argument("--policy-seat", type=int, default=0)
     ap.add_argument("--max-steps", type=int, default=50000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--baseline", action="store_true",
                     help="额外跑 random 与 bot 基线")
     ap.add_argument("--out", default="")

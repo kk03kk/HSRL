@@ -2,7 +2,7 @@
   "schema": "hsrl.upstream_source_lock/v1",
   "repository": "https://github.com/MCG-NJU/AutoTavern",
   "commit": "1c2086a997afde46d68c6c5992cab194ddcfce88",
-  "checked_on": "2026-11-05",
+  "checked_on": "2026-11-09",
   "normalization": "LF; taverngym namespace -> hsbg_engine",
   "groups": [
     {
@@ -253,7 +253,8 @@
         },
         "content/trinkets_p8.rs": {
           "upstream_sha256": "4f8cb55a65c75dd831d9ab2be37f85864f9f59c876727a14969f27b0673ba6d7",
-          "fork_sha256": "4f8cb55a65c75dd831d9ab2be37f85864f9f59c876727a14969f27b0673ba6d7"
+          "fork_sha256": "8c5d2fe5835820e48ab847d62107039b95170b410f6e3890a534b047401522e9",
+          "reason": "37.0.2 Jar o' Gems once-per-combat fix (official 37.0.2 text)"
         },
         "content/tw_beasts.rs": {
           "upstream_sha256": "bf90dd34adf111ae02cd5be3a4af81beed9d923b0c70cb57853f7b7cb325546f",

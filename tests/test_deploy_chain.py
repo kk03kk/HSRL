@@ -226,7 +226,7 @@ def test_sbatch_phases_and_tasks_exist():
 def test_preflight_uses_short_partition_and_long_uses_twelve_hours():
     pre = (ROOT / 'deploy/slurm/p50_forced_preflight.sbatch').read_text(encoding='utf-8')
     assert '#SBATCH --partition=gpu\n' in pre
-    assert '#SBATCH --time=01:00:00' in pre
+    assert '#SBATCH --time=00:30:00' in pre
     long = SBATCH.read_text(encoding='utf-8')
     assert '#SBATCH --partition=gpu-long' in long
 

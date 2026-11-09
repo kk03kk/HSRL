@@ -1,30 +1,93 @@
-# NUS 当前可用经验
+# NUS 环境与运行方式
 
-2026-11-06收尾更新：1080772已正常安全暂停，最新7710；下一轮批准7357，当前新入口见[NEXT_P50_DEPLOYMENT.md](NEXT_P50_DEPLOYMENT.md)。下方4159验收是历史证据，不代表下一轮仍从4159开始。新代码部署至~/projects/HSAI，旧~/projects/HSRL只读保留。
+更新：2026-11-09
 
-资料来源为用户回传与旧工作区环境档案。本轮没有访问服务器。原始完整档案保存在 `records/source-docs/hsbg/personal/NUS服务器环境档案.md`，按时间追加的旧方案可能已被后文替代。
+## 1. 基本工作方式
 
-| 项目 | 已确认信息 |
+代理直接运行在 NUS 登录节点。所有开发、测试、评测、训练、Slurm 提交和监控都在 NUS 完成；不再需要把权重、日志或结果传回本地。
+
+活动工作区：
+
+```text
+~/projects/HSAI
+```
+
+用户只给大方向；代理自主规划、执行、测试、提交、监控和归档。
+
+## 2. 资源限制
+
+| 项目 | 约束 |
 |---|---|
-| 工作目录 | `~/projects/HSRL`，当前运行布局仍是 rust/scripts/personal |
-| 软件 | Python3.12、PyTorch2.10+cu128、Rust1.98.1；不因搬家重装 |
-| 登录节点 | 1GiB虚拟内存限制，不适合安装/编译/测试/模型/库生成 |
-| 长训资源 | 2×h100-47 MIG、32 CPU、96GiB；不是两张完整132SM H100 |
-| 资源证明 | GRES账单不等于 CUDA 实际可计算设备数；必须核 Driver UUID、Torch分配/计算 |
-| GPU启动 | 已成功的 batch分配内直接启动，映射原始可见UUID；srun曾把双卡缩单卡 |
-| 诊断 | 输出目录按作业号隔离；保护状态目录使用绝对路径 |
-| 运行保护 | 排队/训练期间冻结代码、依赖、引擎和库；不覆盖 checkpoint |
+| 登录节点 | 约 **1 GiB 虚拟内存** |
+| 重任务 | 只能在 Slurm 计算节点 |
+| GPU | `h100-47` MIG；以实际可见设备为准 |
+| 训练参考 | 2×h100-47、32 CPU、96 GiB |
+| 评测参考 | 1×h100-47、16–32 CPU、64–96 GiB |
 
-登录节点只做 Git、sbatch/sacct/squeue、tail、小JSON标准库读取。所有 pip构建、Rust安装/编译/全测、pytest、Torch、GPU预检、Bot建库、PPO和重评测放计算节点。大型评测JSON不能在受限登录节点整份解析。
+登录节点只做：
 
-`deploy/slurm/` 是新布局入口；当前服务器仍运行旧目录的 `personal/slurm/`。不能把两套路径混用，也不能用新入口原目录 resume旧实验绕过来源检查。将来部署新 HSAI 应独立工作目录、独立环境、独立数据路径，先只读输入检查，再在计算节点验证。
+- Git
+- `sbatch` / `sacct` / `squeue` / `scancel`
+- `tail` 日志
+- 小 JSON 标准库读取
 
-## 保存与恢复
+登录节点不做：
 
-每次原子更新提交后 latest.json 指向有效快照；完整状态应包含 model.pt、trainer.pt、来源/配置、RNG/Adam/调度器/anchor和累计进度。需要安全停止时，在**实际运行目录**创建 STOP_REQUESTED；更新提交边界暂停，评测通常等待当前子进程返回。scancel 是硬中断，只能恢复最后已提交快照，不能恢复未提交采样。
+- `pytest`
+- Torch / 模型加载 / 推理
+- Rust 安装或编译
+- pip 构建
+- 建库
+- 训练
+- 大型 JSON 全量解析
 
-同代码/库/协议可按原入口精确恢复。代码或引擎变化需新目录显式分叉，校验主模型与anchor迁移、词表/动作/观测、Adam步数及状态一致性；不要删除provenance或伪造plan.json。现有训练不因短期棋力下降自动停止；非法动作、截断、注入失败、非有限数和状态损坏仍停止并保留现场。
+## 3. Slurm 规则
 
-## 当前最新已知验收
+- 只用 `sbatch` 提交；不要在作业里再包 `srun`。
+- 本站曾出现 `srun` 子 step 把 batch 双卡缩成单卡。
+- 不 unset、不手工改 `CUDA_VISIBLE_DEVICES` 来“修复”设备数。
+- GPU 身份必须由 `nvidia-smi -L`、原始 Driver UUID 和 Torch 实际计算证明。
+- 输出目录按作业号隔离；已存在且非空的目录拒绝覆盖。
+- 排队/运行期间冻结代码、依赖、引擎、库和权重；要改就跑新目录、新作业号。
 
-CPU1079628：25分46秒、8CPU/32G、七项门禁成功，新库 Train/Dev/Test 源局2048/256/256；GPU4159验收：1536局、324117决策、318个Adam更新、129730/129730活席注入，错误/回退0，4159→4161→4162，Adam194178→194390→194496。下一次正式起点仍取冻结4159，短验收结果不替代起点。
+## 4. 提交前检查
+
+登录节点使用轻量预检，不加载 Torch：
+
+```bash
+cd ~/projects/HSAI
+/usr/bin/python3 -S tools/nus_submit.py --phase ... --check-only
+```
+
+提交：
+
+```bash
+/usr/bin/python3 -S tools/nus_submit.py --phase ... --submit
+```
+
+不要跳过 `bash -n`、`sbatch --test-only` 和输出目录检查。
+
+## 5. 恢复与停止
+
+- 完整状态包括 `model.pt`、`trainer.pt`、Adam、调度器、RNG、anchor 和累计计数。
+- 安全停止：在实际运行目录创建 `STOP_REQUESTED`，在提交边界暂停。
+- `scancel` 是硬中断，只能恢复最后已提交快照。
+- 代码/引擎变化后必须新目录显式分叉，不能原目录盲目 resume。
+- 工程错误、非法动作、截断、引擎异常、注入失败：停止并保留现场。
+- 正常棋力波动：记录，不自动止损。
+
+## 6. 当前活动路径
+
+```text
+engine/                        当前模拟器
+hsbg/az/                       训练栈
+workflows/                     训练/评测/建库入口
+deploy/slurm/                  Slurm 入口
+artifacts/models/              模型与排行榜
+records/archive/libraries-2026-11-09/  旧战团库（已退役，不再使用）
+artifacts/runs/                运行产物
+records/                       原始证据与归档
+docs/                          当前文档
+```
+
+历史实验、旧部署和本地 Windows 说明已归档到 `records/archive/docs-2026-11-09/`，不能作为当前命令使用。

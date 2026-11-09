@@ -25,7 +25,8 @@ OPTIONS = {
     "pipeline", "amp", "anchor-amp", "gpus", "gpu-index-space", "threads",
     "leaf-amp", "leaf-wait-ms", "ipc-mode", "records-dtype", "pipeline-guard",
     "leaf-fused", "mirror-strict",
-    "move-guard", "move-cap", "move-repeat-limit", "pipeline-zero-step-fallback",
+    "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel",
+    "pipeline-zero-step-fallback",
     # 强制升本课程（默认空计划 = 关闭；见 docs/FORCED_TIER.md）。
     # 注意：教师标签只由 ``forced-teacher-coef`` 驱动，不要用 ``teacher-bc-coef``，
     # 否则会同时打开「缩放教师」在线查询，两条标签会互相覆盖。
@@ -125,6 +126,17 @@ def validate_config(config):
         raise ValueError("本地批量路径要求单worker")
     if int(config.get("seed", 100000000)) < 100000000:
         raise ValueError("个人训练 seed 从 100000000 起，避免与生成库和评测 seed 重叠")
+    mandatory = {
+        "max-actions-per-turn": 80,
+        "move-guard": 1,
+        "move-cap": 5,
+        "move-repeat-limit": 2,
+        "forbid-cancel": 1,
+    }
+    for key, expected in mandatory.items():
+        actual = int(config.get(key, expected))
+        if actual != expected:
+            raise ValueError(f"训练必须遵守动作规则 {key}={expected}，当前 {actual}")
     return config
 
 
@@ -401,8 +413,9 @@ def evaluate(args):
                 "library_digest": library["digest"] if library else "live_bots",
                 "split": library["split"] if library else "bot",
                 "seed": args.seed, "games_per_seat": args.games, "seats": list(range(8)),
-                  "decode": "greedy", "max_actions_per_turn": int(getattr(args,'max_actions_per_turn',40)), "max_steps": 50000,
-                  "move_guard":int(getattr(args,'move_guard',0)),"move_cap":int(getattr(args,'move_cap',3)),
+                  "decode": "greedy", "max_actions_per_turn": int(getattr(args,'max_actions_per_turn',80)), "max_steps": 50000,
+                  "move_guard":int(getattr(args,'move_guard',1)),"move_cap":int(getattr(args,'move_cap',5)),
+                  "forbid_cancel":1,
                   "move_repeat_limit":int(getattr(args,'move_repeat_limit',2))}
     if strict:
         protocol["mirror_strict"] = True
@@ -580,9 +593,9 @@ def main(argv=None):
     ev.add_argument("--forced-tier-carry", type=int, default=1,
                     help="强制升本的顺延回合数（默认 1）")
     ev.add_argument("--exposure", type=int, choices=[0, 1], default=0)
-    ev.add_argument('--max-actions-per-turn',type=int,default=40)
-    ev.add_argument('--move-guard',type=int,choices=[0,1],default=0)
-    ev.add_argument('--move-cap',type=int,default=3)
+    ev.add_argument('--max-actions-per-turn',type=int,default=80)
+    ev.add_argument('--move-guard',type=int,choices=[0,1],default=1)
+    ev.add_argument('--move-cap',type=int,default=5)
     ev.add_argument('--move-repeat-limit',type=int,default=2)
     ev.add_argument("--out", required=True)
     board = sub.add_parser("leaderboard")

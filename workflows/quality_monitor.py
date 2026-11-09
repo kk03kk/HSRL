@@ -375,9 +375,9 @@ def main() -> int:
     ap.add_argument("--policy", default="selfplay", choices=("selfplay", "arena"),
                     help="selfplay=训练侧策略（默认）；arena=走 workflows/arena_agent.act "
                          "的部署路径（换位守卫默认开，见 docs/ARENA_GUARD.md）")
-    ap.add_argument("--move-guard", type=int, default=0, choices=[0, 1],
+    ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
                     help="1=评测时也启用换位去抖守卫（默认 0=纯模型行为）")
-    ap.add_argument("--move-cap", type=int, default=3,
+    ap.add_argument("--move-cap", type=int, default=5,
                     help="每回合换位次数上限（仅 --move-guard 1 时生效；默认 3）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
                     help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2）")

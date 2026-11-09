@@ -86,7 +86,8 @@ def calibrate(frame, factors):
         minion["atk"], minion["hp"] = atk, hp
 
 
-def build(out, workers, smoke=False, profile="legacy-v1"):
+def build(out, workers, smoke=False, profile="legacy-v1", seed_base=3000000,
+          games=(2048, 256, 256), rounds=4, consistent_profile=False):
     import hsbg_engine as E
     from hsbg.az.train.mirror_snapshots import engine_stamp, write_snapshot_file
     from hsbg.az.train.personal import fingerprint, library_digest, write_json
@@ -111,10 +112,10 @@ def build(out, workers, smoke=False, profile="legacy-v1"):
     manifests = {}
     for index, split in enumerate(SPLITS):
         raw, dest = out / "raw" / split, out / split
-        seed = 3000000 + index * 1000000
-        batch, threshold, required = (16, 1, 7) if smoke else (
-            (2048, 128, 15) if split == "train" else (256, 32, 15))
-        for offset in range(0, batch * (1 if smoke else 4), batch):
+        seed = seed_base + index * 1000000
+        batch = 16 if smoke else games[index]
+        threshold, required = (1, 7) if smoke else ((128, 15) if split == "train" else (32, 15))
+        for offset in range(0, batch * (1 if smoke else rounds), batch):
             capture(raw, seed + offset, batch, workers)
             paths = sorted((raw / "frames").glob("snap_*.json.gz"))
             candidates, dropped, stale_refs = defaultdict(dict), Counter(), Counter()
@@ -204,14 +205,15 @@ def build(out, workers, smoke=False, profile="legacy-v1"):
                                 digest=library_digest(dest), fingerprint=fp, last_turn=last,
                                 seed_start=seed, games=offset+batch, smoke=smoke,
                                 curve_sha256=hashlib.sha256(CURVE.read_bytes()).hexdigest(),
-                                calibration_profile=profile if split == "train" else "legacy-v1",
+                                calibration_profile=profile if (consistent_profile or split == "train") else "legacy-v1",
                                 source_max_actions_per_turn=80,
                                 rules_config=json.loads(E.Game(seed=0).state_json())["cfg"],
                                 validation=dict(checked=total, accepted=total, quarantined=0))
         write_json(dest / "manifest.json", manifests[split])
     audit = strict_audit(out, manifests, smoke)
     write_json(out / "report.json", dict(complete=True, smoke=smoke, splits=manifests,
-               calibration_profile=profile, fresh_generation=True, strict_audit=audit))
+               calibration_profile=profile, profile_consistent=bool(consistent_profile),
+               seed_base=seed_base, rounds=rounds, fresh_generation=True, strict_audit=audit))
 
 
 def strict_audit(out, manifests, smoke, splits=SPLITS):
@@ -248,5 +250,14 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--profile", choices=("legacy-v1", "economy-window-v2"), default="legacy-v1")
+    parser.add_argument("--seed-base", type=int, default=3000000)
+    parser.add_argument("--train-games", type=int, default=2048)
+    parser.add_argument("--dev-games", type=int, default=256)
+    parser.add_argument("--test-games", type=int, default=256)
+    parser.add_argument("--rounds", type=int, default=4)
+    parser.add_argument("--consistent-profile", action="store_true")
     args = parser.parse_args()
-    build(args.out, args.workers, args.smoke, args.profile)
+    if args.seed_base < 0 or min(args.train_games, args.dev_games, args.test_games) < 1 or args.rounds < 1:
+        parser.error("seed-base/游戏数/轮数必须为正")
+    build(args.out, args.workers, args.smoke, args.profile, args.seed_base,
+          (args.train_games, args.dev_games, args.test_games), args.rounds, args.consistent_profile)

@@ -695,3 +695,47 @@ fn last_one_recruit_improvement_survives_triple_and_turn_but_combat_growth_does_
     assert_eq!(g.players[0].board[0].atk, i32::MAX);
     assert_eq!(g.players[0].board[0].counter, i32::MAX);
 }
+
+#[test]
+fn jar_of_gems_triggers_once_per_combat_on_the_first_quilboar_attack() {
+    let mut g = fixture(370322);
+    trinket(&mut g, "BG30_MagicItem_546");
+    set_board(&mut g, 0, &["BG33_886", "BG20_100"]);
+    set_board(&mut g, 1, &["BG36_345"]);
+    {
+        let mut c = combat_ctx(&mut g);
+        let (q1, q2, dummy) = (
+            c.boards[0][0].eid,
+            c.boards[0][1].eid,
+            c.boards[1][0].eid,
+        );
+        // "After a friendly Quilboar attacks" must wait for AttackDone: the attack itself
+        // resolves first, and it is not the "whenever attacks" (Attacks) event.
+        c.emit(hsbg_engine::event::Event::Attacks {
+            side: 0,
+            attacker: q1,
+            defender: dummy,
+        });
+        assert_eq!(c.minion(q1).unwrap().gems, 0);
+        let attack_done = |c: &mut hsbg_engine::engine::Ctx<'_>, attacker| {
+            c.emit(hsbg_engine::event::Event::AttackDone { side: 0, attacker });
+        };
+        // A non-Quilboar attack does not use up the once-per-combat trigger.
+        attack_done(&mut c, dummy);
+        assert_eq!(c.minion(q1).unwrap().gems, 0);
+        attack_done(&mut c, q1);
+        assert_eq!(c.minion(q1).unwrap().gems, 1);
+        assert_eq!(c.minion(q2).unwrap().gems, 1);
+        // A second friendly Quilboar attack in the same combat does nothing.
+        attack_done(&mut c, q2);
+        assert_eq!(c.minion(q1).unwrap().gems, 1);
+        assert_eq!(c.minion(q2).unwrap().gems, 1);
+    }
+    // A new combat gets its own once-per-combat allowance.
+    {
+        let mut c = combat_ctx(&mut g);
+        let q1 = c.boards[0][0].eid;
+        c.emit(hsbg_engine::event::Event::AttackDone { side: 0, attacker: q1 });
+        assert_eq!(c.minion(q1).unwrap().gems, 1);
+    }
+}

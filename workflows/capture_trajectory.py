@@ -69,8 +69,14 @@ def main() -> int:
     ap.add_argument("--min-frames", type=int, default=2,
                     help="至少多少帧才保留这条轨迹")
     ap.add_argument("--max-steps", type=int, default=20000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40,
-                    help="单座位单回合决策上限，超限强制 EndTurn（与训练一致，防 Play/Cancel 循环）")
+    ap.add_argument("--max-actions-per-turn", type=int, default=80,
+                    help="单座位单回合决策上限，超限强制 EndTurn（与训练一致）")
+    ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
+                    help="1=模型驱动时启用换位去抖守卫")
+    ap.add_argument("--move-cap", type=int, default=5,
+                    help="每回合换位上限")
+    ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
+                    help="1=模型驱动时始终移除 Cancel")
     ap.add_argument("--emit-snapshots", type=int, default=0,
                     help="1=额外采集回合末场面快照 snap_*.json.gz（默认关）")
     ap.add_argument("--snap-dir", default="",
@@ -81,6 +87,9 @@ def main() -> int:
                     help="牌面至少几只随从才记录快照（1=空场面不记）")
     ap.add_argument("--out", default="runs/library/traj")
     args = ap.parse_args()
+    if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
+            or int(args.move_cap) != 5 or int(args.forbid_cancel) != 1):
+        ap.error("强制动作规则：max-actions=80, move-guard=1, move-cap=5, forbid-cancel=1")
 
     if not engine_available():
         print("[error] hsbg_engine 不可用", file=sys.stderr)
@@ -98,6 +107,7 @@ def main() -> int:
     evaluator = None
     model = None
     meta: dict = {}
+    guard = None
     if driver == "model":
         if not str(args.checkpoint):
             print("[error] --driver model 需要 --checkpoint", file=sys.stderr)
@@ -108,6 +118,9 @@ def main() -> int:
         model, meta = load_checkpoint(args.checkpoint, device=args.device)
         evaluator = PPOEvaluator(model, device=args.device,
                                  norm_mean=meta.get("norm_mean"), norm_std=meta.get("norm_std"))
+        if int(args.move_guard):
+            from hsbg.az.train.move_guard import MoveGuard
+            guard = MoveGuard(cap=int(args.move_cap), repeat_limit=2, hard_cap=True)
 
     rng = np.random.default_rng(int(args.seed))
     t0 = time.time()
@@ -116,6 +129,8 @@ def main() -> int:
     for gi in range(int(args.games)):
         seed_i = int(args.seed) + gi
         game = E.Game(seed=seed_i)
+        if guard is not None:
+            guard.clear_state()
         frames, pending_actions = [], []
         snaps = []
         cur_turn = int(game.turn)
@@ -129,16 +144,28 @@ def main() -> int:
                     continue
                 acted = True
                 mask = mask_from_bytes(game.legal_mask(p))
+                guard_forced = False
                 if driver == "model":
-                    f, c = obs_arrays(game.observe(p))
-                    logits, _v = evaluator.logits(f, c, mask)
-                    probs = masked_probs_np(logits[0], mask, float(args.temperature))
-                    legal = np.flatnonzero(mask)
-                    if legal.size == 0:
+                    if int(args.forbid_cancel):
+                        from hsbg.az.train.pending_guard import without_cancel
+                        mask = without_cancel(mask)
+                    if guard is not None:
+                        mask, guard_forced = guard.guarded_mask(
+                            mask, game_id=seed_i, seat=p, turn=int(game.turn))
+                    if not bool(mask.any()):
+                        raise RuntimeError(f"no legal non-cancel action seed={seed_i} seat={p} turn={game.turn}")
+                    if guard_forced:
                         a = 0
                     else:
-                        probs = probs / max(float(probs.sum()), 1e-12)
-                        a = int(rng.choice(probs.size, p=probs))
+                        f, c = obs_arrays(game.observe(p))
+                        logits, _v = evaluator.logits(f, c, mask)
+                        probs = masked_probs_np(logits[0], mask, float(args.temperature))
+                        legal = np.flatnonzero(mask)
+                        if legal.size == 0:
+                            a = 0
+                        else:
+                            probs = probs / max(float(probs.sum()), 1e-12)
+                            a = int(rng.choice(probs.size, p=probs))
                 else:
                     a = int(game.bot_action(p))
                 key = (int(p), int(game.turn))
@@ -156,7 +183,10 @@ def main() -> int:
                     else:
                         fr["source_game_seed"] = int(seed_i)
                         snaps.append(fr)
+                turn_before = int(game.turn)
                 game.step(int(p), int(a))
+                if guard is not None:
+                    guard.note_action(int(a), game_id=seed_i, seat=p, turn=turn_before)
                 pending_actions.append([int(p), int(a)])
                 steps += 1
                 if game.is_over():

@@ -1,8 +1,11 @@
 # 双模型 + 6 bot 配对评测（eval-duel）
 
+> 状态：协议参考。本文的固定 7357 vs 10004、128 局结果属于历史示例，不能与新一轮 pairwise Elo 混榜。  
+> 当前阶段计划见 [ELO_EVAL.md](ELO_EVAL.md)；NUS 评测流程见 [nus/EVAL_DEPLOYMENT.md](nus/EVAL_DEPLOYMENT.md)。
+
 本文定义「两个训练好的模型 + 6 个引擎启发式 bot、128 局、每回合 80 动作 / 5 换位」这套评测的
 **协议、口径、门禁与产物**。入口是 `workflows/eval_two_models_six_bots.py`，规则参数在
-`config/eval-duel-7357-vs-10004.json`，NUS 提交见 [docs/nus/EVAL_DUEL_DEPLOYMENT.md](nus/EVAL_DUEL_DEPLOYMENT.md)。
+`config/eval-duel-7357-vs-10004.json`，NUS 提交见 [docs/nus/EVAL_DEPLOYMENT.md](nus/EVAL_DEPLOYMENT.md)。
 
 被测对象：
 

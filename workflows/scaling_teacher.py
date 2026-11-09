@@ -109,7 +109,7 @@ def _rollout(job) -> dict:
     model, meta = load_checkpoint(ckpt, device=device)
     ev = PPOEvaluator(model, device=device, norm_mean=meta.get("norm_mean"),
                       norm_std=meta.get("norm_std"))
-    policy = PPOGreedyPolicy(ev, max_actions_per_turn=40)
+    policy = PPOGreedyPolicy(ev, max_actions_per_turn=80)
     teacher = ScalingTeacher()
     game = E.Game(seed=int(seed))
     rows = []

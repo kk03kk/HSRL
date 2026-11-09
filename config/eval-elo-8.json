@@ -1,0 +1,109 @@
+{
+  "schema": "hsai.eval-elo-config/v1",
+  "note": "8 个代表性模型、2 model + 6 engine bot、28 对 × 64 局、pairwise Bradley-Terry Elo。改动任何影响可比性的字段都会改变 protocol_sha256。",
+  "status": "prepared-awaiting-launch-confirmation",
+  "engine": {
+    "game_version": "37.0.2.256589",
+    "source_hash": "c4c71014e3d41760",
+    "cards": 3983,
+    "engine_cards_sha256": "7a02d10794cf80c56fa77b1dd235d49b892c8d3e31c2cf56887f696e2cf922a6",
+    "vocab_sha256": "5041e83d810e846b3cbc7d7ff056b84e301472d6ff021ffd1971a18a248e05fb",
+    "n_actions": 245,
+    "obs_floats": 3227,
+    "obs_cards": 124
+  },
+  "models": [
+    {
+      "id": "m4159",
+      "label": "历史基线 4159",
+      "source_path": "artifacts/runs/nus-4159-economy-long-002/initial-state/model.pt",
+      "path": "artifacts/models/elo-8/models/m4159/model.pt",
+      "file_sha256": "110e03305bdbd058d510dbc28f59d0afbc242fd033de8ad4441c10111dd2a334",
+      "bytes": 67862268
+    },
+    {
+      "id": "m1080772-v7357",
+      "label": "当前批准起点/主基线 7357",
+      "source_path": "artifacts/runs/nus-4159-economy-long-002/milestones/decisions-558819917/model.pt",
+      "path": "artifacts/models/elo-8/models/m1080772-v7357/model.pt",
+      "file_sha256": "60594db00a627884d47afd4a326639ab9b1fa7c48eb88618399051d971dcff82",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1080772-v7710",
+      "label": "1080772 末段 7710",
+      "source_path": "artifacts/runs/nus-4159-economy-long-002/last-committed/step_007710/model.pt",
+      "path": "artifacts/models/elo-8/models/m1080772-v7710/model.pt",
+      "file_sha256": "1f63d7446b4e7332e5d383797a01497d50180fd69943954ba6847747d8c03ae2",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1085131-v9786",
+      "label": "live-v1 点估计最佳 9786",
+      "source_path": "artifacts/runs/p50-7357-long-001/milestones/decisions-798873732/model.pt",
+      "path": "artifacts/models/elo-8/models/m1085131-v9786/model.pt",
+      "file_sha256": "988fdc7fedb8fc8d794b5db00914e58a69754900c3a3d7bc55e2745d608bd2a3",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1085131-v10004",
+      "label": "1085131 末段 10004",
+      "source_path": "artifacts/runs/p50-7357-long-001/last-committed/step_010004/model.pt",
+      "path": "artifacts/models/elo-8/models/m1085131-v10004/model.pt",
+      "file_sha256": "32ec7a5c249fd8591ccda4d40100cbb76664f2f20ffe1ebda6011ea02f428a4a",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1095539-v7641",
+      "label": "当前 run 30M 7641",
+      "source_path": "artifacts/runs/p50-forced-tier-long-20261108-135823/milestones/decisions-588873732/model.pt",
+      "path": "artifacts/models/elo-8/models/m1095539-v7641/model.pt",
+      "file_sha256": "52bcddbb7ea0a3e7c3c322ac4247b92e0f88371d57427dc30e9fb6b227977642",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1095539-v9595",
+      "label": "当前 run 240M 9595",
+      "source_path": "artifacts/runs/p50-forced-tier-long-20261108-135823/milestones/decisions-798873732/model.pt",
+      "path": "artifacts/models/elo-8/models/m1095539-v9595/model.pt",
+      "file_sha256": "caf0fe568f0ef4d2a61b033e4e28e3097b0aaa4d155bb06b93a68b934010c6d4",
+      "bytes": 67864188
+    },
+    {
+      "id": "m1095539-v9691",
+      "label": "当前 run final 9691",
+      "source_path": "artifacts/runs/p50-forced-tier-long-20261108-135823/last-committed/step_009691/model.pt",
+      "path": "artifacts/models/elo-8/models/m1095539-v9691/model.pt",
+      "file_sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+      "bytes": 67864188
+    }
+  ],
+  "games_per_pair": 64,
+  "seed_base": 88000000,
+  "decode": "greedy",
+  "max_actions_per_turn": 80,
+  "move_cap": 5,
+  "move_repeat_limit": 2,
+  "max_steps": 50000,
+  "collect_opponents": false,
+  "bootstrap": 2000,
+  "bootstrap_seed": 20261109,
+  "elo_anchor": "m1080772-v7357",
+  "elo_anchor_score": 1500.0,
+  "elo_scale": 173.71779587192057,
+  "opponents": {
+    "kind": "engine_bot",
+    "count": 6,
+    "action": "game.bot_play"
+  },
+  "seat_schedule": {
+    "description": "每对 64 局；前 32 局 A=seat k%8, B=seat (k+1)%8；后 32 局交换。每个模型在每个座位 8 局。",
+    "block_games": 32,
+    "seats": 8
+  },
+  "primary_statistic": "P50(sum_attack+sum_health) per end-of-turn board",
+  "forced_tier_plan": "",
+  "mirror_pool": null,
+  "human_board_pool": null,
+  "elo_l2": 0.01
+}

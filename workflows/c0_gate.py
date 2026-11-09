@@ -158,7 +158,7 @@ def main() -> int:
                     help="独立封存面板数；正式 gate 必须 >=2")
     ap.add_argument("--bootstrap", type=int, default=5000)
     ap.add_argument("--max-steps", type=int, default=50000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=40)
+    ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--smoke", action="store_true",
                     help="开发自检：小样本、单面板，不产生晋级结论")
     ap.add_argument("--out", default="")

@@ -142,6 +142,19 @@ def test_probability_gate_writes_teacher_instead_of_force():
     assert t.forced_actions == 0
 
 
+def test_probability_gate_honors_teacher_cutoff():
+    rng = np.random.default_rng(0)
+    t = ForcedTierTracker("2:2", carry=0)
+    d = t.decide(game_id=1, seat=0, turn=2, tier=1, upgrade_legal=True,
+                 force_prob=0.0, rng=rng, teacher_enabled=False)
+    assert not d.force and not d.teacher
+    assert t.teacher_labels == 0 and t.prob_skips == 1
+    # 截止后仍允许 prob=1 的强制动作（教师只影响标签，不影响强制课程）
+    d2 = t.decide(game_id=2, seat=0, turn=2, tier=1, upgrade_legal=True,
+                  force_prob=1.0, rng=rng, teacher_enabled=False)
+    assert d2.force and t.teacher_labels == 0
+
+
 def test_probability_one_always_forces():
     rng = np.random.default_rng(0)
     t = ForcedTierTracker("2:2", carry=0)
@@ -305,6 +318,17 @@ def test_policy_teacher_label_when_prob_zero():
     assert rec["forced"] is False
     assert rec.get("teacher_action") == UPGRADE_ACTION
     assert pol.forced_tier_game_meta()["targets"]["2"]["forced_actions"] == 0
+
+
+def test_policy_teacher_cutoff_stops_labels():
+    pol = _make_policy("2:2", prob=0.0, teacher=False)
+    g = _FakeGame(turn=2, tier=1)
+    pol.game_id = 1
+    pol.decide(g, 0)
+    rec = pol.records[-1]
+    assert rec["forced"] is False
+    assert "teacher_action" not in rec or rec.get("teacher_action") == -1
+    assert pol.forced_tier_meta()["teacher_labels"] == 0
 
 
 def test_policy_disabled_is_byte_identical():
