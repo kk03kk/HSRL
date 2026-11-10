@@ -1,0 +1,12 @@
+{
+  "schema": "hsai.live-engine/v1",
+  "expected_source_hash": "c4c71014e3d41760",
+  "db_info": [3983, "37.0.2.256589", "37.0.2"],
+  "wheel": "artifacts/local/wheels/hsbg_engine-1.0.0-cp310-abi3-win_amd64.whl",
+  "wheel_sha256": "524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f",
+  "built_on": "local-windows (MSVC 14.50.35717, rustc 1.98.1, maturin 1.16.0)",
+  "built_at": "2026-11-10T22:54:26+0800",
+  "matches_server": true,
+  "require_match": false,
+  "note": "S3 deployment build. Server owns the source; this file only pins what the live bridge expects. Set require_match=true to make doctor/autoplay refuse a mismatched build."
+}
