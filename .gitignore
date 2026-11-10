@@ -26,6 +26,7 @@ client/plugin/obj/
 *.onnx
 *.tar
 *.tar.gz
+*.tgz
 *.zip
 *.7z
 *.log
@@ -43,6 +44,9 @@ records/research/long1080772/*
 !records/research/long1080772/*.csv
 workspace.json
 workspace-tree.txt
+# 本机另一个 agent 工具的配置（不属于 HSAI，已归档到 records/archive/local-tooling-soclaas）
+soclaas*.json
+soclaas*.toml
 # 凭据与编辑器私人设置
 .ssh/
 *.pem

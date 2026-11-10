@@ -1,0 +1,234 @@
+{
+ "schema": "hsai.sync-manifest/v1",
+ "side": "local",
+ "generated_at": "2026-11-10 18:05:14",
+ "root": "D:\\HSAI",
+ "notes": "final: three-end reorg + docs rewrite",
+ "git": {
+  "head": "e4d4dfc3c69d30bc10802c7a193861f448b0be52",
+  "branch": "main",
+  "dirty": true,
+  "changed": 63,
+  "origin": "https://github.com/kk03kk/HSRL.git"
+ },
+ "env": {
+  "python": "3.13.5",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "machine": "AMD64",
+  "torch": "2.13.0",
+  "numpy": "2.4.0",
+  "pytest": "8.4.1",
+  "maturin": "1.16.0",
+  "rapidocr": "3.10.0",
+  "onnxruntime": "1.31.1"
+ },
+ "trees": {
+  "engine": {
+   "exists": true,
+   "files": 152,
+   "bytes": 4805816,
+   "newest": "2026-11-09 18:45:49"
+  },
+  "hsbg": {
+   "exists": true,
+   "files": 137,
+   "bytes": 3581860,
+   "newest": "2026-11-09 23:34:14"
+  },
+  "client": {
+   "exists": true,
+   "files": 247,
+   "bytes": 6362354,
+   "newest": "2026-11-10 15:17:50"
+  },
+  "workflows": {
+   "exists": true,
+   "files": 121,
+   "bytes": 2486127,
+   "newest": "2026-11-09 18:55:52"
+  },
+  "tools": {
+   "exists": true,
+   "files": 41,
+   "bytes": 446685,
+   "newest": "2026-11-10 17:59:10"
+  },
+  "tests": {
+   "exists": true,
+   "files": 93,
+   "bytes": 2015019,
+   "newest": "2026-11-10 14:40:37"
+  },
+  "deploy": {
+   "exists": true,
+   "files": 28,
+   "bytes": 35089,
+   "newest": "2026-11-09 18:45:49"
+  },
+  "config": {
+   "exists": true,
+   "files": 24,
+   "bytes": 140293,
+   "newest": "2026-11-10 02:13:11"
+  },
+  "data": {
+   "exists": true,
+   "files": 20,
+   "bytes": 7944015,
+   "newest": "2026-11-06 01:03:38"
+  },
+  "docs": {
+   "exists": true,
+   "files": 16,
+   "bytes": 92575,
+   "newest": "2026-11-10 18:03:43"
+  }
+ },
+ "artifacts": {
+  "models": {
+   "exists": true,
+   "files": 205,
+   "bytes": 9632607261,
+   "newest": "2026-11-09 14:08:33"
+  },
+  "libraries": {
+   "exists": true,
+   "files": 196,
+   "bytes": 360353098,
+   "newest": "2026-11-06 01:41:13"
+  },
+  "datasets": {
+   "exists": true,
+   "files": 7549,
+   "bytes": 3643831696,
+   "newest": "2026-11-06 14:58:37"
+  },
+  "imports": {
+   "exists": true,
+   "files": 267,
+   "bytes": 3860069105,
+   "newest": "2026-11-08 01:26:14"
+  },
+  "archives": {
+   "exists": true,
+   "files": 25,
+   "bytes": 3383843908,
+   "newest": "2026-11-06 01:42:31"
+  },
+  "runs": {
+   "exists": true,
+   "files": 1056,
+   "bytes": 1432197243,
+   "newest": "2026-11-10 15:14:22"
+  },
+  "local": {
+   "exists": true,
+   "files": 3112,
+   "bytes": 2782124608,
+   "newest": "2026-11-10 13:52:38"
+  },
+  "client": {
+   "exists": true,
+   "files": 4,
+   "bytes": 31750128,
+   "newest": "2026-11-06 12:23:12"
+  }
+ },
+ "pins": {
+  "config/live/model.json": {
+   "bytes": 856,
+   "sha256": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d"
+  },
+  "config/live/autoplay-255790.json": {
+   "bytes": 32991,
+   "sha256": "b8ea2eb13e415940ddbb17d90a79a97b8ab9ed031e63d08e2dd779615ac830fc"
+  },
+  "config/engine-upstream-lock.json": {
+   "bytes": 24468,
+   "sha256": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683"
+  },
+  "config/eval-elo-8.json": {
+   "bytes": 4419,
+   "sha256": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18"
+  },
+  "data/card_zhcn.json": {
+   "bytes": 3681957,
+   "sha256": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc"
+  },
+  "data/bg_cards.json": {
+   "bytes": 1318166,
+   "sha256": "f01b1fa509020323b3fdc64369ea3afb53e218bffd2c154463ef21ffd8d00768"
+  },
+  "pyproject.toml": {
+   "bytes": 713,
+   "sha256": "b7a12f24abfaa04d418b585cf5daea4a5d4989db58d805338e6edce118b40615"
+  },
+  "requirements.txt": {
+   "bytes": 71,
+   "sha256": "b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d"
+  },
+  "artifacts/models/v1.1/model.pt": {
+   "bytes": 67864188,
+   "sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e"
+  },
+  "artifacts/models/v1.1/manifest.json": {
+   "bytes": 1761,
+   "sha256": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976"
+  },
+  "artifacts/models/v1.1/checkpoint.json": {
+   "bytes": 276,
+   "sha256": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21"
+  },
+  "artifacts/models/library-v1/manifest.json": {
+   "bytes": 155318,
+   "sha256": "db4b575df127eb789338ef7bfb3206aedd85312172d4915b72dfedb7f109622f"
+  },
+  "artifacts/models/library-v1/SHA256SUMS.txt": {
+   "bytes": 4736,
+   "sha256": "50e64c790dc0f31a0cc30cc5a9cf7e0d73597c8eb937cdfac7d6eb1b1bd7078d"
+  },
+  "artifacts/models/leaderboard-v1/manifest-2026-11-09.json": null
+ },
+ "problems": [
+  {
+   "check": "engine manifest",
+   "path": "D:\\HSAI\\engine\\crates\\hsbg-engine\\Cargo.toml",
+   "exists": true
+  },
+  {
+   "check": "card table",
+   "path": "D:\\HSAI\\data\\bg_cards.json",
+   "exists": true
+  },
+  {
+   "check": "zh card table",
+   "path": "D:\\HSAI\\data\\card_zhcn.json",
+   "exists": true
+  },
+  {
+   "check": "live profile",
+   "path": "D:\\HSAI\\config\\live\\autoplay-255790.json",
+   "exists": true
+  },
+  {
+   "check": "live model",
+   "path": "D:\\HSAI\\artifacts\\models\\v1.1\\model.pt",
+   "exists": true
+  },
+  {
+   "check": "bot library",
+   "path": "D:\\HSAI\\artifacts\\models\\library-v1\\manifest.json",
+   "exists": true
+  },
+  {
+   "check": "engine lock",
+   "path": "D:\\HSAI\\config\\engine-upstream-lock.json",
+   "exists": true
+  },
+  {
+   "check": "game dir",
+   "path": "D:\\Hearthstone",
+   "exists": true
+  }
+ ]
+}

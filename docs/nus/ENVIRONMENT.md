@@ -90,4 +90,4 @@ records/                       原始证据与归档
 docs/                          当前文档
 ```
 
-历史实验、旧部署和本地 Windows 说明已归档到 `records/archive/docs-2026-11-09/`，不能作为当前命令使用。
+历史实验、旧部署和本地 Windows 说明已归档到 `records/archive/`（按 `<topic>-<YYYYMMDD>/` 组织），不能作为当前命令使用。

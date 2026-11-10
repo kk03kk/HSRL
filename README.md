@@ -1,118 +1,110 @@
 # HSAI
 
-HSAI 是一个面向 Hearthstone Battlegrounds 的强化学习与评测工作区，基于 AutoTavern / HSBRSIM 的 Rust 模拟器和 `hsbg/az` 训练栈，进行实体网络、BC/PPO、固定 Bot 库评测和实机桥接研究。不是从零原创的模拟器。
-
-当前项目已经运行在 NUS 服务器上：
-
-```text
-~/projects/HSAI
-```
-
-**代理直接在 NUS 登录节点工作，所有开发、测试、评测、训练、Slurm 提交与监控都在服务器完成，不再需要本地传权重或回传结果。** 用户只负责大方向，代理自主规划和执行。
-
-## 当前阶段
-
-更新：2026-11-09
-
-- 1095539 强制升本长训已完成：累计 `810,501,828` 决策，`time_budget` 停止。
-- 11 个代表模型已在 live-v1/dev 完成 512 局评测；**没有任何模型显著优于 7357**。
-- live-v1 点估计最佳：`m1085131-v9786`（3.799）；当前 run 最佳：30M `v7641`（3.930）。
-- 当前 final `v9691` 为 3.965；240M `v9595` 在 p50 96 局最好，但 live-v1 排 8/11。
-- A/B `1098924` 已按用户要求取消，没有产生结果。
-- 2026-11-09 完成 37.0.2 模拟器规则审计：修复 `Jar o' Gems` 每战斗触发次数错误；Rust 942 passed / 0 failed / 1 ignored。
-- 2026-11-09 旧战团库已全部归档；8 模型 pairwise Elo 配置、权重 staging/审计、16 局冒烟已完成；正式 1,792 局等待启动确认。
-
-当前状态与结论见 [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
-
-## 从这里开始
-
-1. [docs/README.md](docs/README.md)：当前文档索引。
-2. [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)：当前作业、模型结论、下一步。
-3. [docs/SIMULATOR_AUDIT_2026-11-09.md](docs/SIMULATOR_AUDIT_2026-11-09.md)：37.0.2 模拟器审计报告。
-4. [docs/ELO_EVAL.md](docs/ELO_EVAL.md)：2 model + 6 bot pairwise Elo 方案。
-5. [docs/EVAL_DUEL.md](docs/EVAL_DUEL.md)：2 model + 6 bot 对局协议。
-6. [docs/nus/ENVIRONMENT.md](docs/nus/ENVIRONMENT.md)：NUS 环境、Slurm、GPU、恢复。
-7. `AGENTS.md`：代理工作方式和硬约束。
-
-## 当前技术口径
-
-- 模拟器：`engine/`，酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`。
-- 原生动作：**245**；Python 扩展声明 274，但不能使用引擎未实现的后 29 维。
-- 观测：**3227 floats + 124 cards**。
-- 模型：16.44M entity 网络；必须在词表顺序、动作语义、布局、卡表和指纹上兼容。
-- 训练主线：一个学习席位 + 七个严格 EOT 快照席位，`sims=0`；不把搜索/BC/旧客户端当成当前训练栈。
-- 当前续训起点：**7357 完整 Trainer**（累计 `558,873,732`、Adam `545,990`）；完整 Trainer 包含 Adam、调度器、RNG、anchor 和累计计数，权重文件不能代替。
-- 当前评测：live-v1/dev 固定 512 局；p50 只做辅助；不同 `protocol_sha256` 不能混榜。
-- 下一阶段：2 model + 6 bot pairwise Elo，方案见 [docs/ELO_EVAL.md](docs/ELO_EVAL.md)。
-
-## 工作区结构
+Hearthstone Battlegrounds 的强化学习 + **真实游戏自动化**工作区。模拟器基于
+AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），训练与评测在 NUS 服务器完成，
+实机桥接与真实对局验证在本地 Windows 完成，代码与文档经 GitHub 同步。
 
 ```text
-engine/      Rust 游戏规则、战斗、快照事务、PyO3 接口和当前卡表
-hsbg/        观测/动作、网络、BC/PPO、并行采集、SHM、评测
-workflows/   建库、迁移、训练、评测、实验入口
-deploy/      NUS Slurm 入口与计算节点脚本
-config/      训练/评测配置与源码锁
-data/        兼容静态数据；不能覆盖当前引擎卡表
-client/      实机桥接；public-approx，不等价于模拟器精确状态
-tests/       契约、规则和离线回归
-artifacts/   模型、库、运行输出；不入 Git
-records/     原始证据、迁移记录、研究归档
-docs/        当前有效文档；历史文档在 records/archive
-README.md    本文件
-AGENTS.md    代理工作方式
+本地 Windows (D:\HSAI)  ──push/pull──  GitHub kk03kk/HSRL  ──pull/push──  NUS ~/projects/HSAI
+  代码开发 / 模拟器维护 / 实机桥接            唯一代码与文档真源              训练 / 评测 / 建库 / 数据生成
+  真实对局验证 / 证据留存                     （不含任何大文件）              服务器侧 Agent
 ```
 
-## NUS 运行约束
+## 当前状态（2026-11-10）
 
-登录节点只有约 **1 GiB 虚拟内存**。重任务只能在 Slurm 计算节点：
+- 模拟器：酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`，原生动作 **245**，观测 **3227 floats + 124 cards**。
+- 训练：`1095539` 强制升本长训已完成（`810,501,828` 决策，`time_budget` 停止）；**按服务器侧记录当前没有正式训练/评测作业（未能在线核实，见 `docs/sync/SERVER.md`）**。
+- 评测结论：live-v1 512 局里**没有任何模型显著优于 7357**；点估计最佳 `v9786`（3.799），当前 run 最佳 30M `v7641`（3.930）。
+- 实机：V1.1 已在真实酒馆战棋完成 **7 局夜间测试 + 6 次 D 阶段 canary**（含 2 局完整对局、1 局冠军）；
+  夜间审计见 [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md)。
+- 下一阶段：**E 阶段连续实机验收（待用户授权）**；pairwise Elo 1,792 局等待启动确认。
 
-- 可以：Git、`sbatch/sacct/squeue`、`tail`、小 JSON 标准库读取。
-- 不可以：`pytest`、Torch、模型加载、Rust 编译、pip 构建、建库、训练、大型 JSON 解析。
+详细状态：[docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
 
-作业规则：
+## 目录结构
 
-- 只用 `sbatch`，作业内不要包 `srun`。
-- 不 unset / 不手工改 `CUDA_VISIBLE_DEVICES`；GPU 设备以原始 Driver UUID 和实际计算证明为准。
-- 新作业使用新输出目录；已存在且非空的目录拒绝覆盖。
-- 排队/运行期间冻结代码、依赖、引擎、库和权重。
-- 工程错误严格失败；正常棋力波动记录但不自动止损。
+| 目录 | 内容 | 进 Git |
+|---|---|:--:|
+| `engine/` | Rust 模拟器 `hsbg-engine`、37.0.2 卡表、规则测试 | ✅ |
+| `hsbg/` | 观测/动作编码、网络、BC/PPO、并行采集、评测 | ✅ |
+| `client/` | 实机桥接：`hsrl_agent/live/`（当前）、`bg_agent/`、`legacy_policy/`（历史） | ✅ |
+| `workflows/` | 建库、迁移、训练、评测入口 | ✅ |
+| `tools/` | 运维脚本（`sync_manifest.py`、`verify_workspace.py`、`live_archive_index.py`…） | ✅ |
+| `tests/` | 契约/规则/离线回归（`test_live_*.py` 覆盖实机链路） | ✅ |
+| `deploy/` | NUS `setup`、`bootstrap_nus.sh`、`slurm/*.sbatch` | ✅ |
+| `config/` | **仅当前配置**：`live/`（实机 profile + 模型 SHA）、评测、训练、引擎锁 | ✅ |
+| `data/` | 卡表、饰品、池、archetype | ✅ |
+| `docs/` | 当前有效文档（索引见 [docs/README.md](docs/README.md)） | ✅ |
+| `records/` | 证据、迁移、源文档快照、研究摘要（`research/long*` 例外） | ❌ |
+| `artifacts/` | 模型、战团库、数据集、运行产物（`runs/live-*` = 实机证据） | ❌ |
 
-## 当前结果摘要
+> 根目录只允许 `README.md AGENTS.md pyproject.toml requirements.txt .gitignore .gitattributes`。
 
-| 模型 | live-v1 512 mean rank | 说明 |
-|---|---:|---|
-| `m1085131-v9786` | **3.799** | 点估计最佳，不显著优于 7357 |
-| `m1080772-v7357` | **3.828** | 稳健基线 |
-| `m1095539-v7641` 30M | 3.930 | 当前 run live 最佳 |
-| `m1095539-v9691` final | 3.965 | 当前 final |
-| `m1095539-v9595` 240M | 4.107 | p50 96 局最佳，但 live 差 |
-| `m1095539-v7936` 60M | 4.557 | 已确认灾难点 |
+## 快速开始
 
-完整排行榜：
+### 本地（Windows，代码/测试）
 
-```text
-artifacts/models/leaderboard-v1/reports/20261109-live-v1.json
+```powershell
+python -m venv .venv && .\.venv\Scripts\activate
+pip install -r requirements.txt          # numpy / torch / pytest / maturin
+python tools/verify_workspace.py         # BOM、源指纹、卡表、契约门禁
+python -m pytest tests/test_live_*.py -q # 实机链路离线回归
 ```
 
-## 文档与归档
+### 实机（真实游戏自动化）
 
-- 根目录只保留 `README.md` 和 `AGENTS.md`。
-- `docs/` 只放当前有效文档，索引见 [docs/README.md](docs/README.md)。
-- 历史文档与旧部署已归档到：
+前置：`D:\Hearthstone` 安装正确（`Hearthstone.exe` 与 profile SHA 一致）、游戏已登录并停在大厅、
+分辨率 2560×1600 / DPI 144。
 
-```text
-records/archive/docs-2026-11-09/
+```powershell
+python client/live_245.py doctor --game-dir D:\Hearthstone --infer
+python client/live_245.py autoplay --game-dir D:\Hearthstone `
+    --out artifacts/runs/live-<purpose>-<date>-001 --seconds 3600 --games 1
 ```
 
-- 运行产物在 `artifacts/`；原始证据在 `records/`。归档文档不是当前启动命令。
+- `--games 0` = 直到 STOP/F8；`--games N` = N 局（失败按 `--max-failures` / `--max-same-failure` 预算处理）。
+- 每局产物：`decisions.jsonl`、`decisions-full.jsonl.gz`、`actions.jsonl`、`summary.json`、`performance.json`、
+  `status.json`、`health.json`、`result.json`、`session-archives/`（Power.log 字节前缀）。
+- 审计：`python tools/audit_live_run.py --run artifacts/runs/<dir> --out <json>`。
 
-## 当前下一步
+### 服务器（NUS，训练/评测）
 
-1. 用户确认 `config/eval-elo-8.json`、8 个模型 SHA、engine `c4c71014e3d41760` 和协议 SHA `837231e0...`。
-2. 启动 `sbatch deploy/slurm/elo_8.sbatch`（1 × H100-47、8h、28 对 × 64 局 = 1,792 局）。
-3. 监控作业；失败保留现场并用新目录重跑。
-4. 输出 pairwise Elo、bootstrap CI、两两胜率矩阵和门禁报告。
-5. 根据结果决定下一轮训练来源和配方；不把 p50、live-v1、Elo 的绝对分数混榜。
+```bash
+cd ~/projects/HSAI && git pull --rebase
+sbatch deploy/slurm/<job>.sbatch      # 作业内不要再包 srun；GPU 以原始 Driver UUID 为准
+squeue -u "$USER"; sacct -S today -X -o JobID,JobName,State,Elapsed
+```
 
-来源：[AutoTavern](https://github.com/MCG-NJU/AutoTavern)、[HSBRSIM](https://github.com/Gallo13th/HSBRSIM)。历史原作者和许可证声明保留在原始证据与源码中。
+硬约束：登录节点约 1 GiB 虚拟内存，只做 Git/`sbatch`/`tail`/小 JSON；训练、评测、建库、编译只在计算节点。
+
+### 三端同步
+
+```bash
+python tools/sync_manifest.py --side local  --out docs/sync/manifests/local.json     # Windows
+python tools/sync_manifest.py --side server --out docs/sync/manifests/server.json    # NUS
+```
+
+两份 manifest 的 diff 就是 drift 报告；协作规则见 [docs/SYNC_MODEL.md](docs/SYNC_MODEL.md)
+与 [docs/sync/README.md](docs/sync/README.md)。
+
+## 文档导航
+
+| 文档 | 说明 |
+|---|---|
+| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | 当前作业、模型结论、下一步 |
+| [docs/SYNC_MODEL.md](docs/SYNC_MODEL.md) | 三端文件管理、真源、同步与协作规范 |
+| [docs/INVENTORY_LOCAL.md](docs/INVENTORY_LOCAL.md) | 本地盘点（有什么、缺什么、待确认） |
+| [docs/sync/SERVER.md](docs/sync/SERVER.md) | 交给服务器 Agent 的盘点任务书 |
+| [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md) | V1.1 实机审计、D 阶段改造与实机验证 |
+| [docs/SIMULATOR_AUDIT_2026-11-09.md](docs/SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 模拟器规则审计 |
+| [docs/ELO_EVAL.md](docs/ELO_EVAL.md) / [docs/EVAL_DUEL.md](docs/EVAL_DUEL.md) | pairwise Elo 方案与对局协议 |
+| [docs/nus/ENVIRONMENT.md](docs/nus/ENVIRONMENT.md) | NUS 环境、Slurm、GPU、恢复 |
+
+## 项目边界
+
+- 模型/训练协议/奖励由服务器侧负责；本地不改模型权重与训练语义。
+- 实机桥接是 `public-approx-v1`：显式近似，不等价于模拟器精确状态。
+- 不修改游戏目录、不执行历史未决输入账本、不伪造 plan/checkpoint/SHA。
+- 没有用户明确要求时不提交 commit、不 push、不创建 PR。
+
+来源：[AutoTavern](https://github.com/MCG-NJU/AutoTavern)、[HSBRSIM](https://github.com/Gallo13th/HSBRSIM)，历史原作者与许可证声明保留在原始证据与源码中。

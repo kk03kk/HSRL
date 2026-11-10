@@ -1,14 +1,16 @@
 # HSAI 当前状态
 
-更新：2026-11-09 09:25 +0800  
-阶段：**37.0.2 模拟器已冻结；旧战团库已全部归档；8 模型 pairwise Elo 配置已准备，等待启动确认。**
+更新：2026-11-10 18:20 +0800
+阶段：**37.0.2 模拟器已冻结；V1.1 实机 D 阶段工程改造完成（含 6 次 canary），等待用户授权进入 E 阶段连续验收。**
 
 ## 1. 运行位置与工作方式
 
-- 活动工作区：NUS `~/projects/HSAI`。
-- 代理直接运行在 NUS 登录节点；所有开发、测试、评测、训练、Slurm 提交与监控都在服务器完成。
-- 不再使用本地 `D:\HSAI` 作为活动工作区，不需要把结果传回本地；历史本地资料只作为归档证据。
-- 用户只给大方向；代理自主规划、执行、测试、提交、监控和归档。
+- **三端分工**（详见 `docs/SYNC_MODEL.md`）：
+  - 本地 Windows `D:\HSAI`：代码开发、模拟器维护、**实机桥接与真实对局验证**、证据留存；
+  - GitHub `kk03kk/HSRL`（`main`）：唯一代码/配置/文档真源，不含大文件；
+  - NUS `~/projects/HSAI`：训练、评测、建库、数据生成，服务器侧 Agent 独立工作。
+- 本地活动工作区就是 `D:\HSAI`（2026-11-10 起恢复为双端同时活动；此前"不再使用本地"的说法已作废）。
+- 用户只给大方向；两端 Agent 各自自主规划、执行、验证、归档，通过 GitHub 的 `docs/sync/` 交换结论。
 
 ## 2. 当前作业
 
@@ -31,11 +33,11 @@
 - 240M `v9595` 会自主升本：T2 `93/93`、T5 `86/96`、T6 `43/45`、T8 `84/86`；T12 `0/48`，T14 `3/32`。它不是“不升本”，而是**前中期升得快、T12 停止**。
 - 60M 强制阶段把 T12 tier6 率推到 `74.3%`，但 T12 战团 P50 只有 `920`，live-v1 退化到 `4.557`：**高本没有转化为核心战团强度**。
 
-详细数据：
+详细数据（**服务器侧路径，本地未同步，待确认**，见 `docs/INVENTORY_LOCAL.md` §5）：
 
-- `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` §8–9
-- `artifacts/models/leaderboard-v1/reports/20261109-live-v1.json`
-- `artifacts/runs/p50-forced-tier-long-20261108-135823/`
+- `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` §8–9（server-only / 待确认）
+- `artifacts/models/leaderboard-v1/reports/20261109-live-v1.json`（server-only / 待确认）
+- `artifacts/runs/p50-forced-tier-long-20261108-135823/`（server-only / 待确认）
 
 ## 4. 当前有效资产
 
@@ -44,28 +46,38 @@
 - 主续训起点：`7357` 完整 Trainer（累计 `558,873,732`、Adam `545,990`）。
 - 当前长训：`1095539` final `68a8a587...`；240M `caf0fe56...`；30M `52bcddbb...`。
 - live-v1 点估计最佳：`v9786` `988fdc7f...`。
-- 评测 manifest：`artifacts/models/leaderboard-v1/manifest-2026-11-09.json`。
-- 文档归档：`records/archive/docs-2026-11-09/`。
+- 评测 manifest：`artifacts/models/leaderboard-v1/manifest-2026-11-09.json`（**server-only / 待确认**）。
+- 文档归档：`records/archive/`（按 `<topic>-<YYYYMMDD>/` 组织；此前文档里写的
+  `records/archive/docs-2026-11-09/` 并不存在，已修正）。
+- 三端规范：`docs/SYNC_MODEL.md`；本地盘点 `docs/INVENTORY_LOCAL.md`；
+  跨端协作区 `docs/sync/`（`LOCAL.md` 已写，`SERVER.md` 待服务器 Agent 填写）。
 - 2026-11-09 模拟器审计：37.0.2 数据/池/机制逐项核对；修复 `Jar o' Gems` 每战斗触发次数错误；新增回归测试；Rust 942 passed / 0 failed / 1 ignored；`verify_workspace` 全绿（Python 385 passed / 14 skipped）。报告见 `docs/SIMULATOR_AUDIT_2026-11-09.md`。
 - 2026-11-09 Elo 准备：8 个模型已 staging/审计（8/8 forward + card table 一致），28 对 × 64 局配置完成；16 局单对冒烟 0 非法动作/0 截断/0 引擎异常；正式协议 SHA `837231e0...`，等待启动确认。
 - 旧战团库 `artifacts/libraries/*` 已整体移动到 `records/archive/libraries-2026-11-09/`，不再使用。
 - 注意：修复改变源码指纹，旧 bot 库/评测 manifest 不能与新引擎混用；下一轮先逐帧复验旧库并发布新 manifest。
+- 2026-11-09 实机审计：上一局 61/61 已发送动作有服务端回执、无内部异常；修复悬停期无关对手状态取消点击、训练 Move 规则不一致、5 选一未标定布局、同步 JPEG 阻塞和缺少逐决策记录。报告见 `docs/LIVE_V1_1_AUDIT.md`。
+- 2026-11-10 D 阶段：新增确定性监督器（异常分级/失败预算/心跳）、批处理不再一票否决、未提交对账与已提交未采纳对账、名次稳定化（`placement_source`）、结算横幅续局、等待分类细化、归档去重索引；`tests/test_live_supervisor.py` 22 例全绿。实机 canary 已验证：完整一局第 2 名（终局名次与结果屏一致）、两次赛后续局、unsent 对账两次生效、批处理 S3 分类。细节见 `docs/LIVE_V1_1_AUDIT.md` §7。
 
 
 ## 5. 下一阶段
 
-用户已认可 2 model + 6 bot 的 pairwise Elo 方案，但要求**先完成文档整理，暂不急着评测**。
+三条线并行，**都需要用户明确授权**：
 
-当前状态：方案已记录在 `docs/ELO_EVAL.md`；runner 尚未实现，尚未提交任何 Elo 评测。
+### 5.1 实机 E 阶段（本地，最高优先级）
+D 阶段已完成并停止。E 阶段按 `docs/LIVE_V1_1_AUDIT.md` §7 的建议分两步：
+1. **E-0**：1 局 canary，确认 `retired_stale_inflight` 与 `rejected_reconciliation` 在真实对局中的行为（目前只有单测）。
+2. **E-1**：3 局连续验收，口径：S0=0、每局 S1≤2、名次字段正确、续局无需人工、后期动作速率达标。
 
-下一步（等待用户启动确认）：
+### 5.2 pairwise Elo（服务器）
+用户已认可 2 model + 6 bot 方案；runner 已实现、16 局冒烟通过，**正式 1,792 局等待启动确认**。
+0. 确认 `config/eval-elo-8.json`、8 个模型 SHA、engine `c4c71014e3d41760`、协议 SHA `837231e0...`。
+1. `sbatch deploy/slurm/elo_8.sbatch`（1 × H100-47、8h）。
+2. 输出 pairwise Elo、bootstrap CI、两两胜率矩阵、名次分布和门禁报告。
 
-0. 确认 `config/eval-elo-8.json`、8 个模型 SHA、engine `c4c71014e3d41760` 和协议 SHA `837231e0...`。
-1. 启动 `sbatch deploy/slurm/elo_8.sbatch`（1 × H100-47、8h、1,792 局）。
-2. 审计 8 份 `model.pt` 的 SHA、架构、卡表、前向。
-3. 先跑 16 局冒烟。
-4. 再跑正式 28 对 × 64 局 = 1,792 局。
-5. 输出 pairwise Elo、bootstrap CI、两两胜率矩阵、名次分布和门禁报告。
+### 5.3 三端核对（本地 + 服务器，本轮新增）
+1. 本地已完成盘点与目录整理（`docs/INVENTORY_LOCAL.md`）。
+2. 服务器 Agent 按 `docs/sync/SERVER.md` 盘点并填写 `SERVER.md` + `manifests/server.json`。
+3. 双方在 `docs/sync/DECISIONS.md` 冻结规范，再决定迁移/清理动作。
 
 ## 6. 硬约束
 
