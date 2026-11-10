@@ -14,7 +14,17 @@ CHAMPION_SHA256='0efb6e356300e4e1a23e0f385e048315d21e6fa2b999b77466554c4a8412432
 POLICY_SPECS={CHECKPOINT_SHA256:dict(id='original-14.8m',auxiliary=False),
               CHAMPION_SHA256:dict(id='champion-c0-1975',auxiliary=True),
               'fffc395c4a24207acd2d297f0b4ee25e7aabde66e7249dd7a71cd388b58f500c':dict(id='s14-best-offline',auxiliary=False,parameters=16436034),
-              'eb91fd41fa9957bd259d6f0fba7cb5eecdddc91dd85a8f212d2dafaa79ad3f66':dict(id='nus-1080772-step-006039',auxiliary=False,parameters=16436034,required_client_build=256589)}
+              'eb91fd41fa9957bd259d6f0fba7cb5eecdddc91dd85a8f212d2dafaa79ad3f66':dict(id='nus-1080772-step-006039',auxiliary=False,parameters=16436034,required_client_build=256589),
+              # V1.1 = m1095539-v9691 final (MODEL_CARD/MODEL v1.1). The checkpoint carries
+              # the BC card head and the sequence head, so it must load through
+              # load_checkpoint (strict, meta-driven), never load_champion_policy.
+              # trained_engine_version is the simulator rules it learned (37.0.2.256589);
+              # required_client_build is the real client the bridge is calibrated for
+              # (255790: calibrated executable sha256 + Power.log BuildNumber), not the
+              # training engine version. Conflating the two made the gate unsatisfiable.
+              '68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e':dict(
+                  id='hsai-v1.1',auxiliary=False,parameters=16436034,
+                  required_client_build=255790,trained_engine_version='37.0.2.256589')}
 
 
 def configure_threads(count):

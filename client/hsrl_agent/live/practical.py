@@ -26,6 +26,19 @@ class PracticalGeometry(Geometry):
             if not existing('timewarp','choices',n):
                 item=copy.deepcopy(existing('discover','choices',n));item.update(family='timewarp',
                     provenance='discover-family projection; real timewarp qualification pending');layouts.append(item)
+        for n in (5,6):
+            if not existing('timewarp','choices',n):
+                layouts.append(dict(family='timewarp',zone='choices',count=n,regions={},
+                    model=dict(kind='centered_row',cx=.5,cy=.413,pitch=.18,size=[.05,.13]),
+                    provenance='runtime-derived centered row; actual rail proof required before input'))
+        for n in (5,6):
+            if not existing('discover','choices',n):
+                # 时空扭曲等大卡面板在 255790 实测会出现 5 个选项；旧表只标定
+                # 1..4，输入因此整整暂停 15 s。这里给出可审计的运行时投影，
+                # 但点击仍必须通过 choice_ui 的实际绿色/金色横梁证明。
+                layouts.append(dict(family='discover',zone='choices',count=n,regions={},
+                    model=dict(kind='centered_row',cx=.5,cy=.413,pitch=.18,size=[.05,.13]),
+                    provenance='runtime-derived centered row; actual rail proof required before input'))
         if not existing('recruit','shop',8):
             item=existing('recruit','shop',7)
             points=[(r[0]+r[2]/2,r[1]+r[3]/2) for k,r in sorted(item['regions'].items()) if k.startswith('slot:')]
@@ -62,6 +75,17 @@ class PracticalGeometry(Geometry):
             for i,c in enumerate(client['hand']):c['position']=i+1
             snapshot={**snapshot,'client':client}
         points,zones=super().locations(snapshot)
+        # A derived 5/6-card row is only a search window. Once the frame gate
+        # has measured the real card rectangles, click their centres rather
+        # than the provisional model coordinates.
+        measured=(snapshot.get('visual') or {}).get('choice_ui') or {}
+        boxes=measured.get('boxes') or []
+        entities=measured.get('entities') or []
+        choices=snapshot.get('client',{}).get('choices') or []
+        if (measured.get('visible') and len(boxes)==len(choices)
+                and entities==[c['entity_id'] for c in choices]):
+            for card,(x,y,w,h) in zip(choices,boxes):
+                points['entity:'+str(card['entity_id'])]=(x+w/2,y+h/2)
         # Container drop areas exist with both empty and occupied zones.
         points.setdefault('region:board',(.5,.55));points.setdefault('region:hand',(.5,.925))
         points.setdefault('region:bob',(.5,.185))
@@ -212,27 +236,55 @@ def autoplay(root,args):
 
 
 def _autoplay_locked(root,args):
-    """Run an explicit number of games (zero means until STOP/F8)."""
+    """Run an explicit number of games (zero means until STOP/F8).
+
+    A batch is a *sequence of independent matches*, not one long transaction:
+    a failed match is classified, archived and (within budget) followed by the
+    next one. Only an unsafe class (S0) or an exhausted failure budget stops the
+    batch — one flaky match must not cost the whole night, and one systemic bug
+    must not burn matches forever. Classification is deterministic and lives in
+    ``supervisor.py``; it never touches the input path.
+    """
     from pathlib import Path
     from .runtime import save,load
+    from .supervisor import FailureBudget,append_incident,classify_run_end
     count=getattr(args,'games',1)
     if count<0:raise Blocked('games must be zero or positive')
     if count==1:return _one_game(root,args)
     out=Path(args.out).resolve()
     if out.exists() and any(out.iterdir()):raise Blocked('autoplay requires a new output directory')
     out.mkdir(parents=True,exist_ok=True);results=[];i=0
+    budget=FailureBudget(max_total=getattr(args,'max_failures',3),
+                         max_same=getattr(args,'max_same_failure',2))
     while count==0 or i<count:
         if (out/'STOP').exists():break
         i+=1;child=copy.copy(args);child.out=str(out/f'match-{i:04d}');child.games=1
         child.stop_file=str(out/'STOP');child.no_queue=args.no_queue if i==1 else False
         if i>1:child.no_auto_focus=True  # Startup activation, never a focus tug-of-war.
-        code=_one_game(root,child);p=Path(child.out)/'result.json'
+        failure=None
+        try:code=_one_game(root,child)
+        except Blocked as exc:
+            # Lobby/queue/preflight failures happen before a run exists, so the
+            # reason must be carried to the classifier explicitly.
+            failure=str(exc);code=2
+        p=Path(child.out)/'result.json'
         # Reuse the pinned, immutable inference model between matches. The
         # reader, controller and visual evidence remain new per match.
         if getattr(child,'preloaded_policy',None):args.preloaded_policy=child.preloaded_policy
-        results.append(dict(match=i,exit_code=code,result=load(p) if p.exists() else None))
+        result=load(p) if p.exists() else None
+        incident=classify_run_end(Path(child.out),code,result,reason=failure)
+        budget.record(incident);append_incident(out,incident,match=i)
+        results.append(dict(match=i,exit_code=code,result=result,severity=incident['severity'],
+                            signature=incident.get('signature',''),reason=incident.get('reason','')))
         save(out/'matches.json',results)
-        if code or not p.exists():return code or 2
+        allowed,why=budget.allow(incident)
+        if not allowed:
+            save(out/'batch-stop.json',dict(at=__import__('time').time(),match=i,severity=incident['severity'],
+                reason=incident.get('reason',''),why=why,budget=budget.snapshot(),results=results))
+            return code or 2
+        if (out/'STOP').exists():break
+    save(out/'batch-stop.json',dict(at=__import__('time').time(),match=i,severity='ok',why='batch finished',
+        budget=budget.snapshot(),results=results))
     return 0
 
 

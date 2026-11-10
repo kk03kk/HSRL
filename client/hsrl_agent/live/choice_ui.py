@@ -93,7 +93,7 @@ def slot_colors(image,profile,data):
     import cv2
     from .practical import PracticalGeometry
     cards=data.get('choices',[]);count=len(cards)
-    if not 1<=count<=4:return []
+    if not 1<=count<=6:return []
     kind=5 if all(c['card_type']=='HERO_POWER' for c in cards) else 6 if all(
         c['card_type']=='BATTLEGROUND_TRINKET' for c in cards) else 7 if any(c.get('tags',{}).get('QUEST')=='1' for c in cards) else 2
     points,_=PracticalGeometry(profile).locations(dict(client=data,view=dict(pending=kind)))
@@ -128,8 +128,11 @@ def inspect(image,profile,data,*,hovered_entity=None,min_support=.55):
     cards=data.get('choices',[]);count=len(cards)
     kind=5 if cards and all(c['card_type']=='HERO_POWER' for c in cards) else 6 if cards and all(
         c['card_type']=='BATTLEGROUND_TRINKET' for c in cards) else 7 if any(c.get('tags',{}).get('QUEST')=='1' for c in cards) else 2
+    # Time-warp/discover panels in 255790 can show five options.  The rail
+    # detector already accepts 1..6 ordinary cards; keep the family choice
+    # independent from the old four-card assumption.
     result=dict(visible=False,boxes=[],entities=[c['entity_id'] for c in cards],kind=kind)
-    if not 1<=count<=4:return result
+    if not 1<=count<=6:return result
     points,_=PracticalGeometry(profile).locations(dict(client=data,view=dict(pending=kind)))
     width,height=image.size;scale=min(1,1000/width)
     hsv=cv2.cvtColor(cv2.resize(np.asarray(image.convert('RGB')),None,fx=scale,fy=scale),cv2.COLOR_RGB2HSV)

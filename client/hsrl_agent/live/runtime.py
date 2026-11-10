@@ -99,6 +99,9 @@ def run(root,args):
 def _finalize_run(root,args,token,result,failure):
     archived=True
     out=Path(args.out).resolve();manifest=out/'session.json'
+    if getattr(args,'live_trace',None) is not None:
+        try:save(out/'trace-status.json',args.live_trace.close())
+        except Exception as exc:save(out/'trace-status.json',dict(error=type(exc).__name__+': '+str(exc)))
     # Never modify/append to a pre-existing run rejected by _run().
     if manifest.exists() and load(manifest).get('run_token')==token:
         metadata=load(manifest);archives=[]
@@ -131,6 +134,31 @@ def _finalize_run(root,args,token,result,failure):
         print('Log archive saved.' if archived else 'Log archive incomplete; inspect archive-status.json.',flush=True)
     return archived
 
+
+
+def settle_placement(reader,data,*,settle=2.5,interval=.1,stable_for=.15,sleep=time.sleep):
+    """Read the *final* leaderboard standing, not the provisional death one.
+
+    The client writes a provisional ``PLAYER_LEADERBOARD_PLACE`` at the moment
+    of death and the final value 0.1-0.5 s later (measured in the 02:27, 02:54
+    and 04:06 archived games). Reading the tag once at ``game_over`` therefore
+    produced an off-by-one placement in the 02:54 game. Two equal reads
+    separated by ``stable_for`` are required; the last observed value is
+    returned with its provenance so the reader knows whether it settled.
+    """
+    last=None;seen_at=None;best=None;deadline=time.monotonic()+settle
+    while True:
+        tag=(data.get('hero') or {}).get('tags',{}).get('PLAYER_LEADERBOARD_PLACE')
+        if tag not in (None,'0',''):
+            if tag==last and seen_at is not None and time.monotonic()-seen_at>=stable_for:
+                return tag,'stable'
+            if tag!=last:last=tag;seen_at=time.monotonic();best=tag
+        if time.monotonic()>=deadline:break
+        sleep(interval)
+        try:fresh=reader.poll()
+        except Exception:fresh=None
+        if isinstance(fresh,dict) and fresh.get('game_id')==data.get('game_id'):data=fresh
+    return best,'timeout'
 
 
 def _run(root,args,run_token):
@@ -174,16 +202,53 @@ def _run(root,args,run_token):
     save(out/'session.json',session_meta)
     from .diagnostics import ObservationRecorder,status_payload
     diagnostics=ObservationRecorder(out,policy.vocabulary)
+    # One writer thread per match. The controller enqueues compact/full
+    # decision rows and gesture receipts; it never formats JSON or fsyncs on
+    # the input hot path.
+    from .trace import GameTrace
+    trace=GameTrace(out)
+    args.live_trace=trace
     last_report=None;last_decision=None;started=time.monotonic();tribe_memory={};ocr=None
+    stale_ledger_checked=False
     status_saved_at=0.;last_status_key=None;closed_unresolved=False;game_completed=False;operator_stopped=False
     data=None;snapshot=None;last_blocker=None
     # Unexpected executor faults must pause input and keep the ledger, never
     # end the process while a match is running. Bounded, then non-zero exit.
+    layout_evidence=set()
+    def capture_layout_evidence(reason,data):
+        """未标定的选择行会让输入暂停；留一张帧，下一次才能真的标定它。
+
+        ``uncalibrated layout:discover/choices/5``（时空扭曲一类的五选一）以前只留
+        一行状态文本，事后无法复现那一屏。这里抓一帧 + 选择实体清单，仍然不发任何
+        输入；同一 (reason, turn) 只留一次，避免刷盘。
+        """
+        if not (reason.startswith('uncalibrated layout:')
+                or reason.startswith('layout has not been visually reviewed:')):return
+        key=(reason,(data or {}).get('turn'))
+        if key in layout_evidence:return
+        layout_evidence.add(key)
+        try:
+            image,window=backend.capture()
+            folder=out/'visual-evidence';folder.mkdir(parents=True,exist_ok=True)
+            safe=''.join(c if c.isalnum() else '-' for c in reason)[:48]
+            # Writer thread, not the input loop: the save happens while the
+            # bounded no-input pause continues, never inside a press sequence.
+            trace.frame(folder/(safe+'.jpg'),image,dict(reason=reason,game_id=(data or {}).get('game_id'),
+                turn=(data or {}).get('turn'),phase=(data or {}).get('phase'),
+                choices=[{k:c.get(k) for k in ('entity_id','card_id','card_type','position')}
+                         for c in (data or {}).get('choices') or []],
+                window_token=window.token(),
+                note='no input sent; this choice row has no calibrated geometry'),quality=90)
+        except Exception as exc:
+            layout_evidence.discard(key)
+            try:save(out/'visual-evidence'/'layout-uncalibrated-error.json',
+                     dict(reason=reason,error=type(exc).__name__+': '+str(exc)))
+            except Exception:pass
     internal_errors=0;last_internal=None;progress_at=time.monotonic()
     # Global lock lives at a fixed workspace path, independent of --out. Two
     # different output folders must never authorize two input controllers.
     with (nullcontext() if getattr(args,'client_lock_owned',False) else exclusive(Path(root)/'artifacts/runs/live-client.lock')):
-        controller=Controller(policy,Geometry(profile),backend,Path(root)/'artifacts/runs/live-state' if args.enable_input else out/'shadow-state',enable_input=args.enable_input,practical=practical,clock=time.monotonic)
+        controller=Controller(policy,Geometry(profile),backend,Path(root)/'artifacts/runs/live-state' if args.enable_input else out/'shadow-state',enable_input=args.enable_input,practical=practical,clock=time.monotonic,trace=trace)
         fast=None
         if practical:
             from .pipeline import LivePipeline
@@ -192,15 +257,26 @@ def _run(root,args,run_token):
             backend.pre_press=fast.pre_press
             from .interruptions import InterruptionGuard
             fast.gate.interruptions=InterruptionGuard(getattr(args,'lobby_ocr',None))
+            fast.gate.frame_writer=trace.frame
         from .execution_status import WaitTracker
         waits=WaitTracker()
+        last_health=0.
         def report(reason,data=None,snapshot=None):
-            nonlocal last_report,status_saved_at,last_status_key
+            nonlocal last_report,status_saved_at,last_status_key,last_health
             execution=waits.update(reason,data,controller.pending)
             from .lifecycle import protocol_state
             execution.update(protocol_state(controller,data or {}))
+            if time.monotonic()-last_health>=5.:
+                last_health=time.monotonic()
+                try:
+                    from .supervisor import health_payload
+                    save(out/'health.json',health_payload(reason=reason,data=data,controller=controller,waits=waits))
+                except Exception:pass
             if reason!=last_report:
                 text=('unknown public fields (see observation-status.json and coverage.json)' if reason.startswith('unknown public fields:') else reason)
+                if reason.startswith('uncalibrated layout:'):
+                    text=(reason+' — this choice row has no calibrated click geometry; input is paused. '
+                          'Fill it in by hand; a frame was saved under visual-evidence/.')
                 print(text,flush=True);controller.event('status',reason=reason);last_report=reason
             key=(reason,(data or {}).get('game_id'),(data or {}).get('turn'),(data or {}).get('phase'))
             if key!=last_status_key or time.monotonic()-status_saved_at>=1.:
@@ -260,6 +336,13 @@ def _run(root,args,run_token):
                     # An incomplete trailing line is common while Unity writes.
                     # Do not spin at 100% CPU waiting for its newline.
                     time.sleep(.01);continue
+                if controller.pending and not stale_ledger_checked:
+                    # A ledger restored from a previous run belongs to that run's
+                    # turn. Retire it once at start instead of inheriting a dead
+                    # 120 s wait (and a halt) into this run.
+                    stale_ledger_checked=True
+                    if controller.retire_stale_inflight(dict(game_id=data['game_id'],revision=data['revision'],client=data)):
+                        report('retired stale inflight ledger from an earlier turn')
                 if practical and data['phase']=='game_over':
                     player=reader.state.entities.get(reader.state.players.get(data['local_player_id']))
                     game=reader.state.entities.get(reader.state.game_entity)
@@ -272,8 +355,9 @@ def _run(root,args,run_token):
                     unresolved=bool(controller.pending)
                     closed_unresolved=unresolved
                     if unresolved:controller.close_game(data,out,proof)
+                    placement,placement_source=settle_placement(reader,data)
                     save(out/'result.json',dict(game_id=data['game_id'],result=player.tags.get('PLAYSTATE') if player else None,
-                        placement=(data.get('hero') or {}).get('tags',{}).get('PLAYER_LEADERBOARD_PLACE'),
+                        placement=placement,placement_source=placement_source,
                         turn=data['turn'],model_sha256=policy.sha,adapter='public-approx-v1',unresolved_input_archived=unresolved))
                     if unresolved:report('game completed; unresolved input archived without retry',data)
                     else:report('game completed',data)
@@ -299,6 +383,8 @@ def _run(root,args,run_token):
                     if outcome=='waiting_receipt_overdue_no_resend' and fast:fast.record_overdue(data)
                     if outcome=='retry_unsent':
                         report(outcome,data);last_decision=None;time.sleep(.05);continue
+                    if outcome=='duplicate_gesture_suppressed':
+                        report(outcome,data);time.sleep(.25);continue
                     if outcome in ('applied','context_changed','expired_unsent_input','externally_resolved_hero','externally_resolved_choice','externally_resolved_play'):report(outcome,data);continue
                     if outcome=='halted':report(controller.halted,data);break
                     if practical and not controller.needs_ui(data):
@@ -321,6 +407,7 @@ def _run(root,args,run_token):
                 if controller.halted and controller.halted!='input interrupted; delivery unknown':break
             except Blocked as exc:
                 last_blocker=dict(reason=str(exc),game_id=(data or {}).get('game_id'),turn=(data or {}).get('turn'))
+                capture_layout_evidence(str(exc),data)
                 report(str(exc),data,snapshot)
                 if controller.pending and controller.pending_timeout()=='halted':
                     report(controller.halted,data);break
@@ -362,6 +449,8 @@ def _run(root,args,run_token):
             time.sleep(.06 if practical else .15)
     if fast:save(out/'latency.json',fast.metrics.report())
     save(out/'wait-summary.json',dict(seconds_by_category=waits.totals,diagnostic_only=True))
+    # Closed in _finalize_run, after the event log and session archives are
+    # already on disk; closing here would delay the archive finalization.
     if practical and args.enable_input and not game_completed and not operator_stopped and not controller.halted:
         report('run time limit reached before game completion; no successful game result',data,snapshot)
         return 2

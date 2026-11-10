@@ -29,6 +29,24 @@ class InterruptionGuard:
             and len(cards)==len(data['choices']) and np.all(cards>30)
             and (self.choice_baseline is None or np.all(cards>=self.choice_baseline*.5)))
         now=self.clock()
+        # A normal owned choice dims the background and shows its own card row.
+        # That is expected UI, not an interruption. OCR used to run on every
+        # frame of such a panel and could exceed the fresh-frame budget (~35 s
+        # observed), delaying a fully authorized choice. If the same physical
+        # choice context has a complete, bright measured row, accept it without
+        # scanning; a genuinely foreign popup still has to cover/replace those
+        # calibrated card regions and fails this continuity check.
+        visible_owned_choice=bool(owned_choice and choice_visible and cards is not None
+            and np.all(cards>30) and len(cards)==len(data['choices']))
+        if visible_owned_choice and (expected_backdrop or dim):
+            self.baseline=levels
+            self.choice_baseline=cards
+            self.blocked=None
+            self.key=key
+            self.last_probe=dict(seconds=0.,width=image.width,expected_choice_backdrop=True,
+                                 choice_visible=True,skipped_full_screen_ocr=True,
+                                 background_levels=levels.tolist(),choice_levels=cards.tolist())
+            return
         if same and not self.blocked and not dim:return
         if same and self.blocked and now<self.next_probe:raise Blocked(self.blocked)
         self.ocr=self.ocr or OCR();self.scans+=1

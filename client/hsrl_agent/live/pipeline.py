@@ -2,7 +2,7 @@
 import time
 from collections import defaultdict,deque
 from contextlib import contextmanager
-from .contracts import Blocked,state_stamp
+from .contracts import Blocked,execution_stamp,state_stamp
 from .frame_gate import FrameGate
 from .interactions import branch_snapshot,target_snapshot
 
@@ -96,14 +96,19 @@ class LivePipeline:
             # Synthetic branch/target stages come from the same pinned protocol
             # context. Compare before expensive capture and again afterwards.
             new=self.finish(new,old['visual'])
-            if state_stamp(new)!=state_stamp(old):raise Blocked('decision input or executable authorization changed')
+            # A live public opponent summary can tick while a choice panel is
+            # open. It changes the model input but not the identity of the
+            # gesture already chosen. Require exact executable identity here;
+            # the full model state is still pinned to the decision record.
+            old_execution=execution_stamp(old);new_execution=execution_stamp(new)
+            if new_execution!=old_execution:raise Blocked('decision input or executable authorization changed')
             with self.metrics.measure('pre_dispatch_capture'):
                 visual,_=self.gate.observe(new,self.pending(),binding,revalidate=True)
             # Logs can advance while pixels are captured; verify once more.
             new=self.finish(self.project(self.reader.poll()),visual)
-            if state_stamp(new)!=state_stamp(old):raise Blocked('decision input changed during visual admission')
+            if execution_stamp(new)!=old_execution:raise Blocked('decision input changed during visual admission')
             if visual['window_token']!=old['visual']['window_token']:raise Blocked('window changed before dispatch')
-            self.admission=(state_stamp(new),self.pending(),visual['observed_at'])
+            self.admission=(execution_stamp(new),self.pending(),visual['observed_at'])
             self.gate.admitted_binding=binding
             if hasattr(self.gate,'save_dispatch'):
                 new['visual']['dispatch_evidence']=self.gate.save_dispatch(new,binding)
@@ -113,10 +118,11 @@ class LivePipeline:
             return new
     def __call__(self,old):return self.check_action(old)
     def pre_press(self,old):
-        if not self.admission or self.admission[0]!=state_stamp(old):raise Blocked('no matching visual admission for mouse down')
+        if not self.admission or self.admission[0]!=execution_stamp(old):raise Blocked('no matching visual admission for mouse down')
         with self.metrics.measure('pre_press_semantic_check'):
             new=self.finish(self.project(self.reader.poll()),old['visual'],pinned=self.admission[1],use_current=False)
-            if state_stamp(new)!=state_stamp(old):raise Blocked('state changed during mouse hover; no button down sent')
+            if execution_stamp(new)!=execution_stamp(old):
+                raise Blocked('state changed during mouse hover; no button down sent')
         # Each recheck captures a fresh frame and validates the same admitted
         # decision, so the final budget is measured from that fresh evidence.
         if old['visual'].get('phase')=='hero':self.gate.recheck_hero(old,self.admission[1])

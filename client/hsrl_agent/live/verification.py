@@ -281,10 +281,24 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
     elif b.kind=='refresh':
         if ids(new,'shop')!=ids(old,'shop'): return 'applied'
     elif b.kind=='freeze':
+        # Real 255790 acknowledges each LockAll toggle with a PLAY root on the
+        # button entity and increments that button's TAG_SCRIPT_DATA_NUM_1.
+        # There is also a TRIGGER root, but it belongs to the 3-of-a-kind
+        # checker, not to this button, so it can never prove our click.  The
+        # receipt's post_state is the exact end-of-root snapshot; the live shop
+        # can remain visually FROZEN for several seconds after that snapshot.
+        if any(r.get('source')==b.source and r.get('block_type')=='PLAY'
+               and any(eid==b.source and tag=='TAG_SCRIPT_DATA_NUM_1'
+                       and str(prior).isdigit() and str(value).isdigit()
+                       and int(value)>int(prior)
+                       for eid,tag,prior,value in r.get('entity_changes',[]))
+               and (r.get('complete') or r.get('closed_by')=='next_options')
+               for r in receipts):
+            return 'applied'
         frozen=lambda d:tuple(c['tags'].get('FROZEN','0') for c in d.get('shop',[]))
         if frozen(new)!=frozen(old): return 'applied'
-        control=lambda d:next((c.get('tags',{}).get('FROZEN') for c in d.get('controls',[]) if c['entity_id']==b.source),None)
-        if control(new) is not None and control(new)!=control(old):return 'applied'
+        control=lambda d:next((c.get('tags',{}).get('TAG_SCRIPT_DATA_NUM_1') for c in d.get('controls',[]) if c['entity_id']==b.source),None)
+        if control(new) is not None and control(old) is not None and control(new)!=control(old):return 'applied'
     elif b.kind=='move':
         # A source that is no longer on the board cannot be reordered; keep the
         # intent unresolved instead of raising out of the receipt poll.
@@ -292,6 +306,17 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
         if b.source not in wanted:return 'pending'
         wanted.insert(b.position,wanted.pop(wanted.index(b.source)))
         if ids(new,'board')==wanted: return 'applied'
+        # The final board order can legitimately differ from the requested slot
+        # when another reorder is interleaved or Unity clamps the insertion.
+        # A completed reorder root for *this exact source* after our intent is
+        # still a server acknowledgement that the drag was received.  Do not
+        # call it "rejected" and then retry the same gesture; the 03:02 game
+        # did exactly that and submitted a duplicate reorder.  Any root that
+        # reports a different source remains unattributed.
+        if any(r.get('source')==b.source
+               and (r.get('log_position') or 0)>(old.get('log_position') or 0)
+               for r in receipts):
+            return 'applied'
         if set(ids(new,'board'))==set(wanted): return 'rejected'
     elif b.kind in ('choose','target','cancel'):
         if (new.get('interaction') or {}).get('request_id')!=b.choice_id: return 'applied'

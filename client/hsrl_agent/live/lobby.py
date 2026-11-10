@@ -13,8 +13,13 @@ def trusted_rows(rows):
         and len(r.get('point',()))==2 and all(isinstance(x,(int,float)) and math.isfinite(x) and 0<x<1 for x in r['point'])]
 
 
-SCREEN_HINTS=frozenset(('酒馆战棋','开始','寻找对手','正在匹配','匹配中','取消匹配','取消','点击继续','点击以继续',
+SCREEN_HINTS=frozenset(('酒馆战棋','开始','开始匹配','寻找对手','正在匹配','匹配中','取消匹配','取消','点击继续','点击以继续',
     '点击屏幕继续','点击任意位置继续','点击任意位置以继续','确定','确认','发生错误','重新连接','连接失败','验证码','登录'))
+
+
+#: 开始按钮的接受文本。255790 实测 OCR 为「开始」；「开始匹配」是同一控件的
+#: 另一种客户端文案，接受它是严格的超集（ROI + 顶部标题两道条件不变）。
+STARTS=frozenset(('开始','开始匹配'))
 
 
 def screen_hint(rows):
@@ -24,6 +29,23 @@ def screen_hint(rows):
     the startup path pays one full-width pass before concluding anything.
     """
     return any(normalized(r.get('text','')) in SCREEN_HINTS for r in trusted_rows(rows))
+
+
+RESULT_BANNER=re.compile(r'第[一二三四五六七八]名')
+
+
+def result_banner(rows):
+    """The Battlegrounds end-of-game banner ("第二名！"), not a generic prompt.
+
+    255790 shows no 点击继续 text here: the banner itself is the dismiss area.
+    Recognising it is what lets an unattended batch queue the next match; it is
+    only ever accepted with an authoritative completed-game context.
+    """
+    for row in trusted_rows(rows):
+        text=normalized(row.get('text',''))
+        if RESULT_BANNER.search(text) and .2<row['point'][0]<.8 and .15<row['point'][1]<.85:
+            return row
+    return None
 
 
 def queue_error(rows):
@@ -78,6 +100,14 @@ class LobbyFlow:
                 return None
             if len(prompts)!=1:raise Blocked('result prompt is ambiguous')
             return self.stable('dismiss_result',prompts[0],token,now)
+        banner=result_banner(rows)
+        if banner:
+            if not completed_gameplay:raise Blocked('result banner lacks authoritative completed-game context')
+            if pending_gameplay:raise Blocked('unresolved gameplay input; result dismissal forbidden')
+            if self.state=='result_pending':
+                if now-self.sent_at>10:raise Blocked('result banner did not close; dismissal is not repeated')
+                return None
+            return self.stable('dismiss_result',banner,token,now)
         if any(t in ('发生错误','确定','确认','重新连接','连接失败','验证码','登录') for t in texts):
             if self.state=='dismiss_pending' and now-self.sent_at<=6 and not any(t in ('验证码','登录') for t in texts):
                 # Closing animations can temporarily hide only the body text.
@@ -88,7 +118,7 @@ class LobbyFlow:
         searching=any(any(word in t for word in ('寻找对手','正在匹配','匹配中','取消匹配')) or t=='取消' for t in texts)
         if searching:return None
         header=any(normalized(r['text'])=='酒馆战棋' and r['point'][1]<.12 for r in rows)
-        starts=[r for r in rows if normalized(r['text'])=='开始' and .65<r['point'][0]<.95 and .65<r['point'][1]<.9]
+        starts=[r for r in rows if normalized(r['text']) in STARTS and .65<r['point'][0]<.95 and .65<r['point'][1]<.9]
         start=starts[0] if header and len(starts)==1 else None
         if self.state=='error_proof':
             # The user/client may already have dismissed the positively seen

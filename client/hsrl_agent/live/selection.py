@@ -19,6 +19,10 @@ def validate_live_profile(checkpoint,profile):
     spec=POLICY_SPECS.get(sha)
     if spec is None:raise Blocked('checkpoint is not an approved pinned policy')
     required=spec.get('required_client_build')
-    if required is not None and (profile.get('review_state')!='reviewed' or required not in profile.get('allowed_builds',[])):
+    # Build numbers are ints in POLICY_SPECS but strings in the reviewed profile JSON.
+    # Comparing them raw made the gate unsatisfiable even for an identical build
+    # (255790 in ['255790'] is False), so every autoplay start was refused.
+    allowed={str(build) for build in profile.get('allowed_builds') or ()}
+    if required is not None and (profile.get('review_state')!='reviewed' or str(required) not in allowed):
         raise Blocked(f'model requires a reviewed client profile for build {required}; inherited profile is historical')
     return spec

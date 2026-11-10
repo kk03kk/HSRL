@@ -1,10 +1,14 @@
 {
   "schema": "hsai.live-model/v1",
-  "model_id": "nus-1080772-step-006039",
-  "checkpoint": "artifacts/models/nus-1080772/step-006039-210m/model.pt",
-  "sha256": "eb91fd41fa9957bd259d6f0fba7cb5eecdddc91dd85a8f212d2dafaa79ad3f66",
+  "model_id": "hsai-v1.1",
+  "checkpoint": "artifacts/models/v1.1/model.pt",
+  "sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
   "trained_game_version": "37.0.2.256589",
-  "required_client_build": 256589,
-  "selection_reason": "最新已下载冻结模型；不是24小时训练终点，也不表示强于5506",
+  "trained_engine_source_hash": "c4c71014e3d41760",
+  "required_client_build": 255790,
+  "client_build_basis": "本机已安装客户端：Hearthstone.exe sha256 与 profile.executable_sha256 一致，Power.log 记录 BuildNumber=255790；37.0.2.256589 是训练所用模拟器规则版本，不是实时客户端构建号",
+  "selection_reason": "MODEL_CARD V1.1：8 模型 pairwise Elo 第一名、1095539 最新 final v9691 直接晋升；未重训、未改网络",
+  "parameters": 16436034,
+  "engine_cards_sha256": "7a02d10794cf80c56fa77b1dd235d49b892c8d3e31c2cf56887f696e2cf922a6",
   "real_game_accepted": false
 }

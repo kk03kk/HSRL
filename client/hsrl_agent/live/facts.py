@@ -115,7 +115,10 @@ def context_facts(reader,data,card_info,*,lobby_races=None,supplied=None):
     if any(number(e.tags,'CONTROLLER')==pid and e.tags.get('ZONE')=='7' for e in state.entities.values()):
         view.setdefault('unknown',[]).append('secrets.numeric_zone_mapping')
     view['secrets']=secret
-    if data['shop']: g['frozen']=int(all(number(c['tags'],'FROZEN',0) for c in data['shop']))
+    # 引擎 is_frozen() 是 shop.iter().any(|s| s.frozen)（state.rs:1207，obs.rs:172）。
+    # 这里原来用 all()：冻结后再加入酒馆的随从会让整店被判成“未冻结”，
+    # 与训练输入语义相反。
+    if data['shop']: g['frozen']=int(any(number(c['tags'],'FROZEN',0) for c in data['shop']))
     elif 'MODEL_FROZEN' in own: g['frozen']=number(own,'MODEL_FROZEN')
     # Generic aliases intentionally use exact semantic producer tags. For
     # example MAXRESOURCES=99 is a client ceiling, NOT model max_gold_bonus.

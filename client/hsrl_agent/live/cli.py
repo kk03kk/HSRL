@@ -37,6 +37,8 @@ def parser(root):
                 q.add_argument('--no-auto-focus',action='store_true',help='leave window activation to the operator')
                 q.add_argument('--queue-retries',type=int,default=3,help='maximum verified failed-match restarts')
                 q.add_argument('--queue-timeout',type=float,default=240,help='total bounded lobby/matchmaking seconds')
+                q.add_argument('--max-failures',type=int,default=3,help='failed matches a batch may absorb')
+                q.add_argument('--max-same-failure',type=int,default=2,help='repeats of one incident signature before the batch stops')
         else:q.add_argument('--scene',choices=('hero','recruit','discover'),required=True)
     q=sub.add_parser('review-profile');q.add_argument('--profile',required=True)
     q.add_argument('--overlay-reviewed',action='store_true',required=True)

@@ -6,11 +6,11 @@ import json
 from pathlib import Path
 import time
 from .actions import bind_actions
-from .contracts import Blocked,InputNotSent,Binding,Decision,state_stamp,replace_file,remove_file,compact_snapshot,digest
+from .contracts import Blocked,InputNotSent,Binding,Decision,state_stamp,execution_stamp,replace_file,remove_file,compact_snapshot,digest
 from .verification import verify
 
 class Controller:
-    def __init__(self,policy,geometry,backend,out,*,enable_input=False,clock=time.monotonic,timeout=12.,practical=False,recovery_timeout=120.):
+    def __init__(self,policy,geometry,backend,out,*,enable_input=False,clock=time.monotonic,timeout=12.,practical=False,recovery_timeout=120.,trace=None):
         self.policy=policy;self.geometry=geometry;self.backend=backend;self.out=Path(out)
         self.out.mkdir(parents=True,exist_ok=True);self.enable_input=enable_input
         self.clock=clock;self.timeout=timeout;self.pending=None;self.ended=None;self.halted=None
@@ -24,11 +24,45 @@ class Controller:
         self.parents=[]
         self.unsent_retries=set()
         self.candidate=None
+        self.trace=trace
+        self.current_decision_id=None
+        # LockAll is an animated toggle.  In the archived 255790 game the
+        # second press 1.39 s after the first reached the server, while a third
+        # press only 0.94 s after the second was swallowed by the button
+        # animation (no SendOption/Power root).  Keep a short local cooldown
+        # after a Freeze dispatch instead of shortening every wait or blindly
+        # resending uncertain input.
+        self.freeze_cooldown_until=0.
+        self.freeze_cooldown_key=None
+        self.freeze_cooldown_noted=False
+        self.freeze_cooldown_seconds=1.35
+        # A gesture the client never submitted needs no 120 s of silence: the
+        # client's own SendOption cursor proves it. Grace is deliberately far
+        # above one frame/animation tick so a late submit can never be mistaken
+        # for a swallowed click.
+        self.unsent_grace=2.5
+        # A submitted-but-rejected option leaves the same option authorized and
+        # produces no root. Six seconds is ~60x the observed client/server update
+        # latency; the 120 s hard stop stays as the last resort.
+        self.rejected_grace=6.0
+        # Identical gesture repeats: only a *confirmed applied* repeat is
+        # suppressed (see _gesture_allowed), so a swallowed first click can
+        # always be retried.
+        self.repeat_window=3.0
+        self.repeat_sensitive=frozenset(('move','choose','branch','target','end','freeze'))
+        self.gesture_state={}
+        self.pending_gesture_key=None
+        # Match the frozen training/eval decode contract exactly:
+        # max 80 actions per turn, at most 5 moves, repeat limit 2 and no
+        # immediate inverse move.  Only applied actions are counted; a
+        # cancelled pre-press gesture never consumes a slot.
+        self.move_history={}
         state_file=self.out/'controller-state.json'
         if enable_input and practical and state_file.exists():
             state=json.loads(state_file.read_text(encoding='utf8'))
             self.ended=tuple(state['ended']) if state.get('ended') else None
             self.turn_counts={tuple(row['turn']):row['counts'] for row in state.get('turn_counts',[])}
+            self.move_history={tuple(row['turn']):row for row in state.get('move_history',[])}
         if enable_input and (self.out/'inflight.json').exists():
             raw=json.loads((self.out/'inflight.json').read_text(encoding='utf-8'))
             decision=raw['decision'];b=decision['binding'];b['targets']=tuple(b.get('targets',()))
@@ -59,6 +93,7 @@ class Controller:
         replace_file(tmp,path)
     def clear(self):
         self.overdue=False
+        self.pending_gesture_key=None
         self.pending=None;self.target_sent=False;self.confirm_sent=False;self.branch_sent=False
         self.hero_reselected=False;self.hero_unselected_since=None;self.hero_unselected_last=None;self.hero_unselected_key=None
         if self.parents:
@@ -75,14 +110,51 @@ class Controller:
         if not self.enable_input or not self.practical:return
         from .runtime import save
         self.turn_counts=dict(list(self.turn_counts.items())[-4:])
+        self.move_history=dict(list(self.move_history.items())[-4:])
         save(self.out/'controller-state.json',dict(ended=self.ended,
-            turn_counts=[dict(turn=list(k),counts=v) for k,v in self.turn_counts.items()]))
+            turn_counts=[dict(turn=list(k),counts=v) for k,v in self.turn_counts.items()],
+            move_history=[dict(v,turn=list(k)) for k,v in self.move_history.items()]))
+    def _history(self,turn):
+        return self.move_history.setdefault(turn,dict(last_action=None,counts={}))
+    def _note_action(self,turn,action):
+        history=self._history(turn)
+        history['last_action']=int(action)
+        if 196<=int(action)<245:
+            action=int(action)
+            history['counts'][str(action)]=history['counts'].get(str(action),0)+1
+        counts=self.turn_counts.setdefault(turn,dict(actions=0,moves=0))
+        counts['actions']+=1
+        if 196<=int(action)<245:counts['moves']+=1
+    def _guarded_bindings(self,snapshot,bindings,*,turn_key=None):
+        """Apply the frozen 80/5/2/inverse move rules before model sampling."""
+        turn=turn_key or (snapshot['game_id'],snapshot['client'].get('turn'))
+        history=self._history(turn)
+        counts=self.turn_counts.get(turn,dict(actions=0,moves=0))
+        end=tuple(b for b in bindings if b.kind=='end')
+        if counts['actions']>=80 and end:
+            return end
+        last=history.get('last_action');counts_by_action=history.get('counts',{})
+        cap=counts.get('moves',0)>=5
+        inverse=None
+        if isinstance(last,int) and 196<=last<245:
+            src=(last-196)//7;dst=(last-196)%7
+            if src!=dst:inverse=196+dst*7+src
+        out=[]
+        for binding in bindings:
+            action=int(binding.action)
+            if not 196<=action<245:
+                out.append(binding);continue
+            if cap or action==inverse or counts_by_action.get(str(action),0)>=2:
+                continue
+            out.append(binding)
+        return tuple(out)
     def _fresh(self,snapshot,before_send,binding=None):
         if self.enable_input and self.practical and snapshot.get('comparison')=='semantic-v1' and before_send is None:
             raise Blocked('semantic runtime requires a pre-dispatch admission guard')
         if before_send:
             fresh=before_send.check_action(snapshot,binding) if hasattr(before_send,'check_action') else before_send(snapshot)
-            if state_stamp(fresh)!=state_stamp(snapshot):raise Blocked('state changed before interaction continuation')
+            if execution_stamp(fresh)!=execution_stamp(snapshot):
+                raise Blocked('executable state changed before interaction continuation')
             if fresh.get('visual',{}).get('window_token')!=snapshot.get('visual',{}).get('window_token'):
                 raise Blocked('window changed before interaction continuation')
             if (self.enable_input and self.practical and snapshot.get('comparison')=='semantic-v1'
@@ -94,25 +166,133 @@ class Controller:
         self.event('input_stage',game_id=snapshot['game_id'],plan=plan,
                    log_position=snapshot['client'].get('log_position'),
                    visual_evidence=snapshot.get('visual',{}).get('dispatch_evidence'))
+        status='sent';error=None;outcome=None
+        physical=False
         try:
             self.backend.execute(plan,snapshot)
+            physical=True
             if getattr(self.backend,'last_timing',None):self.event('input_timing',**self.backend.last_timing)
-        except InputNotSent:
+        except InputNotSent as exc:
+            status='cancelled_before_press';error=str(exc)
             self.event('cancelled_before_press',game_id=snapshot['game_id'])
             if rollback:
                 self.pending=rollback;self.target_sent,self.confirm_sent,self.branch_sent=flags;self.persist()
             else:self.clear()
             raise
-        except BaseException:
+        except BaseException as exc:
+            status='delivery_unknown';error=type(exc).__name__+': '+str(exc)
             self.halted='input interrupted; delivery unknown';self.persist();self.event('halted',reason=self.halted);raise
         finally:
             if getattr(self.backend,'last_input_trace',None):self.event('native_input_trace',**self.backend.last_input_trace)
+            if self.trace is not None and self.current_decision_id:
+                try:self.trace.execution(self.current_decision_id,snapshot=snapshot,plan=plan,status=status,error=error,
+                    timing=getattr(self.backend,'last_timing',None),
+                    native_trace=getattr(self.backend,'last_input_trace',None),outcome=outcome,
+                    physical=physical or status=='delivery_unknown')
+                except Exception:self.trace=None
     def needs_ui(self,data):
         if not self.pending:return False
         if self.halted=='input interrupted; delivery unknown':return False
         from .lifecycle import continuations
         return bool(continuations(self.pending[0].binding,data,confirm_sent=self.confirm_sent,
             target_sent=self.target_sent,branch_sent=self.branch_sent))
+    def retire_stale_inflight(self,snapshot):
+        """A ledger restored from a previous run cannot outlive its turn.
+
+        ``inflight.json`` exists so a restart inside the *same* turn never
+        resubmits an uncertain gesture. When the restored intent belongs to an
+        earlier turn (or another game), its effect window is over: keeping it
+        would make every later attach wait 120 s and halt on the same dead
+        ledger (seen at 14:36 and again on the 14:52 attach). Archive it as
+        unresolved — never as success — and let this run start clean.
+        """
+        if not self.pending:return False
+        d,before,_=self.pending;new=snapshot['client']
+        if d.game_id!=snapshot.get('game_id'):reason='different game'
+        elif isinstance(new.get('turn'),int) and isinstance(before['client'].get('turn'),int) \
+                and new['turn']>before['client']['turn']:reason='turn advanced while unattended'
+        else:return False
+        from .runtime import save
+        archive=self.out/'retired-stale'/(digest(asdict(d))+'.json')
+        if not archive.exists():
+            save(archive,dict(decision=asdict(d),before=before,parents=self.parents,reason=reason,
+                outcome='restored_ledger_expired_before_any_input_no_resend'))
+        self.event('retired_stale_inflight',game_id=d.game_id,action=d.action,reason=reason,archive=str(archive))
+        self.parents=[];self.halted=None;self.clear();return True
+    def unsent_reconciliation(self,snapshot):
+        """Prove the client never submitted this gesture and retire it early.
+
+        ``client_submission_position`` is the power-line index of the client's
+        own last SendOption/SendChoices. When it did not advance past the
+        dispatch point, nothing left the client for this gesture: the click was
+        swallowed by an animation/cooldown or landed on a control that refused
+        it. That is a *known unsent* outcome, so the durable intent can be
+        archived and the model may decide again from live state. It never
+        resends the old gesture, and it never shortens the wait when the client
+        did submit.
+        """
+        if not self.practical or not self.pending or self.parents:return None
+        if self.target_sent or self.confirm_sent or self.branch_sent:return None
+        d,before,started=self.pending
+        if self.clock()-started<self.unsent_grace:return None
+        new=snapshot['client'];old=before['client']
+        if (snapshot.get('game_id')!=before.get('game_id')
+                or new.get('local_player_id')!=old.get('local_player_id')
+                or not isinstance(old.get('log_position'),int)):return None
+        submitted=new.get('client_submission_position')
+        if submitted is None:return None
+        if (submitted or 0)>(old.get('log_position') or 0):return None
+        from .runtime import save
+        archive=self.out/'expired-unsent'/(digest(asdict(d))+'.json')
+        if not archive.exists():
+            save(archive,dict(decision=asdict(d),before=before,parents=self.parents,
+                proof=dict(kind='client_never_submitted',grace_seconds=self.unsent_grace,
+                    log_position_at_dispatch=old.get('log_position'),
+                    client_submission_position=new.get('client_submission_position'),
+                    client_playback_position=new.get('client_playback_position'),
+                    turn=new.get('turn')),
+                outcome='client_never_submitted_archived_no_resend'))
+        self.event('expired_unsent_input',action=d.action,action_kind=d.binding.kind,
+            source=d.binding.source,proof='client_never_submitted',archive=str(archive))
+        self.clear();return True
+    def rejected_reconciliation(self,snapshot):
+        """Retire a submitted option the server never took.
+
+        A rejected option (board full, illegal target, out-of-gold, animation
+        swallow) produces no Power.log root at all. The client cursor advanced,
+        so this is *not* the never-submitted case, and silence alone must never
+        be called success. The distinguishing evidence is that the **exact same
+        option is still authorized**: if the server had taken it, the card would
+        have left the hand, the slot would be empty or the shop would differ.
+        After a grace far above any observed update latency, the durable intent
+        is archived as not applied and the model decides again from live state.
+        """
+        if not self.practical or not self.pending or self.parents:return None
+        if self.target_sent or self.confirm_sent or self.branch_sent:return None
+        d,before,started=self.pending
+        if self.clock()-started<self.rejected_grace:return None
+        new=snapshot['client'];old=before['client']
+        if (snapshot.get('game_id')!=before.get('game_id')
+                or new.get('local_player_id')!=old.get('local_player_id')
+                or new.get('turn')!=old.get('turn') or new.get('phase')!=old.get('phase')):return None
+        submitted=new.get('client_submission_position')
+        if submitted is None or (submitted or 0)<=(old.get('log_position') or 0):return None
+        if any((r.get('log_position') or 0)>(old.get('log_position') or 0)
+               for r in new.get('resolutions',[])):return None
+        try:current=bind_actions(snapshot)
+        except Blocked:return None
+        if not any(binding==d.binding for binding in current):return None
+        from .runtime import save
+        archive=self.out/'expired-unsent'/(digest(asdict(d))+'.json')
+        if not archive.exists():
+            save(archive,dict(decision=asdict(d),before=before,parents=self.parents,
+                proof=dict(kind='server_did_not_take_still_legal',grace_seconds=self.rejected_grace,
+                    log_position_at_dispatch=old.get('log_position'),
+                    client_submission_position=submitted,turn=new.get('turn'),phase=new.get('phase')),
+                outcome='submitted_option_still_authorized_archived_not_applied'))
+        self.event('expired_unsent_input',action=d.action,action_kind=d.binding.kind,
+            source=d.binding.source,proof='server_did_not_take_still_legal',archive=str(archive))
+        self.clear();return True
     def pending_timeout(self):
         """A soft deadline changes diagnostics, never retransmits an input.
 
@@ -193,9 +373,12 @@ class Controller:
         if outcome=='applied':
             recovered=self.halted=='input interrupted; delivery unknown'
             if recovered:self.halted=None
+            if self.pending_gesture_key:
+                state=self.gesture_state.get(self.pending_gesture_key)
+                if state is not None:state['confirmed_at']=self.clock()
+                self.pending_gesture_key=None
             key=(before['game_id'],before['client']['turn'])
-            counts=self.turn_counts.setdefault(key,dict(actions=0,moves=0));counts['actions']+=1
-            if d.binding.kind=='move':counts['moves']+=1
+            self._note_action(key,d.action)
             self._save_state()
             self.event(outcome,action=d.action,game_id=d.game_id,action_kind=d.binding.kind,source=d.binding.source,recovered_after_interruption=recovered,
                        receipt_positions=[r['log_position'] for r in snapshot['client'].get('resolutions',[])
@@ -203,9 +386,15 @@ class Controller:
                            and r.get('log_position',0)>before['client'].get('log_position',0)],
                        receipt_boundaries=[r.get('closed_by') for r in snapshot['client'].get('resolutions',[])
                            if r.get('source')==d.binding.source and r.get('log_position',0)>before['client'].get('log_position',0)])
+            if self.trace is not None and self.current_decision_id:
+                try:self.trace.execution(self.current_decision_id,snapshot=None,plan=[],status='receipt',
+                    outcome='applied',after=snapshot.get('client'))
+                except Exception:self.trace=None
             self.clear();return outcome
         if outcome=='rejected':
             self.halted='observed action outcome differs from requested action';return 'halted'
+        if self.unsent_reconciliation(snapshot):return 'expired_unsent_input'
+        if self.rejected_reconciliation(snapshot):return 'expired_unsent_input'
         if self.retire_resolved_hero(snapshot):return 'externally_resolved_hero'
         if self.retire_resolved_choice(snapshot):return 'externally_resolved_choice'
         if self.retire_resolved_play(snapshot):return 'externally_resolved_play'
@@ -273,6 +462,10 @@ class Controller:
             if [c['entity_id'] for c in snapshot['client']['choices']]!=[r[0] for r in d.binding.branches]:
                 raise Blocked('branch candidates differ')
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
+            if self.trace is not None and self.current_decision_id:
+                try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
+                    bindings=bind_actions(snapshot),parent=self.current_decision_id)
+                except Exception:self.trace=None
             spec=next((r for r in d.binding.branches if r[0]==selected.binding.source and r[1]==selected.binding.sub_option_id and r[2]=='NONE'),None)
             if spec is None:raise Blocked('model branch is not authorized')
             snapshot=self._fresh(snapshot,before_send,selected.binding)
@@ -332,8 +525,11 @@ class Controller:
             snapshot=self._fresh(snapshot,before_send,d.binding)
             if not snapshot.get('visual',{}).get('confirm_enabled') or not self._selection_matches(snapshot,d.binding.source):
                 raise Blocked('model-selected card lost its visual confirmation proof')
+            points,_=self.geometry.locations(snapshot)
+            final_point=points.get('control:confirm')
+            if final_point is None:raise Blocked('confirm control is unlocated')
             self.confirm_sent=True;self._progress();self.persist();self.event('confirm_model_choice',source=d.binding.source)
-            self._execute([('click',list(point))],snapshot,rollback=rollback,flags=flags)
+            self._execute([('click',list(final_point))],snapshot,rollback=rollback,flags=flags)
             return 'confirm_sent'
         if d.binding.targets and d.binding.target is None and not self.target_sent and snapshot.get('visual',{}).get('target_open'):
             # Original server target authorization remains pinned. The visual
@@ -346,6 +542,10 @@ class Controller:
             if set(c['entity_id'] for c in snapshot['client']['choices'])!=set(d.binding.targets):
                 raise Blocked('target authorization changed')
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
+            if self.trace is not None and self.current_decision_id:
+                try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
+                    bindings=bind_actions(snapshot),parent=self.current_decision_id)
+                except Exception:self.trace=None
             snapshot=self._fresh(snapshot,before_send,selected.binding)
             self.target_sent=True
             completed=replace(d,binding=replace(d.binding,target=selected.binding.target))
@@ -371,7 +571,17 @@ class Controller:
                 or new.get('phase')!='recruit' or new.get('local_player_id')!=old.get('local_player_id')
                 or new.get('options_pending') or new.get('client_task_list') is not None
                 or not new.get('ready')):return False
-        if self.clock()-started<self.timeout:return False
+        # A Move gesture can be submitted and still take longer than the
+        # generic 12 s receipt budget to appear as a reorder root.  In the
+        # 2026-11-10 03:02 game, decision 200 dragged source 7364 at 03:06:36:
+        # the client displayed the new order, but the root arrived at 03:06:49,
+        # just after the retry had already been armed.  The retry then produced
+        # a *second* reorder.  Move has an exact, local identity proof (the
+        # submitted source and final order), so give its receipt the full
+        # recovery window before classifying it as unsent.  This only delays a
+        # retry; it never shortens a wait or authorizes a blind second drag.
+        move_grace=min(self.timeout+6.,self.recovery_timeout) if b.kind=='move' else self.timeout
+        if self.clock()-started<move_grace:return False
         if (new.get('client_submission_position') or 0)>(old.get('log_position') or 0):return False
         if any(r.get('source')==b.source and (r.get('log_position') or 0)>(old.get('log_position') or 0)
                for r in new.get('resolutions',[])):return False
@@ -450,17 +660,55 @@ class Controller:
                    request_id=b.choice_id,archive=str(path),model_choice_applied=False)
         if self.halted=='input interrupted; delivery unknown':self.halted=None
         self.clear();return True
+    def _gesture_key(self,decision,plan):
+        return (decision.game_id,decision.binding.kind,json.dumps(plan,sort_keys=True))
+    def _gesture_allowed(self,decision,plan,snapshot):
+        """Refuse to replay a gesture whose first dispatch was *confirmed applied*.
+
+        The 03:12 game submitted the same Move seven times in thirteen seconds;
+        every one of them had a receipt, so the board really did return to the
+        same order and the model asked again. Suppressing a confirmed repeat is
+        safe; suppressing a *swallowed* first click would starve the panel, so
+        only ``confirmed_at`` (set when the receipt for this exact plan arrived)
+        ever suppresses. The window releases by itself, and it never slides.
+        """
+        kind=decision.binding.kind
+        if kind not in self.repeat_sensitive:return True
+        turn=snapshot['client'].get('turn');now=self.clock()
+        key=self._gesture_key(decision,plan)
+        state=self.gesture_state.get(key)
+        if state and state.get('turn')==turn and state.get('confirmed_at') is not None:
+            age=now-state['confirmed_at']
+            if age<self.repeat_window:
+                state['count']=state.get('count',1)+1
+                if state['count']<=2:
+                    self.event('duplicate_gesture_suppressed',action=decision.action,gesture_kind=kind,
+                        seconds=round(age,3),reason='identical gesture already applied')
+                return False
+        self.gesture_state[key]=dict(turn=turn,at=now,count=1,
+            confirmed_at=(state or {}).get('confirmed_at') if state and state.get('turn')==turn else None)
+        if len(self.gesture_state)>256:
+            self.gesture_state={k:v for k,v in self.gesture_state.items() if v.get('turn')==turn}
+        return True
     def tick(self,snapshot,*,before_send=None):
         if self.halted: return 'halted'
         if self.pending:return self.poll_pending(snapshot,before_send=before_send)
         turn=(snapshot['game_id'],snapshot['client']['turn'])
+        if self.freeze_cooldown_key and self.freeze_cooldown_key[:2]==turn:
+            if self.clock()<self.freeze_cooldown_until:
+                if not self.freeze_cooldown_noted:
+                    self.event('waiting_control_settle',control='freeze',
+                               source=self.freeze_cooldown_key[2],
+                               remaining_ms=round((self.freeze_cooldown_until-self.clock())*1000,1))
+                    self.freeze_cooldown_noted=True
+                return 'waiting_control_settle'
+            self.freeze_cooldown_key=None
         from .lifecycle import owned_selection
         owned_choice=owned_selection(snapshot['client'])
         if self.ended==turn and not owned_choice:return 'waiting_next_turn'
         bindings=bind_actions(snapshot)
         if self.practical and not snapshot['client'].get('choices') and not snapshot['client'].get('interaction'):
-            counts=self.turn_counts.get(turn,dict(actions=0,moves=0))
-            bindings=tuple(b for b in bindings if (counts['moves']<8 or b.kind!='move') and (counts['actions']<200 or b.kind=='end'))
+            bindings=self._guarded_bindings(snapshot,bindings)
         cache_key=(state_stamp(snapshot),tuple(bindings))
         reused=bool(self.practical and snapshot.get('comparison')=='semantic-v1' and self.candidate and self.candidate[0]==cache_key)
         infer_start=time.perf_counter()
@@ -485,13 +733,50 @@ class Controller:
                 raise Blocked('decision checkpoint identity differs from loaded policy')
         if self.practical:self.candidate=(cache_key,decision)
         self.event('decision_reused' if reused else 'model_decision',decision=asdict(decision),snapshot=compact_snapshot(snapshot) if self.practical else snapshot,policy_ms=policy_ms)
-        plan=self.geometry.plan(decision,snapshot)
+        if self.trace is not None:
+            # Every separate model decision gets its own record, including a
+            # repeated argmax after a visual retry. ``reused`` only means the
+            # cache avoided a second forward pass; it does not collapse the
+            # decision timeline.
+            did=self.trace.decision(snapshot,decision,policy_ms=policy_ms,reused=reused,
+                bindings=bindings,plan=None)
+            self.current_decision_id=did
+        try:
+            plan=self.geometry.plan(decision,snapshot)
+        except Blocked as exc:
+            if self.trace is not None and self.current_decision_id:
+                self.trace.execution(self.current_decision_id,snapshot=snapshot,plan=[],status='blocked_before_gesture',
+                    error=str(exc),timing=None,native_trace=None,outcome='blocked')
+            raise
+        if self.trace is not None and self.current_decision_id:
+            self.trace.event('gesture_plan',decision_id=self.current_decision_id,plan=plan)
         if not self.enable_input: self.event('dry_run',plan=plan);return 'dry_run'
+        if not self._gesture_allowed(decision,plan,snapshot):return 'duplicate_gesture_suppressed'
         snapshot=self._fresh(snapshot,before_send,decision.binding)
-        if state_stamp(snapshot)!=decision.stamp:raise Blocked('decision became stale before dispatch')
-        if decision.binding.kind=='end':
-            self.ended=turn;self._save_state();self.event('model_end_turn_wait',turn=turn);return 'waiting_next_turn'
+        if decision.binding.kind=='choose':
+            # The admission frame can refine a runtime-derived 5/6-card row.
+            # Recompute the click from the final measured boxes, not from the
+            # speculative pre-admission frame.
+            plan=self.geometry.plan(decision,snapshot)
+        if self.practical and snapshot.get('comparison')=='semantic-v1':
+            # Full model context can include an unrelated public opponent
+            # summary update. The physical gesture is valid iff the exact
+            # authorized binding still exists in the fresh executable state.
+            current=next((b for b in bind_actions(snapshot) if b.action==decision.action),None)
+            exact=current==decision.binding
+            prospective=bool(current and current.targets and decision.binding.target in current.targets
+                and replace(decision.binding,target=current.target)==current)
+            if not (exact or prospective):
+                raise Blocked('decision became stale before dispatch')
+        elif state_stamp(snapshot)!=decision.stamp:
+            raise Blocked('decision became stale before dispatch')
         self.pending=(decision,copy.deepcopy(compact_snapshot(snapshot) if self.practical else snapshot),self.clock());self.persist()
+        self.pending_gesture_key=self._gesture_key(decision,plan)
         self.event('dispatch_intent',plan=plan)
+        dispatched_at=self.clock()
         self._execute(plan,snapshot)
+        if decision.binding.kind=='freeze':
+            self.freeze_cooldown_key=(turn[0],turn[1],decision.binding.source)
+            self.freeze_cooldown_until=dispatched_at+self.freeze_cooldown_seconds
+            self.freeze_cooldown_noted=False
         return 'sent'

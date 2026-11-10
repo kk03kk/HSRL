@@ -116,6 +116,11 @@ class FrameGate:
         # press deadline is measured from this, not from the earlier admission
         # frame: semantic/OCR rechecks themselves take real time.
         self.evidence_at=None
+        # Optional asynchronous frame writer (GameTrace).  Encoding a
+        # 2560x1600 JPEG costs tens of milliseconds and used to sit directly
+        # before the press; the image is evidence, not an input precondition.
+        self.frame_writer=None
+        self.end_ocr=None
     def save_dispatch(self,snapshot,binding):
         """Two rotating diagnostic frames, separate from input authorization."""
         if self.out is None or self.last_frame is None or binding is None:return None
@@ -126,9 +131,14 @@ class FrameGate:
         if key==self.dispatch_saved_key:return self.dispatch_saved_path
         folder=Path(self.out)/'dispatch';folder.mkdir(parents=True,exist_ok=True)
         self.dispatch_saves+=1;name=str(self.dispatch_saves%2)
-        path=folder/(name+'.jpg');self.last_frame.convert('RGB').save(path,quality=85)
-        save(folder/(name+'.json'),dict(sequence=self.dispatch_saves,game_id=key[0],turn=key[1],binding=asdict(binding),
-            log_position=snapshot['client'].get('log_position'),evidence='compressed final admission frame before hover'))
+        path=folder/(name+'.jpg')
+        metadata=dict(sequence=self.dispatch_saves,game_id=key[0],turn=key[1],binding=asdict(binding),
+            log_position=snapshot['client'].get('log_position'),evidence='compressed final admission frame before hover')
+        if self.frame_writer is not None:
+            self.frame_writer(path,self.last_frame,metadata,quality=85)
+        else:
+            self.last_frame.convert('RGB').save(path,quality=85)
+            save(folder/(name+'.json'),metadata)
         self.dispatch_saved_key=key;self.dispatch_saved_path=str(path)
         return str(path)
     def observe(self,snapshot,pending=None,binding=None,*,revalidate=False):
@@ -144,14 +154,18 @@ class FrameGate:
                     from .runtime import save
                     self.saved_blocks.add(key);folder=Path(self.out);folder.mkdir(parents=True,exist_ok=True)
                     name=f'{len(self.saved_blocks):02d}'
-                    self.last_frame.convert('RGB').save(folder/(name+'.jpg'),quality=90)
                     data=snapshot['client']
-                    save(folder/(name+'.json'),dict(reason=str(exc),game_id=snapshot['game_id'],
+                    metadata=dict(reason=str(exc),game_id=snapshot['game_id'],
                         turn=data.get('turn'),phase=data.get('phase'),interaction=data.get('interaction'),
                         choices=[{k:c.get(k) for k in ('entity_id','card_id','card_type')} for c in data.get('choices',[])],
                         interruption_probe=getattr(self.interruptions,'last_probe',None),hero_probe=self.last_hero_probe,
                         branch_probe=self.last_branch_probe,choice_probe=self.last_choice_probe,
-                        motion=self.last_motion))
+                        motion=self.last_motion)
+                    if self.frame_writer is not None:
+                        self.frame_writer(folder/(name+'.jpg'),self.last_frame,metadata,quality=90)
+                    else:
+                        self.last_frame.convert('RGB').save(folder/(name+'.jpg'),quality=90)
+                        save(folder/(name+'.json'),metadata)
                 if str(exc).startswith('waiting for visible hero') and self.clock()-self.last_hero_wait_saved>=2:
                     from pathlib import Path
                     from .runtime import save
@@ -159,9 +173,13 @@ class FrameGate:
                     # Keep the first evidence above and refresh this explicitly
                     # named latest sample while loading. It is never a source
                     # artifact or an authorization frame for a pending input.
-                    self.last_frame.convert('RGB').save(folder/'hero-wait-last.jpg',quality=90)
-                    save(folder/'hero-wait-last.json',dict(reason=str(exc),game_id=snapshot['game_id'],
-                        interaction=snapshot['client'].get('interaction'),hero_probe=self.last_hero_probe))
+                    latest=dict(reason=str(exc),game_id=snapshot['game_id'],
+                        interaction=snapshot['client'].get('interaction'),hero_probe=self.last_hero_probe)
+                    if self.frame_writer is not None:
+                        self.frame_writer(folder/'hero-wait-last.jpg',self.last_frame,latest,quality=90)
+                    else:
+                        self.last_frame.convert('RGB').save(folder/'hero-wait-last.jpg',quality=90)
+                        save(folder/'hero-wait-last.json',latest)
                     self.last_hero_wait_saved=self.clock()
             raise
     def _observe(self,snapshot,pending=None,binding=None,*,revalidate=False):
@@ -224,6 +242,15 @@ class FrameGate:
         def check(frame):
             if self.interruptions:self.interruptions.check(frame,data,pending,choice_regions=choice_regions,
                 choice_visible=bool((visual.get('choice_ui') or {}).get('visible') or (visual.get('hero_ui') or {}).get('visible')))
+            if binding and binding.kind=='end':
+                # A visible countdown means the server has already accepted
+                # the end of recruiting; there is no button to press until it
+                # reaches zero. Treat that as an explicit wait, not as an OCR
+                # failure that burns the whole admission interval.
+                probe=self.end_control_probe(frame,snapshot)
+                visual['end_control']=probe
+                if probe.get('countdown') and not probe.get('ready'):
+                    raise Blocked('recruiting timer still running; no end-turn input sent')
         check(image)
         # OCR can be slower than the evidence age budget. Refresh afterwards;
         # never timestamp an old pre-OCR frame as a fresh mouse admission.
@@ -301,6 +328,59 @@ class FrameGate:
                 [Occlusion(image,box) for box in visual['branch_ui']['boxes']])
         visual.update(observed_at=now,admitted=True,region_count=len(boxes),evidence='two fresh frames; exact window/layout; action dependencies')
         return visual,image
+    def end_control_probe(self,image,snapshot):
+        """Classify the calibrated end-turn neighbourhood without blind clicks.
+
+        Returns either ``ready`` with the exact phrase proof, or a countdown
+        observation. The caller must keep waiting in either case until the
+        server exposes the start-combat control.
+        """
+        from .lobby import normalized
+        from .vision import OCR
+        data=snapshot['client'];interaction=data.get('interaction') or {}
+        if data.get('phase')!='recruit' or interaction or not data.get('ready'):
+            raise Blocked('end-turn control is not available in a ready recruit phase')
+        points,_=PracticalGeometry(self.profile).locations(snapshot)
+        point=points.get('control:end')
+        if point is None:raise Blocked('end-turn control is not calibrated')
+        x,y=point
+        left=max(0,min(x-.055,.78));top=max(0,min(y-.045,.405))
+        right=min(1,max(x+.055,.90));bottom=min(1,max(y+.05,.51))
+        box=crop_box([left,top,right-left,bottom-top],image.size)
+        crop=image.crop(box)
+        if self.end_ocr is None:
+            self.end_ocr=getattr(self.interruptions,'ocr',None)
+            if self.end_ocr is None:
+                self.end_ocr=OCR(max_width=1024)
+                if self.interruptions is not None:self.interruptions.ocr=self.end_ocr
+        rows=self.end_ocr.read(crop)
+        found=[text for text,score in rows if score>=.9 and normalized(text)=='开始战斗']
+        countdown=[text for text,score in rows if score>=.9 and
+                   ('秒' in text or any(ch.isdigit() for ch in text))]
+        roi=[round(v,6) for v in (box[0]/image.width,box[1]/image.height,
+            (box[2]-box[0])/image.width,(box[3]-box[1])/image.height)]
+        if len(found)==1:
+            return dict(visible=True,ready=True,text='开始战斗',point=list(point),roi=roi,
+                evidence='OCR exact phrase in calibrated end-turn neighbourhood')
+        if countdown:
+            return dict(visible=True,ready=False,countdown=True,text=countdown[0],point=list(point),
+                roi=roi,evidence='OCR recruiting countdown; waiting for start-combat')
+        return dict(visible=True,ready=False,countdown=False,point=list(point),roi=roi,
+            evidence='end-turn control not yet ready')
+
+    def start_combat_proof(self,image,snapshot):
+        """Require the real '开始战斗' control before dispatching EndTurn.
+
+        BG exposes EndTurn as a right-side client button, not a server option.
+        The calibrated point alone is insufficient: when the button is absent
+        or replaced by a countdown, a blind click could hit unrelated UI. OCR
+        only the calibrated control neighbourhood and require one high-
+        confidence exact phrase. This is local evidence, not a model estimate.
+        """
+        probe=self.end_control_probe(image,snapshot)
+        if not probe.get('ready'):
+            raise Blocked('waiting for real start-combat button; no end-turn input sent')
+        return probe
     def _recheck_capture(self,snapshot,reason):
         """One fresh press-time frame, still bound to the admitted window."""
         image,window=self.backend.capture();self.captures+=1;self.evidence_at=self.clock()
@@ -353,15 +433,32 @@ class FrameGate:
         one. This keeps the 10/28 "gold elsewhere is not a row" guard without
         rejecting legitimate golden cards.
         """
-        from .choice_ui import gold_only_slots,slot_colors
+        from .choice_ui import slot_colors
         binding=self.admitted_binding
         if not (self.previous and self.admitted and binding and binding.kind=='choose'):return False
         if self.previous[0]!=layout_key(snapshot):return False
         try:
-            before=gold_only_slots(slot_colors(self.previous[1],self.profile,snapshot['client']))
-            now=gold_only_slots(slot_colors(image,self.profile,snapshot['client']))
+            before=slot_colors(self.previous[1],self.profile,snapshot['client'])
+            now=slot_colors(image,self.profile,snapshot['client'])
         except Blocked:return False
-        return bool((now-before)-{binding.source})
+        if len(before)!=len(now) or not before:return False
+        def gold_only(row):
+            # A "gold highlight" is a slot whose frame was *already* mostly
+            # gold at admission, then remains gold on both sides. Green
+            # discover rails legitimately change brightness during the hover
+            # animation; only a material gold-vs-green transition is a real
+            # stale-highlight signal.
+            return min(row['gold'])>self.recheck_min_support
+        # Only a slot that was NOT gold-only at admission and is gold-only now
+        # is evidence that some other object became highlighted. Trinket
+        # panels legitimately have all four cards gold; comparing set
+        # differences there made every retry fail with the exact same fixed
+        # golden set. The admitted frame is the baseline, so a card that was
+        # already gold never looks like a new highlight.
+        changed={row['entity'] for old,row in zip(before,now)
+                 if not gold_only(old) and gold_only(row)
+                 and min(row['gold'])>max(self.recheck_min_support,min(row['base'])+.15)}
+        return bool(changed-{binding.source})
 
     def recheck_choice(self,snapshot):
         if not snapshot['visual'].get('choice_ui'):return
@@ -424,10 +521,14 @@ class FrameGate:
         from pathlib import Path
         from .runtime import save
         folder=Path(self.out);folder.mkdir(parents=True,exist_ok=True)
-        image.convert('RGB').save(folder/'choice-wait-last.jpg',quality=85)
-        save(folder/'choice-wait-last.json',dict(reason=reason,game_id=snapshot['game_id'],
+        metadata=dict(reason=reason,game_id=snapshot['game_id'],
             turn=snapshot['client'].get('turn'),client={k:v for k,v in snapshot['client'].items()
-                if k not in ('resolutions','actions')},choice_probe=self.last_choice_probe))
+                if k not in ('resolutions','actions')},choice_probe=self.last_choice_probe)
+        if self.frame_writer is not None:
+            self.frame_writer(folder/'choice-wait-last.jpg',image,metadata,quality=85)
+        else:
+            image.convert('RGB').save(folder/'choice-wait-last.jpg',quality=85)
+            save(folder/'choice-wait-last.json',metadata)
         self.last_choice_wait_saved=self.clock()
     def check_branch_occlusion(self,image,snapshot,pending,binding):
         if not binding or binding.kind!='target' or not pending or not pending[0].binding.branches:return

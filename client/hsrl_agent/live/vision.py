@@ -116,6 +116,13 @@ class Geometry:
             if self.profile.get('review_state')=='reviewed' and key not in self.profile.get('reviewed_layouts',[]):
                 raise Blocked('layout has not been visually reviewed:'+key)
             layout=matches[0];regions=layout.get('regions',{});model=layout.get('model',{})
+            # Board insertion slots are a first-class calibrated geometry, not
+            # a value inferred from whichever cards currently happen to occupy
+            # the row.  Their keys are also used by Play/Move drops below.
+            if zone=='board':
+                for key,rect in regions.items():
+                    if key.startswith('position:'):
+                        x,y,w,h=rect;points[key]=(x+w/2,y+h/2)
             for i,c in enumerate(cards):
                 rect=regions.get('slot:'+str(i+1))
                 if rect:
@@ -133,7 +140,6 @@ class Geometry:
         return points,zones
     def plan(self,decision,snapshot):
         b=decision.binding
-        if b.kind=='end': return []
         points,zones=self.locations(snapshot)
         def point(key):
             if key not in points: raise Blocked('unlocated UI object:'+key)
@@ -141,6 +147,7 @@ class Geometry:
             if not 0<x<1 or not 0<y<1: raise Blocked('UI coordinate out of client bounds')
             return [x,y]
         if b.kind=='cancel': return [('right_click',point('entity:'+str(b.source)))] if b.source else [('right_click',[.5,.5])]
+        if b.kind=='end': return [('click',point('control:end'))]
         if b.kind in ('refresh','freeze','upgrade'): return [('click',point('control:'+b.kind))]
         if b.kind in ('hero_power','dark_gift'):
             key='control:hero_power' if b.kind=='hero_power' else 'control:game_mode_slot:5'
@@ -164,12 +171,14 @@ class Geometry:
             if not isinstance(offset,(int,float)) or not .2<=offset<=.5:raise Blocked('invalid magnetic insertion offset')
             target=[x-self.profile['board_pitch']*offset,y]
         elif b.kind=='move':
-            remaining=[c for c in snapshot['client']['board'] if c['entity_id']!=b.source]
-            xs=[point('entity:'+str(c['entity_id']))[0] for c in remaining];pos=b.position
-            if not xs or not 0<=pos<=len(xs):raise Blocked('invalid final move position')
-            pitch=self.profile['board_pitch']
-            target=[xs[0]-pitch/2 if pos==0 else xs[-1]+pitch/2 if pos==len(xs) else (xs[pos-1]+xs[pos])/2,
-                    point('entity:'+str(remaining[0]['entity_id']))[1]]
+            board=snapshot['client']['board'];pos=b.position
+            if not board or not 0<=pos<len(board):raise Blocked('invalid final move position')
+            # Training Move(src,dst) means final 0-based slot dst.  Unity's
+            # SendOption position is the calibrated drop slot dst+1.  Use that
+            # immutable slot, not a midpoint recomputed after deleting the
+            # source: in the real 00:45:44 game deleting source slot 0 shifted
+            # that midpoint one slot right, so dst=5 was submitted as slot 7.
+            target=list(point('position:board:'+str(pos+1)))
         elif b.kind=='play':
             card=next(c for c in snapshot['client']['hand'] if c['entity_id']==b.source)
             if card['card_type']=='MINION':
@@ -177,10 +186,9 @@ class Geometry:
                 # Inserting N+1 positions differs from moving an existing card.
                 if not 0<=pos<=len(board): raise Blocked('invalid insertion')
                 if board:
-                    xs=[point('entity:'+str(c['entity_id']))[0] for c in board]
-                    pitch=(xs[-1]-xs[0])/(len(xs)-1) if len(xs)>1 else self.profile['board_pitch']
-                    target=[xs[0]-pitch/2 if pos==0 else xs[-1]+pitch/2 if pos==len(board) else (xs[pos-1]+xs[pos])/2,
-                            point('entity:'+str(board[0]['entity_id']))[1]]
+                    # The calibrated position slots already encode insertion
+                    # before card N (1-based N) and the trailing slot N+1.
+                    target=list(point('position:board:'+str(pos+1)))
                 else: target=point('region:board')
             else: target=point('region:board')
         else: raise Blocked('unhandled model action:'+b.kind)

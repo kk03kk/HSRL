@@ -1,4 +1,4 @@
-"""历史公开快照→6039→合法动作→实际几何规划→Controller dry-run；绝不创建实机后端。"""
+"""历史公开快照→V1.1→合法动作→实际几何规划→Controller dry-run；绝不创建实机后端。"""
 from pathlib import Path
 import argparse,json,zipfile,copy,sys
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT),str(ROOT/'client')]
@@ -11,7 +11,7 @@ from hsrl_agent.live.controller import Controller
 from hsrl_agent.live.contracts import Blocked
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,default=ROOT/'artifacts/local/client-6039-rehearsal');p.add_argument('--limit',type=int,default=55);a=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--out',type=Path,default=ROOT/'artifacts/local/client-v1.1-rehearsal');p.add_argument('--limit',type=int,default=55);a=p.parse_args()
  if a.out.exists():p.error('输出目录已存在；另选新目录保留旧报告')
  a.out.mkdir(parents=True);configure_threads(2)
  policy=ModelPolicy(selected_checkpoint(ROOT));geometry=PracticalGeometry(json.loads((ROOT/'config/live/autoplay-255790.json').read_text(encoding='utf8')))

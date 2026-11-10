@@ -99,6 +99,40 @@ def decision_semantics(snapshot):
         bindings=[asdict(b) for b in sorted(bind_actions(snapshot),key=lambda b:b.action)])
 
 
+def execution_semantics(snapshot):
+    """Exact UI/action identity, excluding unrelated model-only context.
+
+    The press-time check used to hash the complete model input.  A public
+    opponent tier/health update while a choice panel is open therefore
+    cancelled an otherwise unchanged click, and the whole two-frame gate had
+    to run again.  This stamp keeps everything that can make the physical
+    gesture wrong (phase, turn, interaction, entity identities, authorization
+    and executable bindings) while excluding opponent summaries and other
+    model-only features that do not alter the pending gesture.
+    """
+    from .actions import bind_actions
+    data=snapshot['client']
+    def identity(card):
+        return {k:card.get(k) for k in ('entity_id','card_id','card_type','controller','zone','position','is_local')}
+    preview=snapshot.get('target_preview')
+    turn=data.get('turn')
+    if turn is None and data.get('choices') and all(c['card_type']=='HERO' for c in data['choices']):turn=0
+    view=snapshot.get('view') or {}
+    return dict(game_id=snapshot['game_id'],build=snapshot.get('build',data.get('build')),
+        phase=data.get('phase'),turn=turn,pending=view.get('pending'),pending_source=view.get('pending_source'),
+        gates={k:data.get(k) for k in ('mode','local_player_id','ready','warnings','options_pending','client_task_list')},
+        interaction=data.get('interaction'),
+        zones={z:[identity(c) for c in data.get(z,[])] for z in ('board','hand','shop','choices','controls','branches')},
+        hero=identity(data['hero']) if data.get('hero') else None,
+        target_heroes=[identity(c) for c in snapshot.get('target_heroes',[])],
+        preview=dict(source=identity(preview['source']),position=preview['position']) if preview else None,
+        bindings=[asdict(b) for b in sorted(bind_actions(snapshot),key=lambda b:b.action)])
+
+
+def execution_stamp(snapshot):
+    return digest(execution_semantics(snapshot))
+
+
 def compact_snapshot(snapshot):
     result=dict(snapshot);result['client']={**snapshot['client'],'resolutions':[]}
     result['receipt_history_omitted']=True

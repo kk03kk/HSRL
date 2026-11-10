@@ -182,6 +182,37 @@ def lobby_context(reader,game_dir):
     return dict(active=active and not closed,rebuilding=False,completed=bool(closed),closed_game=closed,power_status='present',signature=signature)
 
 
+def control_texts(kind):
+    """OCR texts that identify the control a committed lobby action targets."""
+    from .lobby import STARTS
+    return {'start':STARTS,
+            'enter_lobby':frozenset(('酒馆战棋',)),
+            'dismiss_error':frozenset(('确定','确认')),
+            'dismiss_result':frozenset(('点击继续','点击以继续','点击屏幕继续','点击任意位置继续','点击任意位置以继续'))}[kind]
+
+
+def reverify_control(image,ocr,action,tolerance=.01):
+    """Re-recognise the authorised control on a frame captured just before the click.
+
+    The OCR pass that produced ``action`` is 0.3-2.8 s stale by the time the
+    button may be pressed (OCR + JPEG evidence + commit). Without this check a
+    message that closed, a queue that started, or a dialog that appeared in that
+    window would still receive a blind click. Returns the fresh point, or None
+    when the control is gone or has moved outside ``tolerance``.
+    """
+    from .lobby import normalized,trusted_rows,RESULT_BANNER
+    wanted=control_texts(action.kind)
+    for row in trusted_rows(lobby_ocr_rows(ocr,image)):
+        text=normalized(row.get('text',''))
+        # The end-of-game banner has no 点击继续 label of its own; the banner row
+        # is the dismiss anchor, so it is accepted as its own identity.
+        if text not in wanted and not (action.kind=='dismiss_result' and RESULT_BANNER.search(text)):
+            continue
+        if max(abs(a-b) for a,b in zip(row['point'],action.point))<=tolerance:
+            return tuple(row['point'])
+    return None
+
+
 def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=time.sleep,context=None,ocr=None):
     from .logs import LogReader
     from .vision import OCR
@@ -194,6 +225,8 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
     image=None;window=None;rows=[];last_status=None;last_power_status=None;current={}
     focus_paused=False;inputs_sent=0;next_progress=5.
     clicked_at=None
+    overlay_grace=float(getattr(args,'lobby_overlay_grace',20.))
+    idle_since=None;overlay_reported=False
     retirement_flow=LobbyFlow()
     def event(kind,**fields):
         with (startup/'events.jsonl').open('a',encoding='utf8') as f:
@@ -254,6 +287,27 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                         pending=False
                     else:sleep(.25);continue
             action=flow.inspect(rows,window.token(),clock(),pending_gameplay=pending,completed_gameplay=current.get('completed',False))
+            # No calibrated lobby control, no popup, no match: the client is on
+            # an overlay we cannot name (shop/quest/collection). A live probe on
+            # 2026-11-10 showed Escape in this lobby opens 游戏菜单 and a second
+            # press opened 商店 — an uncalibrated key is NOT a safe dismissal.
+            # Do not guess: record the screen, then fail this match fast as an
+            # environment (S3) incident instead of burning the whole timeout.
+            if action is None and not pending and not current.get('active') and not current.get('completed'):
+                if flow.state in ('idle','waiting_lobby'):
+                    if idle_since is None:idle_since=clock()
+                    elif clock()-idle_since>overlay_grace and not overlay_reported:
+                        overlay_reported=True
+                        from .lobby import normalized,trusted_rows
+                        screen=[normalized(r['text']) for r in trusted_rows(rows)][:12]
+                        event('overlay_suspected',seconds=round(clock()-started,1),state=flow.state,screen=screen)
+                        print('Lobby: unclassified screen for %.0f s (no queue control, no popup); '
+                              'recording evidence and failing this match as an environment incident.'
+                              %(clock()-idle_since),flush=True)
+                        raise Blocked('lobby overlay suspected: no calibrated queue control on screen; '
+                                      'no uncalibrated key or click is sent')
+                else:idle_since=None
+            else:idle_since=None
             status=(flow.state,flow.restarts)
             if status!=last_status:
                 event('state');print('Lobby:',flow.state,'restarts='+str(flow.restarts),flush=True);last_status=status
@@ -263,13 +317,31 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                 fresh=context()
                 if fresh['active'] or fresh['rebuilding'] or fresh['signature']!=current['signature']:
                     flow.proof=None;sleep(.05);continue
+                # The authorising OCR pass is 0.3-2.8 s stale (OCR + JPEG evidence +
+                # commit). Re-recognise the same control on a frame captured now;
+                # if it moved or vanished, drop the proof and re-inspect instead of
+                # sending a blind click into whatever replaced it.
+                try:check_image,check_window=backend.capture()
+                except FocusUnavailable as exc:
+                    pause_focus(exc);sleep(.25);continue
+                if check_window.token()!=window.token():
+                    flow.proof=None;sleep(.05);continue
+                if reverify_control(check_image,ocr,action) is None:
+                    event('control_not_reverified',action=action.kind,point=list(action.point))
+                    print('Lobby: the lobby control moved or disappeared before the click; re-inspecting without input.',flush=True)
+                    flow.proof=None;sleep(.1);continue
                 index=flow.actions+1;name=f'{index:03d}-{action.kind}'
-                # PNG encoding of a 2560x1600 frame costs ~0.3 s and used to sit
-                # directly before the mouse press; JPEG keeps the same evidence
-                # for ~0.02 s.
-                image.convert('RGB').save(startup/(name+'.jpg'),quality=90)
-                save(startup/(name+'.json'),dict(rows=rows,action=dict(kind=action.kind,point=action.point),
-                    window_token=window.token(),context=current,screenshot=name+'.jpg'))
+                # The fresh OCR pass above is the authorization. Never encode
+                # an image on the press path: a trace writer may take the JPEG
+                # after the click has been sent.
+                evidence=dict(rows=rows,action=dict(kind=action.kind,point=action.point),
+                    window_token=window.token(),context=current,screenshot=name+'.jpg')
+                writer=getattr(args,'live_trace',None)
+                if writer is not None:
+                    writer.frame(startup/(name+'.jpg'),image,evidence,quality=90)
+                else:
+                    image.convert('RGB').save(startup/(name+'.jpg'),quality=90)
+                    save(startup/(name+'.json'),evidence)
                 rollback={k:getattr(flow,k) for k in ('state','restarts','sent_at','needs_restart')}
                 flow.commit(action,clock());event('dispatch_intent',action=action.kind,point=action.point)
                 previous_guard=getattr(backend,'pre_press',None)

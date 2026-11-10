@@ -33,7 +33,12 @@ def bind_actions(snapshot):
                 source=c['entity_id'],target=c['entity_id'] if interaction.get('mode')=='target' else None,
                 choice_id=interaction.get('request_id'),sub_option_id=branch[i][1] if mode=='branch' else None,
                 targets=tuple(branch[i][3]) if mode=='branch' else ()))
-        if interaction.get('cancel_authorized'): out.append(Binding(7,'cancel',choice_id=interaction.get('request_id')))
+        # V1.1 动作规则 forbid_cancel=1：训练/评测在采样前清掉 Cancel(7)，V1.1 从未
+        # 见过 cancel 合法。实机若把 7 放进掩码，argmax 可能落在这个未训练的位
+        # 上——历史实机回放里出现过 play/cancel 循环。只有当取消是唯一可授权动作
+        # 时才保留它，否则空掩码会直接 Blocked 死锁。
+        if not out and interaction.get('cancel_authorized'):
+            out.append(Binding(7,'cancel',choice_id=interaction.get('request_id')))
         return tuple(out)
     # Native EndTurn means stop recruiting. Real BG has no usable END_TURN
     # server option: realization is waiting, never clicking a fabricated button.
@@ -60,7 +65,17 @@ def bind_actions(snapshot):
                     out.append(Binding(16+groups['board'][target],'sell',source=target,option_id=oid))
         elif 'techup' in cid: out.append(Binding(3,'upgrade',source=eid,option_id=oid))
         elif 'reroll_button' in cid: out.append(Binding(1,'refresh',source=eid,option_id=oid))
-        elif 'lockall' in cid: out.append(Binding(2,'freeze',source=eid,option_id=oid))
+        elif 'lockall' in cid:
+            # Freeze is a toggle, not an idempotent "freeze" command.  The
+            # engine's trained A_FREEZE means freeze (set_frozen(true)); a
+            # second press on an already frozen Tavern unfreezes it.  In the
+            # 03:02 game a model Freeze arrived while every shop slot was
+            # FROZEN=1; the click cleared the freeze and no new root followed.
+            # Do not present that opposite transition under the trained action.
+            # The real client exposes no separate unfreeze action in the 245
+            # vocabulary, so omit Freeze until at least one slot is unfrozen.
+            if not shop or not all(str(c.get('tags',{}).get('FROZEN','0'))=='1' for c in shop):
+                out.append(Binding(2,'freeze',source=eid,option_id=oid))
         elif eid in groups['hand']:
             h=groups['hand'][eid]
             if c['card_type']=='MINION':
