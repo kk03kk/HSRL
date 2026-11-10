@@ -1,0 +1,223 @@
+{
+ "schema": "hsai.sync-manifest/v1",
+ "side": "server",
+ "generated_at": "2026-11-10 19:23:05",
+ "root": "/home/h/hengzhi/projects/HSAI",
+ "notes": "server: library-v1 (39 cohorts) and leaderboard-2026-11-09 are absent/archived; active bank=artifacts/libraries/league-eot-v1.1-20261109; autoplay/bg_cards/pyproject/requirements SHA drift is CRLF vs LF; see SERVER.md §6",
+ "git": {
+  "head": "224cb49a819896ad4e1b5dcca3be3da3c6256ed3",
+  "branch": "main",
+  "dirty": true,
+  "changed": 14,
+  "origin": "https://github.com/kk03kk/HSRL.git"
+ },
+ "env": {
+  "python": "3.12.3",
+  "platform": "Linux-6.8.0-149-generic-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "torch": null,
+  "numpy": "1.26.4",
+  "pytest": null,
+  "maturin": null,
+  "rapidocr": null,
+  "onnxruntime": null
+ },
+ "trees": {
+  "engine": {
+   "exists": true,
+   "files": 852,
+   "bytes": 1771800683,
+   "newest": "2026-11-09 09:47:46"
+  },
+  "hsbg": {
+   "exists": true,
+   "files": 141,
+   "bytes": 3709943,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "client": {
+   "exists": true,
+   "files": 211,
+   "bytes": 5625415,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "workflows": {
+   "exists": true,
+   "files": 143,
+   "bytes": 3028884,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "tools": {
+   "exists": true,
+   "files": 36,
+   "bytes": 383635,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "tests": {
+   "exists": true,
+   "files": 90,
+   "bytes": 1810693,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "deploy": {
+   "exists": true,
+   "files": 33,
+   "bytes": 40751,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "config": {
+   "exists": true,
+   "files": 27,
+   "bytes": 140505,
+   "newest": "2026-11-10 19:16:20"
+  },
+  "data": {
+   "exists": true,
+   "files": 20,
+   "bytes": 7843066,
+   "newest": "2026-11-06 19:01:09"
+  },
+  "docs": {
+   "exists": true,
+   "files": 17,
+   "bytes": 117782,
+   "newest": "2026-11-10 19:23:00"
+  }
+ },
+ "artifacts": {
+  "models": {
+   "exists": true,
+   "files": 9,
+   "bytes": 322203559,
+   "newest": "2026-11-09 14:08:33"
+  },
+  "libraries": {
+   "exists": true,
+   "files": 3419,
+   "bytes": 136959632,
+   "newest": "2026-11-09 22:45:00"
+  },
+  "datasets": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null
+  },
+  "imports": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null
+  },
+  "archives": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null
+  },
+  "runs": {
+   "exists": true,
+   "files": 7361,
+   "bytes": 5014183712,
+   "newest": "2026-11-10 19:22:58"
+  },
+  "local": {
+   "exists": true,
+   "files": 8,
+   "bytes": 332395662,
+   "newest": "2026-11-09 18:14:01"
+  },
+  "client": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null
+  }
+ },
+ "pins": {
+  "config/live/model.json": {
+   "bytes": 856,
+   "sha256": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d"
+  },
+  "config/live/autoplay-255790.json": {
+   "bytes": 31314,
+   "sha256": "3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e"
+  },
+  "config/engine-upstream-lock.json": {
+   "bytes": 24468,
+   "sha256": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683"
+  },
+  "config/eval-elo-8.json": {
+   "bytes": 4419,
+   "sha256": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18"
+  },
+  "data/card_zhcn.json": {
+   "bytes": 3681957,
+   "sha256": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc"
+  },
+  "data/bg_cards.json": {
+   "bytes": 1267818,
+   "sha256": "a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a"
+  },
+  "pyproject.toml": {
+   "bytes": 688,
+   "sha256": "62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62"
+  },
+  "requirements.txt": {
+   "bytes": 66,
+   "sha256": "ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d"
+  },
+  "artifacts/models/v1.1/model.pt": {
+   "bytes": 67864188,
+   "sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e"
+  },
+  "artifacts/models/v1.1/manifest.json": {
+   "bytes": 1761,
+   "sha256": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976"
+  },
+  "artifacts/models/v1.1/checkpoint.json": {
+   "bytes": 276,
+   "sha256": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21"
+  },
+  "artifacts/models/library-v1/manifest.json": null,
+  "artifacts/models/library-v1/SHA256SUMS.txt": null,
+  "artifacts/models/leaderboard-v1/manifest-2026-11-09.json": null
+ },
+ "problems": [
+  {
+   "check": "engine manifest",
+   "path": "/home/h/hengzhi/projects/HSAI/engine/crates/hsbg-engine/Cargo.toml",
+   "exists": true
+  },
+  {
+   "check": "card table",
+   "path": "/home/h/hengzhi/projects/HSAI/data/bg_cards.json",
+   "exists": true
+  },
+  {
+   "check": "zh card table",
+   "path": "/home/h/hengzhi/projects/HSAI/data/card_zhcn.json",
+   "exists": true
+  },
+  {
+   "check": "live profile",
+   "path": "/home/h/hengzhi/projects/HSAI/config/live/autoplay-255790.json",
+   "exists": true
+  },
+  {
+   "check": "live model",
+   "path": "/home/h/hengzhi/projects/HSAI/artifacts/models/v1.1/model.pt",
+   "exists": true
+  },
+  {
+   "check": "bot library",
+   "path": "/home/h/hengzhi/projects/HSAI/artifacts/models/library-v1/manifest.json",
+   "exists": false
+  },
+  {
+   "check": "engine lock",
+   "path": "/home/h/hengzhi/projects/HSAI/config/engine-upstream-lock.json",
+   "exists": true
+  }
+ ]
+}
