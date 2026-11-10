@@ -1,6 +1,6 @@
 {
- "left": "docs/sync/manifests/local.json",
- "right": "docs/sync/manifests/server.json",
+ "left": "docs\\sync\\manifests\\local.json",
+ "right": "docs\\sync\\manifests\\server.json",
  "pins": [
   {
    "path": "artifacts/libraries/league-eot-v1.1-20261109/manifest.json",
@@ -133,9 +133,9 @@
   },
   {
    "tree": "config",
-   "left": 24,
+   "left": 29,
    "right": 29,
-   "drift": 0.172,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
@@ -147,9 +147,9 @@
   },
   {
    "tree": "deploy",
-   "left": 28,
+   "left": 33,
    "right": 33,
-   "drift": 0.152,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
@@ -189,9 +189,9 @@
   },
   {
    "tree": "workflows",
-   "left": 91,
+   "left": 94,
    "right": 94,
-   "drift": 0.032,
+   "drift": 0.0,
    "tag": "OK"
   }
  ],
@@ -234,7 +234,7 @@
   },
   {
    "name": "local",
-   "left_bytes": 429539568,
+   "left_bytes": 428055250,
    "right_bytes": 332464730,
    "tag": "INFO"
   },
@@ -253,7 +253,7 @@
  ],
  "hard": [],
  "soft": [
-  "different HEAD (8f75286a1d vs d6e71b2698) — pull/rebase before comparing again",
+  "different HEAD (ed809ab618 vs d6e71b2698) — pull/rebase before comparing again",
   "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on local, allowed by scope=server",
   "pin artifacts/models/library-v1/SHA256SUMS.txt absent on server, allowed by scope=local",
   "pin artifacts/models/library-v1/manifest.json absent on server, allowed by scope=local",

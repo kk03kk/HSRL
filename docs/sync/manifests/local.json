@@ -1,14 +1,14 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "local",
- "generated_at": "2026-11-10 22:49:43",
+ "generated_at": "2026-11-11 00:00:26",
  "root": "D:\\HSAI",
- "notes": "after server green regression 488e063",
+ "notes": "after server gauntlet push ed809ab",
  "git": {
-  "head": "8f75286a1d9db4596e24ae411b1c0d204d983108",
+  "head": "ed809ab61819fbadafa09a4fb9dd2e6b5152c32f",
   "branch": "main",
-  "dirty": true,
-  "changed": 1,
+  "dirty": false,
+  "changed": 0,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
@@ -33,9 +33,9 @@
   "hsbg": {
    "exists": true,
    "files": 76,
-   "bytes": 1686938,
+   "bytes": 1686976,
    "truncated": false,
-   "newest": "2026-11-09 23:34:10"
+   "newest": "2026-11-11 00:00:18"
   },
   "client": {
    "exists": true,
@@ -46,10 +46,10 @@
   },
   "workflows": {
    "exists": true,
-   "files": 91,
-   "bytes": 1640553,
+   "files": 94,
+   "bytes": 1682526,
    "truncated": false,
-   "newest": "2026-11-09 18:45:49"
+   "newest": "2026-11-11 00:00:19"
   },
   "tools": {
    "exists": true,
@@ -67,17 +67,17 @@
   },
   "deploy": {
    "exists": true,
-   "files": 28,
-   "bytes": 35089,
+   "files": 33,
+   "bytes": 40950,
    "truncated": false,
-   "newest": "2026-11-09 18:45:49"
+   "newest": "2026-11-11 00:00:18"
   },
   "config": {
    "exists": true,
-   "files": 24,
-   "bytes": 140293,
+   "files": 29,
+   "bytes": 147603,
    "truncated": false,
-   "newest": "2026-11-10 02:13:11"
+   "newest": "2026-11-11 00:00:18"
   },
   "data": {
    "exists": true,
@@ -89,9 +89,9 @@
   "docs": {
    "exists": true,
    "files": 25,
-   "bytes": 228279,
+   "bytes": 232075,
    "truncated": false,
-   "newest": "2026-11-10 22:49:25"
+   "newest": "2026-11-11 00:00:18"
   }
  },
  "artifacts": {
@@ -139,10 +139,10 @@
   },
   "local": {
    "exists": true,
-   "files": 691,
-   "bytes": 429539568,
+   "files": 695,
+   "bytes": 428055250,
    "truncated": false,
-   "newest": "2026-11-10 22:36:58"
+   "newest": "2026-11-10 23:00:42"
   },
   "client": {
    "exists": true,
