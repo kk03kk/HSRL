@@ -1,14 +1,14 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "local",
- "generated_at": "2026-11-10 22:24:03",
+ "generated_at": "2026-11-10 22:49:43",
  "root": "D:\\HSAI",
- "notes": "post handoff P0: HEAD 7d50712",
+ "notes": "after server green regression 488e063",
  "git": {
-  "head": "7d507124a0a749ccae7bea6e45e358242d1e1c98",
+  "head": "8f75286a1d9db4596e24ae411b1c0d204d983108",
   "branch": "main",
-  "dirty": false,
-  "changed": 0,
+  "dirty": true,
+  "changed": 1,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
@@ -39,10 +39,10 @@
   },
   "client": {
    "exists": true,
-   "files": 188,
-   "bytes": 5374128,
+   "files": 189,
+   "bytes": 5377915,
    "truncated": false,
-   "newest": "2026-11-10 22:01:52"
+   "newest": "2026-11-10 22:44:24"
   },
   "workflows": {
    "exists": true,
@@ -61,9 +61,9 @@
   "tests": {
    "exists": true,
    "files": 45,
-   "bytes": 356726,
+   "bytes": 355255,
    "truncated": false,
-   "newest": "2026-11-10 14:40:36"
+   "newest": "2026-11-10 22:49:25"
   },
   "deploy": {
    "exists": true,
@@ -89,9 +89,9 @@
   "docs": {
    "exists": true,
    "files": 25,
-   "bytes": 225865,
+   "bytes": 228279,
    "truncated": false,
-   "newest": "2026-11-10 22:23:37"
+   "newest": "2026-11-10 22:49:25"
   }
  },
  "artifacts": {
@@ -139,10 +139,10 @@
   },
   "local": {
    "exists": true,
-   "files": 687,
-   "bytes": 428743766,
+   "files": 691,
+   "bytes": 429539568,
    "truncated": false,
-   "newest": "2026-11-10 21:38:34"
+   "newest": "2026-11-10 22:36:58"
   },
   "client": {
    "exists": true,
