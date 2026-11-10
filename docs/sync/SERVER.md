@@ -298,3 +298,73 @@ e4d4dfc Sync current HSAI server workspace and V1.1 action rules
 - 36h 作业：`1102669 RUNNING 14:57:16 hsai-league-36h`；另有 `1097487 RUNNING 1-20:18:34 no-shell`。
   作业健康：最新 `version=11891`、`cum_decisions=1,114,645,875`，逐 iter `illegal=0` / `truncated=0` / `restarts=0`。
 - 按约定，本次 compare 非 `consistent`，**未追加 D-018**；等本地修好 `both_blob` 逻辑后重跑，再决定是否记为通过。
+
+## 11. 2026-11 全量回归（handoff 2026-11-10 P0）
+
+执行：`1109107 hsai-regression`，节点 `xcnz5`，`normal`，8 CPU / 64 GB，2026-11-10 22:15:58 → 22:18:09（2m11s）。
+输出：`artifacts/runs/server-regression-20261110-01/`（`pytest.log`、`cargo.log`、`verify.log`、`verify-validation.json`）。
+
+```bash
+python -m pytest tests/ -q \
+  --ignore=tests/test_live_supervisor.py \
+  --ignore=tests/test_live_execution_trace.py \
+  --ignore=tests/test_live_resource_migration.py \
+  --ignore=tests/test_live_simulator_check.py
+cargo test --release --manifest-path engine/Cargo.toml -p hsbg-engine
+python tools/verify_workspace.py
+```
+
+| 检查 | 结果 |
+|---|---|
+| pytest（排除 4 个 live 测试） | **FAIL**，9 failed / 0 errors |
+| `cargo test --release -p hsbg-engine` | **PASS**，44 个 test binary，942 passed / 0 failed / 1 ignored |
+| `verify_workspace.py` | **FAIL**，仅 `python` gate 失败；`sources` / `cards` / `engine-source` / `rust` 全 PASS |
+
+pytest 失败清单（verify_workspace 的 python gate 相同）：
+
+```text
+FAILED tests/test_az_ppo.py::test_engine_mcts_selfplay_ppo_smoke
+FAILED tests/test_curriculum_long.py::test_greedy_guard_preserves_buy_and_resets_per_game
+FAILED tests/test_move_guard.py::test_policy_guard_off_is_bitwise_legacy
+FAILED tests/test_move_guard.py::test_policy_guard_on_no_move_mask_is_bitwise_equal_to_off
+FAILED tests/test_move_guard.py::test_policy_guard_inverse_and_repeat
+FAILED tests/test_move_guard.py::test_policy_guard_cap_and_forced_fallback
+FAILED tests/test_move_guard.py::test_policy_guard_multi_game_isolation
+FAILED tests/test_move_guard.py::test_lockstep_meta_has_guard_stats
+FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
+```
+
+失败原因：9 项全部触发同一条生产校验
+`ValueError: 强制动作规则：max=80, move_guard=1, move_cap=5, move_repeat=2, forbid_cancel=1`。
+这些测试仍用旧口径（`max_actions_per_turn=40`、`move_cap=1/2/3/99` 等），而 `PPOSelfPlayPolicy`
+现在硬性要求 `max=80 / guard=1 / cap=5 / repeat=2 / forbid_cancel=1`。`tests/` 与 `hsbg/az/train/ppo.py`
+在工作树里没有任何改动，因此这是**测试落后于代码**，不是生产路径或冻结副本导致的。
+
+### 交接问题回答
+
+1. **当前扩展 `build_info().source_hash`**：`c4c71014e3d41760`，与 `config/engine-upstream-lock.json`
+   和源码指纹一致；`build_is_current=True`；`db_info()=(3983, "37.0.2.256589", "37.0.2")`，
+   `N_CARDS=3984`。
+2. **Windows 构建机**：服务器只有 Linux 计算节点，**没有 Windows 构建机**；Windows 轮子只能由本地
+   按 S3 部署构建（MSVC）产出。
+3. **pytest 耗时/已知失败**：`verify_workspace` 的 python gate 约 **49.5 s**，整次回归 **2m11s**；
+   服务器侧已知失败 **9 个**（全为上述动作规则测试口径），不是 22 个。本机的 22 个可能包含本地
+   live/环境相关失败；服务器排除 4 个 live 测试后为 9。
+
+### handoff P0/P1 状态
+
+- P0-1 拉取：已完成，HEAD `402480b`，已拿到 `docs/ARCHITECTURE.md`、`AGENTS.md` 更新和 `docs/analysis/` 三份报告。
+- P0-2 全量回归：已执行并记录（本节的 RUN 1109107）；Python 失败原因已定位为测试口径落后。
+- P0-3 引擎发版记录：已新建 `docs/sync/ENGINE_RELEASES.md`，首行当前 `c4c71014e3d41760`。
+- P1-4 实机日志：尚未收到 `artifacts/imports/live-*`；到达后按约定校验规则，发现写回本文件，不进 Git。
+- P1-5 文档归位：`docs/analysis/` 已在仓库；模拟器/训练类文档归服务器维护。
+- 规则：按 `docs/analysis/ENGINE_RULES_FINAL_DECISION.md`，**不为对齐 HSBRSIM 改规则**。
+
+### 清单与工作树
+
+- `sync_manifest.py --side server` v2：HEAD `402480b`，pins=15，dirty=True（仅运行中联赛冻结副本）。
+- `sync_compare.py`（本地已修 `both_blob`）：`result: consistent (with documented exceptions)`，exit=0；
+  15 pins 全部 `OK` 或 `OK(scope)`；trees 全部 OK；artifacts 仅 INFO 量级差异。
+  唯一 soft 提示是本地 manifest 仍指向 `c416d40`，本地 pull 后重跑即可消失。
+- `git status`：除 1 个已跟踪修改 `hsbg/az/train/personal.py` + 10 个未跟踪联赛文件外干净；
+  这些是 `1102669` 的冻结工作副本，未提交、未改动。

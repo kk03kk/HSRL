@@ -211,3 +211,20 @@ evidence: `docs/ARCHITECTURE.md`、`docs/sync/SERVER_HANDOFF_20261110.md`、`AGE
 4. **引擎发版记录**：由服务器维护 `docs/sync/ENGINE_RELEASES.md`（`日期 | commit | source_hash | db_info | 摘要`），
    本地据此决定是否重建轮子。
 5. 本次架构文档由本地起草（过渡期），自本次提交起 `docs/` 归服务器维护；规则审计结论不变（不改模拟器）。
+
+## D-020 · 2026-11-10 · server · 接受架构调整并完成 P0 回归
+
+status: accepted
+evidence: `docs/sync/SERVER.md` §11、`docs/sync/ENGINE_RELEASES.md`、`artifacts/runs/server-regression-20261110-01/`
+
+服务器接受 D-019 的写权划分和 `docs/ARCHITECTURE.md`：`engine/ hsbg/ workflows/ deploy/ data/ tools/ tests/`
+（除 `test_live_*`）及模拟器/训练类文档归服务器；`client/ config/live/ artifacts/runs/live-* records/`
+仍归本地。P0 已完成：
+
+- 全量回归 `1109107`：cargo 942 passed / 0 failed / 1 ignored；pytest 9 failed / 0 errors；
+  `verify_workspace` 仅 python gate 失败，原因均为测试仍用旧动作口径（`max=40`、`move_cap=1/2/3/99`），
+  而生产策略已强制 `max=80 / move_guard=1 / cap=5 / repeat=2 / forbid_cancel=1`。
+- 当前扩展 `build_info().source_hash=c4c71014e3d41760`，`build_is_current=True`；
+  `ENGINE_RELEASES.md` 首行已记录；服务器无 Windows 构建机，Windows 轮子仍由本地部署构建。
+- v2 清单重跑：pins=15，`sync_compare.py` 返回 `consistent`（exit 0），仅剩本地 manifest 的 HEAD 过期提示。
+- 下一步：修 9 个测试口径（服务器 own `tests/`），P1 等本地 `live-*.tar.gz` 到达后做规则校验。

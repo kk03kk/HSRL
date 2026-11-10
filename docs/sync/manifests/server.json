@@ -1,11 +1,11 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "server",
- "generated_at": "2026-11-10 19:58:22",
+ "generated_at": "2026-11-10 22:20:22",
  "root": "/home/h/hengzhi/projects/HSAI",
- "notes": "v2 re-check after local review",
+ "notes": "handoff 2026-11-10 post-regression; HEAD 402480b",
  "git": {
-  "head": "ceb19599389a25d076fde0ed0a5284236dec87e1",
+  "head": "402480b4528475f58db830df5a076466a3f3b193",
   "branch": "main",
   "dirty": true,
   "changed": 11,
@@ -35,14 +35,14 @@
    "files": 76,
    "bytes": 1683091,
    "truncated": false,
-   "newest": "2026-11-10 19:58:07"
+   "newest": "2026-11-10 22:14:52"
   },
   "client": {
    "exists": true,
-   "files": 187,
-   "bytes": 5280617,
+   "files": 188,
+   "bytes": 5284469,
    "truncated": false,
-   "newest": "2026-11-10 19:16:20"
+   "newest": "2026-11-10 22:14:51"
   },
   "workflows": {
    "exists": true,
@@ -54,9 +54,9 @@
   "tools": {
    "exists": true,
    "files": 31,
-   "bytes": 304390,
+   "bytes": 304761,
    "truncated": false,
-   "newest": "2026-11-10 19:58:06"
+   "newest": "2026-11-10 22:14:51"
   },
   "tests": {
    "exists": true,
@@ -88,10 +88,10 @@
   },
   "docs": {
    "exists": true,
-   "files": 19,
-   "bytes": 139895,
+   "files": 24,
+   "bytes": 218203,
    "truncated": false,
-   "newest": "2026-11-10 19:58:06"
+   "newest": "2026-11-10 22:14:51"
   }
  },
  "artifacts": {
@@ -132,17 +132,17 @@
   },
   "runs": {
    "exists": true,
-   "files": 7361,
-   "bytes": 5015846411,
+   "files": 7371,
+   "bytes": 5022869869,
    "truncated": false,
-   "newest": "2026-11-10 19:58:14"
+   "newest": "2026-11-10 22:20:06"
   },
   "local": {
    "exists": true,
-   "files": 8,
-   "bytes": 332395662,
+   "files": 9,
+   "bytes": 332491865,
    "truncated": false,
-   "newest": "2026-11-09 18:14:01"
+   "newest": "2026-11-10 22:18:07"
   },
   "client": {
    "exists": false,
