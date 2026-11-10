@@ -1,0 +1,275 @@
+{
+ "left": "docs\\sync\\manifests\\local.json",
+ "right": "docs\\sync\\manifests\\server.json",
+ "pins": [
+  {
+   "path": "artifacts/libraries/league-eot-v1.1-20261109/manifest.json",
+   "scope": "server",
+   "left": null,
+   "right": null,
+   "same": true,
+   "tag": "ABSENT"
+  },
+  {
+   "path": "artifacts/models/leaderboard-v1/manifest-2026-11-09.json",
+   "scope": "both",
+   "left": null,
+   "right": null,
+   "same": true,
+   "tag": "ABSENT"
+  },
+  {
+   "path": "artifacts/models/library-v1/SHA256SUMS.txt",
+   "scope": "local",
+   "left": "50e64c790dc0f31a0cc30cc5a9cf7e0d73597c8eb937cdfac7d6eb1b1bd7078d",
+   "right": null,
+   "same": false,
+   "tag": "OK(scope)"
+  },
+  {
+   "path": "artifacts/models/library-v1/manifest.json",
+   "scope": "local",
+   "left": "db4b575df127eb789338ef7bfb3206aedd85312172d4915b72dfedb7f109622f",
+   "right": null,
+   "same": false,
+   "tag": "OK(scope)"
+  },
+  {
+   "path": "artifacts/models/v1.1/checkpoint.json",
+   "scope": "both",
+   "left": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21",
+   "right": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "artifacts/models/v1.1/manifest.json",
+   "scope": "both",
+   "left": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976",
+   "right": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "artifacts/models/v1.1/model.pt",
+   "scope": "both",
+   "left": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+   "right": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "artifacts/models/v1.1/trainer.pt",
+   "scope": "server",
+   "left": null,
+   "right": null,
+   "same": true,
+   "tag": "ABSENT"
+  },
+  {
+   "path": "config/engine-upstream-lock.json",
+   "scope": "both",
+   "left": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683",
+   "right": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "config/eval-elo-8.json",
+   "scope": "both",
+   "left": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18",
+   "right": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "config/live/autoplay-255790.json",
+   "scope": "both",
+   "left": "b8ea2eb13e415940ddbb17d90a79a97b8ab9ed031e63d08e2dd779615ac830fc",
+   "right": "3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e",
+   "same": false,
+   "tag": "DIFF"
+  },
+  {
+   "path": "config/live/model.json",
+   "scope": "both",
+   "left": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d",
+   "right": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "data/bg_cards.json",
+   "scope": "both",
+   "left": "f01b1fa509020323b3fdc64369ea3afb53e218bffd2c154463ef21ffd8d00768",
+   "right": "a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a",
+   "same": false,
+   "tag": "DIFF"
+  },
+  {
+   "path": "data/card_zhcn.json",
+   "scope": "both",
+   "left": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc",
+   "right": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc",
+   "same": true,
+   "tag": "OK"
+  },
+  {
+   "path": "pyproject.toml",
+   "scope": "both",
+   "left": "b7a12f24abfaa04d418b585cf5daea4a5d4989db58d805338e6edce118b40615",
+   "right": "62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62",
+   "same": false,
+   "tag": "DIFF"
+  },
+  {
+   "path": "requirements.txt",
+   "scope": "both",
+   "left": "b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d",
+   "right": "ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d",
+   "same": false,
+   "tag": "DIFF"
+  }
+ ],
+ "trees": [
+  {
+   "tree": "client",
+   "left": 187,
+   "right": 211,
+   "drift": 0.114,
+   "tag": "OK"
+  },
+  {
+   "tree": "config",
+   "left": 24,
+   "right": 27,
+   "drift": 0.111,
+   "tag": "OK"
+  },
+  {
+   "tree": "data",
+   "left": 20,
+   "right": 20,
+   "drift": 0.0,
+   "tag": "OK"
+  },
+  {
+   "tree": "deploy",
+   "left": 28,
+   "right": 33,
+   "drift": 0.152,
+   "tag": "OK"
+  },
+  {
+   "tree": "docs",
+   "left": 18,
+   "right": 17,
+   "drift": 0.056,
+   "tag": "OK"
+  },
+  {
+   "tree": "engine",
+   "left": 152,
+   "right": 852,
+   "drift": 0.822,
+   "tag": "DIFF"
+  },
+  {
+   "tree": "hsbg",
+   "left": 76,
+   "right": 141,
+   "drift": 0.461,
+   "tag": "DIFF"
+  },
+  {
+   "tree": "tests",
+   "left": 45,
+   "right": 90,
+   "drift": 0.5,
+   "tag": "DIFF"
+  },
+  {
+   "tree": "tools",
+   "left": 31,
+   "right": 36,
+   "drift": 0.139,
+   "tag": "OK"
+  },
+  {
+   "tree": "workflows",
+   "left": 91,
+   "right": 143,
+   "drift": 0.364,
+   "tag": "DIFF"
+  }
+ ],
+ "artifacts": [
+  {
+   "name": "archives",
+   "left_bytes": 3383843908,
+   "right_bytes": 0,
+   "tag": "INFO"
+  },
+  {
+   "name": "client",
+   "left_bytes": 31750128,
+   "right_bytes": 0,
+   "tag": "INFO"
+  },
+  {
+   "name": "datasets",
+   "left_bytes": 3643831696,
+   "right_bytes": 0,
+   "tag": "INFO"
+  },
+  {
+   "name": "imports",
+   "left_bytes": 3860069105,
+   "right_bytes": 0,
+   "tag": "INFO"
+  },
+  {
+   "name": "libraries",
+   "left_bytes": 360353098,
+   "right_bytes": 136959632,
+   "tag": "INFO"
+  },
+  {
+   "name": "local",
+   "left_bytes": 428278430,
+   "right_bytes": 332395662,
+   "tag": "INFO"
+  },
+  {
+   "name": "models",
+   "left_bytes": 9632607261,
+   "right_bytes": 322203559,
+   "tag": "INFO"
+  },
+  {
+   "name": "runs",
+   "left_bytes": 1432197243,
+   "right_bytes": 5014183712,
+   "tag": "INFO"
+  }
+ ],
+ "hard": [
+  "pin config/live/autoplay-255790.json differs (b8ea2eb13e415940ddbb17d90a79a97b8ab9ed031e63d08e2dd779615ac830fc vs 3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e; compared by worktree-sha256/worktree-sha256)",
+  "pin data/bg_cards.json differs (f01b1fa509020323b3fdc64369ea3afb53e218bffd2c154463ef21ffd8d00768 vs a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a; compared by worktree-sha256/worktree-sha256)",
+  "pin pyproject.toml differs (b7a12f24abfaa04d418b585cf5daea4a5d4989db58d805338e6edce118b40615 vs 62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62; compared by worktree-sha256/worktree-sha256)",
+  "pin requirements.txt differs (b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d vs ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d; compared by worktree-sha256/worktree-sha256)",
+  "tree engine file count 152 vs 852 (82%)",
+  "tree hsbg file count 76 vs 141 (46%)",
+  "tree tests file count 45 vs 90 (50%)",
+  "tree workflows file count 91 vs 143 (36%)"
+ ],
+ "soft": [
+  "different HEAD (711f60468c vs 224cb49a81) — pull/rebase before comparing again",
+  "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on both sides (archived) — drop it from PINS if permanent",
+  "pin artifacts/models/leaderboard-v1/manifest-2026-11-09.json absent on both sides (archived) — drop it from PINS if permanent",
+  "pin artifacts/models/library-v1/SHA256SUMS.txt absent on server, allowed by scope=local",
+  "pin artifacts/models/library-v1/manifest.json absent on server, allowed by scope=local",
+  "pin artifacts/models/v1.1/trainer.pt absent on both sides (archived) — drop it from PINS if permanent",
+  "server missing bot library (/home/h/hengzhi/projects/HSAI/artifacts/models/library-v1/manifest.json)"
+ ]
+}

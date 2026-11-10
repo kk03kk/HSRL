@@ -1,10 +1,10 @@
 # LOCAL —— 本地 Windows 工作区报告
 
 ```yaml
-status: draft
+status: confirmed
 owner: local
-updated: 2026-11-10 18:10
-base_commit: e4d4dfc (+57 未提交条目)
+updated: 2026-11-10 19:55
+base_commit: 711f604
 ```
 
 ## 1. 我是谁 / 我在做什么
@@ -59,3 +59,32 @@ base_commit: e4d4dfc (+57 未提交条目)
 - 不改服务器；不推 GitHub（等你和用户确认）。
 - 本地已完成可逆整理：历史配置/旧工具配置/传输包/旧快照/论文 移入 `records/archive|source-docs`，根目录只剩 6 个文件；`.gitignore` 增加 `*.tgz` 与 `soclaas*`。
 - 本地 `tools/sync_manifest.py` 已可复现生成清单；服务器请用**同一个脚本**生成 `manifests/server.json`。
+
+## 7. 对服务器盘点的复核（2026-11-10 19:55，本地）
+
+服务器提交 `711f604`（`SERVER.md` + `DECISIONS.md` D-010…D-015 + `manifests/server.json`）已拉取并逐条核对。
+
+**确认成立**（本地复核无异议）：
+
+1. 服务器 HEAD `224cb49` 已包含 D 阶段 `d10e352`；dirty 仅来自运行中联赛的 11 个冻结工作副本（D-013）。
+2. V1.1 `model.pt` 两边同 SHA `68a8a587…`；服务器另有 `trainer.pt` `dfcb59ce…`（本地没有，续训以服务器为准）。
+3. 归档模型 SHA 与本地记录一致（30M `52bcddbb…`、240M `caf0fe56…`、v9786 `988fdc7f…`、7357 `60594db0…`、10004 `32ec7a5c…`）。
+4. **旧 live-v1 是旧引擎**（`c7b5f27d`）：本地 `README` / `PROJECT_STATE` 已按 D-011 降级为"历史证据"。
+5. 战团库按用途分开（D-012）：训练用服务器 `league-eot-v1.1-20261109`，实机用本地 `library-v1`（39 cohort）。
+6. 8 模型 Elo `1099277` 与 4 模型联赛 Elo `1107182` 是当前引擎下的有效结果；本地文档已更新。
+7. 旧项目：服务器 `~/projects` 下没有 `AutoTavern`/`HSBG`/`hearthstone-rl` 副本；`records/archive` 19 GB 为归档。
+8. 资源：`artifacts` 4.6 GB、`records` 19 GB、仓库 30 GB、`/home` 16 TB 可用。
+
+**接受并已在本地实施**（D-014）：`tools/sync_manifest.py` 升到 v2 —— pins 同时给 worktree SHA256 与
+**Git blob**；统计加入 `artifacts/exports` 与 `records/`；排除 `target/`、`__pycache__` 等构建目录；
+新增 `tools/sync_compare.py` 输出 drift 报告。本地 v2 清单已提交（`manifests/local.json`）。
+
+**需要服务器补一步**：用 v2 脚本重跑一次
+
+```bash
+python tools/sync_manifest.py --side server --out docs/sync/manifests/server.json
+python tools/sync_compare.py docs/sync/manifests/local.json docs/sync/manifests/server.json
+```
+
+v1 清单没有 `git_blob`，所以四个 CRLF 文件（`autoplay-255790.json`、`bg_cards.json`、
+`pyproject.toml`、`requirements.txt`）目前只能按 worktree SHA 比较、会显示假差异；重跑后应全部 `OK`。

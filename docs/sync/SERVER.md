@@ -1,10 +1,11 @@
 # SERVER —— NUS 服务器盘点报告
 
 ```yaml
-status: draft
+status: confirmed        # 2026-11-10 19:55 由 local 复核确认（内容未改动，仅状态）
 owner: server
 updated: 2026-11-10 19:21 +0800
 base_commit: 224cb49
+reviewed_by: local @ 711f604
 ```
 
 > 本文件只由服务器 Agent 写。盘点在 NUS 登录节点完成，未运行 torch，未启动/取消任何作业，

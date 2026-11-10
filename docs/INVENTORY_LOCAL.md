@@ -57,14 +57,15 @@
 
 ## 5. 缺失 / 待确认（不要在服务器核实前当事实）
 
-| 路径（被文档引用） | 本地 | 判断 |
+| 路径（被文档引用） | 本地 | 结论（2026-11-10 服务器盘点确认） |
 |---|---|---|
-| `artifacts/models/leaderboard-v1/reports/20261109-live-v1.json` | ❌ | **应只在服务器**（11 模型 live-v1 评测在 NUS `1098876/1098877` 跑）→ 待确认 |
-| `artifacts/models/leaderboard-v1/manifest-2026-11-09.json` | ❌ | 同上 → 待确认 |
-| `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` | ❌ | 服务器研究报告 → 待确认（本地只有 `research/{firestone-20261106,long1080772,long1085131}`） |
-| `artifacts/runs/p50-forced-tier-long-20261108-135823/` | ❌ | 服务器 p50 长跑输出 → 待确认 |
-| `records/archive/docs-2026-11-09/`（README/AGENTS 曾引用） | ❌ | 归档目录此前根本不存在；本次新建 `records/archive/` 并已修正文档 |
-| 服务器 `~/projects/HSAI` 的 commit、模型、库、作业产物 | — | **完全未核实**，见 `docs/sync/SERVER.md` |
+| `artifacts/models/leaderboard-v1/reports/20261109-live-v1.json` | ❌ | **服务器已归档**：`records/archive/models-2026-11-09/models/leaderboard-v1/reports/`，SHA `5b738718…`；引擎 `c7b5f27d`（旧） |
+| `artifacts/models/leaderboard-v1/manifest-2026-11-09.json` | ❌ | 同上，已归档，SHA `d3b2ee71…`；当前 `artifacts/models/leaderboard-v1/` 只剩 V1.1 重置桩 |
+| `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` | ❌ | **确认在服务器**（10,924 B），本地没有副本；需要的话可只读拉取 |
+| `artifacts/runs/p50-forced-tier-long-20261108-135823/` | ❌ | **确认在服务器**（`1095539` 输出目录） |
+| `records/archive/docs-2026-11-09/`（README/AGENTS 曾引用） | ❌ | 该目录从未存在；已改为 `records/archive/<topic>-<YYYYMMDD>/` |
+| 服务器 commit / 模型 / 库 / 作业 | — | **已核实**：`docs/sync/SERVER.md`（HEAD `224cb49`、作业 `1102669` RUNNING、16 TB 可用） |
+| 本地是否有 V1.1 `trainer.pt` | ❌ | 服务器有（`dfcb59ce…`，254 MB）；本地只有 `model.pt`。续训/恢复必须以服务器 Trainer 为准 |
 
 ## 6. 本次本地整理（可逆移动，未删任何数据）
 

@@ -39,14 +39,27 @@
 | `problems` | 关键路径存在性 | 全部 `exists: true` |
 | `env` | 解释器/依赖版本 | 记录差异即可（两端环境本就不同） |
 
-## 当前状态板
+## 当前状态板（2026-11-10 19:55 更新）
 
 | 事项 | 本地 | 服务器 | 结论 |
 |---|---|---|---|
-| 代码基线 | `e4d4dfc` + 未提交改动 | 待确认 | 待对齐 |
-| V1.1 权重 SHA | `68a8a587…0848e` | 待确认 | 待对齐 |
-| 引擎指纹 | `c4c71014e3d41760`（`config/engine-upstream-lock.json`） | 待确认 | 待对齐 |
-| 战团库 `library-v1` | 有（39 cohort，3.4 GB） | 待确认 | 待对齐 |
-| 评测报告 `leaderboard-v1` | **无** | 待确认（应在服务器） | 待对齐 |
-| 实机证据 | 有（本地唯一） | 不应有 | 已明确 |
-| 未提交改动 | 57 个条目（昨夜审计 + D 阶段） | — | **需用户决定是否 push** |
+| 代码基线 | `711f604` 干净 | `224cb49` + 联赛冻结副本 | **已对齐**（本地领先 1 个 sync 提交；D 阶段 `d10e352` 两边都有） |
+| V1.1 权重 SHA | `68a8a587…0848e` | `68a8a587…0848e` | **一致**（另有服务器 `trainer.pt` `dfcb59ce…`，本地无） |
+| 引擎指纹 | `c4c71014e3d41760` | 同（旧榜为 `c7b5f27d`，已归档） | **一致**；旧榜降级为历史（D-011） |
+| 战团库 | `library-v1` 39 cohort（实机用） | `league-eot-v1.1-20261109` 4 源（训练用） | **按用途分开**（D-012），不复制 |
+| 评测报告 | 无（本地不需要） | `1099277` 1,792 局、`1107182` 3,072 局 | **当前引擎有效结果只在服务器** |
+| 运行中作业 | 无 | `1102669` 36h 联赛 + `1097487` allocation | **冻结**，不要打扰（D-013） |
+| 实机证据 | `artifacts/runs/live-*`（唯一） | 不应有 | 已明确（D-007） |
+| 清单一致性 | v2 清单已提交 | v1 清单（缺 `git_blob`） | **待服务器重跑 v2**（D-017） |
+| 未提交改动 | 0 | 11 个联赛冻结副本 | 作业结束后再定 |
+
+## 下一步（服务器）
+
+```bash
+git pull --rebase                       # 拿到 711f604 之后的本地复核与 v2 脚本
+python tools/sync_manifest.py --side server --out docs/sync/manifests/server.json
+python tools/sync_compare.py docs/sync/manifests/local.json docs/sync/manifests/server.json
+```
+
+期望：pins 全部 `OK`（四个 CRLF 文件不再假差异），`artifacts/*` 只显示量级差异，
+`result: consistent`。若仍有硬漂移，在 `SERVER.md` 追加一节说明。

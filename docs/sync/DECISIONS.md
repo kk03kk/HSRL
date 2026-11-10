@@ -134,20 +134,41 @@ evidence: `squeue -u $USER`、`artifacts/runs/league-v1.1-36h-20261109/train/lat
 
 ## D-014 · 2026-11-10 · server · 清单盲区与 CRLF 假差异
 
-status: proposed
-evidence: `tools/sync_manifest.py`、`docs/sync/manifests/{local,server}.json`
+status: accepted
+evidence: `tools/sync_manifest.py`（v2）、`tools/sync_compare.py`、`docs/sync/manifests/local.json`
 
-建议本地更新 `tools/sync_manifest.py`：把 `artifacts/exports` 与 `records/` 纳入 `artifacts`/trees 统计；
-跨端比较改用 `git hash-object`（Git blob）而不是工作树 `sha256`，避免 Windows CRLF 导致
-`config/live/autoplay-255790.json`、`data/bg_cards.json`、`pyproject.toml`、`requirements.txt`
-出现假差异。同时把 `pins` 里已归档的 `artifacts/models/library-v1/*` 和
-`artifacts/models/leaderboard-v1/manifest-2026-11-09.json` 改为可解释的归档路径或显式置空。
+已按本条实施：pins 同时输出 worktree `sha256` 与 **Git blob**（`git hash-object`，CRLF 无关）；
+统计加入 `artifacts/exports` 与 `records/`；跳过 `target/ __pycache__ .venv` 等构建目录；
+`library-v1`、`league-eot-v1.1-20261109`、`v1.1/trainer.pt` 改为带 `scope` 的 pin（local/server/both）。
+受影响四个 CRLF 文件在 v1 清单里显示假差异，重跑 v2 后应消失。
 
 ## D-015 · 2026-11-10 · server · 清理只列候选，不自动执行
 
-status: proposed
+status: accepted
 evidence: `du -sh artifacts/* records/*`、`docs/sync/SERVER.md` §5
 
 服务器侧候选：`artifacts/exports` 889 MB、`artifacts/local/v1.1-*.tgz` 333 MB、
-`records/archive/v1.1-panel-*` 85 MB、旧 smoke/failed 面板目录约 100 MB。本轮不删除；
-等用户授权后按 D-009 只删可重建物，并在目录留 `cleanup-<date>.txt`。权重、库、`records/` 原始证据不删。
+`records/archive/v1.1-panel-*` 85 MB、旧 smoke/failed 面板目录约 100 MB。
+**执行条件**：`1102669` 结束后，按 D-009 只删可重建物（导出包/重复 tgz/旧面板），
+权重、联赛库、`records/` 原始证据一律不删，并在目录留 `cleanup-<date>.txt`。
+
+## D-016 · 2026-11-10 · local · 按服务器盘点修正本地文档口径
+
+status: accepted
+evidence: `README.md`、`docs/PROJECT_STATE.md`、`docs/INVENTORY_LOCAL.md`、`docs/sync/LOCAL.md` §7
+
+三处硬修正：
+1. **旧 live-v1/p50 结论降级为历史证据**（引擎 `c7b5f27d`），当前引擎结论改用 `1099277`（1,792 局）
+   与 `1107182`（3,072 局）。
+2. **"当前没有训练作业"作废**：`1102669 hsai-league-36h` 正在跑（预计 2026-11-11 17:01 结束）。
+3. 本地缺失的 4 条路径改为已核实的归档/服务器路径；补记"本地无 V1.1 `trainer.pt`，续训以服务器为准"。
+
+## D-017 · 2026-11-10 · local · 清单 v2 + 自动 drift 报告
+
+status: accepted
+evidence: `tools/sync_manifest.py`（schema v2）、`tools/sync_compare.py`、`docs/sync/manifests/compare-20261110.json`
+
+`sync_manifest.py` 只出事实，`sync_compare.py` 只判差异：pins 优先比 Git blob，
+`scope=local|server` 的 pin 允许在另一端缺失，tree 只比文件数（容差 35%），
+artifact/records 只比存在性与量级。退出码 0=一致，1=硬漂移。
+**待服务器执行**：v2 重跑 `manifests/server.json` 后再 `sync_compare.py`，四个 CRLF 假差异应消失。
