@@ -368,3 +368,30 @@ FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
   唯一 soft 提示是本地 manifest 仍指向 `c416d40`，本地 pull 后重跑即可消失。
 - `git status`：除 1 个已跟踪修改 `hsbg/az/train/personal.py` + 10 个未跟踪联赛文件外干净；
   这些是 `1102669` 的冻结工作副本，未提交、未改动。
+
+### 11.1 测试口径修复与绿色复跑（2026-11-10 22:33）
+
+修复提交：`9cba1de test: align action-rule tests with V1.1 enforcement`。
+
+改动：
+
+- `tests/test_move_guard.py`：`_make_policy` 的 `max_actions_per_turn` 由 40 改为 80；
+  删除已不可达的“关闭守卫逐位等价”用例，改为断言策略拒绝 `move_guard=False`；
+  no-move mask 用无守卫 stub 基线验证；inverse/repeat/cap/multi-game 统一使用生产口径
+  `cap=5 / repeat=2`；lockstep meta 断言 `move_cap=5`，并验证 lockstep 也不能关闭守卫。
+- `tests/test_parallel_collect.py`：`max_actions_per_turn` 40 → 80。
+- `tests/test_curriculum_long.py`：`PPOGreedyPolicy` 的 `move_cap` 由 1 改为 5；按生产口径断言
+  `[197,197,8,203,203,8]`、`reset()` 后恢复换位；关闭守卫被拒绝。
+- `tests/test_az_ppo.py`：MCTS `search_fn` 现在断言被 `sims=0` 规则拒绝；smoke 改跑无搜索自对弈，
+  断言 `search_calls=0`、`has_pi=0`。
+
+复跑：`1109179 hsai-regression2`，节点 `xcnf17`，2026-11-10 22:31:53 → 22:33:42（1m49s）。
+输出：`artifacts/runs/server-regression-20261110-02/`。
+
+| 检查 | 结果 |
+|---|---|
+| pytest（排除 4 个 live 测试） | **PASS**，0 failed / 0 errors |
+| `cargo test --release -p hsbg-engine` | **PASS**，942 passed / 0 failed / 1 ignored |
+| `verify_workspace.py` | **PASS** 全部 gate（sources / cards / engine-source / rust / python） |
+
+结论：9 个动作规则测试口径已修复；服务器全量回归全绿。
