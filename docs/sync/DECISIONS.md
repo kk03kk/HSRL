@@ -14,7 +14,7 @@ evidence: <文件路径或命令>
 
 ## D-001 · 2026-11-10 · local · 三端唯一真源划分
 
-status: proposed
+status: accepted
 evidence: `docs/SYNC_MODEL.md` §2
 
 源码/配置/卡表/文档以 GitHub `main` 为真源；训练产物与战团库以 NUS 为真源；
@@ -22,7 +22,7 @@ evidence: `docs/SYNC_MODEL.md` §2
 
 ## D-002 · 2026-11-10 · local · 大文件不进 Git
 
-status: proposed
+status: accepted
 evidence: 当前仓库 690 文件 / 22 MB；`*.tgz *.pt *.zip` 已在 `.gitignore`
 
 单文件 ≤ 5 MB、单提交 ≤ 20 MB。权重/库/数据/日志/证据一律不进 Git。
@@ -30,7 +30,7 @@ evidence: 当前仓库 690 文件 / 22 MB；`*.tgz *.pt *.zip` 已在 `.gitignor
 
 ## D-003 · 2026-11-10 · local · 清单脚本作为跨端对齐工具
 
-status: proposed
+status: accepted
 evidence: `tools/sync_manifest.py`（stdlib only，登录节点安全）
 
 两端各跑一次 `--side local|server`，把 JSON 提交到 Git；两份 manifest 的 diff 即 drift 报告。
@@ -38,7 +38,7 @@ evidence: `tools/sync_manifest.py`（stdlib only，登录节点安全）
 
 ## D-004 · 2026-11-10 · local · 协作文件所有权
 
-status: proposed
+status: accepted
 evidence: `docs/sync/README.md`
 
 `LOCAL.md` 只由本地写、`SERVER.md` 只由服务器写、`DECISIONS.md` 双方追加、
@@ -46,7 +46,7 @@ evidence: `docs/sync/README.md`
 
 ## D-005 · 2026-11-10 · local · 根目录与 docs 的边界
 
-status: proposed
+status: accepted
 evidence: 本次整理后根目录仅 6 个文件；`config/historical/*` 已移入 `records/archive/`
 
 根目录只允许 `README.md AGENTS.md pyproject.toml requirements.txt .gitignore .gitattributes`。
@@ -55,7 +55,7 @@ evidence: 本次整理后根目录仅 6 个文件；`config/historical/*` 已移
 
 ## D-006 · 2026-11-10 · local · 缺失路径的归属判定
 
-status: proposed
+status: accepted
 evidence: `docs/INVENTORY_LOCAL.md` §5
 
 `artifacts/models/leaderboard-v1/`、`records/research/autonomous-2026-11-08/`、
@@ -63,9 +63,13 @@ evidence: `docs/INVENTORY_LOCAL.md` §5
 判定为**服务器侧产物**，等待 `manifests/server.json` 与 `SERVER.md` 确认；
 确认前文档一律标 `server-only / 待确认`。
 
+**2026-11-10 已解决**：服务器盘点确认 `leaderboard-v1` 报告与 2026-11-09 清单已归档
+（引擎 `c7b5f27d`）、`autonomous-2026-11-08/TRAINING_REVIEW.md` 与 `p50-forced-tier-long` 均在服务器；
+本地文档已按 D-016 更新。
+
 ## D-007 · 2026-11-10 · local · 实机证据不外发
 
-status: proposed
+status: accepted
 evidence: `artifacts/runs/live-*` 体积 1.4 GB
 
 实机运行目录（含 Power.log 归档、截图、逐决策 trace）只留本地；
@@ -73,7 +77,7 @@ evidence: `artifacts/runs/live-*` 体积 1.4 GB
 
 ## D-008 · 2026-11-10 · local · 本地 Python 环境不隔离，不做重塑
 
-status: proposed
+status: accepted
 evidence: `.venv/pyvenv.cfg`（include-system-site-packages=false）、`.venv/Lib/site-packages/external-runtime.pth`、`pip check`
 
 `.venv` 通过 `external-runtime.pth` 借用 `D:\Anaconda\Lib\site-packages`，因此 `torch 2.13.0+cpu`
