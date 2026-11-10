@@ -213,7 +213,7 @@ def require_calibrated_library(manifest):
     if driver == "firestone_visible_eot" and (
             manifest.get("build_number") != 255790 or manifest.get("fidelity") != "board_only_eot_approx"):
         raise ValueError("Firestone 严格镜像库版本或字段口径不符")
-    if (driver not in {"human_curve_full_snapshots", "firestone_visible_eot", "bot_firestone_mean_3702", "bot_firestone_p50_3702"}
+    if (driver not in {"human_curve_full_snapshots", "firestone_visible_eot", "bot_firestone_mean_3702", "bot_firestone_p50_3702", "model_eot_v1.1", "model_eot_league"}
             or not validation.get("accepted") or validation.get("quarantined") != 0):
         raise ValueError("严格镜像需要逐帧验证且无隔离帧的真人曲线库或 Firestone 回合末库")
     if driver in {"bot_firestone_mean_3702", "bot_firestone_p50_3702"} and (manifest.get("smoke") or manifest.get("last_turn", 0) < 15):
