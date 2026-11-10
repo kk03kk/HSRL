@@ -17,7 +17,7 @@ def test_parallel_matches_serial_bot():
     model = build_net(16)
     model.eval()
     cfg = CollectConfig(games=2, opponent="bot", behavior="net", seed=123,
-                        max_actions_per_turn=40)
+                        max_actions_per_turn=80)
     b1, _ = collect_ppo_batch(model, cfg, device="cpu", seed=123, progress=False)
     b2, _ = collect_ppo_batch_parallel(model, cfg, workers=2, device="cpu",
                                        seed=123, progress=False)

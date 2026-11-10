@@ -393,8 +393,8 @@ def test_entry_script_help():
         assert flag in proc.stdout, f"入口脚本缺少参数 {flag}"
 
 
-# ── 7. 引擎 smoke：1 局 MCTS 自对弈 + 1 epoch PPO + 固定 seed 评测 ──────
-def test_engine_mcts_selfplay_ppo_smoke():
+# ── 7. 引擎 smoke：1 局自对弈 + 1 epoch PPO + 固定 seed 评测 ──────
+def test_engine_selfplay_ppo_smoke_rejects_search():
     pytest.importorskip("hsbg_engine")
     torch = _needs_torch()
     from hsbg.az import SearchConfig, search as az_search
@@ -409,15 +409,19 @@ def test_engine_mcts_selfplay_ppo_smoke():
     cfg = CollectConfig(games=1, seed=123, max_steps=20000, behavior="net")
     search_cfg = SearchConfig(simulations=1, determinizations=1,
                               temperature=1.0, seed=0, dirichlet_epsilon=0.0)
+    # V1.1 动作规则：PPO 采集固定 sims=0，MCTS search_fn 必须被拒绝
+    with pytest.raises(ValueError, match="sims=0"):
+        collect_ppo_batch(
+            model, cfg, search_fn=az_search, search_config=search_cfg,
+            eval_fn=evaluator, engine_backend="auto", seed=123)
     batch, meta = collect_ppo_batch(
-        model, cfg, search_fn=az_search, search_config=search_cfg,
-        eval_fn=evaluator, engine_backend="auto", seed=123)
+        model, cfg, eval_fn=evaluator, engine_backend="auto", seed=123)
     assert meta["truncated_games"] == 0, meta
     assert len(batch) > 0
-    assert meta["search_calls"] > 0
+    assert meta["search_calls"] == 0
     assert batch.validate() == [], batch.validate()
-    # MCTS visit π 已作为辅助目标进入批次
-    assert int(batch.has_pi.sum()) > 0
+    # 无搜索 => 没有 MCTS visit π 辅助目标
+    assert int(batch.has_pi.sum()) == 0
 
     stats = train_ppo(model, batch, PPOConfig(
         epochs=1, minibatch=32, lr=1e-3, seed=0, target_kl=10.0))

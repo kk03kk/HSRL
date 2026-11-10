@@ -4,8 +4,9 @@
 - 逆换位屏蔽 / 同动作上限 / 每回合 cap；
 - 空掩码回退 EndTurn（计 ``move_guard_forced``）与「无 EndTurn 完全回退」；
 - 多局（game_id）与多回合（turn）状态隔离；
-- ``move_guard=False`` 与旧行为逐位等价：不改 mask、不新增 record/meta 字段、
-  不扰动 RNG（掩码里没有 Move 时守卫开/关动作序列完全相同）；
+- 生产策略强制 ``max=80 / move_guard=1 / move_cap=5 / move_repeat=2 /
+  forbid_cancel=1``，关闭守卫或旧口径必须被拒绝；
+- mask 里没有 Move 时守卫不改变动作；
 - lockstep 采集 meta 里确实写入守卫统计（需要 hsbg_engine；引擎缺失时跳过）。
 """
 
@@ -227,45 +228,27 @@ def _make_policy(**cfg_kw):
     pytest.importorskip("torch")          # policy 构造需要 torch
     from hsbg.az.train.ppo import CollectConfig, PPOSelfPlayPolicy
     cfg = CollectConfig(behavior="net", fast_act=True, temperature=1.0,
-                        max_actions_per_turn=40, **cfg_kw)
+                        max_actions_per_turn=80, **cfg_kw)
     return PPOSelfPlayPolicy(_DummyModel(), device="cpu", config=cfg,
                              eval_fn=_LastLegalEval(), seed=1234,
                              move_model=False)
 
 
-def test_policy_guard_off_is_bitwise_legacy():
-    mask = _mask(END_TURN, BUY0, 46, encode_move(0, 1), encode_move(1, 0))
-    game = _FakeGame(mask)
-    p_off = _make_policy(move_guard=False)
-    p_off2 = _make_policy(move_guard=False)
-    assert p_off._guard is None and p_off.move_guard_meta() == {}
-    seq_a, seq_b = [], []
-    for _ in range(6):
-        d1 = p_off.decide(game, 0)
-        d2 = p_off2.decide(game, 0)
-        seq_a.append((int(d1.action), float(d1.info["logprob"])))
-        seq_b.append((int(d2.action), float(d2.info["logprob"])))
-    assert seq_a == seq_b                           # 同 seed 可复现
-    # 记录里不出现守卫字段、mask 就是引擎 mask 的逐位拷贝
-    legacy = {"features", "cards", "mask", "action", "old_logprob", "value",
-              "target_pi", "seat", "turn", "game_id", "forced"}
-    assert set(p_off.records[0].keys()) == legacy
-    for rec in p_off.records:
-        assert np.array_equal(np.asarray(rec["mask"]), mask)
-        assert 196 <= int(rec["action"]) < 245        # stub 取最后一个合法动作
+def test_policy_guard_off_is_rejected():
+    """V1.1 动作规则后守卫强制开启：旧的无守卫策略必须拒绝。"""
+    with pytest.raises(ValueError, match="强制动作规则"):
+        _make_policy(move_guard=False)
 
 
-def test_policy_guard_on_no_move_mask_is_bitwise_equal_to_off():
-    """mask 里没有 Move 时守卫不清任何位：动作/概率与关闭时逐位相同。"""
+def test_policy_guard_keeps_no_move_mask_unchanged():
+    """mask 里没有 Move 时守卫不清任何位：动作与无守卫的 stub 基线一致。"""
     mask = _mask(END_TURN, BUY0, 46, 16)
     game = _FakeGame(mask)
-    p_off = _make_policy(move_guard=False)
-    p_on = _make_policy(move_guard=True, move_cap=3, move_repeat_limit=2)
+    p_on = _make_policy()
+    expected = _LastLegalEval._pick(mask)
     for _ in range(8):
-        d_off = p_off.decide(game, 0)
         d_on = p_on.decide(game, 0)
-        assert int(d_off.action) == int(d_on.action)
-        assert float(d_off.info["logprob"]) == float(d_on.info["logprob"])
+        assert int(d_on.action) == expected
     assert p_on.move_guard_meta()["move_guard_blocked_inverse"] == 0
     assert p_on.move_guard_meta()["move_guard_blocked_repeat"] == 0
     assert p_on.move_guard_meta()["move_guard_blocked_cap"] == 0
@@ -277,7 +260,7 @@ def test_policy_guard_inverse_and_repeat():
     mv_out = encode_move(1, 0)
     mask = _mask(END_TURN, BUY0, mv_in, mv_out)
     game = _FakeGame(mask)
-    p = _make_policy(move_guard=True, move_cap=99, move_repeat_limit=2)
+    p = _make_policy()
     a1 = int(p.decide(game, 0).action)
     assert a1 == mv_out                              # 第一次：最后一个合法动作
     a2 = int(p.decide(game, 0).action)
@@ -298,8 +281,9 @@ def test_policy_guard_cap_and_forced_fallback():
     mvs = [encode_move(0, 1), encode_move(1, 2), encode_move(2, 3)]
     mask = _mask(END_TURN, *mvs)
     game = _FakeGame(mask)
-    p = _make_policy(move_guard=True, move_cap=1, move_repeat_limit=99)
-    assert int(p.decide(game, 0).action) == mvs[-1]
+    p = _make_policy()                                # 生产口径 cap=5 / repeat=2
+    assert [int(p.decide(game, 0).action) for _ in range(5)] == [
+        mvs[-1], mvs[-1], mvs[-2], mvs[-2], mvs[-3]]
     d2 = p.decide(game, 0)
     assert int(d2.action) == END_TURN                 # cap 后只剩 EndTurn -> 回退
     assert bool(d2.info["forced"]) and float(d2.info["logprob"]) == 0.0
@@ -313,7 +297,7 @@ def test_policy_guard_multi_game_isolation():
     mv = encode_move(0, 1)
     mask = _mask(END_TURN, BUY0, mv)
     game = _FakeGame(mask)
-    p = _make_policy(move_guard=True, move_cap=99, move_repeat_limit=2)
+    p = _make_policy()
     p.game_id = 1
     assert int(p.decide(game, 0).action) == mv
     assert int(p.decide(game, 0).action) == mv
@@ -335,14 +319,14 @@ def test_lockstep_meta_has_guard_stats():
     from hsbg.az.train.ppo import CollectConfig
 
     cfg = CollectConfig(games=1, seed=7, opponent="bot", behavior="net",
-                        max_steps=20000, max_actions_per_turn=40,
-                        move_guard=True, move_cap=2, move_repeat_limit=2)
+                        max_steps=20000, max_actions_per_turn=80,
+                        move_guard=True, move_cap=5, move_repeat_limit=2)
     records, meta = collect_ppo_lockstep(
         _DummyModel(), cfg, eval_fn=_LastLegalEval(), device="cpu",
         seed=7, games=1, gamemode="bot", engine_backend="auto")
     assert records, "应当采到决策"
     assert meta["move_guard"] is True
-    assert meta["move_cap"] == 2
+    assert meta["move_cap"] == 5
     assert meta["move_guard_decisions"] >= len(records) - 2   # 近乎每决策一次
     assert meta["move_guard_moves"] > 0
     assert meta["move_guard_blocked_inverse"] + \
@@ -353,7 +337,7 @@ def test_lockstep_meta_has_guard_stats():
         key = (int(r["game_id"]), int(r["turn"]))
         if MOVE_LO <= int(r["action"]) < MOVE_HI:
             per_turn[key] = per_turn.get(key, 0) + 1
-    assert per_turn and max(per_turn.values()) <= 2
+    assert per_turn and max(per_turn.values()) <= 5
     # 逆换位从不在「上一步是换位」后出现
     prev = {}
     for r in records:
@@ -365,12 +349,11 @@ def test_lockstep_meta_has_guard_stats():
                 src, dst = decode_move(pa)
                 assert a != encode_move(dst, src)
         prev[key] = (a, int(r["turn"]))
-    # 关闭守卫时 meta 不出现任何 guard 键（默认关闭零影响）
+    # 关闭守卫在生产口径下必须被拒绝（lockstep 同样不可绕过）
     cfg_off = CollectConfig(games=1, seed=7, opponent="bot", behavior="net",
-                            max_steps=20000, max_actions_per_turn=40)
-    _, meta_off = collect_ppo_lockstep(
-        _DummyModel(), cfg_off, eval_fn=_LastLegalEval(), device="cpu",
-        seed=7, games=1, gamemode="bot", engine_backend="auto")
-    assert not any(k.startswith("move_guard") or k in ("move_cap",
-                                                       "move_repeat_limit")
-                   for k in meta_off)
+                            max_steps=20000, max_actions_per_turn=80,
+                            move_guard=False)
+    with pytest.raises(ValueError, match="强制动作规则"):
+        collect_ppo_lockstep(
+            _DummyModel(), cfg_off, eval_fn=_LastLegalEval(), device="cpu",
+            seed=7, games=1, gamemode="bot", engine_backend="auto")
