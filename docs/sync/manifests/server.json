@@ -1,14 +1,14 @@
 {
- "schema": "hsai.sync-manifest/v1",
+ "schema": "hsai.sync-manifest/v2",
  "side": "server",
- "generated_at": "2026-11-10 19:23:05",
+ "generated_at": "2026-11-10 19:58:22",
  "root": "/home/h/hengzhi/projects/HSAI",
- "notes": "server: library-v1 (39 cohorts) and leaderboard-2026-11-09 are absent/archived; active bank=artifacts/libraries/league-eot-v1.1-20261109; autoplay/bg_cards/pyproject/requirements SHA drift is CRLF vs LF; see SERVER.md §6",
+ "notes": "v2 re-check after local review",
  "git": {
-  "head": "224cb49a819896ad4e1b5dcca3be3da3c6256ed3",
+  "head": "ceb19599389a25d076fde0ed0a5284236dec87e1",
   "branch": "main",
   "dirty": true,
-  "changed": 14,
+  "changed": 11,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
@@ -25,63 +25,73 @@
  "trees": {
   "engine": {
    "exists": true,
-   "files": 852,
-   "bytes": 1771800683,
-   "newest": "2026-11-09 09:47:46"
+   "files": 153,
+   "bytes": 33680698,
+   "truncated": false,
+   "newest": "2026-11-09 09:05:24"
   },
   "hsbg": {
    "exists": true,
-   "files": 141,
-   "bytes": 3709943,
-   "newest": "2026-11-10 19:16:20"
+   "files": 76,
+   "bytes": 1683091,
+   "truncated": false,
+   "newest": "2026-11-10 19:58:07"
   },
   "client": {
    "exists": true,
-   "files": 211,
-   "bytes": 5625415,
+   "files": 187,
+   "bytes": 5280617,
+   "truncated": false,
    "newest": "2026-11-10 19:16:20"
   },
   "workflows": {
    "exists": true,
-   "files": 143,
-   "bytes": 3028884,
+   "files": 93,
+   "bytes": 1662424,
+   "truncated": false,
    "newest": "2026-11-10 19:16:20"
   },
   "tools": {
    "exists": true,
-   "files": 36,
-   "bytes": 383635,
-   "newest": "2026-11-10 19:16:20"
+   "files": 31,
+   "bytes": 304390,
+   "truncated": false,
+   "newest": "2026-11-10 19:58:06"
   },
   "tests": {
    "exists": true,
-   "files": 90,
-   "bytes": 1810693,
+   "files": 45,
+   "bytes": 354367,
+   "truncated": false,
    "newest": "2026-11-10 19:16:20"
   },
   "deploy": {
    "exists": true,
    "files": 33,
    "bytes": 40751,
+   "truncated": false,
    "newest": "2026-11-10 19:16:20"
   },
   "config": {
    "exists": true,
    "files": 27,
    "bytes": 140505,
+   "truncated": false,
    "newest": "2026-11-10 19:16:20"
   },
   "data": {
    "exists": true,
    "files": 20,
    "bytes": 7843066,
+   "truncated": false,
    "newest": "2026-11-06 19:01:09"
   },
   "docs": {
    "exists": true,
-   "files": 17,
-   "bytes": 117782,
-   "newest": "2026-11-10 19:23:00"
+   "files": 19,
+   "bytes": 139895,
+   "truncated": false,
+   "newest": "2026-11-10 19:58:06"
   }
  },
  "artifacts": {
@@ -89,99 +99,222 @@
    "exists": true,
    "files": 9,
    "bytes": 322203559,
+   "truncated": false,
    "newest": "2026-11-09 14:08:33"
   },
   "libraries": {
    "exists": true,
    "files": 3419,
    "bytes": 136959632,
+   "truncated": false,
    "newest": "2026-11-09 22:45:00"
   },
   "datasets": {
    "exists": false,
    "files": 0,
    "bytes": 0,
-   "newest": null
+   "newest": null,
+   "truncated": false
   },
   "imports": {
    "exists": false,
    "files": 0,
    "bytes": 0,
-   "newest": null
+   "newest": null,
+   "truncated": false
   },
   "archives": {
    "exists": false,
    "files": 0,
    "bytes": 0,
-   "newest": null
+   "newest": null,
+   "truncated": false
   },
   "runs": {
    "exists": true,
    "files": 7361,
-   "bytes": 5014183712,
-   "newest": "2026-11-10 19:22:58"
+   "bytes": 5015846411,
+   "truncated": false,
+   "newest": "2026-11-10 19:58:14"
   },
   "local": {
    "exists": true,
    "files": 8,
    "bytes": 332395662,
+   "truncated": false,
    "newest": "2026-11-09 18:14:01"
   },
   "client": {
    "exists": false,
    "files": 0,
    "bytes": 0,
-   "newest": null
+   "newest": null,
+   "truncated": false
+  },
+  "exports": {
+   "exists": true,
+   "files": 5,
+   "bytes": 931241461,
+   "truncated": false,
+   "newest": "2026-11-07 14:03:04"
+  }
+ },
+ "records": {
+  "evidence": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "archive": {
+   "exists": true,
+   "files": 9854,
+   "bytes": 22417035190,
+   "truncated": false,
+   "newest": "2026-11-09 17:42:10"
+  },
+  "research": {
+   "exists": true,
+   "files": 23,
+   "bytes": 1635578,
+   "truncated": false,
+   "newest": "2026-11-09 09:04:40"
+  },
+  "migration": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "source-docs": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "source-snapshots": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "nus-audits": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "development": {
+   "exists": false,
+   "files": 0,
+   "bytes": 0,
+   "newest": null,
+   "truncated": false
+  },
+  "long-runs": {
+   "exists": true,
+   "files": 11,
+   "bytes": 6229889,
+   "truncated": false,
+   "newest": "2026-11-08 13:49:11"
   }
  },
  "pins": {
   "config/live/model.json": {
+   "scope": "both",
    "bytes": 856,
-   "sha256": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d"
+   "sha256": "3e7398462fa74908f9fd8d8c4c64479e68c4fc1a68f0c224dee410fa251e092d",
+   "git_blob": "08a509f62a60b46791a1d6f7d1085868426a03d0"
   },
   "config/live/autoplay-255790.json": {
+   "scope": "both",
    "bytes": 31314,
-   "sha256": "3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e"
+   "sha256": "3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e",
+   "git_blob": "508b89ce15125b1ea7fb06ba632ce94975f73de5"
   },
   "config/engine-upstream-lock.json": {
+   "scope": "both",
    "bytes": 24468,
-   "sha256": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683"
+   "sha256": "e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683",
+   "git_blob": "54ca97ece21354a76ddb78b81210d1f305588bc4"
   },
   "config/eval-elo-8.json": {
+   "scope": "both",
    "bytes": 4419,
-   "sha256": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18"
+   "sha256": "79e6592e36df0e2b1f75a8d5c344151eaa709c4074c4254346babaeea71a3b18",
+   "git_blob": "beaec7547c7645451aec32e7124fd1ba2ee9dd19"
   },
   "data/card_zhcn.json": {
+   "scope": "both",
    "bytes": 3681957,
-   "sha256": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc"
+   "sha256": "ac8786ad634b97fd99f3ad5e8b8e8f3bbdad4ed1c59aa7b1b6b6e76a8b4a03bc",
+   "git_blob": "fba0e4d5f6762db1000453040eacb356df71d1a7"
   },
   "data/bg_cards.json": {
+   "scope": "both",
    "bytes": 1267818,
-   "sha256": "a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a"
+   "sha256": "a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a",
+   "git_blob": "124870badd633b954e13b6bfa0c3f160301fb8cb"
   },
   "pyproject.toml": {
+   "scope": "both",
    "bytes": 688,
-   "sha256": "62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62"
+   "sha256": "62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62",
+   "git_blob": "9e9ac27e1e3324014517ac40a0c51827a71e2a1f"
   },
   "requirements.txt": {
+   "scope": "both",
    "bytes": 66,
-   "sha256": "ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d"
+   "sha256": "ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d",
+   "git_blob": "30b8653fc42bf9a659212db952fae8b171396049"
   },
   "artifacts/models/v1.1/model.pt": {
+   "scope": "both",
    "bytes": 67864188,
-   "sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e"
+   "sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+   "git_blob": "cbb8fff06a5edba26e71532d9d9011847605c3d5"
   },
   "artifacts/models/v1.1/manifest.json": {
+   "scope": "both",
    "bytes": 1761,
-   "sha256": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976"
+   "sha256": "83a9e7171ef3fca899493c19d6097dda669b997a8989030f16671cc7b9022976",
+   "git_blob": "3a224b4875613e1ed9fbcc8e6c1ec44176f48d2d"
   },
   "artifacts/models/v1.1/checkpoint.json": {
+   "scope": "both",
    "bytes": 276,
-   "sha256": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21"
+   "sha256": "582a157871cc6a7f58dc201829824d47de54434e69a91720c833937201653e21",
+   "git_blob": "807696aa6090b6a95ea7df66b901d54d702628af"
   },
-  "artifacts/models/library-v1/manifest.json": null,
-  "artifacts/models/library-v1/SHA256SUMS.txt": null,
-  "artifacts/models/leaderboard-v1/manifest-2026-11-09.json": null
+  "artifacts/models/v1.1/trainer.pt": {
+   "scope": "server",
+   "bytes": 254312937,
+   "sha256": "dfcb59ce785d71a215f756a134996f579a610d267270a79856d76e9458ede556",
+   "git_blob": "9e49115f9cdb2a5bd388bc18e77e590a266b7390"
+  },
+  "artifacts/models/library-v1/manifest.json": {
+   "scope": "local",
+   "bytes": null,
+   "sha256": null,
+   "git_blob": null
+  },
+  "artifacts/models/library-v1/SHA256SUMS.txt": {
+   "scope": "local",
+   "bytes": null,
+   "sha256": null,
+   "git_blob": null
+  },
+  "artifacts/libraries/league-eot-v1.1-20261109/manifest.json": {
+   "scope": "server",
+   "bytes": 33165,
+   "sha256": "0ac3f4712f06f44bd68b27ec8202e7b863266e20cce5a5711b21594095d76cdb",
+   "git_blob": "e1fa867a413ca4fc9444e389a451994b8ce0c8d9"
+  }
  },
  "problems": [
   {
@@ -208,11 +341,6 @@
    "check": "live model",
    "path": "/home/h/hengzhi/projects/HSAI/artifacts/models/v1.1/model.pt",
    "exists": true
-  },
-  {
-   "check": "bot library",
-   "path": "/home/h/hengzhi/projects/HSAI/artifacts/models/library-v1/manifest.json",
-   "exists": false
   },
   {
    "check": "engine lock",

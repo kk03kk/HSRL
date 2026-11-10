@@ -1,22 +1,14 @@
 {
- "left": "docs\\sync\\manifests\\local.json",
- "right": "docs\\sync\\manifests\\server.json",
+ "left": "docs/sync/manifests/local.json",
+ "right": "docs/sync/manifests/server.json",
  "pins": [
   {
    "path": "artifacts/libraries/league-eot-v1.1-20261109/manifest.json",
    "scope": "server",
    "left": null,
-   "right": null,
-   "same": true,
-   "tag": "ABSENT"
-  },
-  {
-   "path": "artifacts/models/leaderboard-v1/manifest-2026-11-09.json",
-   "scope": "both",
-   "left": null,
-   "right": null,
-   "same": true,
-   "tag": "ABSENT"
+   "right": "0ac3f4712f06f44bd68b27ec8202e7b863266e20cce5a5711b21594095d76cdb",
+   "same": false,
+   "tag": "OK(scope)"
   },
   {
    "path": "artifacts/models/library-v1/SHA256SUMS.txt",
@@ -62,9 +54,9 @@
    "path": "artifacts/models/v1.1/trainer.pt",
    "scope": "server",
    "left": null,
-   "right": null,
-   "same": true,
-   "tag": "ABSENT"
+   "right": "dfcb59ce785d71a215f756a134996f579a610d267270a79856d76e9458ede556",
+   "same": false,
+   "tag": "OK(scope)"
   },
   {
    "path": "config/engine-upstream-lock.json",
@@ -135,8 +127,8 @@
   {
    "tree": "client",
    "left": 187,
-   "right": 211,
-   "drift": 0.114,
+   "right": 187,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
@@ -162,45 +154,45 @@
   },
   {
    "tree": "docs",
-   "left": 18,
-   "right": 17,
-   "drift": 0.056,
+   "left": 19,
+   "right": 19,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
    "tree": "engine",
    "left": 152,
-   "right": 852,
-   "drift": 0.822,
-   "tag": "DIFF"
+   "right": 153,
+   "drift": 0.007,
+   "tag": "OK"
   },
   {
    "tree": "hsbg",
    "left": 76,
-   "right": 141,
-   "drift": 0.461,
-   "tag": "DIFF"
+   "right": 76,
+   "drift": 0.0,
+   "tag": "OK"
   },
   {
    "tree": "tests",
    "left": 45,
-   "right": 90,
-   "drift": 0.5,
-   "tag": "DIFF"
+   "right": 45,
+   "drift": 0.0,
+   "tag": "OK"
   },
   {
    "tree": "tools",
    "left": 31,
-   "right": 36,
-   "drift": 0.139,
+   "right": 31,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
    "tree": "workflows",
    "left": 91,
-   "right": 143,
-   "drift": 0.364,
-   "tag": "DIFF"
+   "right": 93,
+   "drift": 0.022,
+   "tag": "OK"
   }
  ],
  "artifacts": [
@@ -220,6 +212,12 @@
    "name": "datasets",
    "left_bytes": 3643831696,
    "right_bytes": 0,
+   "tag": "INFO"
+  },
+  {
+   "name": "exports",
+   "left_bytes": 0,
+   "right_bytes": 931241461,
    "tag": "INFO"
   },
   {
@@ -249,7 +247,7 @@
   {
    "name": "runs",
    "left_bytes": 1432197243,
-   "right_bytes": 5014183712,
+   "right_bytes": 5015846411,
    "tag": "INFO"
   }
  ],
@@ -257,19 +255,13 @@
   "pin config/live/autoplay-255790.json differs (b8ea2eb13e415940ddbb17d90a79a97b8ab9ed031e63d08e2dd779615ac830fc vs 3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e; compared by worktree-sha256/worktree-sha256)",
   "pin data/bg_cards.json differs (f01b1fa509020323b3fdc64369ea3afb53e218bffd2c154463ef21ffd8d00768 vs a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a; compared by worktree-sha256/worktree-sha256)",
   "pin pyproject.toml differs (b7a12f24abfaa04d418b585cf5daea4a5d4989db58d805338e6edce118b40615 vs 62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62; compared by worktree-sha256/worktree-sha256)",
-  "pin requirements.txt differs (b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d vs ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d; compared by worktree-sha256/worktree-sha256)",
-  "tree engine file count 152 vs 852 (82%)",
-  "tree hsbg file count 76 vs 141 (46%)",
-  "tree tests file count 45 vs 90 (50%)",
-  "tree workflows file count 91 vs 143 (36%)"
+  "pin requirements.txt differs (b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d vs ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d; compared by worktree-sha256/worktree-sha256)"
  ],
  "soft": [
-  "different HEAD (711f60468c vs 224cb49a81) — pull/rebase before comparing again",
-  "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on both sides (archived) — drop it from PINS if permanent",
-  "pin artifacts/models/leaderboard-v1/manifest-2026-11-09.json absent on both sides (archived) — drop it from PINS if permanent",
+  "different HEAD (4477200507 vs ceb1959938) — pull/rebase before comparing again",
+  "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on local, allowed by scope=server",
   "pin artifacts/models/library-v1/SHA256SUMS.txt absent on server, allowed by scope=local",
   "pin artifacts/models/library-v1/manifest.json absent on server, allowed by scope=local",
-  "pin artifacts/models/v1.1/trainer.pt absent on both sides (archived) — drop it from PINS if permanent",
-  "server missing bot library (/home/h/hengzhi/projects/HSAI/artifacts/models/library-v1/manifest.json)"
+  "pin artifacts/models/v1.1/trainer.pt absent on local, allowed by scope=server"
  ]
 }

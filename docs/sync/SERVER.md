@@ -265,3 +265,36 @@ e4d4dfc Sync current HSAI server workspace and V1.1 action rules
 - 训练栈：V1.1 起点 + 4 源 model-EOT 联赛库，7 个严格 EOT 快照席，`sims=0`，`pipeline=1`，`move_guard=1`。
 - 预计按 72×30 min 于 `2026-11-11 17:01` 左右结束，早于 37h 时限；下一里程碑约在 1.13B 决策。
 - 已完成的 `1107182` 4 模型评测显示：最新里程碑（1.034B）显著优于 V1.1 与更早里程碑，但该评测只含 4 个模型；正式全榜仍需新协议。
+
+## 10. v2 清单复核（2026-11-10）
+
+- HEAD：`ceb1959`；dirty：**是**。原因是运行中的联赛冻结副本：`hsbg/az/train/personal.py`（1 个已跟踪修改）+ 10 个未跟踪文件；未改动、未提交。
+- `sync_manifest.py --side server`：pins=15；**缺失项=无未解释缺失**。按 `scope` 允许的单边 pin：
+  `artifacts/models/library-v1/*`（local）、`artifacts/models/v1.1/trainer.pt`（server）、
+  `artifacts/libraries/league-eot-v1.1-20261109/manifest.json`（server）。
+- `sync_compare.py` 结果：**`DRIFT`**（`compare_exit=1`）。产出：
+  `docs/sync/manifests/compare-20261110.json`。
+- 硬漂移（原样抄 compare 输出）：
+
+```text
+- pin config/live/autoplay-255790.json differs (b8ea2eb13e415940ddbb17d90a79a97b8ab9ed031e63d08e2dd779615ac830fc vs 3b0a4b769116888dbec24110f946dc84acef9bbbb56d8066e8aac08f851e508e; compared by worktree-sha256/worktree-sha256)
+- pin data/bg_cards.json differs (f01b1fa509020323b3fdc64369ea3afb53e218bffd2c154463ef21ffd8d00768 vs a066afce04b6bcf6788495eb2eb7d6b02dc6fb173dc5759d79e244a4e7f0656a; compared by worktree-sha256/worktree-sha256)
+- pin pyproject.toml differs (b7a12f24abfaa04d418b585cf5daea4a5d4989db58d805338e6edce118b40615 vs 62ff035b77dd7b80f8a9df846c8a30b6079ffa6870b1d8824554b80e9f73cc62; compared by worktree-sha256/worktree-sha256)
+- pin requirements.txt differs (b1913b1a75e9cfd7ac1f8db1279db545c674e51f26f79506f7ab81b6a031cd7d vs ba296bf316e4587a87916099e6e36e5ac048c425baea01a6dbe1c44f9f99282d; compared by worktree-sha256/worktree-sha256)
+```
+
+- 复核判断：这 4 条是 **CRLF 假差异**，不是真实漂移。两份 manifest 里的 `git_blob` 完全一致：
+  `autoplay=508b89ce1512…`、`bg_cards=124870badd63…`、`pyproject=9e9ac27e1e33…`、`requirements=30b8653fc42b…`。
+- 原因在 `sync_compare.py` 的全局 `both_blob` 判断：它要求 **所有** 两侧同名 pin 都有 `git_blob`；
+  但 `library-v1`（local）、`v1.1/trainer.pt`（server）、`league-eot`（server）按 `scope` 本就单边缺失，
+  于是 `both_blob=False`，四个 CRLF pin 退化为 worktree-sha256 比较。建议本地改为**逐 pin** 判断
+  “两侧都有 blob 就用 blob”，而不是全局 `all(...)`。
+- 另一处观察：`sync_compare.py` 当前只遍历 `artifacts`，未输出 manifest v2 里新增的 `records` 段。
+  本次量级直接取 manifest：server `records/archive` 22.4 GB / 9,854 files（含归档模型 17 GB + 旧库 1.9 GB）、
+  `records/research` 1.6 MB / 23 files、`records/long-runs` 6.2 MB / 11 files；local `records/archive` 57 MB、
+  `records/evidence` 5.3 GB、`records/source-docs` 17 MB。属于单边资产，不参与判定。
+- artifacts 量级（server vs local）：models `322 MB vs 9,633 MB`、runs `5,016 MB vs 1,432 MB`、
+  libraries `137 MB vs 360 MB`、exports `931 MB vs 0 MB`。均为 side-specific INFO。
+- 36h 作业：`1102669 RUNNING 14:57:16 hsai-league-36h`；另有 `1097487 RUNNING 1-20:18:34 no-shell`。
+  作业健康：最新 `version=11891`、`cum_decisions=1,114,645,875`，逐 iter `illegal=0` / `truncated=0` / `restarts=0`。
+- 按约定，本次 compare 非 `consistent`，**未追加 D-018**；等本地修好 `both_blob` 逻辑后重跑，再决定是否记为通过。
