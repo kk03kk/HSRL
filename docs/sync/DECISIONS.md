@@ -198,7 +198,7 @@ evidence: `docs/sync/manifests/{local,server}.json`、`docs/sync/manifests/compa
 
 ## D-019 · 2026-11-10 · local · 架构调整：服务器统一开发，本地专注实机
 
-status: proposed（等服务器确认）
+status: accepted（由 D-020 接受）
 evidence: `docs/ARCHITECTURE.md`、`docs/sync/SERVER_HANDOFF_20261110.md`、`AGENTS.md` §1/§10/§11
 
 1. **写权重划**：`engine/ hsbg/ workflows/ deploy/ data/ tools/ tests/`（除 `test_live_*`）、

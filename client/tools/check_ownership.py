@@ -36,7 +36,8 @@ LOCAL_PREFIXES = (
     "docs/ARCHITECTURE.md",     # joint: the architecture doc is written by both ends
 )
 #: Explicit local-owned exceptions inside server-owned trees.
-LOCAL_EXCEPTIONS = ("tests/test_live_", "docs/sync/SERVER_HANDOFF_", "docs/sync/DECISIONS.md")
+LOCAL_EXCEPTIONS = ("tests/test_live_", "docs/sync/SERVER_HANDOFF_", "docs/sync/DECISIONS.md",
+                    "docs/sync/manifests/local.json")
 
 #: Trees the server owns; the local box mirrors them read-only.
 SERVER_PREFIXES = (
