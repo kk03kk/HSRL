@@ -371,7 +371,7 @@ FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
 
 ### 11.1 测试口径修复与绿色复跑（2026-11-10 22:33）
 
-修复提交：`9cba1de test: align action-rule tests with V1.1 enforcement`。
+修复提交：`1c6de55 test: align action-rule tests with V1.1 enforcement`。
 
 改动：
 

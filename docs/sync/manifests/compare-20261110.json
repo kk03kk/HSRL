@@ -126,9 +126,9 @@
  "trees": [
   {
    "tree": "client",
-   "left": 187,
+   "left": 188,
    "right": 188,
-   "drift": 0.005,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
@@ -154,9 +154,9 @@
   },
   {
    "tree": "docs",
-   "left": 19,
+   "left": 25,
    "right": 25,
-   "drift": 0.24,
+   "drift": 0.0,
    "tag": "OK"
   },
   {
@@ -234,7 +234,7 @@
   },
   {
    "name": "local",
-   "left_bytes": 428278430,
+   "left_bytes": 428743766,
    "right_bytes": 332464730,
    "tag": "INFO"
   },
@@ -247,13 +247,13 @@
   {
    "name": "runs",
    "left_bytes": 1432197243,
-   "right_bytes": 5023707853,
+   "right_bytes": 5023784692,
    "tag": "INFO"
   }
  ],
  "hard": [],
  "soft": [
-  "different HEAD (c416d403a2 vs 9cba1de64b) — pull/rebase before comparing again",
+  "different HEAD (7d507124a0 vs 488e0636d3) — pull/rebase before comparing again",
   "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on local, allowed by scope=server",
   "pin artifacts/models/library-v1/SHA256SUMS.txt absent on server, allowed by scope=local",
   "pin artifacts/models/library-v1/manifest.json absent on server, allowed by scope=local",

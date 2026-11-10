@@ -235,7 +235,7 @@ status: accepted
 evidence: `tests/test_move_guard.py`、`tests/test_parallel_collect.py`、`tests/test_curriculum_long.py`、
 `tests/test_az_ppo.py`、`artifacts/runs/server-regression-20261110-02/`、`docs/sync/SERVER.md` §11.1
 
-修复提交 `9cba1de`。9 个失败全部是测试仍用旧动作口径，已按生产强制规则对齐：
+修复提交 `1c6de55`。9 个失败全部是测试仍用旧动作口径，已按生产强制规则对齐：
 `max_actions_per_turn=80`、`move_guard=True`、`move_cap=5`、`move_repeat_limit=2`、`forbid_cancel=True`；
 关闭守卫与 MCTS `search_fn` 改为断言拒绝；cap/repeat 序列、lockstep meta 和无 Move mask 用例同步更新。
 
