@@ -195,3 +195,19 @@ evidence: `docs/sync/manifests/{local,server}.json`、`docs/sync/manifests/compa
 - `artifacts/`、`records/`：只有量级差异（各自运行证据），不参与判定。
 
 结论：三端代码/配置/卡表/文档**已对齐**；剩余差异都是"按用途分工"或"各自运行证据"。
+
+## D-019 · 2026-11-10 · local · 架构调整：服务器统一开发，本地专注实机
+
+status: proposed（等服务器确认）
+evidence: `docs/ARCHITECTURE.md`、`docs/sync/SERVER_HANDOFF_20261110.md`、`AGENTS.md` §1/§10/§11
+
+1. **写权重划**：`engine/ hsbg/ workflows/ deploy/ data/ tools/ tests/`（除 `test_live_*`）、
+   `pyproject.toml`、`requirements.txt`、`README.md`、`AGENTS.md`、`docs/`（除本地那几份）→ **服务器**；
+   `client/ config/live/ artifacts/ records/ docs/sync/LOCAL.md docs/live/** docs/analysis/**` → **本地**。
+2. **本地不再**做模拟器开发、编译、规则审计与训练栈测试；**唯一例外**是引擎升级时的
+   Windows 轮子"部署构建"（服务器无法产出 Windows 产物）。
+3. **实机日志回传**：`live-<date>-<seq>.tar.gz` + `.sha256` → 服务器 `artifacts/imports/live-<date>/`，
+   **不进 Git**。
+4. **引擎发版记录**：由服务器维护 `docs/sync/ENGINE_RELEASES.md`（`日期 | commit | source_hash | db_info | 摘要`），
+   本地据此决定是否重建轮子。
+5. 本次架构文档由本地起草（过渡期），自本次提交起 `docs/` 归服务器维护；规则审计结论不变（不改模拟器）。

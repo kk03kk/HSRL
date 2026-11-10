@@ -13,20 +13,26 @@
 
 ## 2. 唯一真源（single source of truth）
 
-| 资产 | 真源 | 进 Git | 本地保留 | 服务器保留 |
+> **2026-11-10 架构调整**：模拟器与强化学习系统整体归服务器，本地只做实机桥接。
+> 下表已按新边界更新；完整职责矩阵见 [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)。
+
+| 资产 | 真源 | 进 Git | 本地 | 服务器 |
 |---|---|:--:|---|---|
-| `engine/ hsbg/ client/ workflows/ tools/ tests/ deploy/` | GitHub | ✅ | 工作副本 | 工作副本 |
-| `docs/`（当前有效文档） | GitHub | ✅ | 写 | 读 |
-| `config/`（含 `config/live/` 实机 profile） | GitHub | ✅ | 写 | 读 |
-| `data/`（卡表/池/饰品） | GitHub | ✅ | 写 | 读 |
-| 训练产物（Trainer、checkpoint、曲线） | **服务器** | ❌ | 只拉需要的 | ✅ |
-| 战团库 `library-v1`、bot 库 | **服务器** | ❌ | 仅用于实机的子集 | ✅ |
+| `engine/`（模拟器内核）、`hsbg/`（动作/观测/奖励/模型/采样/评测） | **服务器** | ✅ | 只读镜像 | **写** |
+| `workflows/ deploy/ tools/ tests/`（除 `test_live_*`） | **服务器** | ✅ | 只读镜像 | **写** |
+| `client/`（实机桥接）、`config/live/`、`docs/live/**` | **本地** | ✅ | **写** | 只读 |
+| `tests/test_live_*.py` | **本地** | ✅ | **写/跑** | 只读 |
+| `docs/`（其余当前文档）、`AGENTS.md`、`README.md` | **服务器** | ✅ | 只读 | **写** |
+| `docs/sync/LOCAL.md`、`docs/analysis/**` | 本地 | ✅ | 写 | 读 |
+| `data/`（卡表/池/饰品） | **服务器** | ✅ | 只读 | **写** |
+| 训练产物（Trainer、checkpoint、曲线） | **服务器** | ❌ | 只拉推理用的 `model.pt` | ✅ |
+| 战团库 `library-v1`、bot 库 | **服务器** | ❌ | 仅实机用子集 | ✅ |
 | 评测排行榜原始报告 | **服务器** | 仅摘要（<1 MB） | 摘要 | ✅ |
-| 实机证据（`artifacts/runs/live-*`、截图、Power.log 归档） | **本地** | ❌ | ✅ | ❌ |
+| 实机证据（`artifacts/runs/live-*`、截图、Power.log 归档） | **本地** | ❌ | ✅ | 接收导入件 |
+| `hsbg_engine` Windows 轮子 | 各端自建（本地=部署构建） | ❌ | ✅ | 各自 Linux 轮子 |
 | `.venv`、Rust `target/`、OCR onnx | 各端自建 | ❌ | ✅ | ✅ |
 
-> 一句话：**代码和说明走 GitHub，算力产物留在服务器，实机证据留在本地。**
-> 任何一份文件只允许一个端拥有写权。
+> 一句话：**规则与学习系统只在服务器改，实机桥接只在本地改，GitHub 只同步代码与文档。**
 
 ## 3. 同步规则
 

@@ -8,10 +8,13 @@
 | 文档 | 内容 |
 |---|---|
 | [PROJECT_STATE.md](PROJECT_STATE.md) | 当前作业、模型结论、下一步 |
-| [SYNC_MODEL.md](SYNC_MODEL.md) | **三端（本地/GitHub/NUS）文件管理、真源、同步与协作规范** |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | **职责矩阵与迁移方案：服务器统一开发、本地专注实机** |
+| [SYNC_MODEL.md](SYNC_MODEL.md) | 三端文件管理、真源、同步与协作规范 |
 | [INVENTORY_LOCAL.md](INVENTORY_LOCAL.md) | 本地盘点：有什么、缺什么、哪些待服务器确认 |
+| [analysis/](analysis/) | 代码级差异与引擎规则审计（HSAI × HSBRSIM） |
 | [sync/README.md](sync/README.md) | 两个 Agent 的异步协作区与状态板 |
-| [sync/SERVER.md](sync/SERVER.md) | 交给服务器 Agent 的盘点任务书（待对方填写） |
+| [sync/SERVER.md](sync/SERVER.md) | 服务器盘点报告（服务器写） |
+| [sync/SERVER_HANDOFF_20261110.md](sync/SERVER_HANDOFF_20261110.md) | 架构调整交接（本地写给服务器） |
 | [sync/DECISIONS.md](sync/DECISIONS.md) | 三端管理的决议记录（只追加） |
 | [LIVE_V1_1_AUDIT.md](LIVE_V1_1_AUDIT.md) | V1.1 实机审计、执行修复、每局数据体系、D 阶段改造与实机验证 |
 | [E_PHASE_RUNBOOK.md](E_PHASE_RUNBOOK.md) | E 阶段连续实机验收手册（计划；E-0 canary → E-1 三局） |

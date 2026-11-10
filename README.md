@@ -1,14 +1,21 @@
 # HSAI
 
 Hearthstone Battlegrounds 的强化学习 + **真实游戏自动化**工作区。模拟器基于
-AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），训练与评测在 NUS 服务器完成，
-实机桥接与真实对局验证在本地 Windows 完成，代码与文档经 GitHub 同步。
+AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），**模拟器与训练/评测系统统一由 NUS 服务器维护**，
+本地 Windows 只负责真实游戏桥接（读屏、推理接入、自动操作、执行验证、日志采集），
+代码与文档经 GitHub 同步。
 
 ```text
 本地 Windows (D:\HSAI)  ──push/pull──  GitHub kk03kk/HSRL  ──pull/push──  NUS ~/projects/HSAI
-  代码开发 / 模拟器维护 / 实机桥接            唯一代码与文档真源              训练 / 评测 / 建库 / 数据生成
-  真实对局验证 / 证据留存                     （不含任何大文件）              服务器侧 Agent
+  实机桥接 client/ + config/live/          唯一代码与文档真源              模拟器内核与规则
+  读屏 / 推理 / 操作 / 回执对账             （不含任何大文件）              动作空间 / 观测 / 奖励
+  实机证据 artifacts/runs/live-*                                           模型 / 损失 / 采样 / 评测
+                                                                           训练编排 / 权重 / 库 / 数据
 ```
+
+**职责边界（2026-11-10 起）**：规则与学习系统只在服务器改，实机桥接只在本地改。
+完整矩阵、迁移步骤与例外（引擎 Windows 轮子由本地做部署构建）见
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 当前状态（2026-11-10）
 

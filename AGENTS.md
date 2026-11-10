@@ -16,11 +16,13 @@
 
 | 端 | 拥有写权 | 禁止 |
 |---|---|---|
-| 本地 Windows `D:\HSAI` | `client/` 实机桥接、`config/live/`、实机证据 `artifacts/runs/live-*`、`docs/sync/LOCAL.md` | 长训、建库、大规模评测；改服务器 |
+| 本地 Windows `D:\HSAI` | `client/` 实机桥接、`config/live/`、实机证据 `artifacts/runs/live-*`、`records/`、`docs/sync/LOCAL.md`、`docs/live/**`、`docs/LIVE_V1_1_AUDIT.md`、`docs/E_PHASE_RUNBOOK.md`、`docs/analysis/**` | 改**服务器拥有的代码**（`engine/ hsbg/ workflows/ deploy/ data/ tests/(除 test_live_*) tools/`）；本地编译模拟器；长训、建库、大规模评测 |
 | GitHub `kk03kk/HSRL` `main` | 源码/配置/卡表/文档/清单（≤5 MB 单文件） | 权重、库、数据、日志、压缩包 |
-| NUS `~/projects/HSAI` | 训练、评测、建库、数据生成、`docs/sync/SERVER.md` | 实机操作；改本地；在登录节点跑重活 |
+| NUS `~/projects/HSAI` | **模拟器内核、动作空间、观测编码、奖励、模型与损失、采样与自对弈、评测、训练编排、资产（权重/库/数据）**、`docs/sync/SERVER.md`、`docs/sync/ENGINE_RELEASES.md`、`docs/`（除本地那几份） | 实机操作；改 `client/` 与 `config/live/`；在登录节点跑重活 |
 
 **任何资产只有一个端能写。** 需要跨端改同一文件时，先改 `main`，另一端 pull。
+完整职责矩阵与迁移步骤见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+本地可用 `python client/tools/check_ownership.py --strict` 自检是否越界。
 
 ## 2. 与用户的工作方式
 
@@ -106,6 +108,18 @@
 |---|---|---|
 | Python | `.venv`，3.13.5，torch **cpu** | conda/venv，GPU（H100），Slurm 计算节点 |
 | 运行入口 | `client/live_245.py`（doctor/autoplay/decide/replay） | `workflows/*` + `deploy/slurm/*.sbatch` |
-| 能跑 | 实机、离线回放、小冒烟、单元测试 | 训练、建库、评测、Slurm |
-| 不能跑 | 长训、大评测 | 实机、真实游戏输入 |
+| 能跑 | 实机、离线回放（只读镜像）、`tests/test_live_*.py` | 模拟器编译与测试、训练、建库、评测、Slurm |
+| 不能跑 | 模拟器开发/编译/审计、训练栈测试、长训、大评测 | 实机、真实游戏输入 |
 | 独有证据 | `artifacts/runs/live-*`、`records/evidence` | `artifacts/models/*`、库、评测报告、Slurm 日志 |
+
+## 11. 2026-11-10 架构调整（现行）
+
+- **服务器统一维护模拟器与强化学习系统**（规则/动作/观测/奖励/模型/采样/评测/训练编排/资产）；
+- **本地只做真实游戏桥接**（读屏、推理接入、自动操作、执行验证、日志采集），
+  保留最小运行依赖（`client/` + `obs_std`/`action_space_std`/`common` 常量 + `hsbg_engine` 轮子），
+  **不再维护独立的模拟器开发环境、不再本地编译审计**；
+- 唯一例外：引擎升级时由本地做一次**部署构建**（Windows 轮子只能在本地产出），
+  版本由 `docs/sync/ENGINE_RELEASES.md`（服务器写）驱动；
+- 实机日志可回传服务器用于规则验证，走 tar.gz + sha256，**不进 Git**；
+- 规则审计结论不变：除非发现重大规则错误或训练稳定性问题，不修改模拟器。
+  详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 与 [`docs/sync/SERVER_HANDOFF_20261110.md`](docs/sync/SERVER_HANDOFF_20261110.md)。

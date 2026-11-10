@@ -3,8 +3,8 @@
 ```yaml
 status: confirmed
 owner: local
-updated: 2026-11-10 19:55
-base_commit: 711f604
+updated: 2026-11-10 22:10
+base_commit: 见本文件所在提交
 ```
 
 ## 1. 我是谁 / 我在做什么
@@ -88,3 +88,11 @@ python tools/sync_compare.py docs/sync/manifests/local.json docs/sync/manifests/
 
 v1 清单没有 `git_blob`，所以四个 CRLF 文件（`autoplay-255790.json`、`bg_cards.json`、
 `pyproject.toml`、`requirements.txt`）目前只能按 worktree SHA 比较、会显示假差异；重跑后应全部 `OK`。
+
+## 8. 架构调整后的本地范围（2026-11-10）
+
+- 本地**只做**：client/ 实机桥接、config/live/、实机证据、docs/sync/LOCAL.md、docs/live/**、docs/analysis/**。
+- 本地**不再做**：改 engine//hsbg//workflows//deploy//data//	ools/、本地编译 Rust、跑训练栈测试、规则审计。
+- 自检：python client/tools/check_ownership.py --strict（越界改动会列出来，不会自动回滚）。
+- 运行时只需要：client/** + hsbg/env/{obs_std,action_space_std}.py + hsbg/az/train/common.py + hsbg_engine 轮子 + numpy/torch/PIL/rapidocr/onnx。
+- 已知：本地 hsbg_engine 仍是 2026-11-06 构建（c7b5f27d），按 S3 由服务器发版后用部署构建对齐。
