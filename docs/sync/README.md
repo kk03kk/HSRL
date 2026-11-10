@@ -63,3 +63,13 @@ python tools/sync_compare.py docs/sync/manifests/local.json docs/sync/manifests/
 
 期望：pins 全部 `OK`（四个 CRLF 文件不再假差异），`artifacts/*` 只显示量级差异，
 `result: consistent`。若仍有硬漂移，在 `SERVER.md` 追加一节说明。
+
+### 36h 联赛（`1102669`）结束后的顺序
+
+1. `squeue`/`sacct` 确认 `1102669` 已是 `COMPLETED`，把 36h 产物写进 `SERVER.md`（最新 version、累计决策、最终 SHA）。
+2. 把冻结工作副本（1 个已跟踪修改 + 10 个未跟踪）整理成一次正常提交回到 `main`，或明确丢弃；不要长期留 dirty。
+3. 按 D-015 执行服务器清理（`artifacts/exports` 889 MB、`artifacts/local/v1.1-*.tgz` 333 MB、旧面板约 185 MB），
+   在目录留 `cleanup-<date>.txt`；权重、联赛库、`records/` 原始证据不删。
+4. 用**当前引擎** `c4c71014e3d41760` 重跑 live-v1 全榜（旧 `46e7013d…` 是 `c7b5f27d` 引擎，见 D-011），
+   协议 SHA 变化时在 `DECISIONS.md` 追加新条目。
+5. 重新生成 `manifests/server.json` 并 push，等本地复核。

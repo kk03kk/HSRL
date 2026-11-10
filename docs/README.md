@@ -14,6 +14,7 @@
 | [sync/SERVER.md](sync/SERVER.md) | 交给服务器 Agent 的盘点任务书（待对方填写） |
 | [sync/DECISIONS.md](sync/DECISIONS.md) | 三端管理的决议记录（只追加） |
 | [LIVE_V1_1_AUDIT.md](LIVE_V1_1_AUDIT.md) | V1.1 实机审计、执行修复、每局数据体系、D 阶段改造与实机验证 |
+| [E_PHASE_RUNBOOK.md](E_PHASE_RUNBOOK.md) | E 阶段连续实机验收手册（计划；E-0 canary → E-1 三局） |
 | [SIMULATOR_AUDIT_2026-11-09.md](SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 规则审计、覆盖、修复与测试 |
 | [ELO_EVAL.md](ELO_EVAL.md) | 8 模型 / 2 model + 6 bot pairwise Elo 方案 |
 | [EVAL_DUEL.md](EVAL_DUEL.md) | 2 model + 6 bot 对局协议、记录口径、门禁 |
