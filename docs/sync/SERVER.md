@@ -395,3 +395,43 @@ FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
 | `verify_workspace.py` | **PASS** 全部 gate（sources / cards / engine-source / rust / python） |
 
 结论：9 个动作规则测试口径已修复；服务器全量回归全绿。
+
+## 12. 最新模型保存、gauntlet 评测与双端同步（2026-11-10）
+
+### 12.1 本轮 GitHub 同步
+
+- 服务器从 `8f75286` 快进到 `ad4778d`：本地新增 `client/tools/build_engine.ps1`、`config/live/engine.json`，
+  并刷新 `docs/sync/manifests/local.json`。
+- `config/live/engine.json` 的 `expected_source_hash=c4c71014e3d41760`、`matches_server=true`，
+  与服务器 `build_info().source_hash` 一致；Windows wheel SHA `524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f`。
+- 服务器把联赛训练/评测工具和 latest gauntlet 入库：`d6e71b2 server: league training/eval tooling and latest-model gauntlet`。
+
+### 12.2 保存的最新模型
+
+- 目录：`artifacts/models/league-latest-20261110-step012311/`
+- 来源：`1102669` 的 `step_012311`（复制时训练仍在继续）
+- 累计决策：`1,175,791,607`
+- `model.pt`：`5069aa62b8d20c57f2332fb284f5f57b639501dbd9721c3e2fefed41218d29cd`
+- `trainer.pt`：`60dcaf0505b6e28d6df0d55c48efeddb078a1c9d07d3e27de47f9b2d41475f19`
+- 推理包：`artifacts/exports/league-latest-12311-live.tgz`，SHA256
+  `f5f28bac64b44901078e19bfcee5ab86963c94689fb7482d7252a67f79aa8a4f`（54 MB，含 model/manifest/checkpoint/card，不含 trainer）。
+
+### 12.3 latest vs elo4：4 对 ×128 局
+
+`1109300`，A100-40，25m41s，`valid=true`，协议 SHA `e4182351f75dc5f9d92366d6465127787f0e3f84a5e8dce431c164d1ee2fd1c1`。
+每局 2 焦点模型 + 6 引擎 bot，8 座位轮转；输出 `artifacts/runs/gauntlet-12311-128-20261110/`。
+
+| 对手 | 最新胜/负 | 计分胜率 | 95% CI |
+|---|---:|---:|---|
+| milestone-1033972345 | 69 / 59 | 53.91% | [45.31%, 62.50%] |
+| milestone-976909004 | 79 / 49 | 61.72% | [53.12%, 69.53%] |
+| milestone-867747936 | 82 / 46 | 64.06% | [55.47%, 72.66%] |
+| V1.1 | 75 / 53 | 58.59% | [50.00%, 67.19%] |
+
+合计 **305 胜 / 0 平 / 207 负，59.57%（95% CI 55.27–63.87%）**。
+对最强既有模型 `milestone-1033972345` 点估计更好，但 128 局下 95% CI 跨 0，**不显著**。
+评测报告的保守推荐是 `milestone-1033972345`；服务器为实机探索选择 **`league-latest-12311`**
+（4 对全胜、合计最佳），实机异常时回退 `milestone-1033972345`。
+
+> 模型权重、gauntlet 报告、推理包都在 `artifacts/`，**不进 Git**；本地通过 `scp` 取
+> `artifacts/exports/league-latest-12311-live.tgz`，并用上面的 SHA 校验。

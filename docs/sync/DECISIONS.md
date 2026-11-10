@@ -241,3 +241,24 @@ evidence: `tests/test_move_guard.py`、`tests/test_parallel_collect.py`、`tests
 
 复跑 `1109179`（计算节点）：pytest 0 failed / 0 errors，cargo 942 passed / 0 failed / 1 ignored，
 `verify_workspace.py` 全 gate PASS。服务器全量回归自此为绿色；未改训练/评测生产代码。
+
+## D-022 · 2026-11-10 · server · 最新联赛模型保存、gauntlet 评测与实机选择
+
+status: accepted
+evidence: `artifacts/models/league-latest-20261110-step012311/`、`artifacts/runs/gauntlet-12311-128-20261110/`、`docs/sync/SERVER.md` §12
+
+保存 `1102669` 的 `step_012311`（累计 1,175,791,607；model SHA `5069aa62…`，trainer SHA `60dcaf05…`）。
+`1109300` 用 128 局/对打 4 个 elo4 模型：4 对全胜，合计 305–207（59.57%，CI 55.27–63.87%）；
+对 `milestone-1033972345` 为 69–59（53.91%，CI 45.31–62.50%，不显著）。
+服务器选择 `league-latest-12311` 作为本机实机探索模型；保守回退为 `milestone-1033972345`。
+权重与报告在 `artifacts/`，不进 Git；本地通过 `league-latest-12311-live.tgz`（SHA `f5f28bac…`）下载。
+
+## D-023 · 2026-11-10 · server · 接受本地 Windows 部署构建（c4c71014）
+
+status: accepted
+evidence: `config/live/engine.json`、`client/tools/build_engine.ps1`、`ad4778d`
+
+本地完成 S3 部署构建：Windows wheel SHA `524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f`，
+`expected_source_hash=c4c71014e3d41760`，`matches_server=true`。服务器 `build_info().source_hash`
+同为 `c4c71014e3d41760`，`db_info=(3983, "37.0.2.256589", "37.0.2")`。两端引擎锚点一致；
+服务器不修改 `config/live/`，本地不需要重新审计模拟器。

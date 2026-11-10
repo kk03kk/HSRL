@@ -126,16 +126,16 @@
  "trees": [
   {
    "tree": "client",
-   "left": 188,
-   "right": 188,
+   "left": 189,
+   "right": 189,
    "drift": 0.0,
    "tag": "OK"
   },
   {
    "tree": "config",
    "left": 24,
-   "right": 27,
-   "drift": 0.111,
+   "right": 29,
+   "drift": 0.172,
    "tag": "OK"
   },
   {
@@ -190,8 +190,8 @@
   {
    "tree": "workflows",
    "left": 91,
-   "right": 93,
-   "drift": 0.022,
+   "right": 94,
+   "drift": 0.032,
    "tag": "OK"
   }
  ],
@@ -217,7 +217,7 @@
   {
    "name": "exports",
    "left_bytes": 0,
-   "right_bytes": 931241461,
+   "right_bytes": 987518508,
    "tag": "INFO"
   },
   {
@@ -234,26 +234,26 @@
   },
   {
    "name": "local",
-   "left_bytes": 428743766,
+   "left_bytes": 429539568,
    "right_bytes": 332464730,
    "tag": "INFO"
   },
   {
    "name": "models",
    "left_bytes": 9632607261,
-   "right_bytes": 322203559,
+   "right_bytes": 644385077,
    "tag": "INFO"
   },
   {
    "name": "runs",
    "left_bytes": 1432197243,
-   "right_bytes": 5023784692,
+   "right_bytes": 5027424739,
    "tag": "INFO"
   }
  ],
  "hard": [],
  "soft": [
-  "different HEAD (7d507124a0 vs 488e0636d3) — pull/rebase before comparing again",
+  "different HEAD (8f75286a1d vs d6e71b2698) — pull/rebase before comparing again",
   "pin artifacts/libraries/league-eot-v1.1-20261109/manifest.json absent on local, allowed by scope=server",
   "pin artifacts/models/library-v1/SHA256SUMS.txt absent on server, allowed by scope=local",
   "pin artifacts/models/library-v1/manifest.json absent on server, allowed by scope=local",
