@@ -176,3 +176,22 @@ evidence: `tools/sync_manifest.py`（schema v2）、`tools/sync_compare.py`、`d
 `scope=local|server` 的 pin 允许在另一端缺失，tree 只比文件数（容差 35%），
 artifact/records 只比存在性与量级。退出码 0=一致，1=硬漂移。
 **待服务器执行**：v2 重跑 `manifests/server.json` 后再 `sync_compare.py`，四个 CRLF 假差异应消失。
+
+## D-018 · 2026-11-10 · local · v2 清单比对通过（含 compare 工具修正）
+
+status: accepted
+evidence: `docs/sync/manifests/{local,server}.json`、`docs/sync/manifests/compare-20261110.json`、`tools/sync_compare.py`
+
+服务器按 D-017 重跑 v2 清单（`SERVER.md` §10，HEAD `ceb1959`）后，本地复核结果：**`result: consistent`**。
+
+服务器当时看到 4 条 `DRIFT` 的原因是 `sync_compare.py` 的一个缺陷：`both_blob` 判定把
+"单边 `scope` pin"（本地无 `trainer.pt`、服务器无 `library-v1`）也算进了 `all()`，
+于是整体退回 worktree SHA256 比较，CRLF 差异重新出现。已修正：只用**两侧都存在**的 pin
+判定 blob 可用性。修正后：
+
+- 15 条 pins：全部 `OK` 或 `OK(scope)`，无硬漂移；
+- trees：`engine` 152/153、`hsbg` 76/76、`tests` 45/45、`tools` 31/31、`docs` 19/19、
+  `workflows` 91/93、`deploy` 28/33（差值来自运行中联赛的冻结副本，属预期）；
+- `artifacts/`、`records/`：只有量级差异（各自运行证据），不参与判定。
+
+结论：三端代码/配置/卡表/文档**已对齐**；剩余差异都是"按用途分工"或"各自运行证据"。

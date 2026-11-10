@@ -1,14 +1,14 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "local",
- "generated_at": "2026-11-10 19:54:17",
+ "generated_at": "2026-11-10 20:02:52",
  "root": "D:\\HSAI",
- "notes": "E runbook + server next-actions",
+ "notes": "aligned: v2 compare consistent (D-018)",
  "git": {
-  "head": "4477200507c1b6f5753707f38ca3ae297141d7fa",
+  "head": "c416d403a2bc21a740d6d47c9b1b2eaf4caf5700",
   "branch": "main",
   "dirty": true,
-  "changed": 3,
+  "changed": 5,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
@@ -54,9 +54,9 @@
   "tools": {
    "exists": true,
    "files": 31,
-   "bytes": 305733,
+   "bytes": 306104,
    "truncated": false,
-   "newest": "2026-11-10 19:48:25"
+   "newest": "2026-11-10 20:01:57"
   },
   "tests": {
    "exists": true,
@@ -89,9 +89,9 @@
   "docs": {
    "exists": true,
    "files": 19,
-   "bytes": 140722,
+   "bytes": 146055,
    "truncated": false,
-   "newest": "2026-11-10 19:54:09"
+   "newest": "2026-11-10 20:02:44"
   }
  },
  "artifacts": {

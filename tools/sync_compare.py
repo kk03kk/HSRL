@@ -72,8 +72,14 @@ def main(argv: list[str] | None = None) -> int:
 
     lkeys = set(left.get("pins", {}))
     rkeys = set(right.get("pins", {}))
-    both_blob = all((left["pins"].get(k) or {}).get("git_blob") and (right["pins"].get(k) or {}).get("git_blob")
-                    for k in lkeys & rkeys) if (lkeys & rkeys) else False
+    both_blob = all(
+        (left["pins"].get(k) or {}).get("git_blob") and (right["pins"].get(k) or {}).get("git_blob")
+        for k in (lkeys & rkeys)
+        # only pins that exist on *both* sides can be compared by blob; a
+        # deliberately one-sided pin must not downgrade the whole comparison
+        if (left["pins"].get(k) or {}).get("sha256") and (right["pins"].get(k) or {}).get("sha256")
+    ) if any((left["pins"].get(k) or {}).get("sha256") and (right["pins"].get(k) or {}).get("sha256")
+             for k in (lkeys & rkeys)) else False
     for key in sorted(lkeys | rkeys):
         le, re_ = left["pins"].get(key), right["pins"].get(key)
         scope = (le or re_ or {}).get("scope", "both")
