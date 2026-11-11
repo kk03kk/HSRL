@@ -1,19 +1,19 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "server",
- "generated_at": "2026-11-11 10:07:24",
+ "generated_at": "2026-11-11 23:36:29",
  "root": "/home/h/hengzhi/projects/HSAI",
- "notes": "single leaderboard-v2; 12311 #1; old boards archived",
+ "notes": "",
  "git": {
-  "head": "02ecc57bb5866ad9b65e5985ecc2048a94b9a991",
+  "head": "bc98c571f84c93ef7eb073a7477ab238770f1d73",
   "branch": "main",
-  "dirty": true,
-  "changed": 11,
+  "dirty": false,
+  "changed": 0,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
   "python": "3.12.3",
-  "platform": "Linux-6.8.0-149-generic-x86_64-with-glibc2.39",
+  "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
   "machine": "x86_64",
   "torch": null,
   "numpy": "1.26.4",
@@ -33,9 +33,9 @@
   "hsbg": {
    "exists": true,
    "files": 76,
-   "bytes": 1683091,
+   "bytes": 1690736,
    "truncated": false,
-   "newest": "2026-11-10 23:43:46"
+   "newest": "2026-11-11 20:51:03"
   },
   "client": {
    "exists": true,
@@ -46,10 +46,10 @@
   },
   "workflows": {
    "exists": true,
-   "files": 94,
-   "bytes": 1678653,
+   "files": 98,
+   "bytes": 1718560,
    "truncated": false,
-   "newest": "2026-11-11 10:07:15"
+   "newest": "2026-11-11 23:29:07"
   },
   "tools": {
    "exists": true,
@@ -60,24 +60,24 @@
   },
   "tests": {
    "exists": true,
-   "files": 45,
-   "bytes": 353690,
+   "files": 46,
+   "bytes": 363282,
    "truncated": false,
-   "newest": "2026-11-10 22:36:00"
+   "newest": "2026-11-11 22:58:33"
   },
   "deploy": {
    "exists": true,
-   "files": 33,
-   "bytes": 40751,
+   "files": 42,
+   "bytes": 60538,
    "truncated": false,
-   "newest": "2026-11-10 19:16:20"
+   "newest": "2026-11-11 23:20:04"
   },
   "config": {
    "exists": true,
-   "files": 29,
-   "bytes": 143687,
+   "files": 31,
+   "bytes": 146651,
    "truncated": false,
-   "newest": "2026-11-10 23:43:46"
+   "newest": "2026-11-11 20:39:58"
   },
   "data": {
    "exists": true,
@@ -88,19 +88,19 @@
   },
   "docs": {
    "exists": true,
-   "files": 26,
-   "bytes": 238565,
+   "files": 28,
+   "bytes": 281290,
    "truncated": false,
-   "newest": "2026-11-11 10:07:15"
+   "newest": "2026-11-11 23:28:18"
   }
  },
  "artifacts": {
   "models": {
    "exists": true,
-   "files": 25,
-   "bytes": 1288763863,
+   "files": 43,
+   "bytes": 1933147209,
    "truncated": false,
-   "newest": "2026-11-11 10:06:06"
+   "newest": "2026-11-11 23:29:10"
   },
   "libraries": {
    "exists": true,
@@ -132,17 +132,17 @@
   },
   "runs": {
    "exists": true,
-   "files": 7407,
-   "bytes": 5055200791,
+   "files": 7551,
+   "bytes": 8925878315,
    "truncated": false,
-   "newest": "2026-11-11 10:07:09"
+   "newest": "2026-11-11 22:58:52"
   },
   "local": {
    "exists": true,
    "files": 9,
    "bytes": 332464730,
    "truncated": false,
-   "newest": "2026-11-10 22:33:41"
+   "newest": "2026-11-11 19:38:26"
   },
   "client": {
    "exists": false,
@@ -153,10 +153,10 @@
   },
   "exports": {
    "exists": true,
-   "files": 8,
-   "bytes": 1100083990,
+   "files": 12,
+   "bytes": 1156453609,
    "truncated": false,
-   "newest": "2026-11-11 09:49:21"
+   "newest": "2026-11-11 23:29:20"
   }
  },
  "records": {
