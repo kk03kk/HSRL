@@ -1,0 +1,58 @@
+{
+  "schema": "hsai.eval-four-model-elo/v1",
+  "engine": {
+    "game_version": "37.0.2.256589",
+    "source_hash": "c4c71014e3d41760",
+    "cards": 3983,
+    "engine_cards_sha256": "7a02d10794cf80c56fa77b1dd235d49b892c8d3e31c2cf56887f696e2cf922a6",
+    "vocab_sha256": "5041e83d810e846b3cbc7d7ff056b84e301472d6ff021ffd1971a18a248e05fb",
+    "n_actions": 245,
+    "obs_floats": 3227,
+    "obs_cards": 124
+  },
+  "models": [
+    {
+      "id": "V1.1",
+      "label": "permanent anchor / live pin",
+      "path": "artifacts/models/v1.1/model.pt",
+      "file_sha256": "68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e",
+      "bytes": 67864188
+    },
+    {
+      "id": "league-latest-12311",
+      "label": "36h step 12311 (1.176B decisions)",
+      "path": "artifacts/models/league-latest-20261110-step012311/model.pt",
+      "file_sha256": "5069aa62b8d20c57f2332fb284f5f57b639501dbd9721c3e2fefed41218d29cd",
+      "bytes": 67864188
+    },
+    {
+      "id": "league-latest-13806",
+      "label": "36h step 13806 (1.395B decisions)",
+      "path": "artifacts/models/league-latest-20261111-step013806/model.pt",
+      "file_sha256": "77d3fe54c56ead55bd45c80978dfe30160c2dfe02309c5966005ef92730b4f7c",
+      "bytes": 67864188
+    },
+    {
+      "id": "league-final-14858",
+      "label": "36h final (1.552B decisions)",
+      "path": "artifacts/models/league-final-20261111-step014858/model.pt",
+      "file_sha256": "ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7",
+      "bytes": 67864188
+    }
+  ],
+  "games_per_pair": 448,
+  "seed_base": 310000000,
+  "seed_mode": "shared",
+  "seat_mode": "ordered56",
+  "max_actions_per_turn": 80,
+  "move_cap": 5,
+  "move_repeat_limit": 2,
+  "bootstrap": 10000,
+  "bootstrap_seed": 20261111,
+  "elo_anchor": "V1.1",
+  "elo_anchor_score": 1000,
+  "elo_l2": 0.01,
+  "max_steps": 50000,
+  "decode": "greedy",
+  "collect_opponents": false
+}
