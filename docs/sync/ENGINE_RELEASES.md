@@ -1,10 +1,10 @@
 # ENGINE_RELEASES —— 引擎发版记录
 
 ```yaml
-status: current
+status: confirmed
 owner: server
-updated: 2026-11-10 22:20 +0800
-base_commit: 402480b
+updated: 2026-11-11 14:55 +0800
+base_commit: b6c4624
 ```
 
 服务器拥有写权。每次 `engine/` 有变更就追加一行；本地据此决定是否重新构建 Windows 轮子（S3 部署构建）。
@@ -20,4 +20,4 @@ base_commit: 402480b
 
 - `source_hash` 由 `engine/crates/hsbg-engine/src`、`engine/crates/hsbg-engine-py/src` 与编译期卡表计算；换数据或改源码后必须重编译并重跑回归。
 - `db_info()` 实测返回 `(3983, '37.0.2.256589', '37.0.2')`；`N_CARDS=3984`（含空位）。
-- 当前 `config/live/engine.json` 尚未建立；S3 部署构建时由本地写入 `expected_source_hash` 与 wheel SHA。
+- `config/live/engine.json` 已建立：`expected_source_hash=c4c71014e3d41760`，`matches_server=true`，Windows wheel SHA `524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f`（D-023）。

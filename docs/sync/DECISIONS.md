@@ -277,3 +277,72 @@ Bradley-Terry MLE 求唯一分数 + 5,000 bootstrap；排名按点估计，CI �
 `league-latest-12311` 得 **1067.68**（95% CI [1036.97, 1099.46]），5 模型第一；
 对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI 跨 0.5），所以是
 用户规则下的点估计第一，不是显著超越。`13806` 尚未评测，暂不入榜。
+
+## D-025 · 2026-11-11 · server · 13801 删除、14556 保存与训练结束前冻结
+
+status: accepted
+evidence: `artifacts/cleanup-20261111.txt`、`artifacts/models/league-latest-20261111-step014556/manifest.json`、`artifacts/exports/league-latest-14556-live.tgz`、`docs/sync/SERVER.md` §14
+
+按用户要求删除 `league-latest-20261111-step013801` 及其 live 导出，只保留 13806；清理清单记录 SHA/字节。
+保存当前最新训练快照 `step_014556`（累计 `1,506,838,367`；model `14d7c4d5…`，trainer `91afb637…`）并生成推理包。
+36h 作业结束前冻结训练代码/库/权重，仅更新文档；作业结束后保存 final，并按用户确认的新排名规则 v1
+（联合 Bradley-Terry + 排名区间 + 冠军挑战 + 连接锚点）提交 E1 校准。
+
+## D-026 · 2026-11-11 · server · 实机观测/动作投影审计发现（需本地取证）
+
+status: pending-local
+evidence: 服务器对 `client/hsrl_agent/live/` 的静态审计（文件/行号见下）；本会话未操作真实游戏
+
+服务器审计在本地拥有的实机桥接代码中发现以下 train/live 不一致。它们不是服务器可改的代码，
+请本地 Agent 用真实 Power.log/决策轨迹逐项确认，并回传证据；确认后再决定修法。
+
+1. **对手已见战团/最后对手恒为空**：`logs.py` 只初始化/清空 `seen_boards`、`last_opponent`，
+   仓库内没有赋值点；`facts.py:80-81` 读取它们。训练侧 `engine/.../obs.rs:410-417` 使用
+   `board_shown/scouted` 真实填充。影响 7×7×31=1519 个浮点与 `OPP_SEEN_BOARD_LEN`。
+2. **pending kind 分类**：`adaptive.py:85-91` 把 ChooseOne(3)、Target(4)、Timewarp(8) 都归为
+   Discover(2)；训练侧 `obs.rs:217-227` 有 9 类 one-hot，且 ChooseOne 的 `choice_items` 走
+   特殊路径。影响每个选择菜单的 9 维 one-hot，ChooseOne 还影响 choice 浮点块。
+3. **任务/奖励从未重建**：`facts.py:112` 只在任务未激活时清空 `view['quests']`，没有构造分支；
+   `owned_rewards` 无构造点。训练侧 `obs.rs:210-213,238-243` 有真实任务进度和任务/奖励卡槽。
+4. **对手摘要 all-or-nothing**：`facts.py:69-83` 只有在恰好 7 个对手且每个都有 health/tier 时
+   才写入 `view['opponents']`；任一缺失就整体退化为 `[None]*7`，`global.alive` 回退为 8。
+   训练侧保留死亡对手槽位和公开的 leaderboard 信息。
+5. **MODEL_* 标签缺失**：`facts.py:125-128` 查 `MODEL_MAX_GOLD_BONUS` 等标签，但
+   `client/.../data/game_tags_255790.json` 没有这些键；`adaptive.py:37-38,61-78` 把
+   `max_gold_bonus/hand_queue_len/effects_len/tavern_atk/tavern_hp/chronum` 和多个 item 私有
+   状态固定为中性值。`readiness.py` 已把其中 6 个列为 unresolved。
+6. **动作可用集差异**：训练侧 Freeze 是 toggle（全冻结时可解冻），实机 `actions.py:68-78`
+   在全冻结时不暴露 action 2；训练/评测 >16 选择会截断，实机 >16 直接 Blocked；
+   实机 trinket/Timewarp 可用性没有按 gold/Chronum 过滤，引擎 `recruit.rs:2393-2406` 会过滤。
+7. **bf16/fp32 差异**：训练 leaf 用 bf16，评测/实机 fp32；服务器实测同模型 greedy argmax
+   翻转率约 **0.8%–1.0%**（V1.1 0.78%，12311 1.0%，1800 个真实观测/模型）。不是阻塞项，
+   但实机结果应标注“fp32 解码”，不能声称与训练采样逐动作一致。
+
+请求本地：
+- 用一局含战斗、任务、ChooseOne/目标菜单、冻结/解冻、>16 选择的真实日志，跑
+  `AdaptiveProjector` 并导出 `approximation.json` 中实际被置零/近似的字段；
+- 对比同一时刻引擎等价状态的 `obs_std.decode_blocks` 数值（至少对手棋盘、任务、pending kind、
+  choice 块）；
+- 给出每项的出现频率与是否可在真实日志中重建；不能重建的明确写“近似”。
+服务器侧不会改 `client/`；确认后由本地决定修法与实机验收顺序。
+
+## D-027 · 2026-11-11 · server · E1 单轮规则、final 冠军、实机交接
+
+status: accepted
+evidence: `docs/AUDIT_2026-11-11.md` §7–8、`docs/LEADERBOARD.md`、
+`docs/sync/SERVER_TO_LOCAL_20261111.md`、`artifacts/models/e1-four-20261111/leaderboard.json`
+
+用户 2026-11-11 明确：
+1. **E1 只跑一轮**：4 模型 × 6 对 × 448 局（ordered56）即完成排名；报告 valid/eligible
+   后立即停止。不得为“确认复现”再跑第二轮，不得为冠军单独跑挑战赛；只有 invalid/
+   工程错误/协议缺陷才重跑，且先请示。
+2. **冠军 = `league-final-14858`**（E1 点估计第一 1086.53；与 13806 的 240–208 不显著，
+   只称“点估计冠军”）。实机直接使用 final。
+3. 服务器已删除 challenge 入口/配置；正式榜为
+   `artifacts/models/e1-four-20261111/leaderboard.json`，协议
+   `0fbf28d2…`。r2 与 r1 六对逐对一致，r2 作为正式报告。
+4. 实机交接：`docs/sync/SERVER_TO_LOCAL_20261111.md`；live 包
+   `artifacts/exports/league-final-14858-live.tgz`
+   SHA256 `32ccdabd…`，model SHA `ba7e8bbc…`；本地更新 `config/live/model.json`
+   后先跑 E-0 canary；D-026 的 obs/action 差异仍需本地取证。
+5. 下一轮长训未启动；`config/league-stage2.json` 等只作准备，等待用户确认。

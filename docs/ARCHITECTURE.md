@@ -114,9 +114,9 @@ python client/tools/pack_evidence.py --run artifacts/runs/live-v1.1-d-phase-006 
 |---|---|---|---|
 | **S1** | 文档与所有权：本文件、`AGENTS.md`、`docs/SYNC_MODEL.md`、`docs/README.md`、`docs/sync/LOCAL.md`；根目录清理；`check_ownership.py` | 本地 | ✅ 本轮完成 |
 | **S2** | 本地瘦身：停止在本地跑模拟器/训练测试；`tests/` 只保留/运行 `test_live_*`；不再本地编译 Rust（除非 S3 部署构建） | 本地 | ✅ 规则已定，本轮只做文档 |
-| **S3** | 引擎版本锚 + 部署构建脚本（`client/tools/build_engine.ps1`）：服务器 bump 引擎 → 本地一条命令重建 wheel → 写 `engine.json` | 本地（脚本）+ 服务器（发版） | ⏳ 待做，见交接 |
+| **S3** | 引擎版本锚 + 部署构建脚本（`client/tools/build_engine.ps1`）：服务器 bump 引擎 → 本地一条命令重建 wheel → 写 `engine.json` | 本地（脚本）+ 服务器（发版） | ✅ 完成（D-023；`config/live/engine.json` 已建立，wheel SHA `524d6871…`） |
 | **S4** | 日志回传通道：`pack_evidence.py` + 服务器侧 `artifacts/imports/live-*` 约定 | 双方 | ⏳ 待做 |
-| **S5** | 服务器侧验收：`main` 上 `pytest`/`cargo test`/`verify_workspace` 全绿；训练与评测按新边界运行 | 服务器 | ⏳ 见交接 |
+| **S5** | 服务器侧验收：`main` 上 `pytest`/`cargo test`/`verify_workspace` 全绿；训练与评测按新边界运行 | 服务器 | ✅ 完成（D-021；`1109179` 全绿） |
 
 **兼容性**：本调整不改任何规则/动作/观测/模型，引擎指纹保持 `c4c71014e3d41760`；
 S3 的"构建一次 Windows wheel"只是把已有产物对齐到源码，不改变训练语义。
@@ -127,5 +127,5 @@ S3 的"构建一次 Windows wheel"只是把已有产物对齐到源码，不改�
 ## 4. 与既有结论的关系
 
 - 引擎规则审计结论不变：**不修改模拟器**（`docs/analysis/ENGINE_RULES_FINAL_DECISION.md`）。
-- 本地扩展仍是 11-06 构建（`c7b5f27d`）；按 S3，它应由服务器发版 + 本地部署构建对齐，而不是本地重复审计。
+- 本地扩展已按 S3 重建为 `c4c71014`（D-023）；`config/live/engine.json` 的 `expected_source_hash` 与服务器一致，Windows wheel SHA `524d6871…`。
 - 训练/评测的唯一执行地仍是 NUS；本地不再产生任何训练或评测结论。

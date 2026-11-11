@@ -39,18 +39,24 @@ docs/                  当前文档
 
 ## 4. 当前评测入口
 
-当前唯一排行榜是 **leaderboard-v2（gauntlet-anchored）**：
+当前正式入口是 **E1 四模型校准**（联合 Bradley-Terry，6 对 × 448 局，ordered56）：
 
 - 规则与当前分数：[LEADERBOARD.md](../LEADERBOARD.md)
-- 当前榜：`artifacts/models/leaderboard-v2/leaderboard.json`
-- 新模型 gauntlet：`config/eval-latest-gauntlet.json` + `workflows/eval_latest_gauntlet.py`
-- 旧 8 模型流程（历史）：`config/eval-elo-8.json` + `workflows/eval_round_robin_elo.py`
+- 入口：`config/eval-e1-four.json` + `workflows/eval_round_robin_elo.py`
+- r1 报告：`artifacts/runs/e1-four-20261111/report/report.json`
+  （协议 `acd7eff7…`，含 `code_sha256`）
+- 旧 v2 gauntlet：`config/eval-latest-gauntlet.json` +
+  `workflows/eval_latest_gauntlet.py`，只作历史/候选筛选，不与 E1 混榜。
 
 旧的 2 model + 6 bot 固定 128 局协议仍保留为历史参考（[EVAL_DUEL.md](../EVAL_DUEL.md)），
-但不能与 Elo 混榜。旧战团库已归档，Elo 评测只用 engine bot。
+不能与 Elo 混榜。旧战团库已归档，Elo 评测只用 engine bot。
 
-正式启动前必须确认：engine `c4c71014e3d41760`、8 个模型 SHA、协议 SHA
-`837231e0d2f6e583549b095581e60e2986ac899511872b6e0798091b4dc85e94`。
+正式启动前必须确认：engine `c4c71014e3d41760`、4 个模型 SHA、E1 config SHA、
+报告里的 `code_sha256`、`protocol_sha256`，以及 `valid/leaderboard_eligible=true`。
+`shared` 种子必须使用 seed-block bootstrap。
+**E1 只跑一轮**：6 对 ×448 局，报告 valid 后立即停止；不跑第二轮确认、不做冠军挑战赛；
+冠军按点估计第一。只有 invalid/工程错误/协议缺陷才重跑并先请示。
+历史 v2 的 12311 1067.68 与 E1 的 1055.92 不能直接比较（协议不同）。
 
 ## 5. 监控与产物
 

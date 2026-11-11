@@ -1,107 +1,131 @@
 # HSAI 当前状态
 
-更新：2026-11-11 10:05 +0800
-阶段：**37.0.2 模拟器已冻结；36h 联赛训练进行中；唯一排行榜 `leaderboard-v2` 已建立（12311 第一）；等待实机 E 阶段授权。**
+更新：2026-11-11 22:20 +0800
+阶段：**36h 联赛已完成并通过全链路审计；E1 校准 r1 有效（final 点估计第一，但与 13806 不显著）；
+r2 复现已完成并与 r1 一致；按用户规则不做挑战赛。下一轮长训未启动，等待用户确认。**
 
 ## 1. 运行位置与工作方式
 
 - **三端分工**（详见 `docs/SYNC_MODEL.md`）：
-  - 本地 Windows `D:\HSAI`：代码开发、模拟器维护、**实机桥接与真实对局验证**、证据留存；
+  - 本地 Windows `D:\HSAI`：实机桥接与真实对局验证、实机证据、Windows 轮子部署构建；
   - GitHub `kk03kk/HSRL`（`main`）：唯一代码/配置/文档真源，不含大文件；
-  - NUS `~/projects/HSAI`：训练、评测、建库、数据生成，服务器侧 Agent 独立工作。
-- 本地活动工作区就是 `D:\HSAI`（2026-11-10 起恢复为双端同时活动；此前"不再使用本地"的说法已作废）。
-- 用户只给大方向；两端 Agent 各自自主规划、执行、验证、归档，通过 GitHub 的 `docs/sync/` 交换结论。
+  - NUS `~/projects/HSAI`：模拟器、训练、评测、建库、数据、权重与服务器侧资产。
+- 本地活动工作区就是 `D:\HSAI`；两端通过 `docs/sync/` 交换结论。
+- 用户只给大方向；两端 Agent 各自自主规划、执行、验证、归档。
 
-## 2. 当前作业（服务器 2026-11-10 19:21 盘点）
+## 2. 当前作业（2026-11-11 22:20 盘点）
 
 | 作业 | 状态 | 说明 |
 |---|---|---|
-| `1102669 hsai-league-36h` | **RUNNING**（2×H100-47，05:01 起，预计 11-11 16:49 结束） | 72 段 × 30 min；09:49 时 segment **59/72**，`version=13806`、累计 `1.395B` 决策；`illegal/truncated/dropped=0`。**不要取消、不要改训练代码/库/依赖** |
-| `1097487` | RUNNING | no-shell CPU allocation；服务器 Agent 会话所在；不要取消 |
-| `1109300 hsai-gauntlet12311` | COMPLETED | 12311 vs 4 个 Elo 模型 ×128 局（512 局），协议 `e4182351…`；4 对全胜，305–207（59.57%） |
-| `1099277 hsai-elo-8` | COMPLETED | 旧 8 模型 Elo，1,792 局，协议 `837231e0…`；已归档，不作当前榜 |
-| `1107182 hsai-elo4-league` | COMPLETED | 4 模型 Elo，3,072 局，协议 `6bf5cae3…`；作为 `leaderboard-v2` 的旧模型锚点 |
-| `1095539 hsai-p50-forced` | COMPLETED | 强制升本长训，`810,501,828` 累计决策 |
-| `1098876/1098877` | COMPLETED | 11 模型 live-v1/dev 512 局；**旧引擎 `c7b5f27d`，不再作为当前结论** |
+| `1102669 hsai-league-36h` | **COMPLETED** | 72/72 段；`2026-11-11T16:46:33+08:00` 结束；elapsed `1-11:44:43`；final `v14858`、累计 `1,552,463,499`；`illegal/truncated/dropped=0` |
+| `1115858 hsai-e1-four`（r1） | COMPLETED | E1 四模型 round-robin，2,688 局，valid/eligible；报告 `artifacts/runs/e1-four-20261111/report/report.json` |
+| `1116285 hsai-e1-four`（r2） | COMPLETED | 同 config、冻结代码复现；6 对与 r1 逐对完全一致 |
+| `1116737 hsai-e1-challenge` | FAILED | 448 局完成（final 243–205），但 2 模型 BT bootstrap 报错未写 report；已修 fallback，未再正式重跑 |
+| `1117087 hsai-e1-challenge` | CANCELLED | 用户要求停止重复评测，已取消 |
 
-## 3. 最近结论
+## 3. 36h 联赛复盘（已完成）
 
-> **引擎口径警告（2026-11-10 服务器盘点确认）**：11 模型 live-v1 与 2026-11-09 榜单的
-> `engine source_hash` 都是 **`c7b5f27d6f40d1d2`**；当前引擎是审计修复后的 **`c4c71014e3d41760`**。
-> 下面所有 live-v1/p50 数字只能当**历史证据**，当前引擎棋力必须用新协议重跑（见 D-011）。
+- 配置：`config/league-36h.json`；512 局/轮、8 actor 进程、`pipeline=1`（lag=1）、
+  `sims=0`、1 学习席 + 7 严格镜像席、engine `c4c71014e3d41760`。
+- 稳定性：5,316 条 history 全部 `illegal/truncated/dropped/invalid=0`、worker errors=0、
+  无非有限损失；4 次 KL 早停，0 次零 optimizer-step。
+- 学习曲线：policy loss ~0.0025–0.003，value loss 1.22→0.89，entropy 1.44→1.41，
+  approx_kl ~0.006，clip_frac ~0.067；anchor_kl 0.022→0.227；LR 第 10000 轮后固定 1.667e-6。
+- 资源：trainer 在 cuda:0、8 个 actor 在 cuda:1，两张 H100-47 都使用；
+  decisions/s 从 ~5.6k 升到 ~7.2k（对局变长），wall ~20–21 s/iteration。
+- **审计发现的两个主要训练问题**（详见 `docs/AUDIT_2026-11-11.md`）：
+  1. p75 + 单一来源席导致 7 个镜像席在 turn 8+ 拿到同一张棋盘；有效唯一棋盘约 260 个，
+     不是 8,872 个。已新增 `p75band`（turn 8–16 恢复到 ~52 帧/turn）。
+  2. Freeze 动作被刷满引擎 10 次上限；final 的 Freeze 占决策 22%，
+     实测 `forbid_unfreeze` 规则不损失胜率、减少 16% 决策。训练入口已支持，默认关闭。
 
-- `1095539` 从 7357 续训，新增 `251,628,096` 决策；`stop_reason=time_budget`，请求的 `958.9M` 未达到。
-- p50 终评：final `2.234` vs 7357 `2.340`，Δ `-0.105`，CI 跨 0；win `+14.06pp`，top4 `-2.34pp`（旧引擎）。
-- live-v1/dev 512（旧引擎）：没有任何模型显著优于 7357；`v9786` 点估计最好（`3.799`），差异不显著。
-- 当前 run 的 live-v1 最佳是 30M `v7641`（`3.930`）；final `v9691` 为 `3.965`；60M `v7936` 最差（`4.557`）（旧引擎）。
-- 240M `v9595` 在 p50 96 局最好（`2.031`，Δ `-0.510`），但 live-v1 为 `4.107`，排 8/11（旧引擎）。
-- 240M `v9595` 会自主升本：T2 `93/93`、T5 `86/96`、T6 `43/45`、T8 `84/86`；T12 `0/48`，T14 `3/32`。它不是“不升本”，而是**前中期升得快、T12 停止**。
-- 60M 强制阶段把 T12 tier6 率推到 `74.3%`，但 T12 战团 P50 只有 `920`，live-v1 退化到 `4.557`：**高本没有转化为核心战团强度**。
-- **当前唯一榜（2026-11-11）**：`artifacts/models/leaderboard-v2/leaderboard.json`，5 个模型；
-  `league-latest-12311` 以 **1067.68**（gauntlet-anchored，95% CI [1036.97, 1099.46]）排第一。
-  它对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI 跨 0.5），因此“第一”是点估计。
-- 旧 8 模型 Elo `1099277`（1,792 局）与旧 4 模型 Elo `1107182`（3,072 局）保留为证据/锚点，不再作当前榜；
-  旧榜文件归档在 `records/archive/leaderboards-20261111/`。
+## 4. E1 校准（当前唯一正式评测口径）
 
-详细数据（**服务器侧路径，本地未同步，待确认**，见 `docs/INVENTORY_LOCAL.md` §5）：
+正式报告：`artifacts/runs/e1-four-20261111-r2/report/report.json`（r2；与 r1 六对逐对一致）
+正式榜：`artifacts/models/e1-four-20261111/leaderboard.json`
+协议：`0fbf28d2f82c08062291ef6526275507dfeffa1f5db85159ac7531437f3f723d`
+（6 对 × 448 局，ordered56，shared 种子 seed-block bootstrap，含 code SHA）
 
-- `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` §8–9（server-only / 待确认）
-- `artifacts/models/leaderboard-v2/leaderboard.json`（当前唯一榜；旧榜已归档）
-- `artifacts/runs/p50-forced-tier-long-20261108-135823/`（server-only / 待确认）
+| 排名 | 模型 | Elo | 95% CI | 排名 95% | 平均名次 | 冠军率 |
+|---:|---|---:|---|---:|---:|---:|
+| 1 | `league-final-14858` | **1086.53** | [1062.49, 1111.01] | [1, 2] | **1.589** | 51.34% |
+| 2 | `league-latest-13806` | 1068.45 | [1045.78, 1091.47] | [1, 3] | 1.644 | 49.48% |
+| 3 | `league-latest-12311` | 1055.92 | [1032.16, 1079.91] | [2, 3] | 1.681 | 47.17% |
+| 4 | `V1.1` | 1000.00 | [1000, 1000] | [4, 4] | 1.876 | 36.68% |
 
-## 4. 当前有效资产
+- **final 是点估计第一**；对 13806 为 240–208（53.57%，CI 跨 0.5），不是显著超越；
+  对 12311 为 243–205（54.24%）；对 V1.1 为 275–173（61.38%）。
+- 13806 对 12311 为 237–211（52.90%）；三者是统计上接近的领先集团，V1.1 明显最后。
+- `league-latest-12311` 的旧 v2 分数 1067.68 与 E1 的 1055.92 不能混榜（协议不同）。
+- r2 已完成 6 对，与 r1 **逐对完全一致**；正式榜用 r2 报告构建；
+  **冠军 = `league-final-14858`**（点估计第一；按用户规则不做挑战赛）。
 
-- 模拟器：`engine/`，酒馆 `37.0.2.256589`，原生动作 `245`，观测 `3227 + 124 cards`；审计后源码指纹 `c4c71014e3d41760`。
+## 5. 当前有效资产
+
+- 模拟器：`engine/`，酒馆 `37.0.2.256589`，源码指纹 `c4c71014e3d41760`，动作 245，
+  观测 3227 + 124 cards。
 - 训练栈：`hsbg/az`；一个学习席 + 七个严格 EOT 快照席；`sims=0`。
-- 主续训起点：`7357` 完整 Trainer（累计 `558,873,732`、Adam `545,990`）。
-- 当前模型（服务器实测）：`artifacts/models/v1.1/model.pt` `68a8a587…`（67,864,188 B，本地同 SHA）+ `trainer.pt` `dfcb59ce…`（254,312,937 B，**仅服务器有**）。
-- 归档模型（`records/archive/models-2026-11-09/models/elo-8/`，120 个 checkpoint）：final 9691 `68a8a587…`、30M 7641 `52bcddbb…`、240M 9595 `caf0fe56…`、v9786 `988fdc7f…`、7357 `60594db0…`、10004 `32ec7a5c…`。
-- 战团库（**按用途分开，D-012**）：
-  - 服务器训练/评测真源 `artifacts/libraries/league-eot-v1.1-20261109`（43 MB，4 源，train/dev/test = 8,872 / 7,600 / 7,690 frames）；
-  - 本地实机真源 `artifacts/models/library-v1`（39 cohort，3.4 GB，含 `index.csv` + `SHA256SUMS.txt`）；
-  - 旧 bot 库 1.9 GB 已归档到 `records/archive/libraries-2026-11-09/`（可用数 0）。
-- 评测产物：
-  - **当前唯一榜**：`artifacts/models/leaderboard-v2/leaderboard.json`（5 模型；12311 1067.68 第一）。
-  - 旧模型锚点：`artifacts/runs/elo4-v1.1-league-long-20261110/report-final.json`（3,072 局，协议 `6bf5cae3…`）。
-  - 12311 gauntlet：`artifacts/runs/gauntlet-12311-128-20261110/report.json`（512 局，协议 `e4182351…`）。
-  - 旧 8 模型报告：`artifacts/runs/elo-8-1099277/report-corrected.json`（1,792 局，协议 `837231e0…`，已归档为历史证据）。
-  - 旧引擎历史：11 模型 live-v1 报告与 `manifest-2026-11-09.json` 已归档到
-    `records/archive/models-2026-11-09/models/leaderboard-v1/`（引擎 `c7b5f27d`，**不可与当前引擎混用**）。
-- 文档归档：`records/archive/`（按 `<topic>-<YYYYMMDD>/` 组织；此前文档里写的
-  `records/archive/docs-2026-11-09/` 并不存在，已修正）。
-- 三端规范：`docs/SYNC_MODEL.md`；本地盘点 `docs/INVENTORY_LOCAL.md`；
-  跨端协作区 `docs/sync/`（`LOCAL.md` 与 `SERVER.md` 均已盘点，`manifests/` 见 D-014/D-017）。
-- 2026-11-09 模拟器审计：37.0.2 数据/池/机制逐项核对；修复 `Jar o' Gems` 每战斗触发次数错误；新增回归测试；Rust 942 passed / 0 failed / 1 ignored；`verify_workspace` 全绿（Python 385 passed / 14 skipped）。报告见 `docs/SIMULATOR_AUDIT_2026-11-09.md`。
-- 2026-11-09 Elo 准备 → **已执行**：8 模型 `1099277` 跑完 1,792 局（0 非法/0 截断/0 引擎异常）。
-- 2026-11-09 实机审计：上一局 61/61 已发送动作有服务端回执、无内部异常；修复悬停期无关对手状态取消点击、训练 Move 规则不一致、5 选一未标定布局、同步 JPEG 阻塞和缺少逐决策记录。报告见 `docs/LIVE_V1_1_AUDIT.md`。
-- 2026-11-10 D 阶段：新增确定性监督器（异常分级/失败预算/心跳）、批处理不再一票否决、未提交对账与已提交未采纳对账、名次稳定化（`placement_source`）、结算横幅续局、等待分类细化、归档去重索引；`tests/test_live_supervisor.py` 22 例全绿。实机 canary 已验证：完整一局第 2 名（终局名次与结果屏一致）、两次赛后续局、unsent 对账两次生效、批处理 S3 分类。细节见 `docs/LIVE_V1_1_AUDIT.md` §7。
+- 36h final：`artifacts/models/league-final-20261111-step014858/`
+  - model `ba7e8bbc…`（67,864,188 B），trainer `c5262f26…`（254,312,937 B），
+    `checkpoint.json` + `MODEL_CARD.md` + manifest 完整。
+- 候选：`league-latest-13806`（`77d3fe54…`）、`league-latest-12311`（`5069aa62…`）、
+  `league-latest-14556`（`14d7c4d5…`，未入 E1）。
+- 下一阶段 fork：`artifacts/models/stage2-proposal-20261111/`（从 final 完整分叉；
+  LR 视野 25000、anchor=final；`workflows/fork_stage.py` 生成）。
+- 战团库：`artifacts/libraries/league-eot-v1.1-20261109`（43 MB，train/dev/test =
+  8,872 / 7,600 / 7,690 frames）。
+- 审计产物：`docs/AUDIT_2026-11-11.md`、`artifacts/runs/audit-behavior-20261111-02/`、
+  `artifacts/runs/audit-freeze-20261111-01/`、`artifacts/runs/audit-unfreeze-20261111-01/`、
+  `artifacts/runs/audit-scaling-20261111-01/`、`artifacts/runs/audit-regression-20261111-01/`。
 
+## 6. 审计修复摘要
 
-## 5. 下一阶段
+详见 `docs/AUDIT_2026-11-11.md`。已实施并通过回归：
 
-三条线并行，**都需要用户明确授权**：
+- 镜像：`p75band` 模式 + 桶内排序缓存；训练入口支持。
+- Freeze：`forbid-unfreeze` 训练/评测规则（默认 0；A/B 不损胜率，-16% 决策）。
+- PPO：零 step 不推进 LR/version；预构建 advantages 不再重算；nonfinite/空 mask 显式报错。
+- 进程池：`weights_loaded` 泄漏修复；reload 版本/标准化一致性。
+- 评测：Elo→sigmoid 尺度、shared seed-block bootstrap、`_fit_bt` 失败显式报错、
+  code SHA、ordered56 座位校验、challenge 校验、rank CI 冠军规则。
+- 观测：新增字段级 gold test；本地实机的 obs/action 差异已写入 `docs/sync/DECISIONS.md` D-026。
+- 回归：`1115905` `verify_workspace` 全绿（Rust 942 passed / Python 全绿）。
 
-### 5.1 实机 E 阶段（本地，最高优先级）
-D 阶段已完成并停止。E 阶段按 `docs/LIVE_V1_1_AUDIT.md` §7 的建议分两步：
-1. **E-0**：1 局 canary，确认 `retired_stale_inflight` 与 `rejected_reconciliation` 在真实对局中的行为（目前只有单测）。
-2. **E-1**：3 局连续验收，口径：S0=0、每局 S1≤2、名次字段正确、续局无需人工、后期动作速率达标。
+## 7. 下一阶段
 
-### 5.2 服务器：联赛训练与评测（进行中，**不要打扰**）
-- `1102669 hsai-league-36h` 正在跑（05:01 起，预计 11-11 16:49 结束；09:49 时 segment 59/72，`version=13806`）；期间冻结训练代码/库/依赖，新实验用新目录、新作业号。
-- 当前唯一榜 `leaderboard-v2` 已建立：12311 1067.68 第一；旧模型分数作为冻结锚点。后续新模型按 `docs/LEADERBOARD.md` 的 gauntlet 128×N 规则算分入榜。
-- 待办：36h 结束后保存 final/评估 13806；需要时用**当前引擎**重跑 live-v1（旧 `46e7013d…` 是 `c7b5f27d` 引擎，不可混用）。
+### 7.1 下一轮长训（未启动，需用户确认）
 
-### 5.3 三端核对（本地 + 服务器）
-1. 本地盘点与目录整理完成（`docs/INVENTORY_LOCAL.md`）。
-2. **服务器盘点已完成**（`docs/sync/SERVER.md` + `manifests/server.json`，commit `711f604`）：作业、模型 SHA、库、评测产物、旧项目残留（无）、磁盘（16 TB 可用）全部有证据。
-3. 待服务器做：用 v2 `tools/sync_manifest.py` 重跑一次清单（Git blob pins + 排除 build 目录），随后 `tools/sync_compare.py` 应输出一致。
+推荐方案（`config/league-stage2.json` + `deploy/slurm/league_stage2.sbatch`）：
 
-## 6. 硬约束
+1. 从 `artifacts/models/stage2-proposal-20261111/` 开始（final 完整 fork；
+   LR 2e-6→1.667e-6/25000 iter；anchor=final）。
+2. `mirror-sample=p75band`；`forbid-unfreeze=1`；`seed=320000000`；8 processes；
+   512 局/轮；30 min × 72 段；2×H100-47（trainer cuda:0 / actors cuda:1）。
+3. 每 4 段 dev 32 局、36/72 段 test 32 局；监控 mirror 多样性、freeze 比例、
+   anchor_kl、entropy、decisions/s、illegal/truncated。
+4. 先用短程（≤2h）确认 p75band + forbid-unfreeze + stage fork 的实际吞吐/稳定性，
+   再决定是否进入正式长训。
 
-- 登录节点只有 **1 GiB** 虚拟内存；重任务只能在 Slurm 计算节点。
-- 所有 NUS 作业由代理提交、排队、监控和处理；不把结果传来传去。
-- 作业内不要包 `srun`；保持 Slurm 隔离；GPU 以真实 Driver UUID 为准。
+### 7.2 实机（等待用户授权）
+
+- 当前 live pin 仍是 V1.1；**服务器已交接 final 14858 的 live 包与本地步骤**
+  （`docs/sync/SERVER_TO_LOCAL_20261111.md`），等待本地 E-0 canary。
+- 本地实机 obs/action 投影存在 D-026 列出的近似/差异，需要本地用真实日志确认；
+  在修复或明确接受前，不建议把新模型直接上 E 阶段连续验收。
+
+### 7.3 跨端
+
+- `docs/sync/DECISIONS.md` D-026：实机观测/动作差异，待本地取证。
+- E1/协议/审计文档为服务器写；本地只读。GitHub 是同步中心，未 commit/push（按规范等待用户）。
+
+## 8. 硬约束
+
+- **E1 评测只跑一轮**（6 对 × 448 局，4 模型排名）；报告 valid 后停止。不做第二轮复现、
+  不做冠军挑战赛；只有 invalid/工程错误才重跑并先请示。
+
+- 登录节点约 1 GiB 虚拟内存；重任务只在 Slurm 计算节点。
+- 作业内不要包 `srun`；GPU 以原始 Driver UUID/Torch 实际计算为准。
 - 新作业使用新输出目录；不覆盖历史证据。
 - 工程错误、非法动作、截断、引擎异常、注入失败严格拒绝；正常棋力波动不自动止损。
-- 不删除历史证据，不修改游戏目录，不 `reset --hard`/`git clean`/全仓格式化。
-- 不把 p50、live-v1、pairwise Elo 的绝对分数混榜。
+- 不删除历史证据；不修改游戏目录；不 `reset --hard`/`git clean`/全仓格式化。
+- 不同 `protocol_sha256` 不能混榜；p50/live-v1/pairwise Elo 不能混分。

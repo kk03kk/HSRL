@@ -14,11 +14,13 @@
 | [analysis/](analysis/) | 代码级差异与引擎规则审计（HSAI × HSBRSIM） |
 | [sync/README.md](sync/README.md) | 两个 Agent 的异步协作区与状态板 |
 | [sync/SERVER.md](sync/SERVER.md) | 服务器盘点报告（服务器写） |
+| [sync/ENGINE_RELEASES.md](sync/ENGINE_RELEASES.md) | 引擎发版记录（服务器写） |
 | [sync/SERVER_HANDOFF_20261110.md](sync/SERVER_HANDOFF_20261110.md) | 架构调整交接（本地写给服务器） |
 | [sync/DECISIONS.md](sync/DECISIONS.md) | 三端管理的决议记录（只追加） |
 | [LIVE_V1_1_AUDIT.md](LIVE_V1_1_AUDIT.md) | V1.1 实机审计、执行修复、每局数据体系、D 阶段改造与实机验证 |
 | [E_PHASE_RUNBOOK.md](E_PHASE_RUNBOOK.md) | E 阶段连续实机验收手册（计划；E-0 canary → E-1 三局） |
 | [SIMULATOR_AUDIT_2026-11-09.md](SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 规则审计、覆盖、修复与测试 |
+| [AUDIT_2026-11-11.md](AUDIT_2026-11-11.md) | **36h 复盘 + 全链路审计、修复、E1 校准与长训准入** |
 | [LEADERBOARD.md](LEADERBOARD.md) | **当前唯一排行榜规则与 5 模型分数** |
 | [EVAL_DUEL.md](EVAL_DUEL.md) | 2 model + 6 bot 对局协议、记录口径、门禁 |
 | [nus/ENVIRONMENT.md](nus/ENVIRONMENT.md) | NUS 环境限制、Slurm、GPU、恢复 |

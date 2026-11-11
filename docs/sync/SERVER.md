@@ -1,10 +1,10 @@
 # SERVER —— NUS 服务器盘点报告
 
 ```yaml
-status: confirmed        # 2026-11-10 19:55 由 local 复核确认（内容未改动，仅状态）
+status: pending-local    # §15–16 为 server 2026-11-11 新增，待 local 复核；§1–14 已于 2026-11-10 确认
 owner: server
-updated: 2026-11-10 19:21 +0800
-base_commit: 224cb49
+updated: 2026-11-11 22:25 +0800
+base_commit: b6c4624
 reviewed_by: local @ 711f604
 ```
 
@@ -465,4 +465,50 @@ FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
 `12311` 对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI [45.31%, 62.50%]）；
 因此它是用户简化规则下的点估计第一，不是“已证明的显著超越”。
 
-`league-latest-13806`（2026-11-11 09:49 保存）尚未跑 gauntlet，暂列入 `unrated_candidates`，不入榜。
+`league-latest-13806`（2026-11-11 09:49 保存）已完成 2/5 对 gauntlet（对 12311 68–60、对 1033 66–62），
+点估计不显著，暂列入 `unrated_candidates`，不入榜；剩余 3 对并入 E1 校准。
+
+## 14. 2026-11-11 训练结束前进展（14:55）
+
+- 作业 `1102669` RUNNING：69/72 段，`version=14576`，累计 `1,509,835,168`；`illegal/truncated/dropped=0`；预计 16:47 左右结束，硬截止 18:01。
+- 已按用户要求删除 `artifacts/models/league-latest-20261111-step013801/` 及其 live 导出；清理清单 `artifacts/cleanup-20261111.txt`（model SHA `18389232…`，trainer SHA `fffe9b75…`，tgz SHA `4e2a34d8…`）。
+- 已保存当前最新模型 `artifacts/models/league-latest-20261111-step014556/`（`league-latest-14556`，累计 `1,506,838,367`；model SHA `14d7c4d5…`，trainer SHA `91afb637…`）；推理包 `artifacts/exports/league-latest-14556-live.tgz`（SHA `5d3b96e6…`）。
+- `league-latest-13806` 保留；2/5 对结果见 §13，不显著，不入榜；剩余 3 对并入 E1 校准。
+- 工作树：仅文档修改（AGENTS/PROJECT_STATE/README/SERVER/LEADERBOARD/docs README/sync README/EVAL_DEPLOYMENT/ARCHITECTURE/ENGINE_RELEASES），未改训练代码/库/权重。
+- 训练结束前不再跑新评测；final 保存后提交 E1 校准（计划 4 shard，eligible 模型全 round-robin，448 局/对）。
+
+## 15. 2026-11-11 全链路审计与 E1（server）
+
+- 36h 作业 `1102669` 已 COMPLETED（72/72，final `v14858`，累计 `1,552,463,499`，
+  `illegal/truncated/dropped=0`）；final 资产 `artifacts/models/league-final-20261111-step014858/`
+  （model `ba7e8bbc…`，trainer `c5262f26…`）。
+- 审计报告：`docs/AUDIT_2026-11-11.md`；回归 `1115905` `verify_workspace` 全绿。
+- 已修：镜像 `p75band`（p75 单帧退化）、Freeze 空转（`forbid_unfreeze` 规则）、
+  PPO 零 step/预构建 advantages/nonfinite/空 mask、进程池消息泄漏、评测 Elo 尺度、
+  shared seed-block bootstrap、`_fit_bt` 失败、code SHA、ordered56 座位、challenge 校验、
+  字段级 obs gold test。训练入口默认动作规则未变（`forbid-unfreeze=0`）。
+- E1 r1（`1115858`，2,688 局，协议 `acd7eff7…`）valid/eligible：
+  final 1086.53 [1062.49,1111.01] / 13806 1068.45 / 12311 1055.92 / V1.1 1000；
+  final vs 13806 240–208（不显著），final vs 12311 243–205。
+- E1 r2（`1116285`）同 config/冻结代码复现；6 对与 r1 逐对完全一致。
+  正式榜用 r2 报告构建，冠军状态 `point_estimate_pending_challenge`；挑战赛重跑
+  `1117087` 已按用户要求取消，未生成正式 challenge report。
+- 下一轮长训模板：`config/league-stage2.json` + `deploy/slurm/league_stage2.sbatch`
+  + `artifacts/models/stage2-proposal-20261111/`（p75band、forbid-unfreeze=1、
+  seed 320M、8 processes、2×H100-47）。**未提交，等待用户确认。**
+- 跨端：`docs/sync/DECISIONS.md` D-026 列出本地实机 obs/action 差异，待本地真实日志取证。
+- 工作树：审计代码/文档改动未 commit、未 push（按规范等待用户）。
+
+## 16. 2026-11-11 实机交接：final 14858
+
+- E1 单轮正式榜：`artifacts/models/e1-four-20261111/leaderboard.json`，协议
+  `0fbf28d2f82c08062291ef6526275507dfeffa1f5db85159ac7531437f3f723d`；
+  final 点估计第一（1086.53，排名 CI [1,2]），13806 1068.45，12311 1055.92，V1.1 1000。
+- 用户规则：E1 只跑一轮；不做第二轮确认、不做冠军挑战赛；final 直接作为冠军/实机模型。
+  challenge 入口/配置已删除；r2 与 r1 六对逐对一致，r2 作为正式报告。
+- live 包：`artifacts/exports/league-final-14858-live.tgz`（~54 MB），
+  SHA256 `32ccdabdc7d43793fb7d358185741fbf082ba0f5c40a397d7967ade01859a22a`；
+  model SHA `ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7`。
+- 本地交接文档：`docs/sync/SERVER_TO_LOCAL_20261111.md`（含下载/解包/pin/doctor/E-0）。
+- 下一轮长训未启动；`config/league-stage2.json` + `deploy/slurm/league_stage2.sbatch`
+  + `artifacts/models/stage2-proposal-20261111/` 仅作准备，等待用户确认。

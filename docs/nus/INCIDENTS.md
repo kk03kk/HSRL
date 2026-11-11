@@ -19,5 +19,11 @@
 | PPO采样多但只学6.8% | lag1旧策略批次KL超阈值，甚至零optimizer.step | 降低独立分叉LR、零步同步回退，保留KL保护；训练iteration版本不等于Adam步数 |
 | 1092598 CPU作业15秒失败 | PowerShell 改写把 UTF-8 BOM(U+FEFF) 写进 `workflows/run_forced_tier_long.py`（另有 `tests/test_parallel_collect.py`），而 `tools/verify_workspace.py` 用 `read_text(encoding='utf-8')` + `ast.parse`，把 BOM 当非法字符报 SyntaxError；这两个文件此前都不在检查器的语法清单里 | 两个文件去 BOM；检查器改 `utf-8-sig` 解析 + **代码目录一律拒绝 BOM** 的独立门禁，排在所有构建/测试之前；`tools/strip_source_bom.py --check/--fix`；`tests/test_source_hygiene.py` 11 项回归（含"清单必须覆盖 tests/ 与 workflows/"）。`records/`、`artifacts/` 的历史证据不动 |
 | GPU验收forced_actions虚高512倍 | lock-step 里一个 policy 服务 N 局，`game_stats()` 汇总**全部局**，却被写进每一局的 meta，顶层再求和 ⇒ 计数×N（比率仍然正确） | `game_stats(game_id, seat)` 按 `(game_id, seat)` 过滤；lockstep 传 `st["gid"]`；`tests/test_parallel_collect.py` 断言「每目标结局计数 == 局数」 |
+| 1115898/1115908/1115911 行为审计1秒失败（aarch64） | `gpu`/`gpu-long` 混有 aarch64 节点（已确认 `xgpj0` a100-80）；`common.sh` 拒绝非 x86_64 | 提交前查 `Arch=`；优先 `xgpi*`/`xgpg*`；见 ENVIRONMENT §7.1 |
+| 1115240 a100-80 1秒失败（aarch64） | 同上；`gpu:a100-80` 节点不全是 x86_64 | 评测用已验证的 `xgpg2` a100-40 或 `xgpi*` h100-47 |
+| 1115200 CUDA unknown error | `gpu:nv` 节点 Torch 看不到设备（驱动/MIG/cgroup 根因未证实） | 不用 `nv` 跑 Torch；GPU 检查只在计算节点；见 ENVIRONMENT §7.4 |
+| xcnd0 `--mem=64G` allocation failure | 节点 `RealMemory=63000` MB，64G 请求超限 | 用 60G 或先查 `RealMemory`；见 ENVIRONMENT §7.3 |
+| gpu-long 预计次日才启动 | 队列/回填策略；`--test-only` 给出预计时间 | 需要立即验证时找空闲且架构正确的节点并 `-w`；见 ENVIRONMENT §7.2 |
+| 行为审计输出目录已存在 | sbatch 先写 `nvidia-smi.txt`，Python 入口拒绝非空目录 | 让入口创建目录，成功后再补证据；失败保留旧目录换新序号 |
 
 旧目录完整失败现场、Slurm文本和修复报告已归档。请通过 `tools/resource_catalog.py` 搜索原始路径/作业号；归档里的旧命令不是当前指令。不能凭过去941项Rust测试通过，就承诺没有任何未覆盖游戏机制；公开信息重建、近似机制与新补丁仍需独立验证。

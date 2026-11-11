@@ -17,17 +17,15 @@ AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），**模拟器与训练/评�
 完整矩阵、迁移步骤与例外（引擎 Windows 轮子由本地做部署构建）见
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
-## 当前状态（2026-11-10）
+## 当前状态（2026-11-11）
 
 - 模拟器：酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`，原生动作 **245**，观测 **3227 floats + 124 cards**。
-- 训练：`1095539` 强制升本长训已完成（`810,501,828` 决策）；**`1102669 hsai-league-36h` 正在跑**（2×H100，2026-11-10 05:01 起，预计 11-11 17:01 结束，`illegal/truncated/dropped=0`）。
-- 评测（**当前引擎 `c4c71014`**）：8 模型 pairwise Elo `1099277` 已跑完 **1,792 局**（0 非法/0 截断）；
-  4 模型联赛 Elo `1107182` 3,072 局，最新里程碑第一（1036.16）、V1.1 第四（970.10）。
-- 评测（**旧引擎 `c7b5f27d`，仅历史**）：11 模型 live-v1 512 局里没有任何模型显著优于 7357（`v9786` 点估计最好 3.799）。
-  旧报告已归档到 `records/archive/models-2026-11-09/`，**不可与当前引擎混用**。
-- 实机：V1.1 已在真实酒馆战棋完成 **7 局夜间测试 + 6 次 D 阶段 canary**（含 2 局完整对局、1 局冠军）；
-  夜间审计见 [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md)。
-- 下一阶段：**E 阶段连续实机验收（待用户授权）**；36h 联赛结束后用当前引擎重跑 live-v1 全榜。
+- 训练：`1102669 hsai-league-36h` **已完成**（72/72 段，`2026-11-11T16:46:33+08:00`；final `v14858`、累计 `1,552,463,499`；`illegal/truncated/dropped=0`）。final 资产在 `artifacts/models/league-final-20261111-step014858/`。
+- 审计：2026-11-11 全链路审计已完成，报告 `docs/AUDIT_2026-11-11.md`；发现并修复镜像 p75 退化、Freeze 空转、评测 Elo 尺度/shared bootstrap 等问题。
+- 评测（**当前引擎 `c4c71014`**）：E1 四模型校准正式报告为 r2（2,688 局，协议 `0fbf28d2…`；与 r1 六对逐对一致）：`league-final-14858` 点估计冠军 **1086.53**（CI [1062.49, 1111.01]），`13806` 1068.45，`12311` 1055.92，`V1.1` 1000；final vs 13806 为 240–208，不显著。按用户规则只跑一轮、不做挑战赛。
+- 旧结果：v2 榜（12311 1067.68）是过渡榜，协议与 E1 不同，不能混榜；11 模型 live-v1 锚定旧引擎 `c7b5f27d`，只作历史证据。
+- 实机：V1.1 已完成 7 局夜间测试 + 6 次 D 阶段 canary；**E1 冠军 final 14858 已交接本地**（live 包 + 步骤见 `docs/sync/SERVER_TO_LOCAL_20261111.md`），当前 live pin 待本地更新，先跑 E-0 canary。本地实机 obs/action 差异见 `docs/sync/DECISIONS.md` D-026。
+- 下一阶段：本地用 final 14858 做 E-0 canary（交接见 `docs/sync/SERVER_TO_LOCAL_20261111.md`）；下一轮长训使用 `config/league-stage2.json`（p75band + forbid-unfreeze + stage fork，2×H100，72×30min），**等待用户确认后再启动**。
 
 详细状态：[docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
 

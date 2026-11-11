@@ -10,7 +10,8 @@
 3. `docs/PROJECT_STATE.md`（当前作业与结论）
 4. `docs/SYNC_MODEL.md`（三端管理规范）
 5. `docs/sync/LOCAL.md` / `docs/sync/SERVER.md` / `docs/sync/DECISIONS.md`（跨端协作）
-6. 按任务读对应专题文档；历史文档只在 `records/archive/`，不是启动命令。
+6. **服务器 Agent 必须先读 [`docs/nus/ENVIRONMENT.md`](docs/nus/ENVIRONMENT.md)**（NUS 登录/计算节点、Slurm、GPU、排队、已知故障）；
+7. 按任务读对应专题文档；历史文档只在 `records/archive/`，不是启动命令。
 
 ## 1. 三端职责（写权唯一）
 
@@ -62,14 +63,18 @@
 - **live-v1**：真实 Mean Bot 快照面板（1 模型 + 7 bot）；**p50 库**：训练/辅助面板，不能单独当棋力结论；
   **pairwise Elo**：2 焦点模型 + 6 bot，只按两焦点相对名次计分。
 - 不同 `protocol_sha256` 不能混榜。
+- **E1 评测只跑一轮**：4 个模型 × 6 对 × 448 局（ordered56）即完成排名，报告 valid/eligible 后立即停止；
+  **不得**为“确认复现”再跑第二轮，**不得**为冠军单独跑挑战赛。只有报告 invalid、工程错误或协议缺陷才重跑，
+  且先向用户说明。
 
-## 6. 当前阶段（2026-11-10）
+## 6. 当前阶段（2026-11-11）
 
-- 训练：`1095539` 已完成，**当前无正式训练/评测作业**；不要擅自取消 `1097487` 的交互 allocation。
-- 模型结论：live-v1 无模型显著优于 7357；`v9786` 点估计最好（3.799）。
-- 实机：V1.1 夜间 7 局 + D 阶段 6 次 canary 已完成；**D 阶段工程改造完成并停下等确认**。
-- 下一步（需用户授权）：E 阶段连续实机验收；pairwise Elo 1,792 局启动。
-- 服务器侧事实（commit、模型、库、作业产物）：**全部待确认**，见 `docs/sync/SERVER.md`。
+- 训练：`1102669 hsai-league-36h` **RUNNING**（2×H100，72 段×30min，2026-11-10 05:01 起，预计 2026-11-11 16:47 左右结束；`illegal/truncated/dropped=0`）。`1097487` no-shell allocation 也在运行；**不要取消、不要改训练代码/库/依赖**。
+- 模型结论：当前唯一榜是 `leaderboard-v2`；`league-latest-12311` 以点估计 1067.68 排第一（对旧第一 128 局 69–59，CI 跨 0.5，不是显著超越）。`league-latest-13806` 只完成 2/5 对 gauntlet，结果不显著，暂不入榜。
+- 旧结论：live-v1/p50 的 11 模型结果锚定旧引擎 `c7b5f27d`，只作历史证据；当前引擎是 `c4c71014e3d41760`。
+- 实机：V1.1 夜间 7 局 + D 阶段 6 次 canary 已完成；D 阶段工程改造完成，等待用户授权 E 阶段。当前 live pin 仍是 V1.1，服务器实机候选是 `12311` / `13806`。
+- 下一步：36h 作业结束后保存 final、补跑完整 gauntlet（含 13806 剩余 3 对），再决定 live 模型；E 阶段需用户明确授权。
+- 服务器侧事实（commit、模型、库、作业产物）：已确认，见 `docs/sync/SERVER.md`；动态状态以 `docs/PROJECT_STATE.md` 为准。
 
 ## 7. 跨端协作协议
 

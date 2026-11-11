@@ -6,11 +6,11 @@
 
 | 文件 | 写者 | 状态 |
 |---|---|---|
-| `LOCAL.md` | 本地 Agent | draft（2026-11-10 首次盘点） |
-| `SERVER.md` | 服务器 Agent | **pending**（等待服务器盘点） |
+| `LOCAL.md` | 本地 Agent | confirmed（2026-11-10 首次盘点） |
+| `SERVER.md` | 服务器 Agent | confirmed（2026-11-11 追加 §14） |
 | `DECISIONS.md` | 双方追加 | active（只追加，不改历史条目） |
-| `manifests/local.json` | `tools/sync_manifest.py` | 已生成（2026-11-10） |
-| `manifests/server.json` | `tools/sync_manifest.py` | **缺失**（等服务器跑同一脚本） |
+| `manifests/local.json` | `tools/sync_manifest.py` | 已生成（`ed809ab`，待作业后重跑） |
+| `manifests/server.json` | `tools/sync_manifest.py` | 已生成（`02ecc57`，待作业后重跑） |
 
 ## 一轮交互怎么做
 
@@ -39,37 +39,30 @@
 | `problems` | 关键路径存在性 | 全部 `exists: true` |
 | `env` | 解释器/依赖版本 | 记录差异即可（两端环境本就不同） |
 
-## 当前状态板（2026-11-10 19:55 更新）
+## 当前状态板（2026-11-11 23:25 更新）
 
 | 事项 | 本地 | 服务器 | 结论 |
 |---|---|---|---|
-| 代码基线 | `711f604` 干净 | `224cb49` + 联赛冻结副本 | **已对齐**（本地领先 1 个 sync 提交；D 阶段 `d10e352` 两边都有） |
-| V1.1 权重 SHA | `68a8a587…0848e` | `68a8a587…0848e` | **一致**（另有服务器 `trainer.pt` `dfcb59ce…`，本地无） |
-| 引擎指纹 | `c4c71014e3d41760` | 同（旧榜为 `c7b5f27d`，已归档） | **一致**；旧榜降级为历史（D-011） |
-| 战团库 | `library-v1` 39 cohort（实机用） | `league-eot-v1.1-20261109` 4 源（训练用） | **按用途分开**（D-012），不复制 |
-| 评测报告 | 无（本地不需要） | `1099277` 1,792 局、`1107182` 3,072 局 | **当前引擎有效结果只在服务器** |
-| 运行中作业 | 无 | `1102669` 36h 联赛 + `1097487` allocation | **冻结**，不要打扰（D-013） |
-| 实机证据 | `artifacts/runs/live-*`（唯一） | 不应有 | 已明确（D-007） |
-| 清单一致性 | v2 清单 ✅ | v2 清单 ✅ | **一致**：`sync_compare.py` → `result: consistent`（4 条 CRLF 假差异已消除，见 D-018） |
-| 未提交改动 | 0 | 11 个联赛冻结副本 | 作业结束后再定 |
+| 代码基线 | 本地 manifest 待刷新 | 服务器已提交审计/E1/交接（本次 push 后取新 HEAD） | 本地 `pull --rebase` 后重跑 `sync_manifest.py` |
+| 36h 训练 | 无 | `1102669` COMPLETED，final `v14858`，累计 `1,552,463,499` | 已结束；final 资产已保存 |
+| E1 评测 | 无 | r2 正式报告（2,688 局，协议 `0fbf28d2…`），final 点估计冠军 1086.53 | **只跑一轮，不做挑战赛**（D-027） |
+| 实机模型 | 待更新 `config/live/model.json` | live 包 `league-final-14858-live.tgz`，SHA `32ccdabd…` | 交接文档 `SERVER_TO_LOCAL_20261111.md`；先 E-0 canary |
+| 引擎指纹 | `c4c71014e3d41760` | 同 | **一致**；无需重建 wheel |
+| 战团库 | `library-v1`（实机） | `league-eot-v1.1-20261109`（训练） | 按用途分开（D-012） |
+| 未提交改动 | 待 pull | 本次审计代码/文档已准备 push | push 后两端重跑 manifest |
+
+## 下一步（本地）
+
+1. `git pull --rebase` 拿到本次审计/E1/交接提交。
+2. 按 `docs/sync/SERVER_TO_LOCAL_20261111.md` 下载/解包 live 包，更新
+   `config/live/model.json`，跑 doctor + E-0 canary。
+3. 回传 E-0 的 `summary/health/result/actions` 与结果屏截图；再决定 E-1。
+4. 本地复核 `SERVER.md` §15–16 与 D-026/D-027 后，把自己的状态改为 confirmed。
 
 ## 下一步（服务器）
 
-```bash
-git pull --rebase                       # 拿到 711f604 之后的本地复核与 v2 脚本
-python tools/sync_manifest.py --side server --out docs/sync/manifests/server.json
-python tools/sync_compare.py docs/sync/manifests/local.json docs/sync/manifests/server.json
-```
-
-期望：pins 全部 `OK`（四个 CRLF 文件不再假差异），`artifacts/*` 只显示量级差异，
-`result: consistent`。若仍有硬漂移，在 `SERVER.md` 追加一节说明。
-
-### 36h 联赛（`1102669`）结束后的顺序
-
-1. `squeue`/`sacct` 确认 `1102669` 已是 `COMPLETED`，把 36h 产物写进 `SERVER.md`（最新 version、累计决策、最终 SHA）。
-2. 把冻结工作副本（1 个已跟踪修改 + 10 个未跟踪）整理成一次正常提交回到 `main`，或明确丢弃；不要长期留 dirty。
-3. 按 D-015 执行服务器清理（`artifacts/exports` 889 MB、`artifacts/local/v1.1-*.tgz` 333 MB、旧面板约 185 MB），
-   在目录留 `cleanup-<date>.txt`；权重、联赛库、`records/` 原始证据不删。
-4. 用**当前引擎** `c4c71014e3d41760` 重跑 live-v1 全榜（旧 `46e7013d…` 是 `c7b5f27d` 引擎，见 D-011），
-   协议 SHA 变化时在 `DECISIONS.md` 追加新条目。
-5. 重新生成 `manifests/server.json` 并 push，等本地复核。
+1. 本次 push 后重跑 `tools/sync_manifest.py --side server`，等本地复核。
+2. 下一轮长训只做准备：`config/league-stage2.json`、
+   `deploy/slurm/league_stage2.sbatch`、`artifacts/models/stage2-proposal-20261111/`；
+   **未启动，等用户确认**。
+3. 不再跑第二轮 E1、不做冠军挑战赛；只有 invalid/工程错误才重跑并先请示。
