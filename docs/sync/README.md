@@ -43,13 +43,13 @@
 
 | 事项 | 本地 | 服务器 | 结论 |
 |---|---|---|---|
-| 代码基线 | 本地 manifest 待刷新 | 服务器已提交审计/E1/交接；push 缺凭据，走 bundle | 本地按 `SERVER_TO_LOCAL` §9 快进后 push，再重跑 manifest |
+| 代码基线 | 本地 manifest 待刷新 | 已 push `main@9c69521`（审计/E1/交接） | 本地 `git pull --rebase` 后重跑 manifest |
 | 36h 训练 | 无 | `1102669` COMPLETED，final `v14858`，累计 `1,552,463,499` | 已结束；final 资产已保存 |
 | E1 评测 | 无 | r2 正式报告（2,688 局，协议 `0fbf28d2…`），final 点估计冠军 1086.53 | **只跑一轮，不做挑战赛**（D-027） |
 | 实机模型 | 待更新 `config/live/model.json` | live 包 `league-final-14858-live.tgz`，SHA `32ccdabd…` | 交接文档 `SERVER_TO_LOCAL_20261111.md`；先 E-0 canary |
 | 引擎指纹 | `c4c71014e3d41760` | 同 | **一致**；无需重建 wheel |
 | 战团库 | `library-v1`（实机） | `league-eot-v1.1-20261109`（训练） | 按用途分开（D-012） |
-| 未提交改动 | 待 pull | 已提交 4 个 commit；未 push | 本地用 bundle 快进并 push 后重跑 manifest |
+| 未提交改动 | 待 pull | 已全部提交并 push | 本地 pull 后重跑 manifest |
 
 ## 下一步（本地）
 
@@ -61,7 +61,7 @@
 
 ## 下一步（服务器）
 
-1. 本地 push 后重跑 `tools/sync_manifest.py --side server`，等本地复核（服务器 push 缺凭据）。
+1. 服务器 manifest 已刷新并 push；等本地复核。
 2. 下一轮长训只做准备：`config/league-stage2.json`、
    `deploy/slurm/league_stage2.sbatch`、`artifacts/models/stage2-proposal-20261111/`；
    **未启动，等用户确认**。

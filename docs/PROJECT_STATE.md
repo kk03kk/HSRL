@@ -116,9 +116,8 @@ r2 复现已完成并与 r1 一致；按用户规则不做挑战赛。下一轮�
 ### 7.3 跨端
 
 - `docs/sync/DECISIONS.md` D-026：实机观测/动作差异，待本地取证。
-- E1/协议/审计文档为服务器写；本地只读。服务器已提交 4 个 commit；HTTPS push 缺凭据，
-  已生成 `artifacts/exports/hsrl-audit-20261111.bundle` 交本地快进并 push
-  （步骤见 `docs/sync/SERVER_TO_LOCAL_20261111.md` §9）。
+- E1/协议/审计文档为服务器写；本地只读。服务器已提交并 push 到 GitHub
+  `main@9c69521`；本地 `git pull --rebase` 即可（见 `docs/sync/SERVER_TO_LOCAL_20261111.md`）。
 
 ## 8. 硬约束
 
