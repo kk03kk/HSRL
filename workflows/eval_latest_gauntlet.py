@@ -315,7 +315,7 @@ def main() -> int:
         f"{100*top_score:.2f}% (95% CI "
         f"[{100*top['latest_score_ci95'][0]:.2f}%, {100*top['latest_score_ci95'][1]:.2f}%])；"
         f"{'显著更好' if latest_significantly_better else '未达到显著更好'}。",
-        f"- 最新模型 4 对合计：{report['aggregate']['wins']} 胜 / "
+        f"- 最新模型 {len(pair_stats)} 对合计：{report['aggregate']['wins']} 胜 / "
         f"{report['aggregate']['draws']} 平 / {report['aggregate']['losses']} 负，"
         f"计分胜率 {100*report['aggregate']['score']:.2f}% "
         f"(95% CI [{100*report['aggregate']['score_ci95'][0]:.2f}%, "
