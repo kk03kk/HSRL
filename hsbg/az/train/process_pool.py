@@ -483,9 +483,15 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
         if "norm_mean" in payload_ckpt:
             norm_mean = np.asarray(payload_ckpt["norm_mean"], dtype=np.float32)
             server.evaluator.mean = norm_mean
+        else:
+            norm_mean = None
+            server.evaluator.mean = None
         if "norm_std" in payload_ckpt:
             norm_std = np.asarray(payload_ckpt["norm_std"], dtype=np.float32)
             server.evaluator.std = norm_std
+        else:
+            norm_std = None
+            server.evaluator.std = None
         weights_version, weights_path = v, p
         _report({"type": "weights_loaded", "version": v, "path": p})
 
@@ -515,12 +521,17 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                 model.to(torch.device(device))
                 model.eval()
                 server.evaluator.model = model
-                if "norm_mean" in payload_ckpt:
-                    server.evaluator.mean = np.asarray(
-                        payload_ckpt["norm_mean"], dtype=np.float32)
-                if "norm_std" in payload_ckpt:
-                    server.evaluator.std = np.asarray(
-                        payload_ckpt["norm_std"], dtype=np.float32)
+                server.evaluator.mean = (np.asarray(
+                    payload_ckpt["norm_mean"], dtype=np.float32)
+                    if "norm_mean" in payload_ckpt else None)
+                server.evaluator.std = (np.asarray(
+                    payload_ckpt["norm_std"], dtype=np.float32)
+                    if "norm_std" in payload_ckpt else None)
+                # Keep the reload bookkeeping consistent so a later collect
+                # does not silently skip (or falsely report) a version.
+                weights_path = str(task["checkpoint"])
+                if int(task.get("updates", -1)) >= 0:
+                    weights_version = int(task["updates"])
                 _report({"type": "reload_done", "task_id": task_id,
                          "updates": int(task.get("updates", -1))})
             except BaseException as exc:  # noqa: BLE001
@@ -938,6 +949,16 @@ class ProcessActorPool:
                 return False
             return True if accept is None else bool(accept(m))
 
+        # Informational messages (weights_loaded) carry no task_id and can never
+        # match a collect wait.  Keep them for diagnostics instead of letting
+        # them accumulate in _deferred forever (O(n) scan each collect).
+        kept: List[Dict[str, Any]] = []
+        for m in self._deferred:
+            if m.get("type") == "weights_loaded":
+                self._info.append(m)
+            else:
+                kept.append(m)
+        self._deferred = kept
         for idx, m in enumerate(self._deferred):
             if _ok(m):
                 return self._deferred.pop(idx)
@@ -947,6 +968,9 @@ class ProcessActorPool:
             if remaining <= 0:
                 raise queue.Empty
             msg = self._result_q.get(timeout=remaining)
+            if msg.get("type") == "weights_loaded":
+                self._info.append(msg)
+                continue
             if _ok(msg):
                 return msg
             self._deferred.append(msg)   # 匹配不上：留给对应等待者，不再被自己取出

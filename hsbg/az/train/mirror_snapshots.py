@@ -50,8 +50,19 @@ STAGE_EOT = "recruitment_end_before_combat"
 
 #: 采样模式：``p50``/``p75``/``p90`` 按桶内 strength 分位；``max`` 取最大（旧 ``strong``
 #: 的别名，保留向后兼容）；``weak``/``random`` 保留旧行为。未知模式退化为随机。
+#:
+#: ``p50band``/``p75band``/``p90band`` 从分位附近的一个带宽内均匀取样，而不是只取
+#: “强度恰好等于分位点”的帧。精确分位在单来源席位上往往唯一，会让 7 个对手席和
+#: 所有对局拿到同一张棋盘（2026-11-11 审计确认）；band 模式保留同一难度目标但恢复
+#: 对手多样性。
 SAMPLE_PERCENTILES = {"p50": 0.50, "p75": 0.75, "p90": 0.90}
-SAMPLE_MODES = ("p50", "p75", "p90", "max", "strong", "weak", "random")
+SAMPLE_BANDS = {
+    "p50band": (0.45, 0.55),
+    "p75band": (0.70, 0.80),
+    "p90band": (0.85, 0.95),
+}
+SAMPLE_MODES = ("p50", "p75", "p90", "p50band", "p75band", "p90band",
+                "max", "strong", "weak", "random")
 
 
 # ────────────────────────── Player JSON 工具 ──────────────────────────
@@ -294,6 +305,8 @@ class MirrorSnapshotPool:
         self.root = root
         #: ``(turn, seat) -> [SnapshotFrame]``
         self.index: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
+        #: 每个桶按 strength 排序一次的缓存；get() 被每回合/每座位高频调用。
+        self._sorted: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
         self.sample_mode = str(sample)
         self.files = 0
         self.frames = 0
@@ -306,6 +319,7 @@ class MirrorSnapshotPool:
     def load(self, root: str) -> int:
         """读取 ``root/snap_*.json.gz``；返回载入的帧数（坏文件跳过并计数）。"""
         self.root = root
+        self._sorted.clear()
         for path in sorted(glob.glob(os.path.join(root, "snap_*.json.gz"))):
             try:
                 with gzip.open(path, "rt", encoding="utf-8") as f:
@@ -357,6 +371,14 @@ class MirrorSnapshotPool:
     def has(self, turn: int, seat: int) -> bool:
         return bool(self.index.get((int(turn), int(seat))))
 
+    def _sorted_candidates(self, turn: int, seat: int) -> List[SnapshotFrame]:
+        key = (int(turn), int(seat))
+        ordered = self._sorted.get(key)
+        if ordered is None:
+            ordered = sorted(self.index.get(key, []), key=lambda f: f.strength)
+            self._sorted[key] = ordered
+        return ordered
+
     def get(self, turn: int, seat: int,
             rng: Optional[random.Random] = None) -> Optional[SnapshotFrame]:
         """取 ``(turn, seat)`` 的帧；同键多来源时按 ``sample_mode`` 选（缺帧返回 None）。
@@ -375,15 +397,23 @@ class MirrorSnapshotPool:
             return cands[0]
         mode = str(self.sample_mode or "strong").strip().lower()
         if mode in ("max", "strong"):
-            return max(cands, key=lambda f: f.strength)
+            return self._sorted_candidates(turn, seat)[-1]
         if mode == "weak":
-            return min(cands, key=lambda f: f.strength)
+            return self._sorted_candidates(turn, seat)[0]
+        band = SAMPLE_BANDS.get(mode)
+        if band is not None:
+            ordered = self._sorted_candidates(turn, seat)
+            lo = int(math.floor(band[0] * (len(ordered) - 1)))
+            hi = int(math.ceil(band[1] * (len(ordered) - 1)))
+            picks = ordered[max(0, lo):min(len(ordered), hi + 1)]
+            r = rng or random
+            return picks[r.randrange(len(picks))]
         q = SAMPLE_PERCENTILES.get(mode)
         if q is None and mode.startswith("p") and mode[1:].isdigit():
             # 额外支持任意 ``pNN``（例如 p33），仍限制在 (0, 1]。
             q = min(1.0, max(0.0, int(mode[1:]) / 100.0))
         if q is not None:
-            ordered = sorted(cands, key=lambda f: f.strength)
+            ordered = self._sorted_candidates(turn, seat)
             idx = min(len(ordered) - 1,
                       max(0, int(math.floor(q * (len(ordered) - 1) + 0.5))))
             target = ordered[idx].strength
@@ -683,6 +713,7 @@ def load_pool(root: Optional[str], *, sample: str = "strong") -> Optional[Mirror
 
 __all__ = [
     "SCHEMA", "SCHEMA_VERSION", "STAGE_EOT", "SAMPLE_MODES", "SAMPLE_PERCENTILES",
+    "SAMPLE_BANDS",
     "EXPECTED_REJECT_REASONS", "SnapshotFrame", "MirrorSnapshotPool",
     "MirrorStats", "board_strength", "capture_eot", "engine_stamp", "held_pool_parts",
     "inject_turn", "is_expected_reject", "load_pool", "mirror_seats",

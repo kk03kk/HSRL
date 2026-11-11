@@ -40,6 +40,7 @@ from workflows.eval_two_models_six_bots import (  # noqa: E402
     DuelSeatPolicy,
     audit_model,
     run_games,
+    semantic_code_sha256,
     sha256_file,
     write_json,
 )
@@ -70,8 +71,8 @@ def load_config(path: Path) -> Dict[str, Any]:
         if key not in cfg:
             raise ValueError(f"配置缺少必需字段 {key!r}: {path}")
     models = cfg["models"]
-    if len(models) != 8:
-        raise ValueError(f"必须正好 8 个模型，实际 {len(models)}")
+    if len(models) < 2:
+        raise ValueError(f"至少需要 2 个模型，实际 {len(models)}")
     ids = [str(m["id"]) for m in models]
     if len(set(ids)) != len(ids):
         raise ValueError("模型 id 重复")
@@ -89,6 +90,12 @@ def load_config(path: Path) -> Dict[str, Any]:
         raise ValueError("move_cap 必须为 5，move_repeat_limit 必须为 2")
     if int(cfg["bootstrap"]) <= 0:
         raise ValueError("bootstrap 必须 > 0")
+    seat_mode = str(cfg.get("seat_mode", "legacy"))
+    if seat_mode not in ("legacy", "ordered56"):
+        raise ValueError(f"未知 seat_mode {seat_mode!r}（legacy/ordered56）")
+    seed_mode = str(cfg.get("seed_mode", "disjoint"))
+    if seed_mode not in ("disjoint", "shared"):
+        raise ValueError(f"未知 seed_mode {seed_mode!r}（disjoint/shared）")
     return cfg
 
 
@@ -101,8 +108,23 @@ def all_pairs(cfg: Dict[str, Any]) -> List[Tuple[int, int]]:
     return [(i, j) for i in range(n) for j in range(i + 1, n)]
 
 
-def pair_seats(gi: int, games_per_pair: int) -> Dict[str, int]:
-    """Seat schedule for one pair: each model plays every seat once per 8 games."""
+def ordered_pair_seats(gi: int) -> Dict[str, int]:
+    """All 56 ordered (A, B) seat pairs, repeated."""
+    pairs = [(a, b) for a in range(N_PLAYERS) for b in range(N_PLAYERS) if a != b]
+    a, b = pairs[int(gi) % len(pairs)]
+    return {"A": a, "B": b}
+
+
+def pair_seats(gi: int, games_per_pair: int, seat_mode: str = "legacy") -> Dict[str, int]:
+    """Seat schedule for one pair.
+
+    legacy: each model plays every seat once per 8 games.  First half
+    ``A=(k+1)%8, B=k%8``; second half swaps A/B.  The protocol string must
+    match this exact order (it used to be documented reversed).
+    ordered56: all 56 ordered (A, B) seat pairs, repeated.
+    """
+    if str(seat_mode) == "ordered56":
+        return ordered_pair_seats(gi)
     block = max(1, int(games_per_pair) // 2)
     k = int(gi) % block
     a = k % N_PLAYERS
@@ -110,11 +132,11 @@ def pair_seats(gi: int, games_per_pair: int) -> Dict[str, int]:
     return {"A": b, "B": a} if int(gi) < block else {"A": a, "B": b}
 
 
-def seat_counts(games_per_pair: int) -> Dict[str, Dict[int, int]]:
+def seat_counts(games_per_pair: int, seat_mode: str = "legacy") -> Dict[str, Dict[int, int]]:
     counts = {"A": {s: 0 for s in range(N_PLAYERS)},
               "B": {s: 0 for s in range(N_PLAYERS)}}
     for gi in range(int(games_per_pair)):
-        seats = pair_seats(gi, games_per_pair)
+        seats = pair_seats(gi, games_per_pair, seat_mode)
         counts["A"][seats["A"]] += 1
         counts["B"][seats["B"]] += 1
     return counts
@@ -159,6 +181,12 @@ def load_audits(cfg: Dict[str, Any], ids: Sequence[str], device: str) -> Dict[st
     return audits
 
 
+def pair_seed_start(cfg: Dict[str, Any], pair_index: int, games_per_pair: int) -> int:
+    if str(cfg.get("seed_mode", "disjoint")) == "shared":
+        return int(cfg["seed_base"])
+    return int(cfg["seed_base"]) + int(pair_index) * int(games_per_pair)
+
+
 def build_protocol(
     cfg: Dict[str, Any],
     cfg_path: Path,
@@ -176,6 +204,7 @@ def build_protocol(
         else str(cfg_path),
         "config_sha256": sha256_text(cfg_path),
         "runner_sha256": runner_sha,
+        "code_sha256": semantic_code_sha256(),
         "engine": fp,
         "engine_unmodified": True,
         "models": [
@@ -193,15 +222,25 @@ def build_protocol(
             {
                 "i": str(cfg["models"][i]["id"]),
                 "j": str(cfg["models"][j]["id"]),
-                "seed_start": int(cfg["seed_base"]) + p * int(games_per_pair),
-                "seed_end": int(cfg["seed_base"]) + (p + 1) * int(games_per_pair) - 1,
+                "seed_start": pair_seed_start(cfg, p, int(games_per_pair)),
+                "seed_end": pair_seed_start(cfg, p, int(games_per_pair)) + int(games_per_pair) - 1,
             }
             for p, (i, j) in enumerate(pairs)
         ],
         "games_per_pair": int(games_per_pair),
         "pair_count": len(pairs),
         "opponents": {"kind": "engine_bot", "count": 6, "action": "game.bot_play"},
-        "seat_assignment": "pair_seats(gi, games_per_pair): first half A=k%8/B=(k+1)%8, second half swapped",
+        "seat_mode": str(cfg.get("seat_mode", "legacy")),
+        "seat_assignment": (
+            "ordered56: all 56 ordered (A,B) seat pairs, repeated"
+            if str(cfg.get("seat_mode", "legacy")) == "ordered56"
+            else "pair_seats(gi, games_per_pair): first half A=(k+1)%8/B=k%8, second half swapped"
+        ),
+        "seed_mode": str(cfg.get("seed_mode", "disjoint")),
+        "bootstrap_unit": (
+            "seed_block" if str(cfg.get("seed_mode", "disjoint")) == "shared"
+            else "pair_game"
+        ),
         "decode": str(cfg.get("decode", "greedy")),
         "max_actions_per_turn": int(cfg["max_actions_per_turn"]),
         "move_guard": 1,
@@ -268,10 +307,44 @@ def _fit_bt(wins: np.ndarray, games: np.ndarray, anchor: int,
         hess_free = hess[np.ix_(free, free)] + 2.0 * float(l2) * np.eye(len(free))
         return grad_free, hess_free
 
+    def objective(z: np.ndarray) -> Tuple[float, np.ndarray]:
+        s = unpack(z)
+        nll = 0.0
+        grad = np.zeros(n, dtype=np.float64)
+        for i in range(n):
+            for j in range(i + 1, n):
+                nij = float(games[i, j])
+                if nij <= 0.0:
+                    continue
+                d = float(s[i] - s[j])
+                p = 1.0 / (1.0 + math.exp(-d)) if d >= 0 else math.exp(d) / (1.0 + math.exp(d))
+                p = min(max(p, 1e-12), 1.0 - 1e-12)
+                g = nij * p - float(wins[i, j])
+                grad[i] += g
+                grad[j] -= g
+                w = float(wins[i, j])
+                nll -= w * math.log(p) + (nij - w) * math.log(1.0 - p)
+        nll += float(l2) * float(np.dot(z, z))
+        grad_free = grad[free] + 2.0 * float(l2) * z
+        return nll, grad_free
+
     start = np.zeros(len(free), dtype=np.float64)
     res = root(gradient_hessian, start, jac=True, method="hybr",
                options={"xtol": 1e-12, "maxfev": 2000})
-    return unpack(res.x if res.success else start)
+    if res.success:
+        return unpack(res.x)
+    # Two-model / small-sample challenges can make ``hybr`` stall even though
+    # the BT likelihood is convex.  Fall back to a bounded quasi-Newton fit;
+    # if that also fails, raise instead of silently returning the anchor.
+    from scipy.optimize import minimize
+    res2 = minimize(objective, start, jac=True, method="L-BFGS-B",
+                    options={"maxiter": 4000, "ftol": 1e-14, "gtol": 1e-10})
+    if not res2.success:
+        raise RuntimeError(
+            f"Bradley-Terry fit failed: {res.message!r} / {res2.message!r}; "
+            "refusing to report a fake tie"
+        )
+    return unpack(res2.x)
 
 
 def fit_elo(
@@ -293,15 +366,28 @@ def fit_elo(
     strength = _fit_bt(wins, games, anchor, l2=l2)
     score = float(cfg["elo_anchor_score"]) + ELO_SCALE * strength
 
+    # ``shared`` seeds are common random numbers: the same seed index is used in
+    # every pair.  Resampling each pair independently would understate the
+    # uncertainty, so resample the seed index jointly (seed-block bootstrap).
+    shared = str(cfg.get("seed_mode", "disjoint")) == "shared"
+    if shared:
+        sizes = {int(len(pair["outcomes"])) for pair in pairs}
+        if len(sizes) != 1:
+            raise ValueError(f"shared seed bootstrap needs equal pair sizes, got {sizes}")
+        shared_games = sizes.pop()
     rng = np.random.default_rng(int(cfg["bootstrap_seed"]))
     samples = np.zeros((n, int(cfg["bootstrap"])), dtype=np.float64)
+    rank_samples = np.zeros((n, int(cfg["bootstrap"])), dtype=np.float64)
     for b in range(int(cfg["bootstrap"])):
         boot_wins = np.zeros((n, n), dtype=np.float64)
         boot_games = np.zeros((n, n), dtype=np.float64)
+        seed_index = (rng.integers(0, shared_games, size=shared_games)
+                      if shared else None)
         for pair in pairs:
             i, j = index[pair["i"]], index[pair["j"]]
             outcomes = np.asarray(pair["outcomes"], dtype=np.float64)
-            draw = outcomes[rng.integers(0, outcomes.size, size=outcomes.size)]
+            idx = seed_index if shared else rng.integers(0, outcomes.size, size=outcomes.size)
+            draw = outcomes[idx]
             games_ij = int(draw.size)
             w = float(np.sum(draw == 1.0) + 0.5 * np.sum(draw == 0.5))
             boot_games[i, j] = boot_games[j, i] = games_ij
@@ -309,14 +395,20 @@ def fit_elo(
             boot_wins[j, i] = games_ij - w
         boot_strength = _fit_bt(boot_wins, boot_games, anchor, l2=l2)
         samples[:, b] = float(cfg["elo_anchor_score"]) + ELO_SCALE * boot_strength
+        order = np.argsort(-samples[:, b], kind="stable")
+        ranks = np.empty(n, dtype=np.float64)
+        ranks[order] = np.arange(1, n + 1, dtype=np.float64)
+        rank_samples[:, b] = ranks
 
     estimates = []
     for i, model_id in enumerate(ids):
         lo, hi = np.quantile(samples[i], [0.025, 0.975])
+        rank_lo, rank_hi = np.quantile(rank_samples[i], [0.025, 0.975])
         estimates.append({
             "id": model_id,
             "elo": float(score[i]),
             "elo_ci95": [float(lo), float(hi)],
+            "rank_ci95": [float(rank_lo), float(rank_hi)],
             "elo_bootstrap_mean": float(samples[i].mean()),
             "elo_bootstrap_std": float(samples[i].std(ddof=1)) if samples.shape[1] > 1 else None,
             "ci_overlaps_anchor": bool(lo <= float(cfg["elo_anchor_score"]) <= hi),
@@ -334,9 +426,13 @@ def fit_elo(
             else:
                 g = games[i, j]
                 empirical[a][b] = (float(wins[i, j]) / g) if g > 0 else None
-                elo_prob[a][b] = float(_sigmoid(np.array([score[i] - score[j]]))[0])
+                # ``score`` is Elo; sigmoid expects log-odds.  Dividing by the
+                # Elo scale is required (the old code fed raw Elo points into
+                # sigmoid and produced 0/1 probabilities).
+                elo_prob[a][b] = float(
+                    _sigmoid(np.array([(score[i] - score[j]) / ELO_SCALE]))[0])
     return {
-        "method": "Bradley-Terry maximum likelihood on pairwise placements; 2000 game-level bootstrap",
+        "method": "Bradley-Terry maximum likelihood on pairwise placements; game-level bootstrap; rank intervals",
         "l2": float(cfg.get("elo_l2", 0.01)),
         "anchor": str(cfg["elo_anchor"]),
         "anchor_score": float(cfg["elo_anchor_score"]),
@@ -364,7 +460,8 @@ def run_pair(
     import hsbg_engine as E
 
     id_i, id_j = str(cfg["models"][i]["id"]), str(cfg["models"][j]["id"])
-    seed_start = int(cfg["seed_base"]) + int(pair_index) * int(games_per_pair)
+    seed_start = pair_seed_start(cfg, pair_index, int(games_per_pair))
+    seat_mode = str(cfg.get("seat_mode", "legacy"))
     policies = {
         "A": DuelSeatPolicy(id_i, audits[id_i]["evaluator"],
                             max_actions_per_turn=int(cfg["max_actions_per_turn"]),
@@ -383,7 +480,7 @@ def run_pair(
         seed0=seed_start,
         max_steps=int(cfg.get("max_steps", 50000)),
         collect_opponents=bool(cfg.get("collect_opponents", False)),
-        seats_for=lambda gi: pair_seats(gi, int(games_per_pair)),
+        seats_for=lambda gi: pair_seats(gi, int(games_per_pair), seat_mode),
         progress_every=8 if games_per_pair >= 8 else 1,
     )
     rows = []
@@ -415,7 +512,7 @@ def run_pair(
     wins_i = int(sum(1 for x in outcomes if x == 1.0))
     wins_j = int(sum(1 for x in outcomes if x == 0.0))
     ties = int(sum(1 for x in outcomes if x == 0.5))
-    counts = seat_counts(int(games_per_pair))
+    counts = seat_counts(int(games_per_pair), seat_mode)
     pair_valid = (
         int(run["illegal"]) == 0
         and int(run["truncated_games"]) == 0
@@ -425,7 +522,12 @@ def run_pair(
         and all(1 <= int(row["ranks"][x]) <= N_PLAYERS for row in rows for x in (id_i, id_j))
         and all(int(row["decisions_by_model"][x]) > 0 for row in rows for x in (id_i, id_j))
     )
-    if int(games_per_pair) % N_PLAYERS == 0:
+    # ordered56 needs a whole 56-game seat cycle to balance every seat; the
+    # legacy schedule needs a whole 8-game cycle.  A smoke run (e.g. 8 games)
+    # in ordered56 is intentionally unbalanced and must not be marked invalid
+    # for that reason alone.
+    cycle = 56 if seat_mode == "ordered56" else N_PLAYERS
+    if int(games_per_pair) % cycle == 0:
         expected_seat = int(games_per_pair) // N_PLAYERS
         pair_valid = pair_valid and all(
             sum(1 for row in rows if row["seats_by_model"][x] == seat) == expected_seat
@@ -615,7 +717,7 @@ def _fmt(value: Any, digits: int = 2) -> str:
 
 def render_markdown(report: Dict[str, Any]) -> str:
     lines: List[str] = []
-    lines.append("# 8 模型 pairwise Elo 评测")
+    lines.append(f"# {len(report['model_order'])} 模型 pairwise Elo 评测")
     lines.append("")
     lines.append(f"- 状态：**{'VALID' if report['valid'] else 'INVALID'}**")
     lines.append(f"- 可入榜：**{'yes' if report['leaderboard_eligible'] else 'no'}**")

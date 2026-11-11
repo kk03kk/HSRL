@@ -350,6 +350,9 @@ class CollectConfig:
     move_repeat_limit: int = DEFAULT_MOVE_REPEAT_LIMIT
     #: 完全禁止 Cancel（动作 7）；默认 False 保持旧行为。
     forbid_cancel: bool = True
+    #: 商店已全部冻结时屏蔽 Freeze（动作 2）。实机桥接在全冻结时不暴露
+    #: 该动作；开启后训练/评测与实机一致，并避免 freeze/unfreeze 空转。
+    forbid_unfreeze: bool = False
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -2083,6 +2086,8 @@ class PPOEvaluator:
         plog, rlog = self.logits(np.asarray(features, np.float32),
                                  np.asarray(cards, np.int64),
                                  np.asarray(mask, bool))
+        if not np.isfinite(plog).all() or not np.isfinite(rlog).all():
+            raise RuntimeError("non-finite policy/value logits in evaluation")
         prior = masked_probs_np(plog[0], np.asarray(mask, bool), self.temperature)
         prior = prior / max(float(prior.sum()), 1e-12)
         value = float(value_from_rank_logits_np(rlog[0])[0])
@@ -2104,7 +2109,8 @@ class PPOGreedyPolicy(Policy):
     def __init__(self, evaluator: Any, *, max_actions_per_turn: int = 80,
                  move_guard: bool = True, move_cap: int = 5, move_repeat_limit: int = 2,
                  pending_guard: bool = False, cancel_cap: int = 2,
-                 commit_play: bool = True, forbid_cancel: bool = True) -> None:
+                 commit_play: bool = True, forbid_cancel: bool = True,
+                 freeze_cap: int = 0, forbid_unfreeze: bool = False) -> None:
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
         if (self.max_actions_per_turn != 80 or not bool(move_guard)
@@ -2113,6 +2119,9 @@ class PPOGreedyPolicy(Policy):
             raise ValueError("强制动作规则：max=80, move_guard=1, move_cap=5, "
                              "move_repeat=2, forbid_cancel=1")
         self._turn_counts: Dict[tuple, int] = {}
+        self._freeze_counts: Dict[tuple, int] = {}
+        self.freeze_cap = int(freeze_cap)
+        self.forbid_unfreeze = bool(forbid_unfreeze)
         self.forced_actions = 0
         self._guard=MoveGuard(cap=move_cap,repeat_limit=move_repeat_limit,hard_cap=True) if move_guard else None
         self._pending_guard=(PendingGuard(cancel_cap=cancel_cap, commit_play=commit_play)
@@ -2121,6 +2130,7 @@ class PPOGreedyPolicy(Policy):
 
     def reset(self) -> None:
         self._turn_counts = {}
+        self._freeze_counts = {}
         if self._guard is not None:self._guard.clear_state()
         if self._pending_guard is not None:self._pending_guard.clear_state()
 
@@ -2133,11 +2143,26 @@ class PPOGreedyPolicy(Policy):
             mask = without_cancel(mask)
             if not bool(mask.any()):
                 raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} turn={turn}")
+        if self.forbid_unfreeze and bool(mask[2]):
+            from hsbg.env.obs_std import GLOBAL_FIELD_INDEX
+            if float(f[GLOBAL_FIELD_INDEX["frozen"]]) > 0.5:
+                mask = mask.copy()
+                mask[2] = False
         guard_forced=False
         if self._guard is not None:
             mask,guard_forced=self._guard.guarded_mask(mask,game_id=0,seat=seat,turn=turn)
         if self._pending_guard is not None:
             mask,_=self._pending_guard.guarded_mask(mask,game_id=0,seat=seat,turn=turn,game=game)
+        # Optional audit/eval guard: the engine allows 10 Freeze presses per
+        # turn, and the policy can cycle freeze/unfreeze until the cap.  Default
+        # 0 keeps the exact game semantics; >0 is an experiment knob.
+        fkey = (seat, turn)
+        if self.freeze_cap > 0 and int(self._freeze_counts.get(fkey, 0)) >= self.freeze_cap:
+            if bool(mask[2]):
+                mask = mask.copy()
+                mask[2] = False
+        if not bool(mask.any()):
+            raise RuntimeError(f"empty legal mask after guards seat={seat} turn={turn}")
         prior, value = self.evaluator(f, c, mask, seat)
         pi = masked_normalize(prior, mask)
         key = (seat, turn)
@@ -2153,6 +2178,8 @@ class PPOGreedyPolicy(Policy):
         else:
             legal = np.flatnonzero(mask)
             action = int(legal[0]) if legal.size else 0
+        if action == 2 and self.freeze_cap > 0:
+            self._freeze_counts[fkey] = int(self._freeze_counts.get(fkey, 0)) + 1
         if self._guard is not None:self._guard.note_action(action,game_id=0,seat=seat,turn=turn)
         if self._pending_guard is not None:self._pending_guard.note_action(action,game_id=0,seat=seat,turn=turn)
         return Decision(int(action), pi, {"search": False, "policy": self.name,
@@ -3386,6 +3413,8 @@ class PPOSelfPlayPolicy(Policy):
         self._forced_prob = float(getattr(self.config, "forced_tier_prob", 1.0) or 0.0)
         self._forced_teacher = bool(getattr(self.config, "forced_tier_teacher", False))
         self.records: List[Dict[str, Any]] = []
+        #: 逐动作计数（采集 meta 用；每轮 collect 新建 policy，故天然按轮重置）。
+        self.action_hist: Dict[int, int] = {}
         self._rng = np.random.default_rng(int(seed))
         self._n = 0
         self._turn_counts: Dict[tuple, int] = {}
@@ -3565,6 +3594,12 @@ class PPOSelfPlayPolicy(Policy):
             if not bool(mask.any()):
                 raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} "
                                    f"turn={getattr(game, 'turn', -1)}")
+        if bool(getattr(self.config, "forbid_unfreeze", False)) and bool(mask[2]):
+            # 全局 frozen 位 = 商店非空且全部冻结（引擎 is_frozen）。
+            from hsbg.env.obs_std import GLOBAL_FIELD_INDEX
+            if float(f[GLOBAL_FIELD_INDEX["frozen"]]) > 0.5:
+                mask = mask.copy()
+                mask[2] = False
         return f, c, mask
 
     def _turn_is_forced(self, game: Any, seat: int, mask: Any) -> bool:
@@ -3599,6 +3634,7 @@ class PPOSelfPlayPolicy(Policy):
         """
         seat = int(seat)
         turn = int(getattr(game, "turn", -1))
+        self.action_hist[int(action)] = int(self.action_hist.get(int(action), 0)) + 1
         limit = int(getattr(self.config, "max_actions_per_turn", 0) or 0)
         # 守卫计数必须按「局」隔离：lock-step 下同一个 policy 服务多局
         key = (int(self.game_id), seat, turn)
@@ -4018,18 +4054,11 @@ def build_batch_from_arrays(packed: Dict[str, np.ndarray], *, gamma: float = 1.0
     game_ids, seats, turns = t["game_ids"], t["seats"], t["turns"]
     values = t["values"]
 
-    ## 可选：``rewards`` = 逐决策基础奖励（势函数塑形）。只在**未构建**的 packed 上消费；
-    ## 已含 advantages 的批次字典里 ``rewards`` 是最终奖励，不能当基础项重复相加。
-    base_reward = None
-    if "advantages" not in packed:
-        base_reward = t.pop("rewards", None)
-        if base_reward is not None:
-            base_reward = np.asarray(base_reward, dtype=np.float32).reshape(-1)
-            if base_reward.size != n:
-                base_reward = None
+    ## 已由 worker 构建好的批次（含 advantages/returns/dones）必须原样使用。
+    ## 旧的 fallback 路径会重算 GAE 并丢掉自定义奖励；这里保留预构建字段，
+    ## 只在缺失时才从 rank/step_penalty 重建。
+    prebuilt = all(k in t for k in ("advantages", "returns", "dones"))
     rewards = np.full(n, -float(step_penalty), dtype=np.float32)
-    if base_reward is not None:
-        rewards += base_reward
     dones = np.zeros(n, dtype=np.float32)
     episode_ids = np.zeros(n, dtype=np.int32)
     key_change = np.empty(n, dtype=bool)
@@ -4041,19 +4070,39 @@ def build_batch_from_arrays(packed: Dict[str, np.ndarray], *, gamma: float = 1.0
     last_of_ep = np.empty(n, dtype=bool)
     last_of_ep[:-1] = key_change[1:]
     last_of_ep[-1] = True
-    util = utility_from_rank(ranks[valid][order])
-    rewards[last_of_ep] = (float(rank_utility_coef)
-                           * np.asarray(util, dtype=np.float32)[last_of_ep]
-                           - float(step_penalty))
-    if float(terminal_strength_coef) != 0.0:
-        _ls = log_strength_from_features(t["features"])
-        rewards[last_of_ep] += (float(terminal_strength_coef)
-                                * _ls[last_of_ep].astype(np.float32))
-    if base_reward is not None:
-        rewards[last_of_ep] += base_reward[last_of_ep]
-    dones[last_of_ep] = 1.0
-
-    advantages, returns = compute_gae(rewards, values, dones, gamma=gamma, lam=lam)
+    if prebuilt:
+        rewards = (np.asarray(t["rewards"], dtype=np.float32).reshape(-1)
+                   if "rewards" in t else np.zeros(n, dtype=np.float32))
+        dones = np.asarray(t["dones"], dtype=np.float32).reshape(-1)
+        if "episode_ids" in t:
+            episode_ids = np.asarray(t["episode_ids"], dtype=np.int32).reshape(-1)
+            ep = int(episode_ids[-1] + 1) if n else 0
+        advantages = np.asarray(t["advantages"], dtype=np.float32).reshape(-1)
+        returns = np.asarray(t["returns"], dtype=np.float32).reshape(-1)
+        if rewards.size != n or dones.size != n or advantages.size != n or returns.size != n:
+            raise ValueError("build_batch_from_arrays: 预构建 advantages/rewards 长度损坏")
+    else:
+        ## 可选：``rewards`` = 逐决策基础奖励（势函数塑形）。只在**未构建**的 packed
+        ## 上消费；已含 advantages 的批次字典里 ``rewards`` 是最终奖励，不能重复相加。
+        base_reward = t.pop("rewards", None)
+        if base_reward is not None:
+            base_reward = np.asarray(base_reward, dtype=np.float32).reshape(-1)
+            if base_reward.size != n:
+                base_reward = None
+        if base_reward is not None:
+            rewards += base_reward
+        util = utility_from_rank(ranks[valid][order])
+        rewards[last_of_ep] = (float(rank_utility_coef)
+                               * np.asarray(util, dtype=np.float32)[last_of_ep]
+                               - float(step_penalty))
+        if float(terminal_strength_coef) != 0.0:
+            _ls = log_strength_from_features(t["features"])
+            rewards[last_of_ep] += (float(terminal_strength_coef)
+                                    * _ls[last_of_ep].astype(np.float32))
+        if base_reward is not None:
+            rewards[last_of_ep] += base_reward[last_of_ep]
+        dones[last_of_ep] = 1.0
+        advantages, returns = compute_gae(rewards, values, dones, gamma=gamma, lam=lam)
     merged_meta: Dict[str, Any] = dict(meta or {})
     merged_meta.update({"gamma": float(gamma), "lam": float(lam),
                         "step_penalty": float(step_penalty),

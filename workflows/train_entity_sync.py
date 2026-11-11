@@ -44,7 +44,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from hsbg.az.train.common import engine_available, engine_info, to_jsonable  # noqa: E402
-from hsbg.az.train.mirror_snapshots import ramp_p  # noqa: E402
+from hsbg.az.train.mirror_snapshots import SAMPLE_MODES, ramp_p  # noqa: E402
 from hsbg.az.train.checkpoint_io import publish_checkpoint  # noqa: E402
 from hsbg.az.train.reward_shaping import (parse_tier_bonus,  # noqa: E402
                                           shaping_gamma_warning)
@@ -421,6 +421,8 @@ def main() -> int:
                     help="1=换位去抖守卫：采样前屏蔽「逆换位 / 同动作超限 / 本回合换位"
                          "超 cap」的 Move 动作位（见 docs/MOVE_GUARD.md）。"
                          "默认 0=关闭（与旧路径逐位等价）")
+    ap.add_argument("--forbid-unfreeze", type=int, default=0, choices=[0, 1],
+                    help="商店全部冻结时屏蔽 Freeze（与实机桥接一致；默认 0）")
     ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
                     help="1=always remove Cancel action 7; fail if no legal action remains")
     ap.add_argument("--move-cap", type=int, default=5,
@@ -533,8 +535,9 @@ def main() -> int:
     ap.add_argument("--mirror-p", type=float, default=0.0,
                     help="每座位每回合注入快照的概率（默认 0=关闭，零影响）")
     ap.add_argument("--mirror-sample", "--sample", dest="mirror_sample", default="p50",
-                    choices=["p50", "p75", "p90", "max", "strong", "weak", "random"],
-                    help="快照桶内采样：p50/p75/p90=强度分位课程（默认），max/strong=旧上限")
+                    choices=list(SAMPLE_MODES),
+                    help="快照桶内采样：p50/p75/p90=强度分位课程，p75band 等=分位带内"
+                         "均匀取样（保留难度且恢复对手多样性），max/strong=旧上限")
     ap.add_argument("--mirror-p-ramp", default="",
                     help="线性 p ramp，如 0.1@0,0.25@0.3,0.25@1.0（x 与 iteration 同单位）；"
                          "空=用固定 --mirror-p")
@@ -2270,6 +2273,7 @@ def main() -> int:
             lockstep=bool(int(args.lockstep)),
             move_guard=bool(int(args.move_guard)),
             forbid_cancel=bool(int(args.forbid_cancel)),
+            forbid_unfreeze=bool(int(args.forbid_unfreeze)),
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),
@@ -2407,6 +2411,12 @@ def main() -> int:
         idx = np.arange(total)
         if total > n:
             idx = np.random.default_rng(0).choice(total, size=n, replace=False)
+        # forced rows store old_logprob=0 and are excluded from the PPO loss;
+        # including them would drag the pipeline-guard mean ratio toward 0.
+        valid = ~np.asarray(batch.forced[idx], dtype=bool)
+        if not bool(valid.any()):
+            return 1.0
+        idx = idx[valid]
         dev = torch.device(args.device)
         x = torch.from_numpy(np.ascontiguousarray(batch.features[idx])).to(dev)
         c = torch.from_numpy(np.ascontiguousarray(batch.cards[idx].astype(np.int64))).to(dev)
@@ -2472,6 +2482,8 @@ def main() -> int:
 
             if pending is not None:
                 batch, collect_meta, c_cfg, _collect_s, _hb_state = pending.result()
+                _reload_s = sum(float(w.get("reload_s", 0.0) or 0.0)
+                                for w in (collect_meta.get("workers") or []))
                 pending = None
             else:
                 batch, collect_meta, c_cfg, _collect_s, _hb_state = _collect_for(i)

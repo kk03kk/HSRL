@@ -374,8 +374,11 @@ class PPOTrainer:
                           problem_batch=problem_batch,
                           problem_bc_coef=pbc_coef,
                           strength_aux_coef=saux_coef)
-        self.scheduler.step()
-        self.updates += 1
+        # A KL-early-stopped iteration can end with zero optimizer steps.  It
+        # must not consume an LR tick or advance the published policy version.
+        if int(stats.get("updates", 0)) > 0:
+            self.scheduler.step()
+            self.updates += 1
         stats["trainer_updates"] = int(self.updates)
         stats["lr"] = float(self.optimizer.param_groups[0]["lr"])
         stats["anchor_coef"] = float(self.config.anchor_coef)

@@ -31,10 +31,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from workflows.eval_round_robin_elo import (  # noqa: E402
-    engine_fingerprint, run_pair, sha256_text,
+    engine_fingerprint, pair_seed_start, run_pair, sha256_text,
 )
 from workflows.eval_two_models_six_bots import (  # noqa: E402
-    audit_model, sha256_file, write_json,
+    audit_model, semantic_code_sha256, sha256_file, write_json,
 )
 
 SCHEMA = "hsai.eval_latest_gauntlet/v1"
@@ -154,6 +154,7 @@ def main() -> int:
         "config_path": str(args.config),
         "config_sha256": sha256_text(args.config),
         "runner_sha256": sha256_text(Path(__file__)),
+        "code_sha256": semantic_code_sha256(),
         "engine": fp,
         "models": [
             {"id": model_id, "file_sha256": audits[model_id]["audit"]["file_sha256"],
@@ -167,7 +168,13 @@ def main() -> int:
         "games_per_pair": int(cfg["games_per_pair"]),
         "seed_base": int(cfg["seed_base"]),
         "opponents": {"kind": "engine_bot", "count": 6, "action": "game.bot_play"},
-        "seat_assignment": "pair_seats(gi, games_per_pair): all 8 seats cycled",
+        "seat_mode": str(cfg.get("seat_mode", "legacy")),
+        "seat_assignment": (
+            "ordered56: all 56 ordered (A,B) seat pairs, repeated"
+            if str(cfg.get("seat_mode", "legacy")) == "ordered56"
+            else "pair_seats(gi, games_per_pair): all 8 seats cycled"
+        ),
+        "seed_mode": str(cfg.get("seed_mode", "disjoint")),
         "decode": str(cfg.get("decode", "greedy")),
         "max_actions_per_turn": int(cfg["max_actions_per_turn"]),
         "move_guard": 1,
@@ -181,10 +188,11 @@ def main() -> int:
     }
     for p, pair in enumerate(cfg["pairs"]):
         i, j = str(pair[0]), str(pair[1])
+        start = pair_seed_start(cfg, p, int(cfg["games_per_pair"]))
         protocol["pairs"].append({
             "i": i, "j": j,
-            "seed_start": int(cfg["seed_base"]) + p * int(cfg["games_per_pair"]),
-            "seed_end": int(cfg["seed_base"]) + (p + 1) * int(cfg["games_per_pair"]) - 1,
+            "seed_start": start,
+            "seed_end": start + int(cfg["games_per_pair"]) - 1,
         })
     write_json(out / "protocol.json", protocol)
     write_json(out / "model-audit.json", {x: audits[x]["audit"] for x in ids})

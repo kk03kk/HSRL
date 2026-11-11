@@ -169,3 +169,37 @@ def test_lockstep_reports_forced_tier_meta():
         total = sum(int(row.get(k, 0)) for k in ("self", "on_time", "deferred", "missed"))
         assert total == 4, f"目标 {want} 的结局计数 {total} != 局数 4（逐局统计被重复计）"
     assert int(forced["forced_actions"]) <= 4 * int(cfg.forced_tier_carry + 1) * len(forced["targets"]) * 4
+
+
+def test_build_batch_preserves_prebuilt_advantages():
+    """Fallback batches already carrying GAE targets must not be recomputed."""
+    import numpy as np
+    from hsbg.az.train.common import N_ACTIONS, OBS_CARDS, OBS_FLOATS
+    from hsbg.az.train.ppo import build_batch_from_arrays
+
+    n = 4
+    arr = {
+        "ranks": np.array([2, 2, 1, 1], dtype=np.int64),
+        "features": np.zeros((n, OBS_FLOATS), dtype=np.float32),
+        "cards": np.zeros((n, OBS_CARDS), dtype=np.int16),
+        "masks": np.zeros((n, N_ACTIONS), dtype=bool),
+        "actions": np.zeros(n, dtype=np.int64),
+        "old_logprobs": np.zeros(n, dtype=np.float32),
+        "values": np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32),
+        "game_ids": np.array([0, 0, 1, 1], dtype=np.int64),
+        "seats": np.zeros(n, dtype=np.int64),
+        "turns": np.arange(n, dtype=np.int64),
+        "forced": np.zeros(n, dtype=bool),
+        "rewards": np.array([0.5, 0.5, -0.5, -0.5], dtype=np.float32),
+        "dones": np.array([0.0, 1.0, 0.0, 1.0], dtype=np.float32),
+        "advantages": np.array([1.0, 2.0, -1.0, -2.0], dtype=np.float32),
+        "returns": np.array([1.5, 2.5, -0.5, -1.5], dtype=np.float32),
+        "episode_ids": np.array([0, 0, 1, 1], dtype=np.int32),
+    }
+    for row in range(n):
+        arr["masks"][row, 0] = True
+    batch = build_batch_from_arrays(arr, gamma=1.0, lam=0.995)
+    np.testing.assert_allclose(batch.advantages, arr["advantages"])
+    np.testing.assert_allclose(batch.returns, arr["returns"])
+    np.testing.assert_allclose(batch.dones, arr["dones"])
+    np.testing.assert_allclose(batch.rewards, arr["rewards"])

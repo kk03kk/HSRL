@@ -25,8 +25,11 @@ OPTIONS = {
     "pipeline", "amp", "anchor-amp", "gpus", "gpu-index-space", "threads",
     "leaf-amp", "leaf-wait-ms", "ipc-mode", "records-dtype", "pipeline-guard",
     "leaf-fused", "mirror-strict",
-    "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel",
+    "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel", "forbid-unfreeze",
     "pipeline-zero-step-fallback",
+    # 周期评测（默认关闭；dev/test 的段后验证由 sbatch 钩子负责）
+    "eval-every-decisions", "eval-games", "eval-seats", "eval-seed-base",
+    "eval-async", "eval-device", "eval-stop-mean-rank", "eval-panel",
     # 强制升本课程（默认空计划 = 关闭；见 docs/FORCED_TIER.md）。
     # 注意：教师标签只由 ``forced-teacher-coef`` 驱动，不要用 ``teacher-bc-coef``，
     # 否则会同时打开「缩放教师」在线查询，两条标签会互相覆盖。
@@ -137,6 +140,8 @@ def validate_config(config):
         actual = int(config.get(key, expected))
         if actual != expected:
             raise ValueError(f"训练必须遵守动作规则 {key}={expected}，当前 {actual}")
+    if int(config.get("forbid-unfreeze", 0)) not in (0, 1):
+        raise ValueError("forbid-unfreeze 只接受 0/1")
     return config
 
 
@@ -371,12 +376,16 @@ def train(args):
     command = [sys.executable, "workflows/train_entity_sync.py", "--checkpoint", str(checkpoint),
                "--device", args.device, "--out", str(out), "--opponent", "bot",
                "--behavior", "net", "--pipeline", "0", "--rust-collector", "0", "--lockstep", "1",
-               "--eval-panel", "bot", "--eval-every-decisions", "0",
                "--mirror-snaps", str(Path(args.library).resolve()),
                "--mirror-seats", "7", "--mirror-p", "1", "--human-board-p", "0"]
     command += resume
     for k, v in config.items():
         command += ["--" + k, str(v)]
+    # 兼容旧配置：未写 eval 键时保持旧的 bot/0 行为。
+    if "eval-panel" not in config:
+        command += ["--eval-panel", "bot"]
+    if "eval-every-decisions" not in config:
+        command += ["--eval-every-decisions", "0"]
     # 停止预算是本次调用的运行控制，不改变学习配方、optimizer或恢复契约。
     if stop_at:
         command += ["--stop-at-decisions", str(stop_at)]

@@ -902,7 +902,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                 getattr(human_board_pool, "payload_kept", 0) or 0) if human_on else 0,
             "records": int(len(records)), "illegal_actions": int(illegal),
             "truncated_games": int(truncated),
-            "games_meta": metas, "forced_end_turns": int(policy.forced_actions)}
+            "games_meta": metas, "forced_end_turns": int(policy.forced_actions),
+            "action_hist": {str(k): int(v) for k, v in sorted(policy.action_hist.items())}}
     # 回合末快照镜像是「每座位每回合」事件：逐局计数后汇总写入 meta。
     mstats = MirrorStats()
     for st in states:

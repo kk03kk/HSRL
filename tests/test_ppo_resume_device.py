@@ -57,3 +57,21 @@ def test_cuda_restore_adam_counters_and_fixed_batch_update(tmp_path):
         assert a[key].keys() == b[key].keys()
         for field in a[key]:
             assert torch.equal(a[key][field].cpu(), b[key][field].cpu())
+
+
+def test_zero_step_update_does_not_advance_scheduler(monkeypatch):
+    """KL early-stop with no optimizer step must not advance LR/version."""
+    model = build_net(16)
+    trainer = PPOTrainer(model, PPOConfig(device="cpu"))
+    before_updates = int(trainer.updates)
+    before_lr = float(trainer.optimizer.param_groups[0]["lr"])
+
+    def fake_train_ppo(*args, **kwargs):
+        return {"updates": 0, "samples": 0, "processed_samples": 0,
+                "stopped_early": True, "epochs": []}
+
+    monkeypatch.setattr("hsbg.az.train.ppo_trainer.train_ppo", fake_train_ppo)
+    stats = trainer.update(None)
+    assert stats["updates"] == 0
+    assert int(trainer.updates) == before_updates
+    assert float(trainer.optimizer.param_groups[0]["lr"]) == before_lr

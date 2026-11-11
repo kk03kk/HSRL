@@ -75,6 +75,34 @@ def sha256_text(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+#: 评测语义依赖的源码；任何一处变化都必须改变 protocol_sha256。
+EVAL_SEMANTIC_CODE = (
+    "workflows/eval_round_robin_elo.py",
+    "workflows/eval_latest_gauntlet.py",
+    "workflows/eval_two_models_six_bots.py",
+    "hsbg/az/train/common.py",
+    "hsbg/az/train/move_guard.py",
+    "hsbg/az/train/pending_guard.py",
+    "hsbg/az/train/ppo.py",
+    "hsbg/az/train/model.py",
+    "hsbg/az/train/entity_model.py",
+    "hsbg/az/train/mirror_snapshots.py",
+    "hsbg/env/obs_std.py",
+    "hsbg/env/action_space_std.py",
+    "hsbg/eval/duel_metrics.py",
+)
+
+
+def semantic_code_sha256() -> Dict[str, str]:
+    """Hash every source file that can change action selection or metrics."""
+    out: Dict[str, str] = {}
+    for rel in EVAL_SEMANTIC_CODE:
+        path = ROOT / rel
+        if path.is_file():
+            out[rel] = sha256_text(path)
+    return out
+
+
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")

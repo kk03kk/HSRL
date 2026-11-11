@@ -58,6 +58,10 @@ class EvalConfig:
     mirror_pool: Any = None
     mirror_strict: bool = False
     collect_economy: bool = False
+    #: 逐动作下标直方图（审计/行为分析用；默认关闭，不影响热路径）。
+    collect_action_hist: bool = False
+    #: 逐决策动作轨迹（审计/行为分析用；默认关闭）。
+    collect_action_trace: bool = False
     collect_exposure: bool = False  # 有界研究面板才读取实际战斗，不影响默认热路径
     #: 评测期强制升本计划（``"2:2,5:3,6:4,8:5"``；空 = 关闭，模型完全自主）。
     #: 只用于「规则内」探针；正式 Dev 评测必须保持空，否则棋力不可比。
@@ -126,6 +130,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     truncated = 0
     decisions = 0
     illegal = 0
+    action_hist: Counter = Counter()
+    action_trace: List[Dict[str, Any]] = []
     examples: List[Dict[str, Any]] = []
     truncated_combats = 0
     hb_stats = HumanBoardStats()
@@ -313,6 +319,13 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 gold_events=list(gold_events),
                             ))
                             turn_actions = 0
+                    if config.collect_action_hist:
+                        action_hist[int(action)] += 1
+                    if config.collect_action_trace:
+                        action_trace.append({"game": int(gi), "turn": int(game.turn),
+                                             "action": int(action),
+                                             "group": group_of(action),
+                                             "forced": bool(dec.info.get("forced", False))})
                     game.step(seat, action)
                     if config.collect_economy and action != 0:
                         after = json.loads(game.player_json(seat))
@@ -393,6 +406,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         "combat_exposure": exposure,
         **({"mirror_strict_counts": dict(strict_counts)} if strict_library is not None else {}),
         **({"end_turn_economy": economy} if config.collect_economy else {}),
+        **({"action_hist": {str(k): int(v) for k, v in sorted(action_hist.items())}}
+           if config.collect_action_hist else {}),
+        **({"action_trace": action_trace} if config.collect_action_trace else {}),
         "human_board_turns": int(hb_turns),
         "examples": examples,
         # 强制升本探针（默认关闭 -> 0，不影响默认热路径与报告口径）
