@@ -123,3 +123,38 @@ Get-FileHash "$dst\model.pt" -Algorithm SHA256
 本次**不启动**。服务器已准备 `config/league-stage2.json`、
 `deploy/slurm/league_stage2.sbatch`、`artifacts/models/stage2-proposal-20261111/`
 （p75band + forbid-unfreeze + stage fork），等实机准备完成后再讨论启动。
+
+## 9. Git 同步（服务器 push 缺凭据，改走 bundle）
+
+服务器已提交 3 个 commit（基于 `b6c4624`）：
+
+```text
+664ab8f docs: 2026-11-11 audit, E1 board, NUS lessons, live handoff
+fe4ba72 feat: E1 one-round evaluation and stage-2 preparation
+c4b4327 fix: audit training/eval correctness (mirror band, freeze, PPO, bootstrap)
+```
+
+服务器 HTTPS push 需要 GitHub 凭据（当前无 token/credential helper，SSH 22 端口被墙），
+所以没有直接推到 GitHub。已生成 bundle：
+
+```text
+~/projects/HSAI/artifacts/exports/hsrl-audit-20261111.bundle
+SHA256 见同目录 hsrl-audit-20261111.bundle.sha256（或服务器交付消息）
+```
+
+本地下载并快进（在 `D:\HSAI`，要求本地 HEAD 仍是 `b6c4624` 或其后代）：
+
+```powershell
+scp <nus-login>:~/projects/HSAI/artifacts/exports/hsrl-audit-20261111.bundle `
+    D:\HSAI\artifacts\exports\
+Get-FileHash D:\HSAI\artifacts\exports\hsrl-audit-20261111.bundle -Algorithm SHA256
+# 必须与 hsrl-audit-20261111.bundle.sha256 一致
+cd D:\HSAI
+git fetch .\artifacts\exports\hsrl-audit-20261111.bundle main:audit-20261111
+git merge --ff-only audit-20261111
+python tools/verify_workspace.py --skip-rust   # 本地轻量校验（实机链路）
+git push origin main
+```
+
+如果本地 HEAD 已不是 `b6c4624` 的后代，先 `git pull --rebase origin main`，
+再用 bundle fetch；不要 force-push。
