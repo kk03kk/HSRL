@@ -182,7 +182,8 @@ def main() -> int:
     else:
         decision = {
             "champion": top_id,
-            "champion_method": "point_estimate_pending_challenge",
+            # User rule 2026-11-11: one E1 round only; no champion challenge.
+            "champion_method": "point_estimate",
             "challenge": None,
         }
 
