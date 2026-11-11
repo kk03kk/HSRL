@@ -1,14 +1,14 @@
 {
  "schema": "hsai.sync-manifest/v2",
  "side": "server",
- "generated_at": "2026-11-10 23:44:27",
+ "generated_at": "2026-11-11 10:07:24",
  "root": "/home/h/hengzhi/projects/HSAI",
- "notes": "server tooling + latest model gauntlet; HEAD d6e71b2",
+ "notes": "single leaderboard-v2; 12311 #1; old boards archived",
  "git": {
-  "head": "d6e71b26981bd6e51c3cbf017a9a83ecd8768723",
+  "head": "02ecc57bb5866ad9b65e5985ecc2048a94b9a991",
   "branch": "main",
-  "dirty": false,
-  "changed": 0,
+  "dirty": true,
+  "changed": 11,
   "origin": "https://github.com/kk03kk/HSRL.git"
  },
  "env": {
@@ -47,9 +47,9 @@
   "workflows": {
    "exists": true,
    "files": 94,
-   "bytes": 1678624,
+   "bytes": 1678653,
    "truncated": false,
-   "newest": "2026-11-10 22:51:44"
+   "newest": "2026-11-11 10:07:15"
   },
   "tools": {
    "exists": true,
@@ -88,19 +88,19 @@
   },
   "docs": {
    "exists": true,
-   "files": 25,
-   "bytes": 227833,
+   "files": 26,
+   "bytes": 238565,
    "truncated": false,
-   "newest": "2026-11-10 23:43:46"
+   "newest": "2026-11-11 10:07:15"
   }
  },
  "artifacts": {
   "models": {
    "exists": true,
-   "files": 14,
-   "bytes": 644385077,
+   "files": 25,
+   "bytes": 1288763863,
    "truncated": false,
-   "newest": "2026-11-10 23:21:36"
+   "newest": "2026-11-11 10:06:06"
   },
   "libraries": {
    "exists": true,
@@ -132,10 +132,10 @@
   },
   "runs": {
    "exists": true,
-   "files": 7405,
-   "bytes": 5027424739,
+   "files": 7407,
+   "bytes": 5055200791,
    "truncated": false,
-   "newest": "2026-11-10 23:44:14"
+   "newest": "2026-11-11 10:07:09"
   },
   "local": {
    "exists": true,
@@ -153,10 +153,10 @@
   },
   "exports": {
    "exists": true,
-   "files": 6,
-   "bytes": 987518508,
+   "files": 8,
+   "bytes": 1100083990,
    "truncated": false,
-   "newest": "2026-11-10 23:21:39"
+   "newest": "2026-11-11 09:49:21"
   }
  },
  "records": {
@@ -169,10 +169,10 @@
   },
   "archive": {
    "exists": true,
-   "files": 9854,
-   "bytes": 22417035190,
+   "files": 9860,
+   "bytes": 22417044921,
    "truncated": false,
-   "newest": "2026-11-09 17:42:10"
+   "newest": "2026-11-11 10:05:54"
   },
   "research": {
    "exists": true,

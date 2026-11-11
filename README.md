@@ -107,7 +107,8 @@ python tools/sync_manifest.py --side server --out docs/sync/manifests/server.jso
 | [docs/sync/SERVER.md](docs/sync/SERVER.md) | 交给服务器 Agent 的盘点任务书 |
 | [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md) | V1.1 实机审计、D 阶段改造与实机验证 |
 | [docs/SIMULATOR_AUDIT_2026-11-09.md](docs/SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 模拟器规则审计 |
-| [docs/ELO_EVAL.md](docs/ELO_EVAL.md) / [docs/EVAL_DUEL.md](docs/EVAL_DUEL.md) | pairwise Elo 方案与对局协议 |
+| [docs/LEADERBOARD.md](docs/LEADERBOARD.md) | 当前唯一排行榜规则与分数 |
+| [docs/EVAL_DUEL.md](docs/EVAL_DUEL.md) | 2 model + 6 bot 对局协议 |
 | [docs/nus/ENVIRONMENT.md](docs/nus/ENVIRONMENT.md) | NUS 环境、Slurm、GPU、恢复 |
 
 ## 项目边界

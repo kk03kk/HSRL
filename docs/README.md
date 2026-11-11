@@ -19,7 +19,7 @@
 | [LIVE_V1_1_AUDIT.md](LIVE_V1_1_AUDIT.md) | V1.1 实机审计、执行修复、每局数据体系、D 阶段改造与实机验证 |
 | [E_PHASE_RUNBOOK.md](E_PHASE_RUNBOOK.md) | E 阶段连续实机验收手册（计划；E-0 canary → E-1 三局） |
 | [SIMULATOR_AUDIT_2026-11-09.md](SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 规则审计、覆盖、修复与测试 |
-| [ELO_EVAL.md](ELO_EVAL.md) | 8 模型 / 2 model + 6 bot pairwise Elo 方案 |
+| [LEADERBOARD.md](LEADERBOARD.md) | **当前唯一排行榜规则与 5 模型分数** |
 | [EVAL_DUEL.md](EVAL_DUEL.md) | 2 model + 6 bot 对局协议、记录口径、门禁 |
 | [nus/ENVIRONMENT.md](nus/ENVIRONMENT.md) | NUS 环境限制、Slurm、GPU、恢复 |
 | [nus/INCIDENTS.md](nus/INCIDENTS.md) | 历史故障与防复发规则 |
@@ -30,7 +30,7 @@
 | 文件 | 生成方式 |
 |---|---|
 | [sync/manifests/local.json](sync/manifests/local.json) | `python tools/sync_manifest.py --side local --out docs/sync/manifests/local.json` |
-| `sync/manifests/server.json` | 服务器侧同名命令（**待生成**） |
+| [sync/manifests/server.json](sync/manifests/server.json) | 服务器侧同名命令（已生成） |
 
 ## 文档规则
 

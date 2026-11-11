@@ -435,3 +435,34 @@ FAILED tests/test_parallel_collect.py::test_parallel_matches_serial_bot
 
 > 模型权重、gauntlet 报告、推理包都在 `artifacts/`，**不进 Git**；本地通过 `scp` 取
 > `artifacts/exports/league-latest-12311-live.tgz`，并用上面的 SHA 校验。
+
+## 13. 唯一排行榜 leaderboard-v2（2026-11-11）
+
+用户决定：**只用这一张榜**，弱模型以后删除/归档；旧榜不再保留为当前榜。服务器已按简化规则执行：
+
+- 当前榜：`artifacts/models/leaderboard-v2/leaderboard.json`（5 个模型）。
+- 规则文档：`docs/LEADERBOARD.md`。
+- 旧榜文件：`leaderboard-v1` 已移到 `records/archive/leaderboards-20261111/leaderboard-v1/`；
+  旧 `docs/ELO_EVAL.md` 已移到 `records/archive/docs-20261111/`。原始 run/报告保留为证据。
+
+### 13.1 计分方法（我们的简化规则）
+
+- 旧模型分数冻结在上一版 4 模型 Elo（协议 `6bf5cae3…`）。
+- 新模型用 128 局/对的 gauntlet（协议 `e4182351…`）；旧模型固定，新模型用
+  **fixed-opponent Bradley-Terry MLE** 求唯一分数；5,000 次 game-level bootstrap。
+- 排名按点估计 Elo；CI 同时报告。gauntlet 不是完整 round-robin，直接对第一的 CI 可能跨 0.5。
+
+### 13.2 当前分数
+
+| 排名 | 模型 | Elo | 95% CI | 来源 |
+|---:|---|---:|---|---|
+| 1 | `league-latest-12311` | **1067.68** | [1036.97, 1099.46] | gauntlet 4×128（512 局） |
+| 2 | `milestone-1033972345` | 1036.16 | [1023.05, 1049.63] | elo4 6×512 |
+| 3 | `milestone-976909004` | 1011.01 | [998.10, 1023.87] | elo4 6×512 |
+| 4 | `milestone-867747936` | 982.73 | [969.58, 995.95] | elo4 6×512 |
+| 5 | `V1.1` | 970.10 | [956.87, 983.15] | elo4 6×512 |
+
+`12311` 对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI [45.31%, 62.50%]）；
+因此它是用户简化规则下的点估计第一，不是“已证明的显著超越”。
+
+`league-latest-13806`（2026-11-11 09:49 保存）尚未跑 gauntlet，暂列入 `unrated_candidates`，不入榜。

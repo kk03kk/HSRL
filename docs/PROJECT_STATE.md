@@ -1,7 +1,7 @@
 # HSAI 当前状态
 
-更新：2026-11-10 18:20 +0800
-阶段：**37.0.2 模拟器已冻结；V1.1 实机 D 阶段工程改造完成（含 6 次 canary），等待用户授权进入 E 阶段连续验收。**
+更新：2026-11-11 10:05 +0800
+阶段：**37.0.2 模拟器已冻结；36h 联赛训练进行中；唯一排行榜 `leaderboard-v2` 已建立（12311 第一）；等待实机 E 阶段授权。**
 
 ## 1. 运行位置与工作方式
 
@@ -16,10 +16,11 @@
 
 | 作业 | 状态 | 说明 |
 |---|---|---|
-| `1102669 hsai-league-36h` | **RUNNING**（2×H100-47，05:01 起，预计 11-11 17:01 结束） | 72 段 × 30 min 联赛训练；`version=11811`、累计 `1.10B` 决策；`illegal/truncated/dropped=0`。**不要取消、不要改训练代码/库/依赖** |
+| `1102669 hsai-league-36h` | **RUNNING**（2×H100-47，05:01 起，预计 11-11 16:49 结束） | 72 段 × 30 min；09:49 时 segment **59/72**，`version=13806`、累计 `1.395B` 决策；`illegal/truncated/dropped=0`。**不要取消、不要改训练代码/库/依赖** |
 | `1097487` | RUNNING | no-shell CPU allocation；服务器 Agent 会话所在；不要取消 |
-| `1099277 hsai-elo-8` | COMPLETED | **8 模型 pairwise Elo，1,792 局**，`0 illegal / 0 truncated / 0 engine_bad`，协议 `837231e0…`，引擎 `c4c71014…` |
-| `1107182 hsai-elo4-league` | COMPLETED | 4 模型联赛 Elo，3,072 局，协议 `6bf5cae3…`；milestone-1033972345 第一（1036.16），V1.1 第四（970.10） |
+| `1109300 hsai-gauntlet12311` | COMPLETED | 12311 vs 4 个 Elo 模型 ×128 局（512 局），协议 `e4182351…`；4 对全胜，305–207（59.57%） |
+| `1099277 hsai-elo-8` | COMPLETED | 旧 8 模型 Elo，1,792 局，协议 `837231e0…`；已归档，不作当前榜 |
+| `1107182 hsai-elo4-league` | COMPLETED | 4 模型 Elo，3,072 局，协议 `6bf5cae3…`；作为 `leaderboard-v2` 的旧模型锚点 |
 | `1095539 hsai-p50-forced` | COMPLETED | 强制升本长训，`810,501,828` 累计决策 |
 | `1098876/1098877` | COMPLETED | 11 模型 live-v1/dev 512 局；**旧引擎 `c7b5f27d`，不再作为当前结论** |
 
@@ -36,12 +37,16 @@
 - 240M `v9595` 在 p50 96 局最好（`2.031`，Δ `-0.510`），但 live-v1 为 `4.107`，排 8/11（旧引擎）。
 - 240M `v9595` 会自主升本：T2 `93/93`、T5 `86/96`、T6 `43/45`、T8 `84/86`；T12 `0/48`，T14 `3/32`。它不是“不升本”，而是**前中期升得快、T12 停止**。
 - 60M 强制阶段把 T12 tier6 率推到 `74.3%`，但 T12 战团 P50 只有 `920`，live-v1 退化到 `4.557`：**高本没有转化为核心战团强度**。
-- **当前引擎有效结果**：8 模型 Elo `1099277`（1,792 局）与 4 模型联赛 Elo `1107182`（3,072 局，最新里程碑显著优于 V1.1）。
+- **当前唯一榜（2026-11-11）**：`artifacts/models/leaderboard-v2/leaderboard.json`，5 个模型；
+  `league-latest-12311` 以 **1067.68**（gauntlet-anchored，95% CI [1036.97, 1099.46]）排第一。
+  它对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI 跨 0.5），因此“第一”是点估计。
+- 旧 8 模型 Elo `1099277`（1,792 局）与旧 4 模型 Elo `1107182`（3,072 局）保留为证据/锚点，不再作当前榜；
+  旧榜文件归档在 `records/archive/leaderboards-20261111/`。
 
 详细数据（**服务器侧路径，本地未同步，待确认**，见 `docs/INVENTORY_LOCAL.md` §5）：
 
 - `records/research/autonomous-2026-11-08/TRAINING_REVIEW.md` §8–9（server-only / 待确认）
-- `artifacts/models/leaderboard-v1/reports/20261109-live-v1.json`（server-only / 待确认）
+- `artifacts/models/leaderboard-v2/leaderboard.json`（当前唯一榜；旧榜已归档）
 - `artifacts/runs/p50-forced-tier-long-20261108-135823/`（server-only / 待确认）
 
 ## 4. 当前有效资产
@@ -56,8 +61,10 @@
   - 本地实机真源 `artifacts/models/library-v1`（39 cohort，3.4 GB，含 `index.csv` + `SHA256SUMS.txt`）；
   - 旧 bot 库 1.9 GB 已归档到 `records/archive/libraries-2026-11-09/`（可用数 0）。
 - 评测产物：
-  - 当前引擎有效：`artifacts/runs/elo-8-1099277/report-corrected.json`（1,792 局，协议 `837231e0…`）、
-    `artifacts/runs/elo4-v1.1-league-long-20261110/report-final.json`（3,072 局，协议 `6bf5cae3…`）。
+  - **当前唯一榜**：`artifacts/models/leaderboard-v2/leaderboard.json`（5 模型；12311 1067.68 第一）。
+  - 旧模型锚点：`artifacts/runs/elo4-v1.1-league-long-20261110/report-final.json`（3,072 局，协议 `6bf5cae3…`）。
+  - 12311 gauntlet：`artifacts/runs/gauntlet-12311-128-20261110/report.json`（512 局，协议 `e4182351…`）。
+  - 旧 8 模型报告：`artifacts/runs/elo-8-1099277/report-corrected.json`（1,792 局，协议 `837231e0…`，已归档为历史证据）。
   - 旧引擎历史：11 模型 live-v1 报告与 `manifest-2026-11-09.json` 已归档到
     `records/archive/models-2026-11-09/models/leaderboard-v1/`（引擎 `c7b5f27d`，**不可与当前引擎混用**）。
 - 文档归档：`records/archive/`（按 `<topic>-<YYYYMMDD>/` 组织；此前文档里写的
@@ -80,9 +87,9 @@ D 阶段已完成并停止。E 阶段按 `docs/LIVE_V1_1_AUDIT.md` §7 的建议
 2. **E-1**：3 局连续验收，口径：S0=0、每局 S1≤2、名次字段正确、续局无需人工、后期动作速率达标。
 
 ### 5.2 服务器：联赛训练与评测（进行中，**不要打扰**）
-- `1102669 hsai-league-36h` 正在跑（05:01 起，预计 11-11 17:01 结束，72 段 × 30 min）；期间冻结训练代码/库/依赖，新实验用新目录、新作业号。
-- 8 模型 pairwise Elo `1099277` 已完成（1,792 局）；4 模型联赛 Elo `1107182` 已完成（3,072 局）。
-- 待办：36h 结束后用**当前引擎**重跑 live-v1（旧 `46e7013d…` 是 `c7b5f27d` 引擎，不可混用），再出正式全榜。
+- `1102669 hsai-league-36h` 正在跑（05:01 起，预计 11-11 16:49 结束；09:49 时 segment 59/72，`version=13806`）；期间冻结训练代码/库/依赖，新实验用新目录、新作业号。
+- 当前唯一榜 `leaderboard-v2` 已建立：12311 1067.68 第一；旧模型分数作为冻结锚点。后续新模型按 `docs/LEADERBOARD.md` 的 gauntlet 128×N 规则算分入榜。
+- 待办：36h 结束后保存 final/评估 13806；需要时用**当前引擎**重跑 live-v1（旧 `46e7013d…` 是 `c7b5f27d` 引擎，不可混用）。
 
 ### 5.3 三端核对（本地 + 服务器）
 1. 本地盘点与目录整理完成（`docs/INVENTORY_LOCAL.md`）。

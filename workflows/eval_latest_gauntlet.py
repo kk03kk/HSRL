@@ -39,7 +39,7 @@ from workflows.eval_two_models_six_bots import (  # noqa: E402
 
 SCHEMA = "hsai.eval_latest_gauntlet/v1"
 N_PLAYERS = 8
-ELO_SCALE = 400.0 / math.log(10.0)
+ELO_SCALE = 400.0  # standard Elo: 400 * log10(score/(1-score))
 
 
 def load_config(path: Path) -> Dict[str, Any]:

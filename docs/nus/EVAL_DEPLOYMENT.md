@@ -39,13 +39,12 @@ docs/                  当前文档
 
 ## 4. 当前评测入口
 
-当前主评测是 **8 模型 pairwise Elo**：
+当前唯一排行榜是 **leaderboard-v2（gauntlet-anchored）**：
 
-- 方案与启动前确认：[ELO_EVAL.md](../ELO_EVAL.md)
-- 配置：`config/eval-elo-8.json`
-- runner：`workflows/eval_round_robin_elo.py`
-- 正式 Slurm：`deploy/slurm/elo_8.sbatch`
-- 冒烟：`deploy/slurm/elo_8_smoke.sbatch`
+- 规则与当前分数：[LEADERBOARD.md](../LEADERBOARD.md)
+- 当前榜：`artifacts/models/leaderboard-v2/leaderboard.json`
+- 新模型 gauntlet：`config/eval-latest-gauntlet.json` + `workflows/eval_latest_gauntlet.py`
+- 旧 8 模型流程（历史）：`config/eval-elo-8.json` + `workflows/eval_round_robin_elo.py`
 
 旧的 2 model + 6 bot 固定 128 局协议仍保留为历史参考（[EVAL_DUEL.md](../EVAL_DUEL.md)），
 但不能与 Elo 混榜。旧战团库已归档，Elo 评测只用 engine bot。

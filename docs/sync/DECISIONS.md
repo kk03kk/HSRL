@@ -262,3 +262,18 @@ evidence: `config/live/engine.json`、`client/tools/build_engine.ps1`、`ad4778d
 `expected_source_hash=c4c71014e3d41760`，`matches_server=true`。服务器 `build_info().source_hash`
 同为 `c4c71014e3d41760`，`db_info=(3983, "37.0.2.256589", "37.0.2")`。两端引擎锚点一致；
 服务器不修改 `config/live/`，本地不需要重新审计模拟器。
+
+## D-024 · 2026-11-11 · server · 单一排行榜 v2 + 简化入榜规则
+
+status: accepted
+evidence: `docs/LEADERBOARD.md`、`artifacts/models/leaderboard-v2/leaderboard.json`、`docs/sync/SERVER.md` §13
+
+用户决定只保留一张榜：旧 `leaderboard-v1` 文件归档到
+`records/archive/leaderboards-20261111/`，旧 8/4 模型报告保留为证据/锚点但不再作为当前榜；
+弱模型以后删除/归档。
+
+简化规则：旧模型分数冻结在 4 模型 Elo；新模型跑 128 局/对 gauntlet，用 fixed-opponent
+Bradley-Terry MLE 求唯一分数 + 5,000 bootstrap；排名按点估计，CI 同时报告。
+`league-latest-12311` 得 **1067.68**（95% CI [1036.97, 1099.46]），5 模型第一；
+对旧第一 `milestone-1033972345` 直接 128 局为 69–59（53.91%，CI 跨 0.5），所以是
+用户规则下的点估计第一，不是显著超越。`13806` 尚未评测，暂不入榜。
