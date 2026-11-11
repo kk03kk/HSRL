@@ -126,14 +126,14 @@ Get-FileHash "$dst\model.pt" -Algorithm SHA256
 
 ## 9. Git 同步（服务器 push 缺凭据，改走 bundle）
 
-服务器已提交 5 个 commit（基于 `b6c4624`；bundle 内含全部）：
+服务器已提交本次审计/E1/交接的 commit（基于 `b6c4624`；bundle 内含全部）。
+完整列表解包后运行 `git log --oneline b6c4624..main`。主要提交：
 
 ```text
-6006a86 docs: record git bundle handoff and sync status
-feae830 docs: handoff git bundle sync instructions
-664ab8f docs: 2026-11-11 audit, E1 board, NUS lessons, live handoff
-fe4ba72 feat: E1 one-round evaluation and stage-2 preparation
-c4b4327 fix: audit training/eval correctness (mirror band, freeze, PPO, bootstrap)
+fix: audit training/eval correctness (mirror band, freeze, PPO, bootstrap)
+feat: E1 one-round evaluation and stage-2 preparation
+docs: 2026-11-11 audit, E1 board, NUS lessons, live handoff
+docs: handoff git bundle sync instructions / sync status
 ```
 
 服务器 HTTPS push 需要 GitHub 凭据（当前无 token/credential helper，SSH 22 端口被墙），
