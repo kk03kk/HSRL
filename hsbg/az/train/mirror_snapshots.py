@@ -360,6 +360,8 @@ class MirrorSnapshotPool:
         self.index: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
         #: 每个桶按 strength 排序一次的缓存；get() 被每回合/每座位高频调用。
         self._sorted: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
+        #: 库里实际出现过的座位。只有一个座位时，``_key`` 允许跨座位回落。
+        self.seat_keys: set = set()
         self.sample_spec = str(sample)
         self.sample_mode = str(sample)
         self.turn_bands: Optional[List[Tuple[int, int, float]]] = None
@@ -378,6 +380,7 @@ class MirrorSnapshotPool:
         """读取 ``root/snap_*.json.gz``；返回载入的帧数（坏文件跳过并计数）。"""
         self.root = root
         self._sorted.clear()
+        self.seat_keys.clear()
         for path in sorted(glob.glob(os.path.join(root, "snap_*.json.gz"))):
             try:
                 with gzip.open(path, "rt", encoding="utf-8") as f:
@@ -420,6 +423,7 @@ class MirrorSnapshotPool:
                 if frame.turn <= 0:
                     continue
                 self.index.setdefault((frame.turn, frame.seat), []).append(frame)
+                self.seat_keys.add(frame.seat)
                 n += 1
             self.frames += n
             self.files += 1
@@ -427,10 +431,32 @@ class MirrorSnapshotPool:
 
     # ---- 采样 ----
     def has(self, turn: int, seat: int) -> bool:
-        return bool(self.index.get((int(turn), int(seat))))
+        return bool(self.index.get(self._key(turn, seat)))
+
+    def _key(self, turn: int, seat: int) -> Tuple[int, int]:
+        """解析 ``(turn, seat)`` 的索引键，必要时回落到库唯一持有的那个座位。
+
+        **为什么需要**：库里帧的 ``seat`` 只是它被归档时用的键——真正决定注入到哪个
+        座位的是 ``inject_turn`` 里传的 ``seats``，``frame.player`` 本身与座位无关。
+        所以只含一个座位的库（例如 ``build_firestone_eot`` / ``build_human_curve_bank``
+        产出的库，全部归档在 seat 0）可以用来服务任意座位。
+
+        这条回落此前只存在于 ``mirror-strict 1`` 的 ``StrictMirror`` 路径里，
+        于是单座位库一旦配 ``mirror-strict 0`` 就**一帧都注入不进去**
+        （2026-11-12 实测：``mirror_applied=0``，采集质量门直接拒训）。
+        """
+        exact = (int(turn), int(seat))
+        if self.index.get(exact):
+            return exact
+        if len(self.seat_keys) == 1:
+            only = next(iter(self.seat_keys))
+            alt = (int(turn), only)
+            if self.index.get(alt):
+                return alt
+        return exact
 
     def _sorted_candidates(self, turn: int, seat: int) -> List[SnapshotFrame]:
-        key = (int(turn), int(seat))
+        key = self._key(turn, seat)
         ordered = self._sorted.get(key)
         if ordered is None:
             ordered = sorted(self.index.get(key, []), key=lambda f: f.strength)
@@ -448,7 +474,7 @@ class MirrorSnapshotPool:
         - ``max``（旧名 ``strong``）：取强度最大帧（向后兼容）；
         - ``weak``：取强度最小帧；``random``/未知：均匀随机。
         """
-        cands = self.index.get((int(turn), int(seat)))
+        cands = self.index.get(self._key(turn, seat))
         if not cands:
             return None
         if len(cands) == 1:

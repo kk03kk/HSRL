@@ -81,3 +81,37 @@ def test_turnband_uses_configured_band():
         assert min(f.strength for f in picks) >= lo
         assert max(f.strength for f in picks) <= hi + 1
         assert len({f.source_game_seed for f in picks}) > 5
+
+# ─────────────────── 单座位库的跨座位回落 ───────────────────
+
+def test_single_seat_library_serves_any_seat():
+    """只归档在 seat 0 的库必须能服务任意座位。
+
+    2026-11-12 实测：真人曲线库全部归档在 seat 0，配 --mirror-strict 0 训练时
+    mirror_applied=0，采集质量门直接拒训。原因是 pool.get(turn, seat) 没有回落，
+    跨座位逻辑只存在于 StrictMirror（strict=1）路径里。
+    """
+    pool = MirrorSnapshotPool(sample="random")
+    frames = [SnapshotFrame(turn=5, seat=0, player={"board": [{"atk": i, "hp": i}]},
+                            source_game_seed=i, strength=i) for i in range(1, 11)]
+    pool.index[(5, 0)] = frames
+    pool.seat_keys.add(0)
+
+    for seat in (0, 1, 3, 7):
+        got = pool.get(5, seat, rng=random.Random(seat))
+        assert got is not None, f"seat {seat} got no frame from a seat-0-only library"
+        assert pool.has(5, seat) is True
+
+
+def test_multi_seat_library_does_not_cross_seats():
+    """多座位库不允许跨座位串用——那会掩盖真实的缺帧。"""
+    pool = MirrorSnapshotPool(sample="random")
+    pool.index[(5, 0)] = [SnapshotFrame(turn=5, seat=0, player={"board": []},
+                                        source_game_seed=1, strength=1)]
+    pool.index[(5, 1)] = [SnapshotFrame(turn=5, seat=1, player={"board": []},
+                                        source_game_seed=2, strength=2)]
+    pool.seat_keys.update({0, 1})
+
+    assert pool.get(5, 3) is None
+    assert pool.has(5, 3) is False
+    assert pool.get(5, 1) is not None
