@@ -51,6 +51,12 @@ INJECTION_KEYS = (
     # 学习曲线遥测：learner 终局板面 Σ(atk+hp)（按终局回合分桶求和 / 计数）。
     "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn",
     "learner_final_str_mean", "learner_final_str_p50", "learner_final_str_p90",
+    # 专家相对过程奖励（hsbg/az/train/board_target.py）：必须进 history，
+    # 否则「配了但没生效」会静默跑完一整段（历史上踩过同类坑）。
+    "board_target_coef", "board_target_w_str", "board_target_w_card",
+    "board_target_cap", "board_target_turns", "board_target_applied",
+    "board_target_dropped", "board_target_str_delta_mean",
+    "board_target_card_recall_mean", "board_target_reward_sum",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -66,13 +72,17 @@ INJECTION_SUM_KEYS = frozenset({
     "human_board_hand_unavailable", "human_board_counters_unavailable",
     "entry_attempt", "entry_applied", "entry_rejected", "entry_missing",
     "entry_errors", "entry_hand_applied", "entry_counters_applied", "entry_games",
+    "board_target_turns", "board_target_applied", "board_target_dropped",
+    "board_target_reward_sum",
 })
 #: 逐字段可得性计数：跨 worker 逐键求和（dict 合并）。
 INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist", "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn"})
 INJECTION_ANY_KEYS = frozenset({"mirror_on", "human_board_on", "entry_on"})
 INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p",
                                  "learner_final_str_mean", "learner_final_str_p50",
-                                 "learner_final_str_p90"})
+                                 "learner_final_str_p90",
+                                 "board_target_str_delta_mean",
+                                 "board_target_card_recall_mean"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
     "mirror_max_turn",
@@ -81,6 +91,8 @@ INJECTION_FIRST_KEYS = frozenset({
     "entry_turn_min", "entry_turn_max", "entry_fidelity", "entry_sample",
     "entry_boards", "entry_last_error", "entry_last_rejected", "entry_health_error",
     "human_board_min_turn",
+    "board_target_coef", "board_target_w_str", "board_target_w_card",
+    "board_target_cap",
 })
 
 

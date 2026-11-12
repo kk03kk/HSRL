@@ -508,6 +508,11 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     rounds = 0
     tier_on = any(bool(st["tier_target"].enabled) for st in states)
     bt_on = any(bool(st["board_target"].enabled) for st in states)
+    # 显式失败：配置要了专家相对奖励却没生效时必须立刻报错，而不是静默跑一整段。
+    if not bt_on and float(getattr(cfg, "board_target_coef", 0.0) or 0.0) != 0.0:
+        raise RuntimeError(
+            "board_target_coef != 0 但 BoardTargetTracker 未启用："
+            f"cfg.board_target_coef={getattr(cfg, 'board_target_coef', 'MISSING')!r}")
     trajectory_p = max(0.0, min(1.0, float(trajectory_p)))
     lib_traj_used = 0
     if trajectory_pool is not None and trajectory_p > 0.0:
