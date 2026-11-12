@@ -131,10 +131,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         human = human_boards_by_turn(args.human, args.human_mmr_min)
         print(f"\n真人库 {args.human}（perspective=self, mmr>={args.human_mmr_min}）："
               f"{len(human)} 局")
-        print(f"{'turn':>4} {'n':>4}{'human':>26}")
+        # 顺便给出"每回合战团格数"的中位数：BOARD_GAP 里"每格太弱"的结论依赖它。
+        print(f"{'turn':>4} {'n':>4} {'n_min_p50':>10} {'n_min_p90':>10}"
+              f"{'comp_mean':>22}")
         for t in range(t_lo, t_hi + 1):
-            n = sum(1 for turns in human.values() if str(t) in turns)
-            print(f"{t:>4} {n:>4}{cells_for(human, t)}")
+            sizes = [len(turns[str(t)]) for turns in human.values() if str(t) in turns]
+            cells = cells_for(human, t)
+            n = len(sizes)
+            n50 = _pct([float(x) for x in sizes], 0.5) or 0.0
+            n90 = _pct([float(x) for x in sizes], 0.9) or 0.0
+            print(f"{t:>4} {n:>4} {n50:>10.1f} {n90:>10.1f}{cells:>22}")
 
     for spec in args.panel:
         tag, _, path = spec.partition("=")
