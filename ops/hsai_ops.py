@@ -188,8 +188,13 @@ def remote_run(
     allow_heavy: bool = False,
     check: bool = False,
     label: str = "sh",
+    cwd: Optional[str] = None,
 ) -> Tuple[int, str, str]:
-    """通过 stdin 把 ``script`` 管道给远端 bash 执行。"""
+    """通过 stdin 把 ``script`` 管道给远端 bash 执行。
+
+    默认先在远端仓库根目录 ``cd``。相对路径（``.venv/bin/python``、
+    ``artifacts/...``）因此可以直接写，不必每条命令自己再 cd 一次。
+    """
     heavy = check_heavy(script)
     if heavy and not allow_heavy:
         raise OpsError(
@@ -197,12 +202,14 @@ def remote_run(
             + ", ".join(heavy)
             + "。改用 sbatch，或加 --allow-heavy 并写清理由。"
         )
+    root = REMOTE_ROOT if cwd is None else cwd
+    full = f"cd {root} 2>/dev/null || exit 3\n{script}" if root else script
     cmd = ssh_argv() + ["bash -s"]
     started = time.time()
     try:
         proc = subprocess.run(
             cmd,
-            input=script.encode("utf-8"),
+            input=full.encode("utf-8"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=timeout,

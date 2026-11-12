@@ -116,3 +116,20 @@ def test_check_docs_ignores_external_and_anchor_links(tmp_path: Path) -> None:
     doc = tmp_path / "doc.md"
     doc.write_text("[a](https://example.com/x) [b](#section)\n", encoding="utf-8")
     assert mod.check_links(doc) == []
+
+
+def test_check_docs_flags_links_into_machine_local_trees(tmp_path: Path) -> None:
+    """指向 records/ 或 artifacts/ 的链接换台机器就断，本机存在也算错。"""
+    mod = _load_check_docs()
+    probe = tmp_path / "doc.md"
+    probe.write_text("see [note](../records/deadbeef/note.md)\n", encoding="utf-8")
+
+    # 用 REPO_ROOT 之外的 doc 测不到（解析结果也不在仓库内），所以直接测判定函数
+    assert mod.is_machine_local(mod.REPO_ROOT / "records" / "x" / "note.md") is True
+    assert mod.is_machine_local(mod.REPO_ROOT / "artifacts" / "runs" / "x") is True
+    assert mod.is_machine_local(mod.REPO_ROOT / "docs" / "README.md") is False
+    assert mod.is_machine_local(tmp_path / "whatever.md") is False
+    # 临时目录里的相对链接不该被误判成"机器本地"，只会被当成普通坏链接
+    kinds = {p.kind for p in mod.check_links(probe)}
+    assert "link-into-machine-local" not in kinds
+    assert kinds == {"broken-link"}

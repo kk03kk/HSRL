@@ -35,6 +35,10 @@ RETIRED = (
     "tools/sync_manifest.py",
 )
 
+#: 只存在于某台机器上的目录（`.gitignore` 里被忽略）。**跟踪文档不能链接进去**：
+#: 这些路径在另一台机器和全新 clone 上都不存在，链接会在那边静默失效。
+MACHINE_LOCAL_PREFIXES = ("records/", "artifacts/", ".venv/")
+
 #: 允许提到退休路径的上下文。出现在**现行文档**里就是错误，除非同一行同时说明了
 #: 归档/退休——那种提到是必要的（讲清楚东西去哪了），不是坏指针。
 RETIREMENT_CUES = ("records/archive/", "退休", "归档", "废止", "取代", "已停用", "上移", "已删除")
@@ -89,6 +93,15 @@ def _rel(path: Path) -> str:
         return str(path)
 
 
+def is_machine_local(resolved: Path) -> bool:
+    """解析后的路径是否落在只存在于某台机器上的目录里。"""
+    try:
+        rel_to_root = resolved.relative_to(REPO_ROOT).as_posix() + "/"
+    except ValueError:
+        return False
+    return any(rel_to_root.startswith(p) for p in MACHINE_LOCAL_PREFIXES)
+
+
 def check_links(path: Path) -> List[Problem]:
     problems: List[Problem] = []
     text = path.read_text(encoding="utf-8")
@@ -101,6 +114,17 @@ def check_links(path: Path) -> List[Problem]:
             if not rel:
                 continue
             resolved = (path.parent / rel).resolve()
+            # 指向机器本地目录的链接：即使本机存在也算错——换台机器就断了
+            if is_machine_local(resolved):
+                problems.append(
+                    Problem(
+                        _rel(path),
+                        lineno,
+                        "link-into-machine-local",
+                        f"{target} 指向被 .gitignore 忽略的目录，另一台机器上不存在",
+                    )
+                )
+                continue
             if not resolved.exists():
                 problems.append(
                     Problem(_rel(path), lineno, "broken-link", f"{target}  ->  {rel}")

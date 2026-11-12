@@ -43,9 +43,10 @@
 
 ## 已退休
 
-`docs/sync/` 与 `docs/SYNC_MODEL.md` 已归档到
-[`records/archive/sync-protocol-20261112/`](../records/archive/sync-protocol-20261112/README.md)。
-那里有退休原因与恢复方法。**不要再向 `docs/sync/` 写东西。**
+`docs/sync/` 与 `docs/SYNC_MODEL.md` 已归档到本机的
+`records/archive/sync-protocol-20261112/`（该目录被 `.gitignore` 忽略，只在本地磁盘，
+另一台机器上没有；退休原因与恢复方法见那里的 `README.md`）。
+**不要再向已退休的 `docs/sync/` 写东西。**
 
 ## 文档规则
 
