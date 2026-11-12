@@ -208,6 +208,33 @@ def final_boards(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def boards_by_turn(rows: List[Dict[str, Any]],
+                   min_turn: int = 6) -> Dict[str, Dict[str, List[str]]]:
+    """``seed -> turn -> [card_id]``（只留 ``turn >= min_turn``）。
+
+    为什么需要：``final_boards`` 只有"每局最后一帧"，无法回答"什么时候拼齐了阵容"
+    "中途转过几次型"。有了逐回合卡 id，就能用**与训练奖励完全相同的口径**
+    （``hsbg/az/train/comp_target.py`` 的等级权重 · 命中/需求）算出阵容完成度曲线，
+    从而把"阵容覆盖奖励有没有生效"和"棋力有没有变强"分开看。
+
+    体积：96 局 × ~10 回合 × ≤7 个 id，单个模型几百 KB，可接受。
+    """
+    out: Dict[str, Dict[str, List[str]]] = {}
+    for r in rows:
+        t = int(r["turn"])
+        if t < int(min_turn):
+            continue
+        board = r.get("eot_board") or r.get("board") or []
+        ids = []
+        for m in board:
+            cid = m.get("card_id")
+            if not isinstance(cid, str):
+                continue
+            ids.append(cid[:-2] if cid.endswith("_G") else cid)
+        out.setdefault(str(r.get("seed")), {})[str(t)] = ids
+    return out
+
+
 def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     model, meta = load_checkpoint(str(path), device=args.device)
     evaluator = PPOEvaluator(model, device=args.device,
@@ -246,6 +273,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "curves": economy_curves(rows),
         "action_mix_by_turn": action_mix_by_turn(rows),
         "final_boards": final_boards(rows),
+        "boards_by_turn": boards_by_turn(rows),
     }
 
 
