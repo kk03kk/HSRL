@@ -40,6 +40,10 @@ def main(argv=None):
     ap.add_argument("--summary", default="")
     ap.add_argument("--min-series", type=int, default=2,
                     help="序列至少覆盖几个回合才保留（默认 2）")
+    ap.add_argument("--min-mmr", type=int, default=0,
+                    help="只要 mmr >= 该值的 self 行（默认 0 = 不过滤）。"
+                         "**入场课程必须设**：不设就会把全部 995 局（含 3k MMR）"
+                         "当成 p75 参考，等于把弱阵容当专家教学。")
     args = ap.parse_args(argv)
 
     rows = []
@@ -52,9 +56,17 @@ def main(argv=None):
 
     # game -> turn -> 选中的行（同 turn 多行按 stage 优先级取最好的一条）
     best = collections.defaultdict(dict)
+    dropped_mmr = 0
     for r in rows:
         if r.get("perspective") != "self":
             continue
+        if int(args.min_mmr) > 0:
+            try:
+                if float(r.get("mmr")) < float(args.min_mmr):
+                    dropped_mmr += 1
+                    continue
+            except (TypeError, ValueError):
+                continue
         gid = str(r.get("game_id") or "")
         if not gid:
             continue
@@ -116,6 +128,8 @@ def main(argv=None):
         "series_len_min": min(lens) if lens else 0,
         "series_len_max": max(lens) if lens else 0,
         "dropped": dict(sorted(dropped.items())),
+        "min_mmr": int(args.min_mmr),
+        "dropped_mmr_below_floor": int(dropped_mmr),
         "note": "只串 perspective=self；同回合多行按 combat_start 优先取一条。",
     }
     print(json.dumps(summ, ensure_ascii=False, indent=2), flush=True)
