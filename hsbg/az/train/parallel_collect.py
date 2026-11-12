@@ -659,6 +659,11 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         if tries >= int(ENTRY_MAX_TRIES):
             st["entry_done"] = True
             return
+        # 一回合只试一次：``_maybe_inject`` 在同一个 turn 里会被调用多次
+        # （bot 推进循环里每次都调），不加这个游标会把 3 次重试在同回合烧光。
+        if int(st.get("entry_tried_turn", -1)) == t:
+            return
+        st["entry_tried_turn"] = t
         st["entry_tries"] = tries + 1
         if g.is_over():
             st["entry_done"] = True
