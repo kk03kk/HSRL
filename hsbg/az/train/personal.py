@@ -25,6 +25,12 @@ OPTIONS = {
     "pipeline", "amp", "anchor-amp", "gpus", "gpu-index-space", "threads",
     "leaf-amp", "leaf-wait-ms", "ipc-mode", "records-dtype", "pipeline-guard",
     "leaf-fused", "mirror-strict", "mirror-seats", "mirror-p",
+    # 奖励项（默认全 0 = 纯名次奖励，与原配方逐位一致）。
+    # 2026-11-12：诊断显示模型卖随从只有真人的 0.22 倍、搜牌 0.67 倍，
+    # 而奖励只认终局名次——"把板面做大"本身没有任何回报。这些键让"奖励盲区"
+    # 可以被实验，而不必改代码。
+    "terminal-strength-coef", "shaping-coef", "shaping-gamma", "shaping-w-str",
+    "shaping-w-tier", "shaping-mode",
     "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel", "forbid-unfreeze",
     "pipeline-zero-step-fallback",
     # 周期评测（默认关闭；dev/test 的段后验证由 sbatch 钩子负责）

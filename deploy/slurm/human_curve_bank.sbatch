@@ -60,6 +60,9 @@ audit_args=()
 if [[ "${HSAI_HC_AUDIT:-0}" == "1" ]]; then
   audit_args=(--audit-out "$work/pressure-audit.json")
 fi
+if [[ -n "${HSAI_HC_PASSTHROUGH:-}" ]]; then
+  audit_args+=(--passthrough-below-turn "$HSAI_HC_PASSTHROUGH")
+fi
 
 PYTHONPATH=engine/python:. python workflows/build_human_curve_bank.py \
   --sources "$sources" \
