@@ -51,6 +51,7 @@ from .behavior_mix import aggregate_behavior_mix
 from .runlog import aggregate_injection
 from .reward_shaping import aggregate_shaping
 from .tier_target import aggregate_tier_target
+from .comp_target import aggregate_comp_target
 from .move_guard import aggregate_move_guard
 from .forced_tier import aggregate_forced_tier
 from .archetype_bias import aggregate_archetype_bias
@@ -1409,6 +1410,7 @@ class ProcessActorPool:
         meta.update(aggregate_shaping(metas, elapsed_s=wall))
         # 等级进度奖励统计：同样逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_tier_target(metas))
+        meta.update(aggregate_comp_target(metas))
         # 换位去抖守卫：逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_move_guard(metas))
         meta.update(aggregate_archetype_bias(metas))

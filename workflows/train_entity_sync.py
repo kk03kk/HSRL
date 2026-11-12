@@ -672,6 +672,18 @@ def main() -> int:
                     help="首次达标某回合目标时的一次性奖励（乘 coef；默认 0.15）")
     ap.add_argument("--tier-target-table", default="7:4,9:5,12:6",
                     help="目标曲线 turn:tier，逗号分隔（默认 7:4,9:5,12:6）")
+    # ---- 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）----
+    ap.add_argument("--comp-target-coef", type=float, default=0.0,
+                    help="阵容覆盖奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）。"
+                         "每局奖励上界 = coef（拼满一个 S 级流派）")
+    ap.add_argument("--comp-target-min-turn", type=int, default=8,
+                    help="从第几回合开始打分（默认 8；更早阵容还没成形）")
+    ap.add_argument("--comp-target-cards", default="config/strategy_cards.json",
+                    help="流派库路径（33 个流派的核心卡；默认 config/strategy_cards.json）")
+    ap.add_argument("--comp-target-tier-w", default="S:1.0,A:0.6,B:0.3",
+                    help="流派等级权重（默认 S:1.0,A:0.6,B:0.3）")
+    ap.add_argument("--comp-target-cap", type=float, default=1.0,
+                    help="单局完成度上界（默认 1.0）")
     # ---- 强制升本课程（默认关闭，见 docs/FORCED_TIER.md）----
     ap.add_argument("--forced-tier-plan", default="",
                     help="强制升本计划 turn:tier，逗号分隔（如 2:2,5:3,6:4,8:5）；"
@@ -1268,6 +1280,31 @@ def main() -> int:
         if not int(args.lockstep):
             print("[info] 非 lockstep 路径：等级进度奖励在逐局采集"
                   "（collect_ppo_records_parallel / collect_ppo_batch）内生效", flush=True)
+
+    # ---- 阵容覆盖奖励（默认关闭；见 hsbg/az/train/comp_target.py）----
+    if float(args.comp_target_coef) > 0.0:
+        from hsbg.az.train.comp_target import (  # noqa: E402
+            load_comps as _load_comps, parse_tier_weights as _parse_tw)
+        if str(args.opponent) == "self":
+            print("[error] 阵容覆盖奖励只支持 --opponent bot|weak（单 learner seat）",
+                  file=sys.stderr)
+            return 2
+        if int(args.rust_collector):
+            print("[error] Rust 采集器暂不支持阵容覆盖奖励；请设 --comp-target-coef 0 "
+                  "或 --rust-collector 0", file=sys.stderr)
+            return 2
+        try:
+            _tw = _parse_tw(str(args.comp_target_tier_w))
+            _comps = _load_comps(str(args.comp_target_cards), _tw)
+        except (OSError, ValueError) as exc:
+            print(f"[error] 阵容库不可用（{args.comp_target_cards}）: {exc}", file=sys.stderr)
+            return 2
+        _s = sum(1 for c in _comps if c["tier"] == "S")
+        _cards = len({cid for c in _comps for cid in c["cards"]})
+        print(f"[comp-target] 阵容覆盖奖励开启: coef={float(args.comp_target_coef):g} "
+              f"min_turn={int(args.comp_target_min_turn)} comps={len(_comps)}（S={_s}）"
+              f" cards={_cards} tier_w={args.comp_target_tier_w} cap="
+              f"{float(args.comp_target_cap):g}", flush=True)
 
     # ---- 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）----
     _ft_plan = parse_forced_tier_plan(str(args.forced_tier_plan))
@@ -2414,6 +2451,12 @@ def main() -> int:
             tier_target_coef=float(args.tier_target_coef),            tier_penalty=float(args.tier_penalty),
             tier_bonus=float(args.tier_bonus),
             tier_target_table=str(args.tier_target_table),
+            # 阵容覆盖奖励（默认 coef=0 -> 采集侧不构造对象、不新增 meta 键）
+            comp_target_coef=float(args.comp_target_coef),
+            comp_target_min_turn=int(args.comp_target_min_turn),
+            comp_target_cards=str(args.comp_target_cards),
+            comp_target_tier_w=str(args.comp_target_tier_w),
+            comp_target_cap=float(args.comp_target_cap),
             # 经济课程（默认 none+1.0 -> 采集侧不碰金币，逐位等价）
             curriculum_stage=str(_curr_cfg["curriculum_stage"]),
             curriculum_gold_mult=float(_gold_mult),

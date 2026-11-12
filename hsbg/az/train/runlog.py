@@ -64,6 +64,12 @@ INJECTION_KEYS = (
     "tier_checks", "tier_hits", "tier_misses", "tier_bonus_sum",
     "tier_penalty_sum", "tier_target_reward_sum", "tier_target_applied",
     "tier_target_dropped", "tier_hit_rate",
+    # 阵容覆盖奖励（hsbg/az/train/comp_target.py）：默认 coef=0 = 关闭。
+    # 这是四件套里"核心卡覆盖"那一项的**训练侧对应物**，必须能在 history 里验证生效。
+    "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
+    "comp_target_cards", "comp_target_turns", "comp_target_best_mean",
+    "comp_target_s_turns", "comp_target_reward_sum", "comp_target_applied",
+    "comp_target_dropped", "comp_target_errors",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -84,6 +90,8 @@ INJECTION_SUM_KEYS = frozenset({
     "tier_checks", "tier_hits", "tier_misses", "tier_bonus_sum",
     "tier_penalty_sum", "tier_target_reward_sum", "tier_target_applied",
     "tier_target_dropped",
+    "comp_target_turns", "comp_target_s_turns", "comp_target_reward_sum",
+    "comp_target_applied", "comp_target_dropped", "comp_target_errors",
 })
 #: 逐字段可得性计数：跨 worker 逐键求和（dict 合并）。
 INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist", "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn"})
@@ -93,7 +101,8 @@ INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p",
                                  "learner_final_str_p90",
                                  "board_target_str_delta_mean",
                                  "board_target_card_recall_mean",
-                                 "tier_hit_rate"})
+                                 "tier_hit_rate",
+                                 "comp_target_best_mean"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
     "mirror_max_turn",
@@ -105,6 +114,8 @@ INJECTION_FIRST_KEYS = frozenset({
     "board_target_coef", "board_target_w_str", "board_target_w_card",
     "board_target_cap",
     "tier_target_coef", "tier_penalty", "tier_bonus", "tier_target_table",
+    "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
+    "comp_target_cards",
 })
 
 

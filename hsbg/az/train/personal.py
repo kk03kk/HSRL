@@ -69,6 +69,11 @@ OPTIONS = {
     # champion 5.25 / 真人 5.52），板面在 T12 之后随之崩塌。这条奖励直接对目标曲线
     # 记账，默认表就是真人曲线取整（7:4, 9:5, 12:6）。
     "tier-target-coef", "tier-penalty", "tier-bonus", "tier-target-table",
+    # 阵容覆盖奖励（默认 comp-target-coef=0 = 关闭；见 hsbg/az/train/comp_target.py）。
+    # 2026-11-12 面板证据：升本节奏修好后，同一等级下板面仍只有真人的 0.22 倍，
+    # ≥1 张 S 核心卡只有 0.19–0.29（真人 0.60）。这条奖励直接对"拼出哪个流派"记账。
+    "comp-target-coef", "comp-target-min-turn", "comp-target-cards",
+    "comp-target-tier-w", "comp-target-cap",
 }
 
 

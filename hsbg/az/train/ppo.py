@@ -479,6 +479,19 @@ class CollectConfig:
     tier_bonus: float = 0.15
     #: 目标曲线 ``turn:tier``（逗号分隔），默认 ``7:4,9:5,12:6``。
     tier_target_table: str = "7:4,9:5,12:6"
+    #: ── 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）──
+    #: 系数：**0 = 关闭**（不构造对象、不读状态、不新增 meta 键，旧路径逐位一致）。
+    #: 非 0 时按 ``comp_target_cards``（33 个流派的核心卡）计算"历史最高阵容完成度"
+    #: 的增量：每局上界 = coef，与名次奖励同量级。
+    comp_target_coef: float = 0.0
+    #: 从第几回合开始打分（更早的回合阵容还没成形）。
+    comp_target_min_turn: int = 8
+    #: 流派库路径（``config/strategy_cards.json``）。
+    comp_target_cards: str = "config/strategy_cards.json"
+    #: 等级权重 ``S:1.0,A:0.6,B:0.3``。
+    comp_target_tier_w: str = "S:1.0,A:0.6,B:0.3"
+    #: 单局完成度上界（默认 1.0 = 拼满一个 S 级流派）。
+    comp_target_cap: float = 1.0
     #: ── 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）──
     #: 计划 ``turn:tier``（逗号分隔），默认空 = 关闭（不构造对象、不读状态、
     #: 不新增 record 字段，采集/打包/GAE 与旧路径逐位一致）。
