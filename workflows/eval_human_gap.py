@@ -145,6 +145,38 @@ def survival(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def action_mix_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Per-turn action-group counts, averaged per game.
+
+    This is the sensitive instrument for the churn hypothesis: human PMS gives
+    ``minionsSoldOverTurn`` / ``rerollsOverTurn`` per turn, so the model side has to
+    be in the same shape to be comparable. Board strength moves too slowly to
+    resolve a short run; sell/reroll rate does not.
+    """
+    by_turn: Dict[int, Dict[str, List[float]]] = collections.defaultdict(
+        lambda: collections.defaultdict(list))
+    games_seen: Dict[int, set] = collections.defaultdict(set)
+    for r in rows:
+        t = int(r["turn"])
+        counts = r.get("action_counts") or {}
+        if not isinstance(counts, dict):
+            continue
+        games_seen[t].add(r.get("seed"))
+        for group, n in counts.items():
+            if isinstance(n, int):
+                by_turn[t][group].append(float(n))
+    out: Dict[str, Any] = {}
+    for t in sorted(by_turn):
+        n_games = max(len(games_seen[t]), 1)
+        if n_games < 5:
+            continue
+        out[str(t)] = {
+            "games": n_games,
+            "mean": {g: _r(sum(v) / len(v), 2) for g, v in sorted(by_turn[t].items())},
+        }
+    return out
+
+
 def final_boards(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Each game's last recorded board, as card ids. Feeds composition coverage.
 
@@ -212,6 +244,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "action_hist": hist,
         "survival": survival(rows),
         "curves": economy_curves(rows),
+        "action_mix_by_turn": action_mix_by_turn(rows),
         "final_boards": final_boards(rows),
     }
 
