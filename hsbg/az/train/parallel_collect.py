@@ -327,6 +327,15 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                          human_board_set_tier: bool = True,
                          human_board_fidelity: str = "board",
                          human_board_fast_inject: bool = False,
+                         human_board_min_turn: int = 1,
+                         entry_pool: Any = None,
+                         entry_p: float = 0.0,
+                         entry_turn_min: int = 0,
+                         entry_turn_max: int = 0,
+                         entry_sample: str = "auto",
+                         entry_fidelity: str = "full",
+                         entry_fast_inject: bool = False,
+                         entry_set_health: bool = False,
                          gamma: float = 1.0,
                          behavior_mix: Any = None,
                          ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -354,6 +363,19 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     ``Game.apply_turn_snapshots``（Python 侧封装，Rust 零改动）把手牌 / 可推断
     counters 一起注入，注入后仍把 ``ended_turn`` 复位，让座位照常行动（同上语义）。
     见 ``docs/FIDELITY_INJECTION.md``。
+
+    ``human_board_min_turn``（默认 1 = 与旧行为一致）：只在 ``turn >= min_turn`` 时注入
+    人类战团。中后期课程用它把「真人强度的压力」限制在后期，前期仍按原对手分布跑。
+
+    **中后期入场课程**（``entry_pool`` 非空且 ``entry_p>0`` 且 ``entry_turn_min>0``；
+    默认全关 = 零影响）：每局在 ``[entry_turn_min, entry_turn_max]`` 里抽一个入场回合
+    ``T0``，``T0`` 之前的 learner 席由引擎 bot 代打（**不产生 learner 决策/记录**），
+    到 ``T0`` 回合开始、任何座位行动前，把库里的一个**真人完整状态**（战团/手牌/
+    可推断 counters/酒馆等级）注入 learner 席，从 ``T0`` 起才由策略接管。于是每条记录
+    都落在「真人有牌可打的中后期状态」上，而不是「从零开局的第 1 回合」。
+    ``entry_set_health``（默认 False）：把真人观测到的 ``hero_hp`` 一起写回 learner 席
+    （默认关闭：血量由同一局的 bot 代打自然演进，8 席名次赛保持对称）。
+    ``entry_fidelity`` / ``entry_fast_inject`` 语义与人类战团档位完全一致。
 
     课程模式（``mirror_seat_random=True``）：每回合用 :func:`mirror_seats_random` 从全部
     非 learner 座位重抽 ``mirror_seats_count`` 个（learner 一定不在其中）；默认 False 时
@@ -388,7 +410,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     strict_library = None
     if cfg.mirror_strict:
         if (mirror_pool is None or mirror_p != 1 or mirror_seats_count != N_PLAYERS - 1
-                or human_board_p or library_p or trajectory_p or opponent_policy is not None):
+                or human_board_p or library_p or trajectory_p or opponent_policy is not None
+                or float(entry_p) > 0.0):
             raise ValueError("严格镜像要求七席全概率、单一校准库")
         from .strict_mirror import StrictLibrary, StrictMirror
         strict_library = StrictLibrary(mirror_pool)
@@ -396,6 +419,16 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     _teacher_on = bool(getattr(cfg, "teacher_bc", False))
     _process_on = bool(getattr(cfg, "process_value", False))
     _teacher = ScalingTeacher() if _teacher_on else None
+
+    def _entry_turn_of(gi: int) -> int:
+        """本局入场回合（0 = 本局不入场，保持原配方）。逐局确定性可复现。"""
+        if not entry_on:
+            return 0
+        r = __import__("random").Random(int(cfg.seed) + int(seed) + int(gi) * 71 + 7)
+        if float(entry_p) < 1.0 and r.random() >= max(0.0, min(1.0, float(entry_p))):
+            return 0
+        return int(r.randint(int(entry_lo), int(entry_hi)))
+
     states: List[Dict[str, Any]] = []
     for gi in range(n):
         g0 = E.Game(seed=int(cfg.seed) + gi)
@@ -416,6 +449,12 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "human_rng": __import__("random").Random(
                 int(cfg.seed) + int(seed) + gi * 53 + 11),
             "human_stats": HumanBoardStats(),
+            # 中后期入场课程：入场回合 / 是否已注入 / 本局 learner 接管后的决策数。
+            # ``entry_p`` 逐局掷一次：未命中的局保持原配方（纯自对弈/bot 对手），命中的局
+            # 才走「bot 代打到 T0 → 注入真人状态 → 策略接管」。
+            "entry_turn": _entry_turn_of(gi),
+            "entry_done": _entry_turn_of(gi) <= 0,
+            "entry_learner_steps": 0,
             # 等级进度奖励状态机（每局独立；coef=0 时 disabled = 零开销）
             "tier_target": TierTargetTracker(cfg),
             # 经济课程：当前已应用金币倍数的回合 / 上一回合结束时的金币结余
@@ -520,6 +559,34 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         need = "apply_turn_snapshots"
         if not hasattr(_probe, need):
             raise RuntimeError(f"hsbg_engine.Game 缺少 {need}：旧构建无法做 hand/full 注入")
+    human_min_turn = max(1, int(human_board_min_turn or 1))
+    # ── 中后期入场课程（learner 席注入真人完整状态；默认关闭）────────────────
+    entry_on = (entry_pool is not None and float(entry_p) > 0.0
+                and int(entry_turn_min or 0) > 0)
+    entry_lo = max(1, int(entry_turn_min or 0)) if entry_on else 0
+    entry_hi = max(entry_lo, int(entry_turn_max or entry_lo)) if entry_on else 0
+    entry_fidelity = str(entry_fidelity or "full").strip().lower()
+    if entry_fidelity not in ("board", "hand", "full"):
+        raise ValueError(f"entry_fidelity 非法: {entry_fidelity!r}（只支持 board/hand/full）")
+    if entry_on:
+        _epk = int(getattr(entry_pool, "payload_kept", 0) or 0)
+        if entry_fidelity != "board" and _epk <= 0:
+            raise RuntimeError(
+                f"entry_fidelity={entry_fidelity} 需要带 board_detail payload 的准完整库；"
+                "当前入场库没有任何 payload，注入会 100% 退化成 board-only。")
+        if not hasattr(_probe, "player_json") or not hasattr(_probe, "apply_turn_snapshots"):
+            raise RuntimeError("hsbg_engine.Game 缺少 player_json/apply_turn_snapshots：旧构建")
+    entry_fast = bool(entry_fast_inject) and entry_fidelity != "board"
+    entry_stats: Dict[str, Any] = {
+        "entry_on": bool(entry_on), "entry_attempt": 0, "entry_applied": 0,
+        "entry_rejected": 0, "entry_missing": 0, "entry_errors": 0,
+        "entry_hand_applied": 0, "entry_counters_applied": 0,
+        "entry_turn_min": int(entry_lo), "entry_turn_max": int(entry_hi),
+        "entry_fidelity": str(entry_fidelity), "entry_sample": str(entry_sample),
+        "entry_boards": int(getattr(entry_pool, "kept", 0) or 0),
+        "entry_rejected_by_reason": {}, "entry_turns_hist": {},
+        "entry_learner_steps": 0,
+    }
 
     if strict_library is not None:
         for st in states:
@@ -557,6 +624,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             return
         g = st["game"]
         t = int(g.turn)
+        if t < human_min_turn:
+            return
         if t == int(st.get("human_turn", t)):
             return
         st["human_turn"] = t
@@ -567,10 +636,87 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             num_players=N_PLAYERS, set_tier=human_set_tier,
             fidelity=human_fidelity, fast_inject=human_fast_inject)
 
+    def _maybe_learner_entry(st: Dict[str, Any]) -> None:
+        """中后期入场：到 ``T0`` 回合把真人完整状态注入 **learner** 席（每局一次）。
+
+        与 :func:`_maybe_human_board` 的区别：这里注入的是学习席自己，且 ``T0`` 之前
+        learner 由 bot 代打（见主循环的 ``_entry_pending``），因此本局第一条 learner
+        记录就落在「真人有牌可打的中后期状态」上。失败只计数、退回原 bot 状态。
+        """
+        if not entry_on or bool(st.get("entry_done")):
+            return
+        g = st["game"]
+        t = int(g.turn)
+        if t < int(st.get("entry_turn", 0) or 0):
+            return
+        st["entry_done"] = True
+        if g.is_over():
+            return
+        entry_stats["entry_attempt"] += 1
+        r = st["human_rng"]
+        payload: Optional[Dict[str, Any]] = None
+        try:
+            if entry_fidelity != "board":
+                payload = entry_pool.sample_payload(int(t), rng=r)
+            if payload is None or not payload.get("board_flat"):
+                board = entry_pool.sample(int(t), rng=r)
+                if not board:
+                    entry_stats["entry_missing"] += 1
+                    return
+                payload = {"turn": int(t), "has_detail": False, "availability": {},
+                           "board_flat": [list(x) for x in board], "board": []}
+        except BaseException as exc:  # noqa: BLE001 - 数据问题 -> 保持 bot 状态
+            entry_stats["entry_errors"] += 1
+            entry_stats.setdefault("entry_last_error", repr(exc)[:200])
+            return
+        try:
+            from .human_board_pool import _reject_class, turn_tier as _turn_tier  # noqa: PLC0415
+            from .human_obs_full import inject_quasi_state  # noqa: PLC0415
+            rep = inject_quasi_state(g, seat, payload, entry_fidelity,
+                                     reset_ended=True, tier_fn=_turn_tier,
+                                     fast=entry_fast)
+        except BaseException as exc:  # noqa: BLE001
+            entry_stats["entry_errors"] += 1
+            entry_stats.setdefault("entry_last_error", repr(exc)[:200])
+            return
+        if not bool(rep.get("applied")):
+            entry_stats["entry_rejected"] += 1
+            cls = _reject_class(rep.get("reason"))
+            rj = entry_stats["entry_rejected_by_reason"]
+            rj[cls] = int(rj.get(cls, 0)) + 1
+            entry_stats.setdefault("entry_last_rejected", str(rep.get("reason"))[:200])
+            return
+        entry_stats["entry_applied"] += 1
+        if bool(rep.get("hand_applied")):
+            entry_stats["entry_hand_applied"] += 1
+        if bool(rep.get("counters_applied")):
+            entry_stats["entry_counters_applied"] += 1
+        hist = entry_stats["entry_turns_hist"]
+        hist[str(int(t))] = int(hist.get(str(int(t)), 0)) + 1
+        if entry_set_health:
+            hp = payload.get("hero_hp")
+            if hp is not None:
+                try:
+                    pj = json.loads(g.player_json(seat))
+                    pj["health"] = int(hp)
+                    g.set_player_from_json(seat, json.dumps(pj), True, False)
+                except BaseException as exc:  # noqa: BLE001
+                    entry_stats.setdefault("entry_health_error", repr(exc)[:160])
+
+    def _entry_pending(st: Dict[str, Any]) -> bool:
+        """本局还没到入场回合（learner 由 bot 代打，不产生任何 learner 记录）。"""
+        if not entry_on or bool(st.get("entry_done")):
+            return False
+        g = st["game"]
+        if g.is_over():
+            return False
+        return int(g.turn) < int(st.get("entry_turn", 0) or 0)
+
     def _maybe_inject(st: Dict[str, Any]) -> None:
-        """新回合注入总入口（顺序固定：镜像快照 → 人类战团）。"""
+        """新回合注入总入口（顺序固定：镜像快照 → 人类战团 → learner 入场）。"""
         _maybe_mirror(st)
         _maybe_human_board(st)
+        _maybe_learner_entry(st)
 
     library_p = max(0.0, min(1.0, float(library_p)))
     if library_pool is not None and library_p > 0.0:
@@ -595,7 +741,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             _maybe_inject(st)
             g = st["game"]
             guard = 0
-            while (not g.is_over()) and (not g.needs_action(seat)) and guard < 10 ** 6:
+            while (((not g.is_over()) and (not g.needs_action(seat)))
+                   or _entry_pending(st)) and guard < 10 ** 6:
                 # 回合可能在 bot 推进中切换（最后一个座位结束后立刻战斗 + 进入下一回合）。
                 _maybe_inject(st)
                 q = next((p for p in range(N_PLAYERS) if g.needs_action(p)), None)
@@ -925,6 +1072,12 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         hstats.add(st.get("human_stats") or HumanBoardStats())
     hmeta = hstats.to_meta()
     meta.update(hmeta)
+    # 中后期入场课程：只在开启时写入键，关闭时不改变 meta 形状。
+    meta["human_board_min_turn"] = int(human_min_turn)
+    if entry_on:
+        meta.update(dict(entry_stats))
+        meta["entry_games"] = int(sum(
+            1 for st in states if int(st.get("entry_turn", 0) or 0) > 0))
     # 势函数塑形统计（默认关闭 -> 空 dict，不新增键）。
     meta.update(shaper.stats(elapsed_s=time.time() - t_start))
     # 等级进度奖励统计（默认关闭 -> 空 dict，不新增键）。

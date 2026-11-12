@@ -48,6 +48,16 @@ OPTIONS = {
     # 否则会同时打开「缩放教师」在线查询，两条标签会互相覆盖。
     "forced-tier-plan", "forced-tier-carry", "forced-tier-schedule",
     "forced-tier-prob", "forced-teacher-until", "forced-teacher-coef",
+    # 人类战团对手（默认全关 = 与历史配方逐位一致）：``human-boards`` 给准完整库路径，
+    # ``human-board-p``/``human-board-seats`` 给强度，``human-board-fidelity=full`` 才会带上
+    # 手牌/金身/关键词位，``human-board-min-turn`` 把真人强度压力限制在后期。
+    "human-boards", "human-board-p", "human-board-seats", "human-board-sample",
+    "human-board-set-tier", "human-board-fidelity", "human-board-fast-inject",
+    "human-board-min-turn",
+    # 中后期入场课程（learner 席注入真人完整状态；见 docs/LATE_GAME_ENTRY.md）。
+    # 默认 ``entry-p=0`` / ``entry-turn-min=0`` = 完全关闭。
+    "entry-boards", "entry-p", "entry-turn-min", "entry-turn-max",
+    "entry-sample", "entry-fidelity", "entry-fast-inject", "entry-set-health",
 }
 
 

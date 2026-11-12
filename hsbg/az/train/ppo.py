@@ -408,6 +408,27 @@ class CollectConfig:
     #: **默认 False = 逐位等价旧行为**；开启后同 seed 动作序列/状态也完全相同
     #: （见 ``tests/test_fast_injection.py`` 与 docs/FIDELITY_INJECTION.md）。
     human_board_fast_inject: bool = False
+    #: 人类战团注入的最小回合（默认 1 = 与旧行为一致）。中后期课程用它把真人强度
+    #: 的压力限制在后期，前期仍按原对手分布跑。
+    human_board_min_turn: int = 1
+    #: ── 中后期入场课程（默认全关 = 零影响；见 docs/LATE_GAME_ENTRY.md）──
+    #: learner 席的入场注入库（与 ``human_boards`` 同格式，通常是同一个准完整库）。
+    entry_boards: str = ""
+    #: 逐局入场概率（0=关闭）。未命中的局保持原配方。
+    entry_p: float = 0.0
+    #: 入场回合区间 ``[entry_turn_min, entry_turn_max]``（闭区间，逐局均匀抽）。
+    #: ``entry_turn_min<=0`` = 关闭。``T0`` 之前 learner 由 bot 代打，不产生任何记录。
+    entry_turn_min: int = 0
+    entry_turn_max: int = 0
+    #: 入场帧的桶内分位（auto/p50/p75/p90/max，同 human_board_sample）。
+    entry_sample: str = "auto"
+    #: 入场注入保真度（board/hand/full；full 需要准完整库）。
+    entry_fidelity: str = "full"
+    #: 入场注入快速路径（与 human_board_fast_inject 同语义）。
+    entry_fast_inject: bool = False
+    #: True=把观测到的 ``hero_hp`` 一起写回 learner 席；默认 False（血量由同一局
+    #: bot 代打自然演进，8 席名次赛保持对称）。
+    entry_set_health: bool = False
     #: 冻结对手模型（分裂模型/自对弈的对手）：空=引擎 bot；给 checkpoint 则 bot 座位由它驱动
     frozen_opponent: str = ""
     #: 由冻结对手模型驱动的 bot 座位数（0=全 bot，7=全部 7 席；1–2 性价比最高）

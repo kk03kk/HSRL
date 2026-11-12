@@ -570,6 +570,28 @@ def main() -> int:
                     help="1=人类战团注入走快速路径（payload 注入视图缓存 + orjson + "
                          "ended 位字符串替换）；**与默认路径逐位等价**（同 seed 动作序列/"
                          "状态 JSON 完全相同），实测采集侧 Python 成本降约四成。默认 0=旧路径")
+    ap.add_argument("--human-board-min-turn", type=int, default=1,
+                    help="只在 turn >= N 时注入人类战团（默认 1=逐位等价旧行为）")
+    # ---- 中后期入场课程（learner 席注入真人完整状态；见 docs/LATE_GAME_ENTRY.md）----
+    ap.add_argument("--entry-boards", default="",
+                    help="入场注入库（与 --human-boards 同格式的准完整 JSONL）；空=关闭")
+    ap.add_argument("--entry-p", type=float, default=0.0,
+                    help="逐局入场概率（默认 0=关闭，零影响）；未命中的局保持原配方")
+    ap.add_argument("--entry-turn-min", type=int, default=0,
+                    help="入场回合区间下界（<=0=关闭）。T0 之前 learner 由 bot 代打，"
+                         "不产生任何 learner 记录")
+    ap.add_argument("--entry-turn-max", type=int, default=0,
+                    help="入场回合区间上界（0=等于下界）")
+    ap.add_argument("--entry-sample", default="auto",
+                    choices=["auto", "p50", "p75", "p90", "max"],
+                    help="入场帧桶内分位（默认 auto=按 turn 走难度曲线）")
+    ap.add_argument("--entry-fidelity", default="full",
+                    choices=["board", "hand", "full"],
+                    help="入场注入保真度（默认 full；需要准完整库）")
+    ap.add_argument("--entry-fast-inject", type=int, default=0,
+                    help="1=入场注入走快速路径（与 --human-board-fast-inject 逐位等价）")
+    ap.add_argument("--entry-set-health", type=int, default=0,
+                    help="1=把观测到的 hero_hp 一起写回 learner 席；默认 0（血量随局演进）")
     # ---- 对手强度课程：human-board 席数/概率/分位按累计 decisions 爬坡 ----
     #     默认（空 spec + adaptive=0）完全恒等：CollectConfig 里仍是 --human-board-* 的值。
     #     见 docs/BOARD_RAMP.md。
@@ -1060,6 +1082,42 @@ def main() -> int:
                   "同座位同回合镜像快照优先（记 human_board_skipped_by_mirror）", flush=True)
     elif str(args.human_boards):
         print("[warn] --human-boards 已设置但 --human-board-p=0：本次不注入", flush=True)
+    # ── 中后期入场课程（learner 席注入真人完整状态；默认关闭）────────────────
+    if float(args.entry_p) > 0.0 or int(args.entry_turn_min) > 0:
+        if float(args.entry_p) <= 0.0 or int(args.entry_turn_min) <= 0:
+            print("[error] 入场课程需要同时给 --entry-p>0 与 --entry-turn-min>0",
+                  file=sys.stderr)
+            return 2
+        if not str(args.entry_boards):
+            print("[error] 入场课程需要 --entry-boards（准完整库 JSONL）", file=sys.stderr)
+            return 2
+        if not os.path.isfile(str(args.entry_boards)):
+            print(f"[error] --entry-boards 文件不存在: {args.entry_boards}", file=sys.stderr)
+            return 2
+        _efid = str(args.entry_fidelity or "full")
+        if _efid != "board":
+            _erows = 0
+            try:
+                _erows = sum(1 for _ in open(args.entry_boards, encoding="utf-8")
+                             if '"board_detail"' in _)
+            except BaseException:  # noqa: BLE001
+                _erows = 0
+            if _erows <= 0:
+                print(f"[error] --entry-fidelity={_efid} 需要准完整库（含 board_detail 的行）；"
+                      f"当前文件没有：{args.entry_boards}", file=sys.stderr)
+                return 2
+        if not int(args.lockstep) or int(args.processes) <= 1:
+            print("[error] 入场课程需要 --lockstep 1 且 --processes>1", file=sys.stderr)
+            return 2
+        if bool(int(args.mirror_strict)):
+            print("[error] 入场课程与 --mirror-strict 互斥（严格镜像要求七席全概率且"
+                  "禁人类战团）", file=sys.stderr)
+            return 2
+        print(f"[info] 中后期入场课程：p={args.entry_p} 回合 "
+              f"{args.entry_turn_min}..{max(int(args.entry_turn_min), int(args.entry_turn_max))}"
+              f" fidelity={_efid} sample={args.entry_sample} "
+              f"health={int(args.entry_set_health)}；T0 之前 learner 由 bot 代打",
+              flush=True)
     # ── 搜索作为行为策略 μ=(1−ε)π+ε·π_search（默认 eps=0 = 完全关闭）──────────
     if float(args.behavior_mix_eps) > 0.0:
         if not (0.0 <= float(args.behavior_mix_eps) < 1.0):
@@ -2302,6 +2360,16 @@ def main() -> int:
             human_board_set_tier=bool(int(args.human_board_set_tier)),
             human_board_fidelity=str(args.human_board_fidelity),
             human_board_fast_inject=bool(int(args.human_board_fast_inject)),
+            human_board_min_turn=int(args.human_board_min_turn),
+            # 中后期入场课程（默认 entry_p=0 -> 零影响）
+            entry_boards=str(args.entry_boards),
+            entry_p=float(args.entry_p),
+            entry_turn_min=int(args.entry_turn_min),
+            entry_turn_max=int(args.entry_turn_max),
+            entry_sample=str(args.entry_sample),
+            entry_fidelity=str(args.entry_fidelity),
+            entry_fast_inject=bool(int(args.entry_fast_inject)),
+            entry_set_health=bool(int(args.entry_set_health)),
             frozen_opponent=str(args.frozen_opponent),
             frozen_seats=int(args.frozen_seats),
             # 强制升本课程（默认空计划 -> 逐位等价旧路径）

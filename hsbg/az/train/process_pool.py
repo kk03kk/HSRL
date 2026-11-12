@@ -696,6 +696,27 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                             print(f"[warn] 人类战团库为空/不存在: {hpath}", flush=True)
                     else:
                         hpool = cached[1]
+                # 中后期入场课程库（--entry-boards/--entry-p；默认关闭）。
+                epool = None
+                if str(getattr(cfg, "entry_boards", "")) and \
+                        float(getattr(cfg, "entry_p", 0.0)) > 0.0 and \
+                        int(getattr(cfg, "entry_turn_min", 0) or 0) > 0:
+                    from .human_board_pool import load_pool as _load_entry
+                    epath = str(cfg.entry_boards)
+                    esample = str(getattr(cfg, "entry_sample", "auto") or "auto")
+                    ekey = os.path.getmtime(epath) if os.path.isfile(epath) else None
+                    eck = ("entry", epath, esample)
+                    cached = _HUMAN_BOARD_CACHE.get(eck)
+                    if cached is None or cached[0] != ekey:
+                        epool = _load_entry(epath, sample=esample) if ekey is not None else None
+                        _HUMAN_BOARD_CACHE[eck] = (ekey, epool)
+                        if epool is None:
+                            print(f"[warn] 入场库为空/不存在: {epath}", flush=True)
+                        else:
+                            print(f"[entry] 入场库 {epath} frames={epool.kept} "
+                                  f"payload={epool.payload_kept}", flush=True)
+                    else:
+                        epool = cached[1]
                 opp_pol = None
                 fck = str(getattr(cfg, "frozen_opponent", "") or "")
                 if fck:
@@ -734,6 +755,16 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                     human_board_fidelity=str(getattr(cfg, "human_board_fidelity", "board")),
                     human_board_fast_inject=bool(
                         getattr(cfg, "human_board_fast_inject", False)),
+                    human_board_min_turn=int(
+                        getattr(cfg, "human_board_min_turn", 1) or 1),
+                    entry_pool=epool,
+                    entry_p=float(getattr(cfg, "entry_p", 0.0)),
+                    entry_turn_min=int(getattr(cfg, "entry_turn_min", 0) or 0),
+                    entry_turn_max=int(getattr(cfg, "entry_turn_max", 0) or 0),
+                    entry_sample=str(getattr(cfg, "entry_sample", "auto") or "auto"),
+                    entry_fidelity=str(getattr(cfg, "entry_fidelity", "full") or "full"),
+                    entry_fast_inject=bool(getattr(cfg, "entry_fast_inject", False)),
+                    entry_set_health=bool(getattr(cfg, "entry_set_health", False)),
                     gamma=float(task.get("gamma", 1.0)),
                     opponent_policy=opp_pol,
                     behavior_mix=behavior_mix)
@@ -750,6 +781,10 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                 if str(getattr(cfg, "human_boards", "")) and \
                         float(getattr(cfg, "human_board_p", 0.0)) > 0.0:
                     print("[warn] 人类战团注入只在 --lockstep 1 路径生效，本次请求被忽略",
+                          flush=True)
+                if str(getattr(cfg, "entry_boards", "")) and \
+                        float(getattr(cfg, "entry_p", 0.0)) > 0.0:
+                    print("[warn] 中后期入场课程只在 --lockstep 1 路径生效，本次请求被忽略",
                           flush=True)
                 records, cmeta = collect_ppo_records_parallel(
                     model, cfg, workers=int(task.get("threads", 4)),
