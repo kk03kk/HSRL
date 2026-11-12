@@ -71,6 +71,13 @@ delta = coef · ( max_{τ≤t} 得分_τ − max_{τ<t} 得分_τ )
 `train_entity_sync.py` 启动期还会 fail-fast 打印流派库摘要
 （`comps=33（S=5） cards=49`），库缺失/解析失败直接退出。
 
+## 4. 首个实验
+
+`config/league-entry-h1.json` = **G2 配方 + `comp-target-coef 0.5`**
+（G2 已含 `entry-p 0.5`、`board-target 0.30`、`tier-target 1.0`）。
+判据沿用四件套，重点看**核心卡覆盖**（`≥1 S` / `≥2 core`）与 T12/T14 板面，
+并盯 `c_best`/`cS%` 是否单调上升；若覆盖上来而名次不掉，才把 `coef` 往上加。
+
 ## 5. 两版给分口径的实测差异（2026-11-13 07:50）
 
 | 版本 | 口径 | 实测 |
@@ -86,10 +93,3 @@ delta = coef · ( max_{τ≤t} 得分_τ − max_{τ<t} 得分_τ )
 这样：买第 1 张也有分（但只付一次，不能反复刷）、买第 2/3 张继续有分（鼓励走到完成）、
 完成时总付出恰好等于 `coef · tier_w`（上界不变）。实现属于 `comp_target.py`，
 需要 digest 窗口（长训期间不能改），**排在长训之后**。
-
-## 4. 首个实验
-
-`config/league-entry-h1.json` = **G2 配方 + `comp-target-coef 0.5`**
-（G2 已含 `entry-p 0.5`、`board-target 0.30`、`tier-target 1.0`）。
-判据沿用四件套，重点看**核心卡覆盖**（`≥1 S` / `≥2 core`）与 T12/T14 板面，
-并盯 `c_best`/`cS%` 是否单调上升；若覆盖上来而名次不掉，才把 `coef` 往上加。
