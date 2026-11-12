@@ -24,7 +24,7 @@ OPTIONS = {
     "keep-snapshots", "mirror-sample", "sims", "rc-threads", "local-batch-inference",
     "pipeline", "amp", "anchor-amp", "gpus", "gpu-index-space", "threads",
     "leaf-amp", "leaf-wait-ms", "ipc-mode", "records-dtype", "pipeline-guard",
-    "leaf-fused", "mirror-strict",
+    "leaf-fused", "mirror-strict", "mirror-seats", "mirror-p",
     "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel", "forbid-unfreeze",
     "pipeline-zero-step-fallback",
     # 周期评测（默认关闭；dev/test 的段后验证由 sbatch 钩子负责）
