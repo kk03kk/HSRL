@@ -58,6 +58,39 @@ def _pct(nums: List[float], q: float) -> Optional[float]:
     return s[k]
 
 
+def human_boards_by_turn(path: str, mmr_min: int) -> Dict[str, Dict[str, List[str]]]:
+    """真人库 → ``game_id -> turn -> [card_id]``（``perspective==self``、combat_start）。
+
+    与模型侧同口径：只取 ``stage == combat_start``（= 招募结束时的战团），
+    ```card_id`` 去 ``_G`` 后缀。
+    """
+    out: Dict[str, Dict[str, List[str]]] = {}
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("perspective") != "self" or r.get("stage") != "combat_start":
+                continue
+            mmr = r.get("mmr")
+            try:
+                if mmr is not None and float(mmr) < float(mmr_min):
+                    continue
+            except (TypeError, ValueError):
+                pass
+            ids = []
+            for m in r.get("board_detail") or []:
+                cid = m.get("card_id")
+                if isinstance(cid, str):
+                    ids.append(cid[:-2] if cid.endswith("_G") else cid)
+            out.setdefault(str(r.get("game_id")), {})[str(int(r["turn"]))] = ids
+    return out
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="阵容完成度时间线")
     ap.add_argument("--panel", action="append", required=True, metavar="TAG=PATH")
@@ -66,11 +99,42 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--turns", default="8-16")
     ap.add_argument("--min-turn", type=int, default=6,
                     help="面板里 boards_by_turn 记录的最小回合（默认 6）")
+    ap.add_argument("--human", default="",
+                    help="真人库 library.jsonl；给了就把真人同口径曲线一起打印")
+    ap.add_argument("--human-mmr-min", type=int, default=8000)
     args = ap.parse_args(argv)
 
     comps = load_comps(args.strategy, parse_tier_weights(args.tier_w))
     lo, _, hi = args.turns.partition("-")
     t_lo, t_hi = int(lo), int(hi or lo)
+
+    def cells_for(bt: Dict[str, Dict[str, List[str]]], t: int) -> str:
+        vals, s_tier = [], 0
+        for _seed, turns in bt.items():
+            have = turns.get(str(t))
+            if have is None:
+                continue
+            s, _name, tier, _h = score(comps, have)
+            vals.append(s)
+            if tier == "S" and s > 0:
+                s_tier += 1
+        n = len(vals)
+        if not n:
+            return f"{'—':>26}"
+        mean = sum(vals) / n
+        p50 = _pct(vals, 0.5) or 0.0
+        half = sum(1 for v in vals if v >= 0.5) / n
+        return f"{mean:>7.3f}{p50:>6.3f}{half:>7.1%}{s_tier / n:>6.0%}"
+
+    human: Optional[Dict[str, Dict[str, List[str]]]] = None
+    if args.human:
+        human = human_boards_by_turn(args.human, args.human_mmr_min)
+        print(f"\n真人库 {args.human}（perspective=self, mmr>={args.human_mmr_min}）："
+              f"{len(human)} 局")
+        print(f"{'turn':>4} {'n':>4}{'human':>26}")
+        for t in range(t_lo, t_hi + 1):
+            n = sum(1 for turns in human.values() if str(t) in turns)
+            print(f"{t:>4} {n:>4}{cells_for(human, t)}")
 
     for spec in args.panel:
         tag, _, path = spec.partition("=")
@@ -85,24 +149,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             row = f"{t:>4}"
             cells = []
             for m in panel.get("models") or []:
-                bt = m.get("boards_by_turn") or {}
-                vals, s_tier = [], 0
-                for _seed, turns in bt.items():
-                    have = turns.get(str(t))
-                    if have is None:
-                        continue
-                    s, _name, tier, _h = score(comps, have)
-                    vals.append(s)
-                    if tier == "S" and s > 0:
-                        s_tier += 1
-                n = len(vals)
-                if not n:
-                    cells.append(f"{'—':>26}")
-                    continue
-                mean = sum(vals) / n
-                p50 = _pct(vals, 0.5) or 0.0
-                half = sum(1 for v in vals if v >= 0.5) / n
-                cells.append(f"{mean:>7.3f}{p50:>6.3f}{half:>7.1%}{s_tier / n:>6.0%}")
+                cells.append(cells_for(m.get("boards_by_turn") or {}, t))
             n_any = 0
             for m in panel.get("models") or []:
                 bt = m.get("boards_by_turn") or {}
