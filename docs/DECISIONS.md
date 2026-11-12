@@ -573,3 +573,37 @@ PPO 于是收敛到捷径「把金币全砸在升级上、不买随从」。
    该奖励要求**持有**核心卡，天然与"不买随从"相反，可以检验它能否抵消 tier 捷径。
 4. **验收纪律**：一律跑满 6 段预算再判定；短窗口读数只当"机制是否生效"的冒烟信号，
    不得据此宣布有效。
+
+## D-037 · 2026-11-13 · local · 流程事故：往 main 推「会改 digest 的代码」杀掉了三个在跑的作业
+
+**事故**：04:20 左右为了推文档，`hsai_ops.py push` 把当时**已提交在 main 上**的
+代码改动（`f36ef91`：`aggregate_tier_target` 补门控字段、`comp_target` 反刷分门槛）
+一起推到了服务器。`training_source_digest()` 覆盖 `hsbg/az/train/*.py` 与
+`workflows/train_entity_sync.py`，于是 G5/F4/G6 在各自下一个分段边界全部因
+`ValueError: 训练代码已变更；请另开实验，不能伪装为精确续训` 而 **FAILED**：
+
+| 作业 | 已跑完 | 结局 |
+|---|---|---|
+| `1125152` G5 | 63 轮 / 59:48 | FAILED（续训守卫） |
+| `1125153` F4 | 62 轮 / 59:52 | FAILED（续训守卫） |
+| `1125235` G6 | 20 轮 / 20:42 | FAILED（续训守卫） |
+
+快照都保留着（`keep-snapshots 3`），没有丢数据；损失的是这三个臂的剩余训练时间。
+
+**根因**：我把"改代码"和"推文档"混在同一条 main 上。push 推的是 main 的 HEAD，
+不是"我这次想推的那几个 commit"，所以文档提交会把挂着的代码提交一起带过去。
+
+**新规则（硬性）**：
+
+1. **有作业在跑时，digest 相关改动一律不进 main**：先提交到侧分支
+   `pending-digest/YYYYMMDD`，等所有作业结束再 merge 到 main 并推送。
+   digest 相关 = `hsbg/az/train/*.py` 与 `workflows/train_entity_sync.py`。
+2. **push 前先看清带过去的是什么**：`git log --oneline origin/main..HEAD` 逐条过一遍，
+   确认没有 digest 相关文件。
+3. 安全的目录（可以随时推）：`docs/`、`config/`、`tools/`、`tests/`、
+   `workflows/eval_human_gap.py`（评测侧，不在 digest 里）。
+4. 事故后**不重试原作业**（那会伪装成精确续训），一律用**新目录重新开跑**；
+   本轮已按此把三个臂改成 `-b` 版本重开（`1125421/1125423/1125425`）。
+
+**副产物**：重开时顺手修了 `tier-gate-ref` 缺 `T7` 的缺陷
+（配置层传 `7:150,8:220,...`，不必改代码）。
