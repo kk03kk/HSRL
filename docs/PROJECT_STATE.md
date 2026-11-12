@@ -1,10 +1,12 @@
 # HSAI 当前状态
 
-更新：2026-11-12 23:10 +0800
+更新：2026-11-13 01:20 +0800
 阶段：**单 Agent 双环境架构已上线（本文 §1）；E1 冠军 `league-final-14858`（点估计第一）。
-中后期入场课程的病灶已定位：不是入场时机，而是**升本节奏（tier tempo）被带慢一整级**；
-修复实验 G2/G3 在跑（`tier-target` 奖励首次启用）。详见
-[`docs/analysis/TIER_TEMPO_20261112.md`](analysis/TIER_TEMPO_20261112.md)。**
+本轮定论：`tier-target` 过程奖励被打穿（tier 超额达成、板面 −33%、覆盖 −70%），根因是
+**名次奖励已饱和**（`mean_rank 1.177`）。改为"先修环境"：B3 用 `human-board-sample auto`
+加强对手、纯名次奖励；H1 检验阵容覆盖奖励能否抵消 tier 捷径。详见
+[`docs/analysis/REWARD_GAMING_20261113.md`](analysis/REWARD_GAMING_20261113.md)、
+[`docs/analysis/ACCEPTANCE_BASELINE.md`](analysis/ACCEPTANCE_BASELINE.md)。**
 
 ## 1. 运行位置与工作方式
 
@@ -19,20 +21,26 @@
 
 ## 2. 当前作业
 
-**2026-11-12 23:05 实测**：
+**2026-11-13 01:20 实测**：
 
 | 作业 | 状态 | 说明 |
 |---|---|---|
-| `1123685 entry-g2-20261112` | RUNNING | 混合课程（`entry-p 0.5`，入场 T9–11 p75）+ `board-target 0.30` + **`tier-target 1.0`**；6 段 × 20 min |
-| `1123686 entry-g3-20261112` | RUNNING | G2 的单变量对照：`entry-p 1.0`（与 E4 只差 `tier-target`） |
-| `1123763 gap-g23a-20261112` | PENDING | 四件套验收面板：`base` + `g2@14876` + `g3@14891`，96 局/模型 |
+| `1124485 entry-h1-20261113` | RUNNING | G2 配方 + `comp-target 0.5`（阵容覆盖奖励首次启用）；6 段 × 20 min，约 03:10 结束 |
+| `1124567 entry-b3-20261113` | RUNNING | 混合课程 + `human-board-sample auto`（T≤8 p50 / T9–12 p75 / T13+ p90）+ **纯名次奖励**；同样 6 段 |
 
-当晚已结束/撤销：`1122988` E3（6 段完成）、`1123401` F1（**撤销**，四件套三项全退）、
-`1123634` G1（**撤销**，改成带 `tier-target` 的 G2）。
+已结束（2026-11-12 夜～13 凌晨）：
+
+| 作业 | 状态 | 结论 |
+|---|---|---|
+| `1122988` E3 | COMPLETED | 入场局 +10~24%，整局更差 → 病灶是 tier tempo |
+| `1123685` G2 | COMPLETED（1:59:13, step_015066） | tier 超额达成但板面 −33%、覆盖 −70% → **tier-target 被打穿** |
+| `1123899` G4 | FAILED（续训守卫，代码改动后未续） | `mean_rank 1.833`，比 G2 更差 |
+| `1123401` F1 / `1123634` G1 / `1123686` G3 | 撤销 | F1 三项全退；G1 改为 G2；G3 tempo 无变化（入场局里 T7 检查不触发） |
 
 同步节奏说明（实测）：**每个 late-entry 作业各占 1 张 `h100-47`**；QOS `normal` 的按型号
 配额是 `h100-47=2 / a100-40=2 / a100-80=1 / h100-96=1 / nv=8`，所以同时最多两个训练作业。
-`a100-80` 池里有 aarch64 节点，`deploy/slurm/common.sh` 会拒绝（实测 `ExitCode 2:0`）。
+`a100-80` 池里有 aarch64 节点（`deploy/slurm/common.sh` 会拒绝，`ExitCode 2:0`）；
+`nv` 池实测是 **TITAN V**（`xgpd0`），跑评测太慢，别用。
 
 2026-11-11 22:20 盘点（历史）：
 
