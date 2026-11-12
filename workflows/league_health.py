@@ -103,8 +103,16 @@ def check(history: Path, latest: Path, *, min_version: int = 0,
                 f"{unexplained} rejection(s) are unexplained "
                 f"(reasons={reasons})")
         for key in MIRROR_ZERO_KEYS:
-            if int(collect.get(key, 0) or 0) != 0:
-                issues.append(f"collect.{key}={collect.get(key)}")
+            value = int(collect.get(key, 0) or 0)
+            # ``mirror_missing`` 允许极小比例：库只覆盖到某个回合（本库 turn_max=24），
+            # 个别对局会走到更晚，那里没有帧可取。0.1% 以内且 <=2 次视为噪声，
+            # 超过就说明库的回合覆盖明显不够，仍要拦。
+            if key == "mirror_missing":
+                if value > max(2, int(0.001 * attempt)):
+                    issues.append(f"collect.{key}={value} (library turn coverage gap?)")
+                continue
+            if value != 0:
+                issues.append(f"collect.{key}={value}")
         for key in MIRROR_EXPLAINABLE_KEYS:
             value = int(collect.get(key, 0) or 0)
             if value and not explained:
