@@ -45,6 +45,9 @@ from .scaling_teacher import ScalingTeacher, in_scaling_window
 from .process_value import consume_count, process_target
 from hsbg.env import obs_std as _OBS
 
+#: 中后期入场注入的最大尝试次数（引擎 ``pending_choice`` / 该席已淘汰时留机会下回合再试）。
+ENTRY_MAX_TRIES = 3
+
 
 def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
               search_config: Any, eval_fn: Any, engine_backend: str, device: str,
@@ -652,8 +655,13 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         t = int(g.turn)
         if t < int(st.get("entry_turn", 0) or 0):
             return
-        st["entry_done"] = True
+        tries = int(st.get("entry_tries", 0))
+        if tries >= int(ENTRY_MAX_TRIES):
+            st["entry_done"] = True
+            return
+        st["entry_tries"] = tries + 1
         if g.is_over():
+            st["entry_done"] = True
             return
         entry_stats["entry_attempt"] += 1
         r = st["human_rng"]
@@ -688,7 +696,10 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             rj = entry_stats["entry_rejected_by_reason"]
             rj[cls] = int(rj.get(cls, 0)) + 1
             entry_stats.setdefault("entry_last_rejected", str(rep.get("reason"))[:200])
+            # 引擎可能正处于 pending_choice / 该席已淘汰：留一次机会下回合再试，
+            # 但不能无限重试（ENTRY_MAX_TRIES 次后放弃，退回原 bot 状态继续打）。
             return
+        st["entry_done"] = True
         entry_stats["entry_applied"] += 1
         if bool(rep.get("hand_applied")):
             entry_stats["entry_hand_applied"] += 1
