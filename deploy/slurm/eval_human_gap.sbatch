@@ -18,7 +18,8 @@
 #   HSAI_GAP_GAMES      games per checkpoint        (default 96)
 #   HSAI_GAP_OUT        output dir                  (default artifacts/runs/human-gap-<ts>)
 #   HSAI_GAP_TIER_PLAN  forced-tier diagnostic      (default "" = model decides)
-#   HSAI_GAP_MODELS     "name=path,name=path,..."   (default: the four E1 models)
+#   HSAI_GAP_MODELS     "name=path;name=path"      (default: the five league models)
+#                       NB: semicolons, NOT commas -- sbatch --export splits on commas.
 #
 # The tier plan "2:2,5:3,6:4,8:5" is the human tempo curve measured from the
 # replays (T2@turn2, T3@5, T4@6, T5@8). Forcing it separates "bad tempo" from
@@ -39,14 +40,17 @@ baseline="${HSAI_GAP_BASELINE:-artifacts/runs/human-baseline-20261112/baseline.j
 if [[ -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 
 if [[ -n "${HSAI_GAP_MODELS:-}" ]]; then
+  # 注意：sbatch --export 用**逗号**分隔变量赋值，所以模型列表必须用分号分隔，
+  # 否则 "A=p1,B=p2" 会被当成两个环境变量、只留下一个模型。这个坑踩过一次。
   specs=()
-  IFS=',' read -ra pairs <<< "$HSAI_GAP_MODELS"
+  IFS=';' read -ra pairs <<< "$HSAI_GAP_MODELS"
   for pair in "${pairs[@]}"; do specs+=(--checkpoint "$pair"); done
 else
   specs=(
     --checkpoint "v1.1=artifacts/models/v1.1/model.pt"
     --checkpoint "s12311=artifacts/models/league-latest-20261110-step012311/model.pt"
     --checkpoint "s13806=artifacts/models/league-latest-20261111-step013806/model.pt"
+    --checkpoint "s14556=artifacts/models/league-latest-20261111-step014556/model.pt"
     --checkpoint "final14858=artifacts/models/league-final-20261111-step014858/model.pt"
   )
 fi
