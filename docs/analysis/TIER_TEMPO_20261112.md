@@ -182,7 +182,9 @@ G2 的第 14976 轮出现 `learner_final_str_mean = 15099`，而相邻轮次都�
 下一个可改窗口里应补的遥测：`learner_tier_by_turn`（逐回合 tier）、
 `learner_str_by_turn_fixed`（逐回合板面，而不是终局）、`comp_hits_by_turn`。
 
-## 9. 验收口径（沿用四件套，逐回合判读）1. **逐回合 tier**：T8 ≥ 4.5、T10 ≥ 5.2、T12 ≥ 5.3（对齐 champion，而不是只追真人）；
+## 9. 验收口径（沿用四件套，逐回合判读）
+
+1. **逐回合 tier**：T8 ≥ 4.5、T10 ≥ 5.2、T12 ≥ 5.3（对齐 champion，而不是只追真人）；
 2. **逐回合板面比值**：T12 从 0.24 起、T14 从 0.11 起不能退；
 3. **结局**：`mean_rank` ≤ 1.18、`survive>t14` ≥ 0.79；
 4. **入场局内在指标**（`tools/analyze_entry_run.py`）：固定回合绝对板面不能因为我
