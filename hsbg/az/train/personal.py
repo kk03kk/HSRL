@@ -64,6 +64,11 @@ OPTIONS = {
     # 需要入场库带 chain_turn/chain_strength/chain_cards（tools/build_human_chain.py）。
     "board-target-coef", "board-target-w-card", "board-target-w-str",
     "board-target-cap",
+    # 等级进度奖励（默认 tier-target-coef=0 = 关闭；见 hsbg/az/train/tier_target.py）。
+    # 2026-11-12 诊断：入场课程把 T8–T12 的升本节奏带慢了一整级（T10 tier 4.62 vs
+    # champion 5.25 / 真人 5.52），板面在 T12 之后随之崩塌。这条奖励直接对目标曲线
+    # 记账，默认表就是真人曲线取整（7:4, 9:5, 12:6）。
+    "tier-target-coef", "tier-penalty", "tier-bonus", "tier-target-table",
 }
 
 
