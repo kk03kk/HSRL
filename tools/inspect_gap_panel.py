@@ -162,7 +162,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                   f"{fmt((ta - tb) if (ta is not None and tb is not None) else None, 2, 7)} "
                   f"{fmt((ga - gb) if (ga is not None and gb is not None) else None, 2, 7)}")
 
-    # ---- 真人 tier 曲线原始字段（用来反推 tier-target 目标表，避免拍脑袋）----
+    # ---- 训练内 tier 曲线原始字段（反推 tier-target 目标表，避免拍脑袋）----
     if args.human_tier:
         tb = human.get("tier_by_turn") or {}
         print()
@@ -171,6 +171,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             d = tb.get(t)
             if d:
                 print(f"  T{t}: {json.dumps(d, ensure_ascii=False, sort_keys=True)}")
+
+    # ---- 阵容规模：板面格数 vs 每格强度（区分"没铺满"与"每格太弱"）----
+    print()
+    print("BOARD SIZE  board_n_p50 / (strength_p50 ÷ board_n_p50)  —— 区分「没铺满」与「每格太弱」")
+    print(f"{'turn':>4}" + "".join(f" {t + ':' + n:>20}" for t, n, _ in rows))
+    for t in turns:
+        line = f"{t:>4}"
+        for tag, name, model in rows:
+            c = curve(model, t) or {}
+            n_min = c.get("board_n_p50")
+            s = c.get("strength_p50")
+            per = (s / n_min) if (s and n_min) else None
+            line += f" {fmt(n_min, 1, 7)}{fmt(per, 0, 13)}"
+        print(line)
 
     # ---- 结局 / 存活 ----
     print()
