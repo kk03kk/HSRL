@@ -26,9 +26,10 @@ export PYTHONUTF8=1 PYTHONUNBUFFERED=1
 
 bank="${HSAI_SI_BANK:-data/real_library/firestone-bank-1000/train-m8k.jsonl}"
 turns="${HSAI_SI_TURNS:-8,9,10,11,12,13}"
+per="${HSAI_SI_PER:-6}"
 out="${HSAI_SI_OUT:-artifacts/runs/smoke-inject-$(date +%Y%m%d-%H%M%S).json}"
 if [[ ! -f "$bank" ]]; then echo "missing bank: $bank" >&2; exit 2; fi
 
 PYTHONPATH=engine/python:. python tools/smoke_human_inject.py \
-  --library "$bank" --turns "$turns" --per-turn 6 --sample p50 --fidelity full \
+  --library "$bank" --turns "$turns" --per-turn "$per" --sample p50 --fidelity full \
   --out "$out" 2>&1 | tee "${out%.json}.log"
