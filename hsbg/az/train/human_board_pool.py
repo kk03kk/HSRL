@@ -361,6 +361,11 @@ class HumanBoardPool:
             "main_placement": _opt_int(row.get("main_placement")),
             "availability": dict(av) if isinstance(av, dict) else {},
             "source": str(row.get("source") or SOURCE),
+            # 专家逐回合序列（tools/build_human_chain.py 产出）：供
+            # hsbg.az.train.board_target 计算「专家相对」的逐回合奖励。缺失时 None。
+            "chain_turn": row.get("chain_turn"),
+            "chain_strength": row.get("chain_strength"),
+            "chain_cards": row.get("chain_cards"),
         }
 
     # ---- 采样 ----

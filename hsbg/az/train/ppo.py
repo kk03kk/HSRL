@@ -432,6 +432,17 @@ class CollectConfig:
     #: True=把观测到的 ``hero_hp`` 一起写回 learner 席；默认 False（血量由同一局
     #: bot 代打自然演进，8 席名次赛保持对称）。
     entry_set_health: bool = False
+    #: ── 专家相对过程奖励（默认 coef=0 = 零开销；见 hsbg/az/train/board_target.py）──
+    #: 每回合把 ``L(Σ_learner) − L(Σ_expert,该回合)`` 与「与专家同回合卡牌的召回率」
+    #: 线性组合后乘本系数，挂在该回合第一条 learner 决策上。需要入场库带
+    #: ``chain_turn/chain_strength/chain_cards``（tools/build_human_chain.py 产出）。
+    board_target_coef: float = 0.0
+    #: 召回率权重（0 = 只看强度）。
+    board_target_w_card: float = 1.0
+    #: 强度差权重（0 = 只看阵容召回；不建议，单独用可被囤牌刷高）。
+    board_target_w_str: float = 0.5
+    #: ``|L(Σ_l) − L(Σ_expert)|`` 的裁剪上限。
+    board_target_cap: float = 1.0
     #: 冻结对手模型（分裂模型/自对弈的对手）：空=引擎 bot；给 checkpoint 则 bot 座位由它驱动
     frozen_opponent: str = ""
     #: 由冻结对手模型驱动的 bot 座位数（0=全 bot，7=全部 7 席；1–2 性价比最高）

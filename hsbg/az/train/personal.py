@@ -60,6 +60,10 @@ OPTIONS = {
     "entry-sample", "entry-fidelity", "entry-fast-inject", "entry-set-health",
     # 镜像对手的回合上界（0=不限）：中后期课程用它把镜像关在入场回合之前。
     "mirror-max-turn",
+    # 专家相对过程奖励（默认 board-target-coef=0 = 关闭；见 board_target.py）。
+    # 需要入场库带 chain_turn/chain_strength/chain_cards（tools/build_human_chain.py）。
+    "board-target-coef", "board-target-w-card", "board-target-w-str",
+    "board-target-cap",
 }
 
 

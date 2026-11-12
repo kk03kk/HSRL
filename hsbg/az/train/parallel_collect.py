@@ -39,6 +39,7 @@ from .move_guard import aggregate_move_guard
 from .archetype_bias import aggregate_archetype_bias
 from .reward_shaping import RewardShaper, aggregate_shaping
 from .tier_target import TierTargetTracker, aggregate_tier_target
+from .board_target import BoardTargetTracker, aggregate_board_target
 from .forced_tier import aggregate_forced_tier
 from .curriculum import apply_turn_gold
 from .scaling_teacher import ScalingTeacher, in_scaling_window
@@ -481,6 +482,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "entry_learner_steps": 0,
             # 等级进度奖励状态机（每局独立；coef=0 时 disabled = 零开销）
             "tier_target": TierTargetTracker(cfg),
+            # 专家相对过程奖励（默认 coef=0 = 零开销）
+            "board_target": BoardTargetTracker(cfg),
             # 经济课程：当前已应用金币倍数的回合 / 上一回合结束时的金币结余
             "curr_turn": -1,
             "curr_carry": 0,
@@ -504,6 +507,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             st["game"].set_record_log(True)
     rounds = 0
     tier_on = any(bool(st["tier_target"].enabled) for st in states)
+    bt_on = any(bool(st["board_target"].enabled) for st in states)
     trajectory_p = max(0.0, min(1.0, float(trajectory_p)))
     lib_traj_used = 0
     if trajectory_pool is not None and trajectory_p > 0.0:
@@ -712,6 +716,10 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             entry_stats["entry_counters_applied"] += 1
         hist = entry_stats["entry_turns_hist"]
         hist[str(int(t))] = int(hist.get(str(int(t)), 0)) + 1
+        if bt_on:
+            st["board_target"].set_chain(payload.get("chain_turn"),
+                                         payload.get("chain_strength"),
+                                         payload.get("chain_cards"), int(t))
         if entry_set_health:
             hp = payload.get("hero_hp")
             if hp is not None:
@@ -905,6 +913,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         # 等级进度奖励：本回合第一条 learner decision 前检查一次 tier（同 turn 幂等）
         tier_deltas = ([st["tier_target"].observe(st["game"], seat) for st in pending]
                        if tier_on else [])
+        bt_deltas = ([st["board_target"].observe(st["game"], seat) for st in pending]
+                     if bt_on else [])
         decisions = policy.decide_batch([(st["game"], seat, st["gid"]) for st in pending])
         for k, (st, dec) in enumerate(zip(pending, decisions)):
             g = st["game"]
@@ -951,6 +961,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             if tier_on and tier_deltas[k]:
                 st["tier_target"].queue(int(st["rec_start"]), int(st["gid"]),
                                         tier_deltas[k])
+            if bt_on and bt_deltas[k]:
+                st["board_target"].queue(int(st["rec_start"]), int(st["gid"]),
+                                         bt_deltas[k])
             mask = mask_from_bytes(g.legal_mask(seat))
             a = int(dec.action)
             if not (0 <= a < N_ACTIONS and bool(mask[a])):
@@ -979,6 +992,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     if tier_on:
         for st in states:
             st["tier_target"].flush(policy.records)
+    if bt_on:
+        for st in states:
+            st["board_target"].flush(policy.records)
 
     records: List[Dict[str, Any]] = []
     metas = []
@@ -1011,6 +1027,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                 "max_steps": max_steps, "state_json": g.state_json()})
         if tier_on:
             metas[-1].update(st["tier_target"].stats())
+        if bt_on:
+            metas[-1].update(st["board_target"].stats())
         # 强制升本：逐局统计必须进 meta（历史上只有 _one_game 汇总，lockstep 漏了，
         # 导致 --lockstep 1 的生产路径 history 里 forced_actions 恒为 0，
         # 2026-11-07 GPU 验收 1091647 就是这样空转的）。
@@ -1137,7 +1155,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     meta.update(shaper.stats(elapsed_s=time.time() - t_start))
     # 等级进度奖励统计（默认关闭 -> 空 dict，不新增键）。
     meta.update(aggregate_tier_target(metas))
-    # 换位去抖守卫统计（默认关闭 -> 空 dict，不新增键；policy 服务全部 N 局）。
+    # 专家相对过程奖励统计（默认关闭 -> 空 dict，不新增键）。
+    meta.update(aggregate_board_target(metas))    # 换位去抖守卫统计（默认关闭 -> 空 dict，不新增键；policy 服务全部 N 局）。
     meta.update(policy.move_guard_meta())
     # 流派软偏置统计（默认关闭 -> 空 dict，不新增键）。
     meta.update(policy.archetype_bias_meta())

@@ -595,6 +595,16 @@ def main() -> int:
                     help="1=入场注入走快速路径（与 --human-board-fast-inject 逐位等价）")
     ap.add_argument("--entry-set-health", type=int, default=0,
                     help="1=把观测到的 hero_hp 一起写回 learner 席；默认 0（血量随局演进）")
+    # ---- 专家相对过程奖励（默认 coef=0 = 关闭；见 hsbg/az/train/board_target.py）----
+    ap.add_argument("--board-target-coef", type=float, default=0.0,
+                    help="每回合 (强度差 + 阵容召回) 奖励的系数；0=关闭。需要入场库带 "
+                         "chain_* 字段（tools/build_human_chain.py）")
+    ap.add_argument("--board-target-w-card", type=float, default=1.0,
+                    help="阵容召回率权重（默认 1.0）")
+    ap.add_argument("--board-target-w-str", type=float, default=0.5,
+                    help="强度差权重（默认 0.5；单独用召回率会被囤牌刷高）")
+    ap.add_argument("--board-target-cap", type=float, default=1.0,
+                    help="强度差裁剪上限（默认 1.0）")
     # ---- 对手强度课程：human-board 席数/概率/分位按累计 decisions 爬坡 ----
     #     默认（空 spec + adaptive=0）完全恒等：CollectConfig 里仍是 --human-board-* 的值。
     #     见 docs/BOARD_RAMP.md。
@@ -2374,6 +2384,11 @@ def main() -> int:
             entry_fidelity=str(args.entry_fidelity),
             entry_fast_inject=bool(int(args.entry_fast_inject)),
             entry_set_health=bool(int(args.entry_set_health)),
+            # 专家相对过程奖励（默认 coef=0 -> 零开销）
+            board_target_coef=float(args.board_target_coef),
+            board_target_w_card=float(args.board_target_w_card),
+            board_target_w_str=float(args.board_target_w_str),
+            board_target_cap=float(args.board_target_cap),
             frozen_opponent=str(args.frozen_opponent),
             frozen_seats=int(args.frozen_seats),
             # 强制升本课程（默认空计划 -> 逐位等价旧路径）
