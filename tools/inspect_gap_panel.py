@@ -79,6 +79,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                     metavar="AFTER:BEFORE", help="配对差值 after-before（同面板）")
     ap.add_argument("--turns", default="2-20")
     ap.add_argument("--human", default="artifacts/runs/human-baseline-20261112/baseline.json")
+    ap.add_argument("--human-tier", action="store_true",
+                    help="额外打印真人 tier_by_turn 原始字段（反推 tier-target 目标表用）")
     args = ap.parse_args(argv)
 
     panels: Dict[str, Dict[str, Any]] = {}
@@ -160,7 +162,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                   f"{fmt((ta - tb) if (ta is not None and tb is not None) else None, 2, 7)} "
                   f"{fmt((ga - gb) if (ga is not None and gb is not None) else None, 2, 7)}")
 
-    # ---- outcome / survival ----
+    # ---- 真人 tier 曲线原始字段（用来反推 tier-target 目标表，避免拍脑袋）----
+    if args.human_tier:
+        tb = human.get("tier_by_turn") or {}
+        print()
+        print("HUMAN tier_by_turn 原始字段")
+        for t in turns:
+            d = tb.get(t)
+            if d:
+                print(f"  T{t}: {json.dumps(d, ensure_ascii=False, sort_keys=True)}")
+
+    # ---- 结局 / 存活 ----
     print()
     print("OUTCOME")
     print(f"{'panel:model':>26} {'mean_rank':>10} {'top4':>7} {'win':>7} "
