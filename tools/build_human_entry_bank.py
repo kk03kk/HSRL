@@ -112,6 +112,10 @@ def main(argv=None):
     ap.add_argument("--library", required=True)
     ap.add_argument("--out-train", required=True)
     ap.add_argument("--out-eval", default="")
+    ap.add_argument("--train-splits", default="train",
+                    help="训练用 split 名（逗号分隔；解析库实际只有 train/evaluation）")
+    ap.add_argument("--eval-splits", default="evaluation,dev,test",
+                    help="评测用 split 名（逗号分隔；必须与训练不相交）")
     ap.add_argument("--summary", default="")
     ap.add_argument("--min-mmr", type=int, default=8000)
     ap.add_argument("--min-turn", type=int, default=1)
@@ -174,13 +178,20 @@ def main(argv=None):
         os.replace(tmp, path)
         return n
 
-    n_train = write(args.out_train, ("train",))
-    n_eval = write(args.out_eval, ("dev", "test")) if args.out_eval else 0
+    train_splits = tuple(s.strip() for s in str(args.train_splits).split(",") if s.strip())
+    eval_splits = tuple(s.strip() for s in str(args.eval_splits).split(",") if s.strip())
+    overlap = set(train_splits) & set(eval_splits)
+    if overlap:
+        raise SystemExit(f"train/eval split 重叠：{sorted(overlap)}")
+    n_train = write(args.out_train, train_splits)
+    n_eval = write(args.out_eval, eval_splits) if args.out_eval else 0
 
     summary = {
         "schema": "hsai.human_entry_bank/v1",
         "source": os.path.abspath(args.library),
         "min_mmr": int(args.min_mmr),
+        "train_splits": list(train_splits),
+        "eval_splits": list(eval_splits),
         "kept_rows": int(kept["rows"]),
         "train_rows": int(n_train),
         "eval_rows": int(n_eval),
