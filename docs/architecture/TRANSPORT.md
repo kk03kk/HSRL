@@ -237,21 +237,85 @@ python ops/hsai_ops.py model-pull some-model --with-trainer    # 连 trainer.pt
 
 ---
 
-## 6. 可选的进一步升级（未实施）
+## 6. 隧道自愈（已实施，2026-11-12）
 
-**让隧道自愈，把"每天输一次密码"降到零。**
+**目标：把"每天输一次密码"降到"一辈子输一次"。**
 
-做法：把跳板机密码存进 Windows 凭据管理器（DPAPI 加密、绑定当前 Windows 账户、
-不落明文、不进对话、不进进程列表），再配一个 `SSH_ASKPASS` 帮助程序，让
-`ssh -N -f` 可以无人值守重建隧道。
+### 6.1 用法
 
 ```powershell
-cmdkey /generic:hsai-nus /user:hengzhi /pass     # 交互式输入，不进 shell 历史
+# 一次性：登记跳板机密码（安全提示输入，不进命令行/进程列表/历史/对话）
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup
+
+# 以后任何时候（包括 Agent 自己调用），无人值守重建
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status   # 只报告
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Forget   # 删除凭据
 ```
 
-**没有实施的原因**：它把"必须有人在场"变成"密钥材料常驻本机"。当前每轮工作本来就
-需要用户在场（要下目标、要看报告），每天输一次密码的成本很低；而常驻凭据的收益
-要等"Agent 长时间无人值守"才体现。等真有夜间无人值守需求时再开。
+`-Setup` 会做完整闭环验证：保存 → 回读解密 → 真实认证一次 → 报告 OK。密码错误当场就
+知道，而不是等下一次断线才发现。
+
+### 6.2 组成
+
+| 部件 | 位置 | 说明 |
+|---|---|---|
+| 凭据密文 | `%LOCALAPPDATA%\HSAI\tunnel.cred` | DPAPI `CurrentUser` 作用域 |
+| askpass 助手 | `C:\ProgramData\HSAI\hsai-askpass.exe` | 由 `ops/tunnel-auth.ps1` 的 C# 源码在 Setup 时编译 |
+| 逻辑 | `ops/tunnel-auth.ps1` + `ops/tunnel.ps1` | 点源引用，无独立进程 |
+
+### 6.3 实测踩到的两个硬约束
+
+**(a) Win32-OpenSSH 支持 `SSH_ASKPASS`，但必须 `SSH_ASKPASS_REQUIRE=force`。**
+
+不设这个变量时，ssh 只在"没有终端"时才用 askpass，而 Windows 上这个判断不可靠。
+实测（`OpenSSH_for_Windows_9.5p2`）设 force 后 askpass 助手确实被调起，参数是提示串：
+
+```
+ARGS=hengzhi@sjump.comp.nus.edu.sg's password:
+```
+
+**(b) askpass 助手的可执行文件路径必须全是 ASCII。**
+
+放在 `C:\Users\黄\AppData\Local\HSAI\` 下时：
+
+```
+CreateProcessW failed error:2
+ssh_askpass: posix_spawnp: No such file or directory
+```
+
+文件明明存在。换成 `C:\ProgramData\HSAI\` 立刻正常——`CreateProcessW` 过不了非 ASCII
+路径。所以 **exe 放 ProgramData，密文留在用户配置目录**（.NET 读 Unicode 路径没问题，
+只有 `CreateProcessW` 不行）。`Test-HsaiSecret` 会检查 `HelperAscii`。
+
+> 这同时解释了为什么 `%LOCALAPPDATA%` 下的密文没问题：读文件的是 .NET，不是 ssh。
+
+**(c) 附带发现：含中文的 `.ps1` 必须带 UTF-8 BOM。**
+
+Windows PowerShell 5.1 对无 BOM 脚本按系统 ANSI 代码页读取。中文被错误解码后会**打乱
+行结构**——`ops/tunnel-auth.ps1` 里那段 C# here-string 曾被整段当成 PowerShell 代码，
+报"缺少 using 指令"。`tests/test_ops_guard.py` 里有守卫钉死这个格式。
+
+### 6.4 验证证据（用假密码走通全链路）
+
+| 步骤 | 结果 |
+|---|---|
+| 助手编译 | `hsai-askpass.exe` 4,608 B，路径全 ASCII |
+| 无凭据时 | 助手返回 rc=2 `credential not found`，不吐任何东西 |
+| DPAPI 往返 | 存 32 字节 → 助手解出**完全一致**的字符串 |
+| 密文不含明文 | 直接读 `.cred` 找不到密码字面量 |
+| ssh 是否真用助手 | 是：`Permission denied (password)`（假密码被拒，说明链路通） |
+| 清理 | `-Forget` 后文件消失，助手回到 `credential not found` |
+
+### 6.5 安全边界与代价
+
+- 密文只有**当前 Windows 账户**能解开（DPAPI CurrentUser）。同机其他用户读到文件也
+  无效。文件 ACL 额外收紧到仅当前用户。
+- 明文只在助手进程内存里出现，写完立即 `Array.Clear`。
+- 明文**永不**进：对话、命令行参数、进程列表、shell 历史、日志、Git。
+- **代价**：跳板机密码从此常驻本机（加密态）。风险模型从"每次手输"变成"这台机器 +
+  这个 Windows 账户被攻破即失守"。若不可接受，`-Forget` 随时退回手动模式。
+- **密码轮换**：NUS 改密后自愈会失败并给出 `Permission denied`，重跑 `-Setup` 即可。
 
 ---
 

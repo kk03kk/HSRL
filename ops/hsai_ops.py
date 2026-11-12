@@ -673,19 +673,40 @@ def cmd_probe(args: argparse.Namespace) -> int:
 
 
 def cmd_tunnel(args: argparse.Namespace) -> int:
-    """打印（或执行）~/.ssh/config 里的 hsai-bastion 主机建隧道。"""
-    cmd = (
-        f"ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 "
-        f"-o ServerAliveInterval=30 -o ServerAliveCountMax=10 "
-        f"-o ExitOnForwardFailure=yes hengzhi@sjump.comp.nus.edu.sg"
-    )
+    """确保隧道在跑。有登记凭据就无人值守重建，否则打印手动命令。"""
     info = probe_tunnel()
     if info["ok"]:
         print(f"隧道已在运行（{info.get('host')}），无需重建")
         return 0
-    print("请在本地 PowerShell 执行（会提示输入跳板机密码）：")
-    print("  " + cmd)
-    return 2
+
+    script = REPO_ROOT / "ops" / "tunnel.ps1"
+    if args.print_only or not script.exists():
+        print("请在本地 PowerShell 执行（会提示输入跳板机密码）：")
+        print("  powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1")
+        print("只登记一次密码之后即可无人工干预自愈：")
+        print("  powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1 -Setup")
+        return 2
+
+    print("隧道已断，尝试自愈……")
+    proc = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-File", str(script)],
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=args.timeout,
+    )
+    print(proc.stdout.decode("utf-8", "replace").strip())
+    audit({"label": "tunnel-selfheal", "rc": proc.returncode})
+
+    if proc.returncode == 0 and probe_tunnel()["ok"]:
+        print("自愈成功。")
+        return 0
+
+    print()
+    print("自愈未成功。若尚未登记凭据，请在你的 PowerShell 里跑一次：")
+    print("  powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1 -Setup")
+    return proc.returncode or 2
 
 
 def cmd_state(args: argparse.Namespace) -> int:
@@ -804,7 +825,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = sub.add_parser("probe", help="隧道连通性")
     p.set_defaults(func=cmd_probe)
 
-    p = sub.add_parser("tunnel", help="打印建隧道命令")
+    p = sub.add_parser("tunnel", help="确保隧道在跑（有凭据则无人值守自愈）")
+    p.add_argument("--print", dest="print_only", action="store_true",
+                   help="只打印手动命令，不尝试自愈")
+    p.add_argument("--timeout", type=float, default=120.0)
     p.set_defaults(func=cmd_tunnel)
 
     p = sub.add_parser("state", help="双端状态快照")

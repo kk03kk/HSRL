@@ -436,3 +436,31 @@ evidence: commit `eec4896`、`workflows/run_4159_long.py`、
 修法是在脚本入口把 stdout/stderr 钉死为 UTF-8（Linux 上本来就是 UTF-8，无行为变化）。
 `ops/hsai_ops.py` 同样处理，避免 Agent 看到的服务器输出变成乱码。
 
+## D-033 · 2026-11-12 · local · 隧道自愈：DPAPI 凭据 + SSH_ASKPASS
+
+status: accepted
+evidence: `ops/tunnel-auth.ps1`、`ops/tunnel.ps1`、`docs/architecture/TRANSPORT.md` §6、
+`tests/test_ops_guard.py::test_ps1_files_with_non_ascii_must_be_utf8_with_bom`
+
+用户 2026-11-12 指示"启用隧道自愈"，把唯一的人工步骤消掉。
+
+1. **做法**：用户执行一次 `ops\tunnel.ps1 -Setup`，在安全提示里输入跳板机密码；密码用
+   Windows DPAPI（`CurrentUser` 作用域）加密写 `%LOCALAPPDATA%\HSAI\tunnel.cred`。
+   `ops\tunnel-auth.ps1` 在 Setup 时编译 `C:\ProgramData\HSAI\hsai-askpass.exe`，
+   ssh 通过 `SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force` 取用。
+2. **Agent 边界**（AGENTS.md §7 同步收紧）：Agent 绝不读取、打印、传输该凭据，也不把它
+   写进任何日志或文档；只调用封装好的 `ops/tunnel.ps1` / `hsai_ops.py tunnel`。
+   凭据状态只能通过 `-Status` 得知（返回长度，不返回内容）。
+3. **实测硬约束**（`OpenSSH_for_Windows_9.5p2`）：
+   - `SSH_ASKPASS_REQUIRE=force` 必须显式设置，否则 Win32-OpenSSH 不会使用 askpass；
+   - askpass 的 **exe 路径必须全 ASCII**，`C:\Users\黄\...` 下会
+     `CreateProcessW failed error:2`；故 exe 放 `C:\ProgramData\HSAI\`，密文留用户目录；
+   - 含中文的 `.ps1` **必须带 UTF-8 BOM**，否则 Windows PowerShell 5.1 按 ANSI 解码会
+     打乱行结构（曾把 C# here-string 整段当 PowerShell 代码）。已加回归测试。
+4. **验证**：用假密码走通全链路——助手编译成功、DPAPI 往返一致、密文不含明文、
+   ssh 确实调起助手并得到 `Permission denied (password)`、`-Forget` 清理干净。
+   真实密码由用户自行登记，Agent 全程不接触。
+5. **代价与回退**：跳板机密码从此常驻本机（加密态），风险模型从"每次手输"变成"本机 +
+   本 Windows 账户被攻破即失守"。`-Forget` 随时退回手动模式。NUS 改密后自愈失败会报
+   `Permission denied`，重跑 `-Setup` 即可。
+

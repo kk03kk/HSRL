@@ -14,18 +14,50 @@ python ops/hsai_ops.py <command>
 隧道在跑。不在跑时：
 
 ```powershell
-python ops/hsai_ops.py probe     # 看状态
-python ops/hsai_ops.py tunnel    # 打印需要手动执行的那一条命令
+python ops/hsai_ops.py tunnel    # 有登记凭据 → 自动重建；否则打印手动命令
 ```
 
-隧道原理见 TRANSPORT §1。**这是唯一需要人介入的时刻。**
+`hsai_ops.py tunnel` 会自动调用 `ops/tunnel.ps1`。未登记凭据时也可以手动建：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Forget
+```
+
+隧道原理见 TRANSPORT §1。
+
+## 凭据（隧道自愈）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup
+```
+
+一次性登记跳板机密码。密码用 Windows DPAPI（`CurrentUser`）加密存在
+`%LOCALAPPDATA%\HSAI\tunnel.cred`，只有当前 Windows 账户能解开；**不进对话、不进命令行、
+不进进程列表、不进日志、不进 Git**。Setup 会当场做一次真实认证验证。
+
+| 文件 | 作用 |
+|---|---|
+| `ops/tunnel-auth.ps1` | 凭据库：DPAPI 存取 + 编译 askpass 助手（被点源引用，无独立进程） |
+| `ops/tunnel.ps1` | 用户入口：`-Setup` / `-Forget` / `-Status` / `-Force` / `-Port` |
+| `C:\ProgramData\HSAI\hsai-askpass.exe` | 运行时产物，Setup 时编译，**必须在 ASCII 路径** |
+
+两个实测踩出来的硬约束（细节见 TRANSPORT §6.3）：
+
+1. **`SSH_ASKPASS_REQUIRE=force` 必须设**，否则 Win32-OpenSSH 不会用 askpass；
+2. **askpass 的 exe 路径必须全是 ASCII**，否则 `CreateProcessW failed error:2`
+   —— 所以 exe 在 `ProgramData`，密文留在用户配置目录（.NET 读 Unicode 路径没问题）。
+
+还有一条：**含中文的 `.ps1` 必须带 UTF-8 BOM**，否则 Windows PowerShell 5.1 按 ANSI
+解码会打乱行结构。`tests/test_ops_guard.py` 有守卫。
 
 ## 命令
 
 | 命令 | 作用 |
 |---|---|
 | `probe` | 隧道连通性（JSON） |
-| `tunnel` | 打印建隧道命令（已通则直接返回） |
+| `tunnel` | 确保隧道在跑：有凭据则无人值守自愈，否则打印手动命令（`--print` 只打印） |
 | `state` | 双端状态快照：隧道、两端 HEAD、脏文件数、作业、GPU、磁盘、模型、库 |
 | `doctor` | 七点自检：ssh 配置、隧道、两端仓库、`updateInstead`、作业、远端配置 |
 | `sh "<cmd>"` / `sh -f script.sh` | 远端执行（带登录节点守卫） |

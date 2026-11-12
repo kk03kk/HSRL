@@ -5,16 +5,22 @@
 
 ---
 
-## 0. 用户只需要做两件事
+## 0. 用户只需要做一件事（一次性设置）
 
-1. **提目标**（"把模型拉回本地""跑一轮长训""看看为什么棋力没提升"）。
-2. **隧道断了时跑一个脚本**（要输一次密码）：
+**登记一次跳板机密码**，之后隧道可以自愈，你连这一步都不用再做了：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup
 ```
 
+密码用 Windows DPAPI 加密存在本机（只有你的 Windows 账户能解开），**不进对话、不进
+命令行、不进进程列表、不进日志**。Setup 会当场做一次真实认证验证，密码错了立刻知道。
+
+之后你只需要**提目标**（"把模型拉回本地""跑一轮长训""看看为什么棋力没提升"），
 其余全部由 Agent 完成，包括判断先做什么。
+
+> 还没做 Setup 时，隧道断了仍然可以手动建：`ops\tunnel.ps1` 会在当前终端提示输密码。
+> 想撤销：`ops\tunnel.ps1 -Forget`。
 
 ---
 
@@ -272,6 +278,7 @@ python ops/hsai_ops.py model-pull <name>
 .venv\Scripts\python.exe tools\verify_workspace.py --skip-rust
 
 # 隧道断了
-python ops/hsai_ops.py tunnel                         # 打印命令
-powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1   # 或直接跑脚本
+python ops/hsai_ops.py tunnel                              # Agent 自动尝试自愈
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1     # 手动等价操作
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
 ```

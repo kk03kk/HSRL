@@ -20,6 +20,8 @@
 - **用户只提目标**，不当中转站。Agent 自主规划、执行、验证、归档。
 - **每次开工先跑** `python ops/hsai_ops.py state`，看到 `IN SYNC` 才动手（见 OPERATIONS §1）。
 - **代码走 git over SSH，大文件走 `ssh cat`，GitHub 只做里程碑异地备份。**
+- **隧道自愈**：用户已登记跳板机密码时，`python ops/hsai_ops.py tunnel` 可无人值守重建，
+  Agent **应当自己调用它**而不是让用户手动重连。未登记时再请用户跑 `ops\tunnel.ps1 -Setup`。
 - 禁止用 scp 覆盖源码；禁止让服务器留未提交改动过夜。
 
 ## 2. 东西放哪
@@ -114,6 +116,9 @@
   数据质量与引擎异常门禁。
 - 不在日志或文档写密钥、token、私密路径。
 - **跳板机密码永不进对话、永不进命令行**（会进会话记录和进程列表）。
+  唯一允许的落盘形式，是用户**自己**执行 `ops\tunnel.ps1 -Setup` 后由 DPAPI 加密的
+  `%LOCALAPPDATA%\HSAI\tunnel.cred`。Agent 不读它、不打印它、不传输它、不把它写进任何
+  日志或文档；只调用已经封装好的 `ops/tunnel.ps1` / `hsai_ops.py tunnel`。
 
 ## 8. 记录与文档
 
@@ -127,6 +132,9 @@
 ## 9. 当前阶段（2026-11-12）
 
 - 架构：单 Agent 双环境管理已上线；`docs/sync/` 散文协议已归档，GitHub 降级为异地归档。
+- 传输：**隧道自愈已实施**（DPAPI 凭据 + SSH_ASKPASS）。用户登记一次密码后，
+  `hsai_ops.py tunnel` 可无人值守重建，Agent 应自己调用。凭据状态用
+  `ops\tunnel.ps1 -Status` 查，不要试图读取凭据文件。
 - 训练：无正式作业在跑（队列里只有一条 `no-shell` 分配）。`stage2` 配置已含 `turnband`
   采样与 `forbid-unfreeze` 选项，但**没有任何运行在使用它，48h 启动需用户批准**。
 - 模型：E1 正式榜第一是 `league-final-14858`（点估计；对 13806 不显著）。

@@ -133,3 +133,46 @@ def test_check_docs_flags_links_into_machine_local_trees(tmp_path: Path) -> None
     kinds = {p.kind for p in mod.check_links(probe)}
     assert "link-into-machine-local" not in kinds
     assert kinds == {"broken-link"}
+
+
+# ─────────────────── PowerShell 编码守卫 ───────────────────
+
+def _ps1_files():
+    roots = [ROOT / "ops", ROOT / "client"]
+    out = []
+    for root in roots:
+        if root.is_dir():
+            out.extend(sorted(root.rglob("*.ps1")))
+    return out
+
+
+def test_ps1_files_with_non_ascii_must_be_utf8_with_bom() -> None:
+    """Windows PowerShell 5.1 按系统 ANSI 代码页读没有 BOM 的脚本。
+
+    含中文的 .ps1 若不带 BOM，中文会被错误解码并**打乱行结构**——2026-11-12 就因此
+    让 ops/tunnel-auth.ps1 里的 C# here-string 整段被当成 PowerShell 代码，
+    `using System;` 报"缺少 using 指令"。这条测试把该格式钉死。
+    """
+    bad = []
+    for path in _ps1_files():
+        raw = path.read_bytes()
+        has_bom = raw.startswith(b"\xef\xbb\xbf")
+        try:
+            raw.decode("ascii")
+            is_ascii = True
+        except UnicodeDecodeError:
+            is_ascii = False
+        if not is_ascii and not has_bom:
+            bad.append(str(path.relative_to(ROOT)))
+    assert not bad, (
+        "these .ps1 files contain non-ASCII but lack a UTF-8 BOM, so Windows "
+        "PowerShell 5.1 will mis-parse them: " + ", ".join(bad)
+    )
+
+
+def test_ps1_files_exist_and_parse_as_utf8() -> None:
+    files = _ps1_files()
+    assert files, "expected at least one PowerShell script under ops/ or client/"
+    for path in files:
+        text = path.read_bytes().decode("utf-8-sig")  # strips the BOM when present
+        assert text.strip(), f"{path} is empty"
