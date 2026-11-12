@@ -138,6 +138,8 @@ def main(argv=None):
             "tier_misses": s.get("tier_misses"),
             "tier_hit_rate": s.get("tier_hit_rate"),
             "tier_target_reward_sum": s.get("tier_target_reward_sum"),
+            "tier_gate_k": s.get("tier_gate_k"),
+            "tier_gate_blocked": s.get("tier_gate_blocked"),
             "board_target_reward_sum": s.get("board_target_reward_sum"),
             "board_target_str_delta_mean": s.get("board_target_str_delta_mean"),
             # 阵容覆盖奖励（comp_target）：四件套里"核心卡覆盖"的训练侧对应物。
@@ -150,7 +152,8 @@ def main(argv=None):
     # 控制台表：只打最关键的几列。
     print(f"{'iter':>6} {'dec':>9} {'ent_ok/att':>11} {'hb_ok':>7} "
           f"{'str_mean':>9} {'ratio':>6} {'sell%':>6} {'refr%':>6} "
-          f"{'t_hit%':>7} {'t_rw':>7} {'bt_rw':>7} {'c_best':>7} {'cS%':>5} {'c_rw':>6}")
+          f"{'t_hit%':>7} {'t_rw':>7} {'bt_rw':>7} {'c_best':>7} {'cS%':>5} {'c_rw':>6} "
+          f"{'g_k':>5} {'gate%':>6}")
     for c in curve:
         ea = c.get("entry_applied")
         att = c.get("entry_attempt")
@@ -172,7 +175,13 @@ def main(argv=None):
                              / max(1.0, float(c['comp_target_turns'] or 1))))
                  if c.get('comp_target_turns') else '-'):>5} "
               f"{(('%.0f' % float(c['comp_target_reward_sum']))
-                 if c.get('comp_target_reward_sum') is not None else '-'):>6}",
+                 if c.get('comp_target_reward_sum') is not None else '-'):>6} "
+              f"{(('%.2f' % float(c['tier_gate_k']))
+                 if c.get('tier_gate_k') else '-'):>5} "
+              f"{(('%.1f' % (100.0 * float(c['tier_gate_blocked'])
+                             / max(1.0, float(c['tier_gate_blocked'] or 0)
+                                   + float(c.get('tier_checks') or 0))))
+                 if c.get('tier_gate_blocked') else '-'):>6}",
               flush=True)
     if curve:
         f, l = curve[0], curve[-1]
