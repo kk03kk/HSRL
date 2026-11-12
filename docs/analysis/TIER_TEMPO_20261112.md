@@ -175,3 +175,19 @@ G3 是 E4 的单变量对照（E4 = 同配方无 tier-target），G2 检验"混�
    改了 reward 就变差；`tier_hit_rate` 必须单调上升。
 
 工具：`python tools/inspect_gap_panel.py --panel a=... --panel b=... --model base --model g2 --model g3`。
+
+## 9. 下一步（按时间顺序，已在本轮排好）
+
+1. **G2 继续跑到 ~120 轮**（作业 `1123685`，6 段 × 20 min，约 00:50 结束）。
+2. **G4 同步跑**（作业 `1123899`，`config/league-entry-g4.json` = G2 配方 +
+   `board-target 0.6 / w_card 1.5`），目标是"同样 tier 下板面更大 + 核心卡覆盖更高"，
+   因为 G2 已经把 tier 追平真人而板面仍只有 0.22 倍。
+3. 两个作业结束后用 **96 局**面板出结论（48 局不够）：`base` + 各自最新快照，
+   先跑 `tools/accept_gap_panel.py`，再决定是否把 G2/G4 的配方合并。
+4. 若 tier tempo 在更长的运行里仍保持（不回退），就可以把
+   **入场回合重新往前挪**（T9–11 → T8–10）——但**一次只动这一个变量**，
+   并把 `tier_target` 留着当护栏。这是"把 F1 的想法做对"的路径。
+5. 仍待补的遥测（需要改 `parallel_collect.py`，会动 `training_source_digest()`，
+   **只能在两段之间没有作业时做**）：`learner_tier_by_turn` 与
+   `tier_misses_by_turn` —— 有了它才能逐回合看 tier-target 是否按预期命中，
+   而不是靠 `tier_hit_rate` 一个总数。
