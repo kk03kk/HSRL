@@ -60,18 +60,64 @@ if (-not (Test-Path $authScript)) { throw "missing helper: $authScript" }
 $target = 'xlogin2.comp.nus.edu.sg'
 $bastion = 'hengzhi@sjump.comp.nus.edu.sg'
 
+function Test-PortListening {
+    param([int]$p)
+    return ((Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
+             Measure-Object).Count -gt 0)
+}
+
+function Invoke-WithTimeout {
+    <#
+      有硬上限地跑一个 ssh 进程。
+
+      **为什么必须这样做**：``ssh`` 的 ConnectTimeout 只覆盖 TCP 连接。当端口上有个
+      监听者、但它后面的 SSH 会话已经死了时，卡住的是 **banner 交换**，这一步不受
+      ConnectTimeout 约束，最短也要十几秒、长则直到 TCP 自己超时（实测可达 2 分钟）。
+      重试循环把它乘以次数，于是整个隧道脚本"卡五分钟没反应"（2026-11-12 实际发生）。
+      这里改成：起进程 → 轮询到截止时间 → 没退出就强杀，单次探测的耗时因此有确定上界。
+    #>
+    param([string[]]$SshArgs, [int]$TimeoutSec = 8, [string]$Pattern = "")
+    $stamp = Join-Path $env:TEMP ("hsai-probe-" + [guid]::NewGuid().ToString('N'))
+    $outFile, $errFile = "$stamp.out", "$stamp.err"
+    try {
+        $proc = Start-Process -FilePath 'ssh' -ArgumentList $SshArgs `
+                              -WindowStyle Hidden -PassThru `
+                              -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+    }
+    catch {
+        return [pscustomobject]@{ Ok = $false; Rc = -1; Text = "" }
+    }
+    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $TimeoutSec))
+    while (-not $proc.HasExited -and [DateTime]::UtcNow -lt $deadline) {
+        Start-Sleep -Milliseconds 150
+    }
+    $timedOut = -not $proc.HasExited
+    if ($timedOut) { try { Stop-Process -Id $proc.Id -Force } catch { } }
+    $text = ""
+    if (Test-Path $outFile) { $text = (Get-Content $outFile -Raw -ErrorAction SilentlyContinue) }
+    Remove-Item $outFile, $errFile -ErrorAction SilentlyContinue
+    # 判据只用**输出文本**，不看 ExitCode：``Start-Process -PassThru`` 返回的进程对象上
+    # ExitCode 即使 WaitForExit() 之后仍是空的（实测），据此判断会让探测永远返回假。
+    # 探测的本质问题是"远端回没回 TUNNEL_OK"，stdout 就是权威信号。
+    $ok = (-not $timedOut) -and (-not [string]::IsNullOrWhiteSpace($text)) -and
+          ($Pattern -eq "" -or $text -match $Pattern)
+    return [pscustomobject]@{ Ok = $ok; TimedOut = $timedOut; Text = $text }
+}
+
 function Test-TunnelUp {
     param([int]$p)
-    # ConnectTimeout 只覆盖 TCP 连接；对端死掉但端口仍在监听时，卡住的是 SSH banner，
-    # 所以要配合 Stop-StaleForward 使用，否则每次探测都会等满 ConnectTimeout。
+    # 端口没人听 = 立刻判定断开，不必花时间发 SSH。
+    if (-not (Test-PortListening -p $p)) { return $false }
     if ($p -eq 2222) {
-        $probe = & ssh hsai-nus 'echo TUNNEL_OK' 2>$null
-        return ($LASTEXITCODE -eq 0 -and $probe -match 'TUNNEL_OK')
+        $a = @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=6',
+               'hsai-nus', 'echo TUNNEL_OK')
     }
-    $probe = & ssh -p $p -o HostKeyAlias=$target -o BatchMode=yes `
-                   -o ConnectionAttempts=1 -o ConnectTimeout=8 `
-                   hengzhi@127.0.0.1 'echo TUNNEL_OK' 2>$null
-    return ($LASTEXITCODE -eq 0 -and $probe -match 'TUNNEL_OK')
+    else {
+        $a = @('-p', "$p", '-o', "HostKeyAlias=$target", '-o', 'BatchMode=yes',
+               '-o', 'ConnectionAttempts=1', '-o', 'ConnectTimeout=6',
+               'hengzhi@127.0.0.1', 'echo TUNNEL_OK')
+    }
+    return (Invoke-WithTimeout -SshArgs $a -TimeoutSec 8 -Pattern 'TUNNEL_OK').Ok
 }
 
 function Get-FreePort {
