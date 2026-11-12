@@ -10,6 +10,24 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def _force_utf8_stdio():
+    """让本脚本的输出与区域设置无关。
+
+    ``--check-inputs-only`` 的 stdout 是给机器解析的 JSON，但 Windows 上通过管道
+    运行时 Python 默认用 cp936 编码，调用方按 UTF-8 解码就会炸。这里显式把
+    stdout/stderr 钉死为 UTF-8，Linux 上本来就是 UTF-8，因此无副作用。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if (stream.encoding or '').lower().replace('-', '') != 'utf8':
+                stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError):
+            pass
+
+
+_force_utf8_stdio()
+
+
 def check_input_files(audit, bank):
     """提交前仅用标准库核对真实产物契约，不加载模型、不伪造父计划。"""
     audit,bank = Path(audit).resolve(),Path(bank).resolve()
