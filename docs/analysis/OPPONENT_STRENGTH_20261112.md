@@ -130,6 +130,40 @@ HSAI_LEAGUE_OUT=artifacts/runs/league-humancurve-1h-20261112 \
 
 ---
 
+### 3.3 第一次启动失败：单座位库 + `mirror-strict 0` = 一帧都注入不进去
+
+首次训练 51 秒即失败：
+
+```
+RuntimeError: 采集质量门失败：mirror_applied=0；拒绝 PPO 更新
+```
+
+原因：`MirrorSnapshotPool.get(turn, seat)` **没有跨座位回落**，而跨座位逻辑只存在于
+`mirror-strict 1` 的 `StrictMirror` 路径里。校准库全部归档在 seat 0
+（`build_human_curve_bank` / `build_firestone_eot` 都是这样），所以一旦为了保留 bot
+座位而关掉 strict，就一帧也注入不进去。
+
+修法（`hsbg/az/train/mirror_snapshots.py`）：帧的 `seat` 只是归档键——真正决定注入到
+哪个座位的是 `inject_turn` 传的 `seats`，`frame.player` 与座位无关。因此当库**只持有
+一个座位**时，`_key()` 回落到该座位。多座位库**故意不跨座位**，否则会掩盖真实缺帧。
+两个方向都有回归测试。
+
+修复后实测（job `1121345`）：
+
+```
+it=14872 dec=123,632 applied=21,265 miss=0 rejected≈11.5k seats=4 p=1.0 illegal=0
+```
+
+### 3.4 观测：约 35% 注入被引擎拒绝
+
+`applied≈21k` 而 `rejected≈11.5k`。**尚未确证原因**，最可能是「目标座位在该回合已经
+死亡/已结束」，而非帧本身非法——同一批帧在 `prepare_validated_library` 里是
+**6,144/6,144 全通过**的。在 `mirror-strict 1` 路径里这类情况会记成
+`inactive_skipped` 而不是 `rejected`，非 strict 路径没有这个区分。
+影响：被拒的座位回落到 bot，等于削弱了约三分之一的对手强度。**待验证**。
+
+---
+
 ## 4. 阵容掌握度（第 2 把尺子，结果已出）
 
 `tools/analyze_composition_coverage.py` + `config/strategy_cards.json`
