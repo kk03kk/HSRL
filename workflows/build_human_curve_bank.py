@@ -1,6 +1,30 @@
 #!/usr/bin/env python3
-"""以Firestone Train逐回合成对攻血分布校准完整模拟器快照；不导入真人隐藏状态。"""
+"""以Firestone Train逐回合成对攻血分布校准完整模拟器快照；不导入真人隐藏状态。
+
+**这个文件此前是死代码**：179 行的 `build()` / `pressure_audit()` 已提交，但没有任何
+`__main__`、没有任何调用方，也就从未跑出过任何对手库。下面是补上的 CLI。
+
+它做的事情：拿一个**已验证过的引擎快照库**（模型自对弈产出的 EOT 帧），把每一帧的
+攻击/生命按比例重分配，使该回合的总攻血落在**真人 Train 分布的指定分位**上，同时
+保持牌面构成与实体引用不变。于是对手的**后期强度**被拉到真人水平，而它的阵容仍然是
+引擎合法的完整状态。
+
+这是把"对手池强度天花板"抬起来的工具——诊断（docs/analysis/HUMAN_GAP_20261112.md）
+显示模型用真人 1/4.5 的战力就能稳赢现有对手，所以后期再强也没有回报。
+
+用法::
+
+    python workflows/build_human_curve_bank.py \
+        --sources '{"league":"artifacts/libraries/league-eot-v1.1-20261109/train"}' \
+        --human data/real_library/firestone-20261112-1000/library.jsonl \
+        --split train --out artifacts/libraries/humancurve-train-<date> \
+        --quota 32 --work-dir artifacts/runs/humancurve-<date>
+
+注意 ``references()`` 只接受 ``split == 'train'`` 的行，所以 CLI 会先把真人数据过滤成
+train-only 视图并单独落盘（报告里记录它的 sha256，说明到底拿什么拟合的）。
+"""
 from collections import defaultdict
+import argparse
 import copy
 import hashlib
 import json
@@ -177,3 +201,74 @@ def pressure_audit(sources,bank,human_path,out,split,*,seed=20261103,trials=16):
     if not result:raise ValueError('没有可用的独立真人战斗审计参考')
     write(out,report)
     return report
+
+# ────────────────────────── CLI ──────────────────────────
+
+
+def _filter_human_train(human_path, out_path):
+    """只保留 split=='train' 的真人行。references() 会对其他 split 直接抛错。"""
+    kept, dropped = [], defaultdict(int)
+    with Path(human_path).open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            split = row.get("split")
+            if split == "train":
+                kept.append(line)
+            else:
+                dropped[str(split)] += 1
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    return len(kept), dict(dropped)
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description="真人曲线对手库构建")
+    p.add_argument("--sources", required=True,
+                   help='JSON 映射：来源名 -> 已验证快照库目录（必须含 split 子目录下的 manifest）')
+    p.add_argument("--human", required=True, help="Firestone library.jsonl")
+    p.add_argument("--out", required=True, help="输出对手库目录（必须不存在）")
+    p.add_argument("--split", choices=["train", "dev", "test"], required=True)
+    p.add_argument("--quota", type=int, default=32, help="每个 (turn,seat,来源) 派生帧数")
+    p.add_argument("--seed", type=int, default=20261103)
+    p.add_argument("--min-games", type=int, default=8, help="某回合的真人参考游戏数下限")
+    p.add_argument("--work-dir", default="", help="训练用真人视图与中间产物目录")
+    p.add_argument("--audit-out", default="", help="给了就跑 pressure_audit 并写到这个文件")
+    args = p.parse_args(argv)
+
+    sources = json.loads(args.sources)
+    out = Path(args.out)
+    if out.exists():
+        print(f"ERROR: {out} 已存在；本工具拒绝覆盖（保留旧库与失败证据）", file=sys.stderr)
+        return 2
+
+    work = Path(args.work_dir) if args.work_dir else out.parent / (out.name + "-work")
+    work.mkdir(parents=True, exist_ok=True)
+    train_view = work / "human_train.jsonl"
+    kept, dropped = _filter_human_train(args.human, train_view)
+    print(f"human rows: kept {kept} train rows, dropped {dropped}")
+    if not kept:
+        print("ERROR: 没有 train 行可用", file=sys.stderr)
+        return 2
+
+    report = build(sources, str(train_view), str(out), args.split,
+                   seed=args.seed, quota=args.quota, min_games=args.min_games)
+    print(f"frames            : {report['frames']}")
+    print(f"turns summarised  : {len(report.get('turns') or {})}")
+    print(f"empty-board frames: {report['empty_board_frames']}")
+    print(f"reference fallback: {report['reference_turn_fallback']}")
+    print(f"missing sources   : {len(report['missing_sources'])} bucket(s)")
+    print(f"library           : {out}")
+
+    if args.audit_out:
+        audit = pressure_audit(sources, str(out), str(train_view), args.audit_out,
+                               args.split, seed=args.seed)
+        print(f"pressure audit    : {len(audit['results'])} (turn,source) groups -> {args.audit_out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
