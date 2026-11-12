@@ -43,29 +43,40 @@ KEEP = ("action_type", "action_index", "card_id", "turn", "gold", "tier",
 
 
 def game_meta(library: Path) -> Dict[str, Dict[str, Any]]:
-    """game_id -> {mmr, hero}。同一局多行只取一次，值必须一致（不一致就报出来）。"""
+    """game_id -> {mmr, hero}。
+
+    **必须只取 ``perspective == 'self'`` 的行**：``library.jsonl`` 每局同时有 self 与
+    opponent 行，对手的英雄卡不同。早先不分视角直接取第一行，导致 10,776 局的 hero
+    与动作流不属于同一玩家（会把错误英雄喂给英雄嵌入）。mmr 两侧相同，但仍以 self 为准。
+    """
     out: Dict[str, Dict[str, Any]] = {}
     conflicts = collections.Counter()
-    with library.open(encoding="utf-8") as f:
+    for row in _iter_jsonl(library):
+        if row.get("perspective") != "self":
+            continue
+        gid = row.get("game_id")
+        if not gid:
+            continue
+        item = {"mmr": row.get("mmr"), "hero": row.get("hero_card_id")}
+        cur = out.get(gid)
+        if cur is None:
+            out[gid] = item
+        else:
+            for k, v in item.items():
+                if v is not None and cur.get(k) is not None and cur[k] != v:
+                    conflicts[k] += 1
+    if conflicts:
+        print(f"WARN: per-game self-perspective conflicts (kept first): {dict(conflicts)}",
+              file=sys.stderr)
+    return out
+
+
+def _iter_jsonl(path: Path):
+    with path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if not line:
-                continue
-            r = json.loads(line)
-            gid = r.get("game_id")
-            if not gid:
-                continue
-            cur = out.get(gid)
-            item = {"mmr": r.get("mmr"), "hero": r.get("hero_card_id")}
-            if cur is None:
-                out[gid] = item
-            else:
-                for k, v in item.items():
-                    if v is not None and cur.get(k) is not None and cur[k] != v:
-                        conflicts[k] += 1
-    if conflicts:
-        print(f"WARN: per-game field conflicts (kept first): {dict(conflicts)}", file=sys.stderr)
-    return out
+            if line:
+                yield json.loads(line)
 
 
 def main(argv=None) -> int:
