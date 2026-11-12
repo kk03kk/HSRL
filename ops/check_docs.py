@@ -81,6 +81,14 @@ def _strip_code_fences(lines: List[str]) -> List[Tuple[int, str]]:
     return out
 
 
+def _rel(path: Path) -> str:
+    """仓库内文件给相对路径，仓库外（测试用的临时目录）给绝对路径。"""
+    try:
+        return str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+    except ValueError:
+        return str(path)
+
+
 def check_links(path: Path) -> List[Problem]:
     problems: List[Problem] = []
     text = path.read_text(encoding="utf-8")
@@ -95,18 +103,13 @@ def check_links(path: Path) -> List[Problem]:
             resolved = (path.parent / rel).resolve()
             if not resolved.exists():
                 problems.append(
-                    Problem(
-                        str(path.relative_to(REPO_ROOT)).replace("\\", "/"),
-                        lineno,
-                        "broken-link",
-                        f"{target}  ->  {rel}",
-                    )
+                    Problem(_rel(path), lineno, "broken-link", f"{target}  ->  {rel}")
                 )
     return problems
 
 
 def check_retired(path: Path) -> List[Problem]:
-    rel_name = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+    rel_name = _rel(path)
     if rel_name == "docs/DECISIONS.md":
         return []  # 只追加不改历史：历史 evidence 里的旧路径按规则保留
     # docs/analysis/ 里带日期戳的报告是历史快照，引用的路径在当时是对的
