@@ -64,3 +64,6 @@ Thumbs.db
 # 大型原始数据（只在服务器，不进 Git）
 data/firestone_replays/
 data/real_library/
+
+# 真人 BC 样本（由 tools/build_bc_samples.py 生成，几百 MB 级，不进 Git）
+data/firestone_bc/
