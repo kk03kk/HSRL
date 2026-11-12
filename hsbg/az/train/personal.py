@@ -31,6 +31,13 @@ OPTIONS = {
     # 可以被实验，而不必改代码。
     "terminal-strength-coef", "shaping-coef", "shaping-gamma", "shaping-w-str",
     "shaping-w-tier", "shaping-mode",
+    # 专家教学项（默认全关 = 与历史配方逐位一致）。
+    # 2026-11-12：data/firestone_bc/bc_samples.jsonl.gz 现在真的有内容了（282,717 条），
+    # 所以这些开关第一次是"可用的"而不只是"存在"。注意 --bc-samples 的默认路径
+    # 正是 data/firestone_bc/bc_samples.jsonl.gz，无需额外指定。
+    "bc-coef", "bc-coef-ramp", "bc-mmr-min", "bc-mmr-boost", "bc-samples",
+    "bc-batch", "bc-every", "bc-type-weight", "bc-card-weight", "bc-class-weight",
+    "dpo-coef", "dpo-beta", "dpo-batch", "dpo-every",
     "move-guard", "move-cap", "move-repeat-limit", "forbid-cancel", "forbid-unfreeze",
     "pipeline-zero-step-fallback",
     # 周期评测（默认关闭；dev/test 的段后验证由 sbatch 钩子负责）
