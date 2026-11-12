@@ -99,7 +99,7 @@ def transform(frame,target,reference_turn,q):
     return row
 
 
-def build(sources,human_path,out,split,*,seed=20261103,quota=32,min_games=8):
+def build(sources,human_path,out,split,*,seed=20261103,quota=32,min_games=8,passthrough_below=0):
     from workflows.calibrate_opponent_bank import read_sources
     from workflows.compare_board_libraries import summarize
     from hsbg.az.train.personal import write_json,library_digest,fingerprint,sha256
@@ -126,7 +126,14 @@ def build(sources,human_path,out,split,*,seed=20261103,quota=32,min_games=8):
             for j in range(quota):
                 base=rng.choice(games[order[j%len(order)]])
                 q=.05+.9*(j+.5)/quota
-                if rt is not None and base['player']['board']:
+                if passthrough_below and int(base['turn'])<int(passthrough_below):
+                    # 早期回合原样保留：真人赢家的前期板面本来就比我们模型**弱**，
+                    # 若一并校准，早期对手会变简单，与"只抬高后期"的干预混在一起，
+                    # 结果就无法归因（2026-11-12 实测：T8 对手从 217 掉到 108）。
+                    frame=copy.deepcopy(base)
+                    frame['calibration']=dict(passthrough_below_turn=int(passthrough_below),
+                                              reason='early_turn_left_as_source')
+                elif rt is not None and base['player']['board']:
                     target=reliable[rt][min(len(reliable[rt])-1,int(q*len(reliable[rt])))]
                     frame=transform(base,target,rt,q)
                 else:
@@ -237,6 +244,9 @@ def main(argv=None):
     p.add_argument("--min-games", type=int, default=8, help="某回合的真人参考游戏数下限")
     p.add_argument("--work-dir", default="", help="训练用真人视图与中间产物目录")
     p.add_argument("--audit-out", default="", help="给了就跑 pressure_audit 并写到这个文件")
+    p.add_argument("--passthrough-below-turn", type=int, default=0,
+                   help="这个回合以下的帧原样保留（不校准）。用于把干预限制在后期，"
+                        "避免同时把早期对手变简单而无法归因")
     args = p.parse_args(argv)
 
     sources = json.loads(args.sources)
@@ -255,7 +265,8 @@ def main(argv=None):
         return 2
 
     report = build(sources, str(train_view), str(out), args.split,
-                   seed=args.seed, quota=args.quota, min_games=args.min_games)
+                   seed=args.seed, quota=args.quota, min_games=args.min_games,
+                   passthrough_below=int(args.passthrough_below_turn))
     print(f"frames            : {report['frames']}")
     print(f"turns summarised  : {len(report.get('turns') or {})}")
     print(f"empty-board frames: {report['empty_board_frames']}")
