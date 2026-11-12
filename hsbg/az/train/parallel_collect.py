@@ -1012,7 +1012,42 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         _ft_game = policy.forced_tier_game_meta(st["gid"], seat)
         if _ft_game:
             metas[-1]["forced_tier_game"] = _ft_game
+    # ── learner 终局板面强度（学习曲线用；每局一次 player_json，成本可忽略）──
+    # 这是本实验最直接的「有没有变强」信号：终局 Σ(atk+hp) 按「终局回合」分桶求和，
+    # 父进程除以 n 就得到「该回合 learner 的平均板面」，可与真人同回合 p50 直接相除。
+    _final_str_sum: Dict[str, int] = {}
+    _final_str_n: Dict[str, int] = {}
+    _final_str_all: List[int] = []
+    for st in states:
+        g = st.get("game")
+        if g is None:
+            continue
+        try:
+            _pj = json.loads(g.player_json(seat))
+            _b = _pj.get("board") or []
+            _s = int(sum(int(m.get("atk") or 0) + int(m.get("hp") or 0) for m in _b))
+            _t = int(g.turn)
+        except BaseException:  # noqa: BLE001 - 遥测失败绝不打断采集
+            continue
+        _k = str(_t)
+        _final_str_sum[_k] = int(_final_str_sum.get(_k, 0)) + _s
+        _final_str_n[_k] = int(_final_str_n.get(_k, 0)) + 1
+        _final_str_all.append(_s)
+    _final_str_all.sort()
+
+    def _fq(q: float) -> int:
+        if not _final_str_all:
+            return 0
+        i = min(len(_final_str_all) - 1,
+                max(0, int(round(float(q) * (len(_final_str_all) - 1)))))
+        return int(_final_str_all[i])
+
     meta = {"mode": "lockstep", "games": n, "pool_games": n,
+            "learner_final_str_sum_by_turn": dict(sorted(_final_str_sum.items())),
+            "learner_final_str_n_by_turn": dict(sorted(_final_str_n.items())),
+            "learner_final_str_mean": (int(sum(_final_str_all) / len(_final_str_all))
+                                       if _final_str_all else 0),
+            "learner_final_str_p50": _fq(0.5), "learner_final_str_p90": _fq(0.9),
             "rounds": int(rounds), "decisions": int(decisions_total),
             "curriculum_stage": str(getattr(cfg, "curriculum_stage", "none")),
             "curriculum_gold_mult": float(getattr(cfg, "curriculum_gold_mult", 1.0)),

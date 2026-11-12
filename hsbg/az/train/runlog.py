@@ -48,6 +48,9 @@ INJECTION_KEYS = (
     "entry_rejected_by_reason", "entry_turns_hist",
     "entry_last_error", "entry_last_rejected", "entry_health_error",
     "human_board_min_turn",
+    # 学习曲线遥测：learner 终局板面 Σ(atk+hp)（按终局回合分桶求和 / 计数）。
+    "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn",
+    "learner_final_str_mean", "learner_final_str_p50", "learner_final_str_p90",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -65,9 +68,11 @@ INJECTION_SUM_KEYS = frozenset({
     "entry_errors", "entry_hand_applied", "entry_counters_applied", "entry_games",
 })
 #: 逐字段可得性计数：跨 worker 逐键求和（dict 合并）。
-INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist"})
+INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist", "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn"})
 INJECTION_ANY_KEYS = frozenset({"mirror_on", "human_board_on", "entry_on"})
-INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p"})
+INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p",
+                                 "learner_final_str_mean", "learner_final_str_p50",
+                                 "learner_final_str_p90"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
     "mirror_max_turn",
