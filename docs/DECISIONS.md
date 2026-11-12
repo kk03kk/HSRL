@@ -475,3 +475,36 @@ evidence: `ops/tunnel-auth.ps1`、`ops/tunnel.ps1`、`docs/architecture/TRANSPOR
 7. **真凭据实测（2026-11-12 14:45）**：`-Verify` 临时端口演练通过；`-Force -Port 2222`
    杀掉现有隧道后**无人值守重建成功**，`doctor` 七点全通过。目标状态达成。
 
+## D-034 · 2026-11-12 · local · 训练主线改为「真人状态注入 + 分阶段中后期课程」
+
+status: accepted
+evidence: `docs/LATE_GAME_ENTRY.md`、`docs/analysis/HUMAN_GAP_20261112.md`、
+`tools/build_human_entry_bank.py`、`tools/smoke_human_inject.py`、
+`deploy/slurm/smoke_inject.sbatch`、`config/league-entry.json`
+
+用户 2026-11-12 授予全项目自主权（取消时长与审批上限），要求"找到最快、最可靠、最有效
+的方式让模型真正变强"，并最看重 33 个流派攻略与真人专家数据的利用率。
+
+1. **诊断结论**（实测，非推断）：模型 T12 板面 Σ(atk+hp)=1,135，真人 ≥8k MMR 吃鸡局
+   T12 p50=**5,620**（0.20×）；960 局里 **0 局**达到 ≥3 张 S 级核心卡；训练对手
+   `human_board_p=0`（全是自对弈镜像）。即"从没在真人有牌可打的中后期状态上做过决策"。
+2. **纠正旧结论**：`humancurve-*` 库所谓"后期对手 2.9×/6.4× 真人"是把**我们自己的牌**
+   按比例放大攻血得到的，牌面构成仍是我们的弱阵容，且参考分布没有 MMR 下限——连数字目标
+   也只有 ≥8k 真人 p50 的 0.59 倍。它不能教阵容，只能教"数字大就赢"。**改用真人完整帧**。
+3. **新数据资产**：`data/real_library/firestone-bank-1000/train-m8k.jsonl`（1,168 行，
+   ≥8k MMR、train split、只过滤不改数值）+ `eval-m8k.jsonl`（86 行，evaluation split，
+   与训练不相交）。逐回合 p50 见 `docs/LATE_GAME_ENTRY.md` §2。
+4. **新训练机制**（`hsbg/az/train/parallel_collect.py`，默认全关 = 逐位等价旧配方）：
+   - `entry_p/entry_turn_min..max`：`T0` 前 learner 由 bot 代打且**不产生记录**，到 `T0`
+     把真人完整状态（战团+手牌+counters+酒馆等级）注入 learner 席，之后策略接管；
+   - `human_board_min_turn` + `mirror_max_turn`：`T0` 之后对手换成真人战团，镜像关在
+     `T0` 之前；
+   - `learner_final_str_*`：每轮 learner 终局板面 Σ，按终局回合分桶——直接对真人同回合
+     p50 求比值的**学习曲线**。
+5. **前置门禁**：换库必跑 `sbatch deploy/slurm/smoke_inject.sbatch`。实测接受后战团逐字段
+   100% 一致、3–5 ms/次；T9 会被引擎 pending choice 100% 挡住（32/32），故入场重试
+   必须"一回合只试一次"（已修）。
+6. **验收四件套**（刻意不设单一指标）：入场局名次、板面强度对真人曲线比值、核心卡覆盖
+   （≥1/≥2/≥3）、前期名次回归。卖牌次数/终端数值可被无意义刷高，只作辅证。
+
+
