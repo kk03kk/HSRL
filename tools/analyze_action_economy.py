@@ -62,6 +62,25 @@ def model_actions(hist: Dict[str, Any], games: int) -> Dict[str, float]:
     return per_game
 
 
+def _seq_total(seq: Any) -> float:
+    """对"逐回合序列"求和，兼容几种真实写法：list[数字]、dict{turn: 数字}、list[dict]。"""
+    if isinstance(seq, dict):
+        return float(sum(v for v in seq.values() if isinstance(v, (int, float))))
+    if isinstance(seq, list):
+        total = 0.0
+        for v in seq:
+            if isinstance(v, (int, float)):
+                total += float(v)
+            elif isinstance(v, dict):
+                # 形如 {"turn": 3, "value": 12} 或 {"count": 12}
+                for key in ("value", "count", "n", "total", "amount"):
+                    if isinstance(v.get(key), (int, float)):
+                        total += float(v[key])
+                        break
+        return total
+    return 0.0
+
+
 def human_games(pms_dir: Path) -> List[Dict[str, float]]:
     out: List[Dict[str, float]] = []
     if not pms_dir.is_dir():
@@ -81,8 +100,7 @@ def human_games(pms_dir: Path) -> List[Dict[str, float]]:
                            ("sell", "minionsSoldOverTurn"),
                            ("refresh", "rerollsOverTurn"),
                            ("gold_wasted", "coinsWastedOverTurn")):
-            seq = d.get(field)
-            row[key] = float(sum(v for v in seq if isinstance(v, (int, float)))) if isinstance(seq, list) else 0.0
+            row[key] = _seq_total(d.get(field))
         out.append(row)
     return out
 
