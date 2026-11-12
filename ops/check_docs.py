@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterator, List, NamedTuple, Tuple
@@ -93,13 +94,36 @@ def _rel(path: Path) -> str:
         return str(path)
 
 
+_TRACKED: set | None = None
+
+
+def tracked_files() -> set:
+    """仓库里的已跟踪文件（相对仓库根，posix 风格）。没有 git 时返回空集。"""
+    global _TRACKED
+    if _TRACKED is None:
+        try:
+            out = subprocess.run(["git", "ls-files"], cwd=REPO_ROOT,
+                                 capture_output=True, text=True, timeout=60)
+            _TRACKED = set(out.stdout.splitlines()) if out.returncode == 0 else set()
+        except (OSError, subprocess.SubprocessError):
+            _TRACKED = set()
+    return _TRACKED
+
+
 def is_machine_local(resolved: Path) -> bool:
-    """解析后的路径是否落在只存在于某台机器上的目录里。"""
+    """解析后的路径是否只存在于某台机器上。
+
+    `records/` 与 `artifacts/` 被 `.gitignore` 忽略，但 `records/research/` 有少数
+    文件是跟踪的。所以判据是"在这些目录下**且**没有被 git 跟踪"——跟踪的链接是
+    有效的，未跟踪的换台机器就断了。
+    """
     try:
-        rel_to_root = resolved.relative_to(REPO_ROOT).as_posix() + "/"
+        rel = resolved.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return False
-    return any(rel_to_root.startswith(p) for p in MACHINE_LOCAL_PREFIXES)
+    if not any((rel + "/").startswith(p) for p in MACHINE_LOCAL_PREFIXES):
+        return False
+    return rel not in tracked_files()
 
 
 def check_links(path: Path) -> List[Problem]:
