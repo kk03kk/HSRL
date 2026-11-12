@@ -132,20 +132,35 @@ def main(argv=None):
             "ratio_vs_human_all": ratio_all,
             "sell_share": round(sell / tot_acts, 4) if tot_acts else None,
             "refresh_share": round(refresh / tot_acts, 4) if tot_acts else None,
+            # 奖励机制健康度：配了但没生效是历史踩过的坑，所以逐轮记账。
+            "tier_checks": s.get("tier_checks"),
+            "tier_hits": s.get("tier_hits"),
+            "tier_misses": s.get("tier_misses"),
+            "tier_hit_rate": s.get("tier_hit_rate"),
+            "tier_target_reward_sum": s.get("tier_target_reward_sum"),
+            "board_target_reward_sum": s.get("board_target_reward_sum"),
+            "board_target_str_delta_mean": s.get("board_target_str_delta_mean"),
         })
 
     # 控制台表：只打最关键的几列。
     print(f"{'iter':>6} {'dec':>9} {'ent_ok/att':>11} {'hb_ok':>7} "
-          f"{'str_mean':>9} {'ratio':>6} {'sell%':>6} {'refr%':>6}")
+          f"{'str_mean':>9} {'ratio':>6} {'sell%':>6} {'refr%':>6} "
+          f"{'t_hit%':>7} {'t_rw':>7} {'bt_rw':>7}")
     for c in curve:
         ea = c.get("entry_applied")
         att = c.get("entry_attempt")
+        thr = c.get("tier_hit_rate")
         print(f"{str(c['iter']):>6} {str(c.get('decisions')):>9} "
               f"{str(ea) + '/' + str(att):>11} {str(c.get('human_board_applied')):>7} "
               f"{str(c.get('learner_final_str_mean')):>9} "
               f"{str(c.get('ratio_vs_human_all')):>6} "
               f"{('%.2f' % (100 * c['sell_share']) if c.get('sell_share') is not None else '-'):>6} "
-              f"{('%.2f' % (100 * c['refresh_share']) if c.get('refresh_share') is not None else '-'):>6}",
+              f"{('%.2f' % (100 * c['refresh_share']) if c.get('refresh_share') is not None else '-'):>6} "
+              f"{('%.1f' % (100 * float(thr)) if thr is not None else '-'):>7} "
+              f"{(('%.1f' % float(c['tier_target_reward_sum']))
+                 if c.get('tier_target_reward_sum') is not None else '-'):>7} "
+              f"{(('%.1f' % float(c['board_target_reward_sum']))
+                 if c.get('board_target_reward_sum') is not None else '-'):>7}",
               flush=True)
     if curve:
         f, l = curve[0], curve[-1]
@@ -161,7 +176,7 @@ def main(argv=None):
         # 逐回合**绝对**板面序列：``ratio_vs_human_all`` 会被"终局回合分布"污染
         # （游戏结束得早，比值天然更高），所以真正要看的趋势是固定回合上的绝对值。
         print("\n[per-turn absolute learner board strength]", flush=True)
-        for t in range(12, 17):
+        for t in range(5, 17):
             vals = [c["learner_final_str_by_turn"].get(t) for c in curve]
             vals = [v for v in vals if v]
             if not vals:
