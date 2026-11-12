@@ -557,6 +557,10 @@ class MirrorStats:
     applied_with_hand_queue: int = 0
     pool_preexisting: int = 0
     pool_species_preexisting: int = 0
+    #: 因座位已死亡/本回合已结束而**主动跳过**的数量（不计入 attempt）。
+    #: 与 ``rejected_by_reason['not_alive']`` 的区别：后者是被引擎拒绝，
+    #: 前者是我们先看状态就不再尝试。2026-11-12 起默认开启，避免健康门禁误报。
+    inactive_skipped: int = 0
     pool_observations: List[Dict[str, Any]] = field(default_factory=list)
 
     def add(self, other: "MirrorStats") -> None:
@@ -688,6 +692,19 @@ def ramp_p(iter_or_decisions: float, schedule: Optional[str]) -> float:
     return float(pts[-1][1])
 
 
+def _seat_active(game: Any, seat: int) -> bool:
+    """座位是否还活着并且本回合没结束。取不到状态时返回 True（宁可尝试也不要静默跳过）。"""
+    try:
+        pj = json.loads(game.player_json(int(seat)))
+    except BaseException:  # noqa: BLE001
+        return True
+    if not bool(pj.get("alive", True)):
+        return False
+    if bool(pj.get("ended_turn", False)):
+        return False
+    return True
+
+
 def inject_turn(game: Any, pool: MirrorSnapshotPool, turn: int, *,
                 seats: Sequence[int], p: float = 1.0,
                 rng: Optional[random.Random] = None, learner_seat: int = 0,
@@ -696,7 +713,8 @@ def inject_turn(game: Any, pool: MirrorSnapshotPool, turn: int, *,
                 seat_rng: Optional[random.Random] = None,
                 resample_seats: bool = False,
                 num_players: int = 8,
-                applied_out: Optional[List[int]] = None) -> MirrorStats:
+                applied_out: Optional[List[int]] = None,
+                skip_inactive: bool = True) -> MirrorStats:
     """新回合开始（任何座位行动前）按概率给 ``seats`` 注入该 ``turn`` 的快照。
 
     - 每个座位独立掷 ``p``；缺帧 -> ``missing``；引擎拒绝 -> ``rejected``；
@@ -724,6 +742,13 @@ def inject_turn(game: Any, pool: MirrorSnapshotPool, turn: int, *,
         if seat == int(learner_seat):
             continue
         if prob < 1.0 and r.random() >= prob:
+            continue
+        # 跳过已经死亡/已结束的座位。不跳的话每一帧都会被引擎拒绝，
+        # 记成 mirror_rejected，既污染统计又让健康门禁（要求 applied==attempt）误报。
+        # strict 路径本来就把这类情况记作 inactive_skipped，这里只是把同一语义
+        # 带到非 strict 路径上。
+        if skip_inactive and not _seat_active(game, seat):
+            st.inactive_skipped += 1
             continue
         st.attempt += 1
         try:

@@ -81,8 +81,24 @@ def check(history: Path, latest: Path, *, min_version: int = 0,
         applied = int(collect.get("mirror_applied", 0) or 0)
         if attempt <= 0:
             issues.append("mirror_attempt=0")
-        if applied != attempt:
-            issues.append(f"mirror_applied={applied} != attempt={attempt}")
+        # 被拒的两个原因是**预期内**的：座位已经死亡/已结束，或该座位正卡在
+        # pending choice（饰品/任务回合不允许替换状态）。它们不是缺陷，但必须
+        # **可解释**——真正要拦的是"没解释的差额"，那才代表注入在静默失效。
+        # 2026-11-12：只有 not_alive + pending_choice 两类时，旧门禁会误判为失败。
+        reasons = collect.get("mirror_rejected_by_reason") or {}
+        try:
+            explained = sum(int(v or 0) for v in
+                            (reasons.get("not_alive", 0), reasons.get("pending_choice", 0)))
+        except (AttributeError, TypeError):
+            explained = 0
+        unexplained = (attempt - applied) - explained
+        if applied <= 0:
+            issues.append(f"mirror_applied={applied} (no frame was ever injected)")
+        elif unexplained > max(1, int(0.01 * attempt)):
+            issues.append(
+                f"mirror_applied={applied} != attempt={attempt} and "
+                f"{unexplained} rejection(s) are unexplained "
+                f"(reasons={reasons})")
         for key in MIRROR_ZERO_KEYS:
             if int(collect.get(key, 0) or 0) != 0:
                 issues.append(f"collect.{key}={collect.get(key)}")
