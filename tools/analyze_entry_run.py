@@ -158,6 +158,19 @@ def main(argv=None):
         r0, r1 = f.get("ratio_vs_human_all"), l.get("ratio_vs_human_all")
         if r0 and r1:
             print(f"\n[ratio] {r0} -> {r1}  ({100 * (r1 / r0 - 1):+.1f}%)", flush=True)
+        # 逐回合**绝对**板面序列：``ratio_vs_human_all`` 会被"终局回合分布"污染
+        # （游戏结束得早，比值天然更高），所以真正要看的趋势是固定回合上的绝对值。
+        print("\n[per-turn absolute learner board strength]", flush=True)
+        for t in range(12, 17):
+            vals = [c["learner_final_str_by_turn"].get(t) for c in curve]
+            vals = [v for v in vals if v]
+            if not vals:
+                continue
+            half = max(1, len(vals) // 2)
+            print(f"  T{t}: n={len(vals)} first_half={sum(vals[:half]) / half:.0f} "
+                  f"last_half={sum(vals[-half:]) / half:.0f} "
+                  f"({100 * (sum(vals[-half:]) / sum(vals[:half]) - 1):+.1f}%) "
+                  f"human_p50={human.get(t)}", flush=True)
     out = {"schema": "hsai.entry_curve/v1", "history": path,
            "bank_summary": os.path.abspath(args.bank_summary),
            "human_p50": {str(k): v for k, v in sorted(human.items())},
