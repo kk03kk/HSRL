@@ -2,22 +2,36 @@
 
 状态：**已实测**（2026-11-12 22:20）。适用于 NUS VPN 重连后隧道必然断开的情形。
 
-## 1. 结论先讲：**绝对不要给 `ops\tunnel.ps1` 接管道**
+## 1. 真正的根因（2026-11-12 22:30 更正）：**脚本成功之后不退出**
+
+实测证据：日志里已经打印 `Tunnel on port 2222 is up.`，但调用进程一直不返回；
+**不接任何管道、用 `*> 文件` 重定向，同样会挂**。所以问题不在调用方的管道。
+
+更重要的是：`ssh -f -N` 起的转发是**那个包装进程的子进程**，用 `job_kill` / `Stop-Process`
+杀掉包装进程会**连隧道一起杀掉**（实测两次都是 DOWN）。之前把这种后台任务当"幽灵"杀掉
+是错的——**它就是隧道的父进程，必须留着**。
+
+结论：**不要在同一个调用里等 `-Force` 返回**。正确动作是
+「后台起 → 只轮询 `-Status` → 保留那个后台任务」。
 
 ```powershell
-# ✗ 会挂几分钟，然后"1 秒就成功"——看起来像死锁
+# ✗ 都会挂住（管道不是原因，但别接）
 python ops/hsai_ops.py tunnel 2>&1 | Select-Object -Last 8
-powershell -File ops\tunnel.ps1 -Force *>&1 | Out-String
+powershell -File ops\tunnel.ps1 -Force -Port 2222 *> file
 
-# ✓ 直接跑，不加任何管道
+# ✓ Status 是有界的（实测 0.8 s），用它判断成没成
+powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
+# ✓ 重建：后台起，别等它返回，别杀它
 powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Force -Port 2222
 ```
 
-**机理**：脚本内部用 `ssh -f -N -L` 起转发，ssh fork 出的子进程**继承父进程 stdout**。
-一旦脚本的 stdout 是管道，管道写端就被那个长期存活的 ssh 子进程一直持有，管道**永远
-等不到 EOF**，`Select-Object` / `Out-String` / `Tee-Object` 就一直挂着——而隧道其实
-在第一秒内就建好了。这与历史记录里"`ssh -f` 配管道在 Windows 上死锁（实测挂满 120 s）"
-是同一个坑，只是这次是**调用方**踩上去的。
+**待修**（下次改代码时做，需要真实环境验证）：让 `ops/tunnel.ps1` 把 ssh 子进程**彻底脱离**
+包装进程（独立 job object / 独立 stdio），使脚本能在建好后正常 exit 而不带走转发。
+
+## 1b. 附带教训：管道确实也会挂（独立问题）
+
+`ssh -f -N` fork 的子进程继承 stdout，只要脚本 stdout 是管道，管道就等不到 EOF——
+这与上面的"包装进程不退出"是两个不同的坑，都会表现为"卡住"。**两种都别做**。
 
 ## 2. 标准动作（有界、不会卡）
 
