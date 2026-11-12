@@ -206,7 +206,7 @@ def _run(root,args,run_token):
     # decision rows and gesture receipts; it never formats JSON or fsyncs on
     # the input hot path.
     from .trace import GameTrace
-    trace=GameTrace(out)
+    trace=GameTrace(out,side='live',store_vectors=True)
     args.live_trace=trace
     last_report=None;last_decision=None;started=time.monotonic();tribe_memory={};ocr=None
     stale_ledger_checked=False
@@ -358,7 +358,12 @@ def _run(root,args,run_token):
                     placement,placement_source=settle_placement(reader,data)
                     save(out/'result.json',dict(game_id=data['game_id'],result=player.tags.get('PLAYSTATE') if player else None,
                         placement=placement,placement_source=placement_source,
-                        turn=data['turn'],model_sha256=policy.sha,adapter='public-approx-v1',unresolved_input_archived=unresolved))
+                        turn=data['turn'],model_sha256=policy.sha,adapter='public-approx-v1',unresolved_input_archived=unresolved,
+                        # This file is only written from the game_over branch, so its
+                        # presence is the terminal proof. Record it explicitly (and the
+                        # lifecycle proof string) so an overnight report can count real
+                        # finished games instead of inferring from a placement field.
+                        terminal=True,terminal_proof=proof,log_position=data.get('log_position')))
                     if unresolved:report('game completed; unresolved input archived without retry',data)
                     else:report('game completed',data)
                     game_completed=True

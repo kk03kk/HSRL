@@ -59,6 +59,58 @@ def queue_error(rows):
     return buttons[0] if len(buttons)==1 else None
 
 
+RECONNECT_TITLE='重新连接'
+RECONNECT_BODY=('离线状态','连接中断')
+RECONNECT_CANCEL=frozenset(('取消',))
+
+
+def reconnect_dialog(rows):
+    """The client's offline / "connection interrupted" dialog (255790).
+
+    Observed 2026-11-11 06:14 (``live-e-20261111-108/match-0007``): the title and
+    the confirm button share the text 重新连接, so the anchor must be the *button*
+    (lower half), never the title. Attended runs must be able to recover from
+    this without a human: the button is a plain client-side retry and asks for no
+    credentials. 验证码/登录 still require a human and are never clicked here.
+
+    The click is authorised only when the whole modal is positively identified:
+    title above, body text present, exactly one button and exactly one 取消, both
+    on the same row with the button to the LEFT of 取消. That layout condition is
+    what makes it impossible to press 取消 (which closes the client) by accident.
+    """
+    rows=trusted_rows(rows)
+    title=[r for r in rows if normalized(r['text'])==RECONNECT_TITLE and r['point'][1]<.35]
+    body=[r for r in rows if any(t in normalized(r['text']) for t in RECONNECT_BODY)]
+    if not title or not body:return None
+    buttons=[r for r in rows if normalized(r['text'])==RECONNECT_TITLE and r['point'][1]>.6]
+    cancels=[r for r in rows if normalized(r['text']) in RECONNECT_CANCEL and r['point'][1]>.6]
+    if len(buttons)!=1 or len(cancels)!=1:return None
+    button,cancel=buttons[0],cancels[0]
+    if abs(button['point'][1]-cancel['point'][1])>.02:return None
+    if not button['point'][0]<cancel['point'][0]:return None
+    if button['confidence']<.9 or cancel['confidence']<.85:return None
+    return button
+
+
+QUEST_TITLES=frozenset(('你的任务','你的每周任务'))
+#: Empty on the main menu and in the Battlegrounds lobby alike; clicking here
+#: closes the quest overlay the way a player does. Kept well away from 开始/商店.
+QUEST_DISMISS_POINT=(.12,.88)
+
+
+def quest_popup(rows):
+    """Daily/weekly quest banner shown on login and on first lobby entry.
+
+    It has no OK button: the client closes it when you click outside the cards, so
+    there is no control to re-identify. The authorisation is therefore the popup
+    itself, re-checked on the fresh frame right before the click (see
+    ``startup.reverify_control``), and the click always lands on a fixed empty point.
+    Observed 2026-11-12 00:23 (main menu) and 00:25 (lobby); it reappears at the
+    daily reset, so an unattended batch must be able to clear it.
+    """
+    return any(normalized(r['text']) in QUEST_TITLES for r in trusted_rows(rows))
+
+
 @dataclass(frozen=True)
 class LobbyAction:
     kind:str
@@ -70,6 +122,14 @@ class LobbyFlow:
         if type(max_restarts) is not int or not 0<=max_restarts<=10:raise Blocked('queue retries must be between 0 and 10')
         self.max_restarts=max_restarts;self.restarts=0;self.state='idle';self.proof=None
         self.sent_at=None;self.needs_restart=False;self.actions=0
+        #: Client-side offline recoveries. Bounded and spaced: a reconnect that
+        #: keeps failing means the network is gone, not that we should keep clicking.
+        self.reconnects=0;self.max_reconnects=3
+        #: Quest overlay dismissals (daily reset re-shows it mid-night).
+        self.quest_dismissals=0;self.max_quest_dismissals=3
+    def _reconnect_backoff(self):
+        """Wait after the Nth click: 10 s, 30 s, 60 s."""
+        return (10.,30.,60.)[min(max(self.reconnects-1,0),2)]
     def stable(self,kind,row,token,now):
         old=self.proof;point=tuple(row['point']);key=(kind,token)
         if old and old[0]==key and .15<=now-old[2]<=3 and max(abs(a-b) for a,b in zip(point,old[1]))<=.004:
@@ -108,6 +168,37 @@ class LobbyFlow:
                 if now-self.sent_at>10:raise Blocked('result banner did not close; dismissal is not repeated')
                 return None
             return self.stable('dismiss_result',banner,token,now)
+        reconnect=reconnect_dialog(rows)
+        if reconnect is not None:
+            # Client-side offline recovery. Checked before the credential guard
+            # below, because 重新连接 is in that word list and used to be refused
+            # forever: on 2026-11-11 that single refusal burned ~5 unattended
+            # hours and 63 match attempts.
+            if self.reconnects>=self.max_reconnects:
+                raise Blocked('reconnect recovery limit reached')
+            if self.state=='reconnect_pending':
+                if now-self.sent_at<self._reconnect_backoff():return None
+            # Do not clear self.proof here: stable() keys on (kind,token) and the
+            # point itself, so a proof from another control cannot authorise this
+            # click. Clearing it would restart the two-frame proof on every poll
+            # and the action could never be emitted.
+            return self.stable('reconnect',reconnect,token,now)
+        if self.state=='reconnect_pending':
+            # The dialog closed on its own or after our click; re-derive the
+            # lobby from a fresh frame instead of trusting the old proof.
+            self.state='idle';self.needs_restart=True;self.proof=None
+        if quest_popup(rows):
+            # Clear the quest overlay before anything else: it covers 开始 and has no
+            # dismiss button, so without this the flow waits out the whole queue
+            # timeout on every match after a daily reset.
+            if pending_gameplay:raise Blocked('unresolved gameplay input; quest overlay dismissal forbidden')
+            if self.state=='quest_pending':
+                if now-self.sent_at<8.:return None
+            if self.quest_dismissals>=self.max_quest_dismissals:
+                raise Blocked('quest overlay dismissal limit reached')
+            return self.stable('dismiss_quests',dict(point=list(QUEST_DISMISS_POINT)),token,now)
+        if self.state=='quest_pending':
+            self.state='idle';self.proof=None
         if any(t in ('发生错误','确定','确认','重新连接','连接失败','验证码','登录') for t in texts):
             if self.state=='dismiss_pending' and now-self.sent_at<=6 and not any(t in ('验证码','登录') for t in texts):
                 # Closing animations can temporarily hide only the body text.
@@ -150,4 +241,8 @@ class LobbyFlow:
             self.needs_restart=False;self.state='awaiting_match'
         elif action.kind=='enter_lobby':self.state='waiting_lobby'
         elif action.kind=='dismiss_result':self.state='result_pending'
+        elif action.kind=='reconnect':
+            self.reconnects+=1;self.state='reconnect_pending';self.needs_restart=True
+        elif action.kind=='dismiss_quests':
+            self.quest_dismissals+=1;self.state='quest_pending'
         else:raise Blocked('unknown lobby action')

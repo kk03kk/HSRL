@@ -24,7 +24,30 @@ POLICY_SPECS={CHECKPOINT_SHA256:dict(id='original-14.8m',auxiliary=False),
               # training engine version. Conflating the two made the gate unsatisfiable.
               '68a8a58743617bef004fef556bd263a4f4939e22b5f5f70352dfa697abc0848e':dict(
                   id='hsai-v1.1',auxiliary=False,parameters=16436034,
+                  required_client_build=255790,trained_engine_version='37.0.2.256589'),
+              # league-latest-12311 = m1102669-v12311 (36h league step_012311, 1,175,791,607 decisions).
+              # Same entity architecture as V1.1 (16,436,034 params, no auxiliary head in the
+              # inference path); selected by the server for live testing, V1.1 kept as fallback.
+              '5069aa62b8d20c57f2332fb284f5f57b639501dbd9721c3e2fefed41218d29cd':dict(
+                  id='league-latest-12311',auxiliary=False,parameters=16436034,
+                  required_client_build=255790,trained_engine_version='37.0.2.256589'),
+              # league-final-14858 = m1102669-v14858 (36h league final, 1,552,463,499 decisions).
+              # E1 four-model calibration champion by point estimate (1086.53, rank CI [1,2]);
+              # statistically tied with 13806, so it is a point-estimate winner, not a proven
+              # best.  Structurally identical to 12311 (137 tensors, same shapes/dtypes, entity
+              # arch, d_model=384/8 layers/8 heads), so it is a drop-in inference checkpoint.
+              'ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7':dict(
+                  id='league-final-14858',auxiliary=False,parameters=16436034,
                   required_client_build=255790,trained_engine_version='37.0.2.256589')}
+
+
+def _vector_meta(array):
+    """输入向量摘要（形状/范数/指纹），不复制数据本体。"""
+    import numpy as _np
+    flat=_np.ascontiguousarray(array).reshape(-1)
+    return dict(sha256=hashlib.sha256(flat.tobytes()).hexdigest(),
+        shape=[int(v) for v in _np.shape(array)],dtype=str(flat.dtype),
+        nonzero=int(_np.count_nonzero(flat)),abs_sum=round(float(_np.abs(flat).sum()),6))
 
 
 def configure_threads(count):
@@ -37,8 +60,6 @@ def configure_threads(count):
     if count is None:return
     if type(count) is not int or not 1<=count<=32:raise Blocked('inference threads must be 1..32')
     torch.set_num_threads(count)
-
-
 
 def load_champion_policy(checkpoint,device):
     """Omit exactly the verified training-only head, strict-load every policy tensor.
@@ -100,6 +121,10 @@ class ModelPolicy:
         if not torch.isfinite(logits).all(): raise Blocked('nonfinite model logits')
         raw=logits[0].float().cpu().numpy()
         action=int(np.argmax(np.where(mask,raw,-np.inf)))
+        # 输入留痕：只保存引用，不复制、不影响决策。trace 层负责落 npy，
+        # 让 sim×live 能逐位比较"模型真正看到的向量"，而不是事后重建。
+        self.last_inputs=dict(features=f,cards=c.astype(np.int32),mask=mask,
+            features_meta=_vector_meta(f),cards_meta=_vector_meta(c))
         return Decision(snapshot['game_id'],snapshot['revision'],state_stamp(snapshot),action,
             by_action[action],self.sha,hashlib.sha256(raw.tobytes()).hexdigest(),
             hashlib.sha256(f.tobytes()+c.tobytes()).hexdigest(),hashlib.sha256(mask.tobytes()).hexdigest())

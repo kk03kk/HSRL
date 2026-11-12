@@ -78,9 +78,22 @@ class Controller:
             if hasattr(policy,'sha') and any(row.get('checkpoint_sha256')!=policy.sha
                     for row in [decision]+[parent['decision'] for parent in self.parents]):
                 raise Blocked('unresolved input belongs to a different policy; resume its pinned checkpoint before continuation')
+    #: 需要进对局记录（trace/events.jsonl）的桥接事件。
+    #: 只收"重试/阻断/分支/回执"这类低频率、对还原因果必需的事件；
+    #: ``status`` / ``model_decision`` / ``decision_reused`` / ``input_stage`` /
+    #: ``native_input_trace`` 等高频诊断留在 live-state/events.jsonl，不进本局记录。
+    TRACE_EVENTS=frozenset((
+        'suspend_for_server_choice','confirm_model_choice','model_target','model_branch',
+        'model_prospective_target','cancelled_before_press','retried_unsent_input',
+        'expired_unsent_input','retired_externally_resolved_play',
+        'retired_externally_resolved_choice','reselect_unsubmitted_hero',
+        'duplicate_gesture_suppressed','waiting_control_settle','halted'))
     def event(self,kind,**data):
         with (self.out/'events.jsonl').open('a',encoding='utf-8') as f:
             f.write(json.dumps(dict(at=time.time(),event=kind,**data),ensure_ascii=False)+'\n');f.flush();os.fsync(f.fileno())
+        if self.trace is not None and kind in self.TRACE_EVENTS:
+            try:self.trace.note(kind,**data)
+            except Exception:self.trace=None
     def persist(self):
         if not self.enable_input:return
         d,before,_=self.pending
@@ -464,7 +477,9 @@ class Controller:
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
             if self.trace is not None and self.current_decision_id:
                 try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
-                    bindings=bind_actions(snapshot),parent=self.current_decision_id)
+                    bindings=bind_actions(snapshot),parent=self.current_decision_id,
+                    seat=snapshot['client'].get('local_player_id'),role='model',
+                    inputs=getattr(self.policy,'last_inputs',None))
                 except Exception:self.trace=None
             spec=next((r for r in d.binding.branches if r[0]==selected.binding.source and r[1]==selected.binding.sub_option_id and r[2]=='NONE'),None)
             if spec is None:raise Blocked('model branch is not authorized')
@@ -529,9 +544,21 @@ class Controller:
             final_point=points.get('control:confirm')
             if final_point is None:raise Blocked('confirm control is unlocated')
             self.confirm_sent=True;self._progress();self.persist();self.event('confirm_model_choice',source=d.binding.source)
-            self._execute([('click',list(final_point))],snapshot,rollback=rollback,flags=flags)
+            # 确认也是"续动作"：必须和其它动作一样把指针收回右下角。
+            # 2026-11-11 实机：确认点击后指针停在面板上，英雄选择时压在确认按钮、
+            # 饰品选择时压在神明展示框上弹出 tooltip，遮挡了后续决策的取景。
+            self._execute([('click',list(final_point)),('move_pointer',[.96,.91])],
+                snapshot,rollback=rollback,flags=flags)
             return 'confirm_sent'
-        if d.binding.targets and d.binding.target is None and not self.target_sent and snapshot.get('visual',{}).get('target_open'):
+        # 目标续动作的触发条件：视觉信号 ``target_open`` **或** 服务端权威的
+        # ``interaction.mode=='target'``。2026-11-11 T7 实机：Activate 打开发动目标
+        # 选择时视觉层没有给出 target_open，续动作永远不触发，局面卡在"已选中但未指认"。
+        # 下面原有的授权/身份/候选集一致性检查一条都不放松。
+        target_ui = bool(snapshot.get('visual',{}).get('target_open')) or (
+            interaction.get('mode')=='target'
+            and interaction.get('owner')==snapshot['client'].get('local_player_id')
+            and snapshot.get('view',{}).get('pending')==4)
+        if d.binding.targets and d.binding.target is None and not self.target_sent and target_ui:
             # Original server target authorization remains pinned. The visual
             # source context may not change while preparing this second decision.
             if snapshot['client']['turn']!=before['client']['turn']: raise Blocked('target turn changed')
@@ -544,7 +571,9 @@ class Controller:
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
             if self.trace is not None and self.current_decision_id:
                 try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
-                    bindings=bind_actions(snapshot),parent=self.current_decision_id)
+                    bindings=bind_actions(snapshot),parent=self.current_decision_id,
+                    seat=snapshot['client'].get('local_player_id'),role='model',
+                    inputs=getattr(self.policy,'last_inputs',None))
                 except Exception:self.trace=None
             snapshot=self._fresh(snapshot,before_send,selected.binding)
             self.target_sent=True
@@ -739,7 +768,9 @@ class Controller:
             # cache avoided a second forward pass; it does not collapse the
             # decision timeline.
             did=self.trace.decision(snapshot,decision,policy_ms=policy_ms,reused=reused,
-                bindings=bindings,plan=None)
+                bindings=bindings,plan=None,
+                seat=snapshot['client'].get('local_player_id'),role='model',
+                inputs=getattr(self.policy,'last_inputs',None))
             self.current_decision_id=did
         try:
             plan=self.geometry.plan(decision,snapshot)

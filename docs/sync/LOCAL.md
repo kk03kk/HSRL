@@ -96,3 +96,33 @@ v1 清单没有 `git_blob`，所以四个 CRLF 文件（`autoplay-255790.json`�
 - 自检：python client/tools/check_ownership.py --strict（越界改动会列出来，不会自动回滚）。
 - 运行时只需要：client/** + hsbg/env/{obs_std,action_space_std}.py + hsbg/az/train/common.py + hsbg_engine 轮子 + numpy/torch/PIL/rapidocr/onnx。
 - 已知：本地 hsbg_engine 仍是 2026-11-06 构建（c7b5f27d），按 S3 由服务器发版后用部署构建对齐。
+
+## 9. 统一对局记录 v2（2026-11-11，本地）
+
+模拟器与实机现在写**同一套**记录：`hsai.game-trace/v2`，规范与审计见
+[`docs/analysis/TRACE_UNIFIED_20261111.md`](../analysis/TRACE_UNIFIED_20261111.md)。
+
+- 代码：`client/hsrl_agent/trace_schema.py`（规范，纯 stdlib）、`client/hsrl_agent/live/trace.py`
+  （单写线程）、`client/tools/sim_decisions.py`（模拟器生产者）、`client/tools/trace_audit.py`（离线审计）。
+- 流分离：`decisions` / `actions`(execution) / `waits` / `events` / `decisions-full.gz` /
+  `observations.npy` / `decisions-resolved` / `audit.json`。
+- 旧的实机日志 92% 是等待轮询（753 行里 666 行）。按新规则重放同一局：**87 条决策、69 条有效动作**，
+  T1 从 50 条降到 3 条（buy/play/end）。
+- 模拟器整局验收通过：`league-latest-12311` + 引擎 `c4c71014e3d41760`，seed 700001，
+  第 7 名（T11 淘汰，对局 17 回合），**131 条决策 / 131 条执行 / 131 条输入向量，audit complete=true，
+  0 丢事件 0 写错误**。产物：`artifacts/local/sim-trace-20261111-001/`。
+- **需要服务器端决定**（本轮只记录、未改规则）：模拟器里 `Freeze` 是开关（T9/T10 各 10 次原地打摆），
+  且需要目标的法术 `Play` 有 68% 是空操作；实机桥接有"已全冻不给 Freeze"的保护，模拟器没有。
+  MoveGuard 只挡换位，挡不住这两类空转。
+- 实机侧只做了代码修复与离线测试（71 条 `test_live_*`+`test_client_contracts` 全绿），
+  下一局真实游戏按新格式落盘后跑 `trace_audit.py check <match-dir>` 验收 `complete=true`。
+- **面板对齐 + 规则对齐复跑（2026-11-11 13:50，第三次）**：7 席=**引擎 bot**（`game.bot_action`，无对手库）、
+  采样前清 **Cancel(7)**（长训 `forbid-cancel=1`）、商店全冻时**不提供 Freeze**（实机 `actions.py:77` 同规则）。
+  同模型同 seed：**第 1 名 / 15 回合 / 215 决策 / 868 个 bot 动作 / `complete=true` / 12.4 s**；
+  `freeze` 60→9、`freeze_masked` 11、`cancel_masked` 40。产物 `artifacts/local/sim-trace-20261111-003/`。
+- **更正上一版结论**：此前说的"法术 `Play` 有 68% 空操作"是**记录缺陷**，不是规则 bug。
+  引擎是**两步施法**（`Play` → `pending=Target` → `Choose(k)` 选目标），37/37 次"无变化"的 play
+  后面都紧跟一条 `choose` 且属性变化发生在那一步。记录层已修：`delta` 增加 `pending_kind`，
+  两步动作用 `parent_decision_id` 串链（本局 44 条），`Target` 的 options 是实体 id 不是卡牌 id。
+- 对照：7 席自对弈时同 seed 是第 7 名 → **名次对面板的敏感度远大于对模型的敏感度**。
+

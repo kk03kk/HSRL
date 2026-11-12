@@ -188,6 +188,9 @@ def control_texts(kind):
     return {'start':STARTS,
             'enter_lobby':frozenset(('酒馆战棋',)),
             'dismiss_error':frozenset(('确定','确认')),
+            # The reconnect button shares its text with the dialog title; the
+            # tolerance check below keeps the title from authorising the click.
+            'reconnect':frozenset(('重新连接',)),
             'dismiss_result':frozenset(('点击继续','点击以继续','点击屏幕继续','点击任意位置继续','点击任意位置以继续'))}[kind]
 
 
@@ -200,7 +203,12 @@ def reverify_control(image,ocr,action,tolerance=.01):
     window would still receive a blind click. Returns the fresh point, or None
     when the control is gone or has moved outside ``tolerance``.
     """
-    from .lobby import normalized,trusted_rows,RESULT_BANNER
+    from .lobby import normalized,trusted_rows,RESULT_BANNER,quest_popup
+    if action.kind=='dismiss_quests':
+        # The quest overlay has no control to re-identify; the invariant is that the
+        # overlay is still on this fresh frame. Clicking the same empty point again is
+        # harmless, and a frame where it already closed authorises nothing.
+        return tuple(action.point) if quest_popup(lobby_ocr_rows(ocr,image)) else None
     wanted=control_texts(action.kind)
     for row in trusted_rows(lobby_ocr_rows(ocr,image)):
         text=normalized(row.get('text',''))
@@ -229,8 +237,15 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
     idle_since=None;overlay_reported=False
     retirement_flow=LobbyFlow()
     def event(kind,**fields):
+        # Callers may pass their own ``state`` (e.g. overlay_suspected). Building the
+        # payload first and letting ``fields`` win keeps that override from turning
+        # into "dict() got multiple values for keyword argument 'state'", which used
+        # to abort the whole run ~27 s in, right after the lobby click.
+        payload=dict(state=flow.state,restarts=flow.restarts)
+        payload.update(fields)
+        payload.update(at=time.time(),event=kind)
         with (startup/'events.jsonl').open('a',encoding='utf8') as f:
-            f.write(json.dumps(dict(at=time.time(),event=kind,state=flow.state,restarts=flow.restarts,**fields),ensure_ascii=False)+'\n')
+            f.write(json.dumps(payload,ensure_ascii=False)+'\n')
     def pause_focus(exc):
         nonlocal focus_paused
         flow.proof=None
@@ -342,7 +357,7 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                 else:
                     image.convert('RGB').save(startup/(name+'.jpg'),quality=90)
                     save(startup/(name+'.json'),evidence)
-                rollback={k:getattr(flow,k) for k in ('state','restarts','sent_at','needs_restart')}
+                rollback={k:getattr(flow,k) for k in ('state','restarts','sent_at','needs_restart','reconnects','quest_dismissals')}
                 flow.commit(action,clock());event('dispatch_intent',action=action.kind,point=action.point)
                 previous_guard=getattr(backend,'pre_press',None)
                 def before_press(snapshot):
