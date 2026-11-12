@@ -607,3 +607,28 @@ PPO 于是收敛到捷径「把金币全砸在升级上、不买随从」。
 
 **副产物**：重开时顺手修了 `tier-gate-ref` 缺 `T7` 的缺陷
 （配置层传 `7:150,8:220,...`，不必改代码）。
+
+## D-038 · 2026-11-13 · local · 运维禁令：`sh --` 里不要用 shell 变量拼 sbatch 参数
+
+**事故**：为一次开三个臂，我写了
+`for c in "g5 config/league-entry-g5.json" ...; do set -- $c; sbatch --export=ALL,HSAI_LE_OUT=...$1...,HSAI_LE_CONFIG=$2 ...; done`。
+结果是：**每轮循环跑了两次**（一次 `$1` 正确、一次 `$2` 变成 `config`），
+共提交 6 个作业；更糟的是**留下来的三个作业里 `HSAI_LE_CONFIG` 根本没生效**，
+`run.env` 里写着 `config=config/league-entry.json`（= 默认 S1 配方），
+也就是说 g5b/f4b/g6b 跑的是**错的配方**，白烧了约 6 分钟 GPU。
+
+**根因**：`ops/hsai_ops.py sh` 这一层的引号/展开语义与本地 PowerShell 叠加，
+`$1`/`$2` 既不是可靠的远端变量，也不是稳定的本地字面量。
+
+**新规则（硬性）**
+
+1. `sbatch` 一律**一条命令一个作业**，`--export` 里的路径**写字面量**，
+   不用 `$1/$2/$(...)` 或 for 循环拼装。
+2. 提交后**必须先看 `run.env`**（`config=`、`segments=` 两行）确认配方正确，
+   再让它跑；不要等一小时后才发现跑错。
+3. 需要批量提交时，在**本机**生成完整的 bash 脚本，用 `git` 送到服务器执行
+   （脚本本身进版本库、可复查），而不是在 `sh --` 里现场拼。
+
+**本轮结果**：g5b/f4b/g6b 全部 scancel + 删目录，按规则 1 重开为
+`entry-g5c-20261113`（`1125428`）与 `entry-g6c-20261113`（`1125429`），
+`run.env` 已确认分别指向 `config/league-entry-g5.json` / `-g6.json`。
