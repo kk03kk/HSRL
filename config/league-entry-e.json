@@ -67,7 +67,7 @@
   "pipeline-zero-step-fallback": 1,
   "reset-anchor": 1,
   "forbid-unfreeze": 1,
-  "board-target-coef": 1.0,
+  "board-target-coef": 0.15,
   "board-target-w-card": 1.0,
   "board-target-w-str": 0.5
 }

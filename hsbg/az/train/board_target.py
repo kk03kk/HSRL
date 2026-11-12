@@ -137,6 +137,10 @@ class BoardTargetTracker:
         if t in self.evaluated:
             return 0.0
         self.evaluated.add(t)
+        # 入场那一个回合**不打分**：此时 learner 的战团就是库里的那一帧，
+        # 阵容召回合天然是 1.0、强度差天然是 0 —— 白送一份奖励只会把尺度搞乱。
+        if t <= int(self.source_turn):
+            return 0.0
         tt = self._target_turn(t)
         if tt is None:
             return 0.0
