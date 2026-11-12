@@ -1,0 +1,3053 @@
+{
+  "schema": "hsai.strategy_cards/v1",
+  "generated_at": "2026-11-12T15:36:15+0800",
+  "sources": {
+    "guide": "docs/battlegrounds_strategy_guide.md",
+    "zhcn": "data/card_zhcn.json",
+    "cards": "data/bg_cards.json",
+    "engine": {
+      "schema": "hsrl.upstream_source_lock/v1",
+      "repository": "https://github.com/MCG-NJU/AutoTavern",
+      "commit": "1c2086a997afde46d68c6c5992cab194ddcfce88",
+      "checked_on": "2026-11-09",
+      "normalization": "LF; taverngym namespace -> hsbg_engine",
+      "groups": [
+        {
+          "local": "engine/crates/hsbg-engine/src",
+          "upstream": "crates/taverngym/src",
+          "files": {
+            "actions.rs": {
+              "upstream_sha256": "c44915a4236a945d0a76e577953e00cad87118b8b78eae341776cd19a1aa9e1d",
+              "fork_sha256": "862368dc4f3d9e880f53d8b2cd5b6d663897bf4f552bd17bc24fd3f9b918e82d",
+              "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留"
+            },
+            "batch.rs": {
+              "upstream_sha256": "946bc0f161885e53e5ae4a9afa9a67a447b7c422af430ed1fb636122e09b76d2",
+              "fork_sha256": "7949e0282821d7ccaf7314e02c19e6002dcda7b28c47a2eba6a9a15e89484932",
+              "reason": "增加训练回合计数只读接口"
+            },
+            "bot.rs": {
+              "upstream_sha256": "63b24e6d48a65bab585c415753b437804e6039b71d6b6fb5a5f3f497e4789855",
+              "fork_sha256": "cf63b012a60ca442eed70955c4d07fb6c7f18f6664ab043c80db8a8f1db1ec86",
+              "reason": "Bot 待选推荐遵守合法掩码并允许合法取消"
+            },
+            "cards.rs": {
+              "upstream_sha256": "b82d3f6df6c07893e59759006f53521e506fd49288f94798d786281f1c347651",
+              "fork_sha256": "1a509b5f4a528d74409e67464c26c52fef47f8ebc369c46ed86517c15a1faa3b",
+              "reason": "卡表 meta 驱动版本与兼容缺失 meta 的历史输入"
+            },
+            "combat.rs": {
+              "upstream_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd",
+              "fork_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd"
+            },
+            "config.rs": {
+              "upstream_sha256": "b4f497252393744b76e6710affbea3b087349562bee94d6ef9348e3e592107c3",
+              "fork_sha256": "093006937f52bbd33ac396b8753e0bcd59234f779b9794a9756715500596eab1",
+              "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史"
+            },
+            "content/aberrations.rs": {
+              "upstream_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1",
+              "fork_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1"
+            },
+            "content/beasts.rs": {
+              "upstream_sha256": "740a233bc3f8399ed31d5b92396fe45142667fe9682febc29dc945798a560644",
+              "fork_sha256": "740a233bc3f8399ed31d5b92396fe45142667fe9682febc29dc945798a560644"
+            },
+            "content/buddies_a.rs": {
+              "upstream_sha256": "c52ae56c1d52e9ff5bc1eb722ccebf533e0ddb06b351eaddcc60f280c4238f4c",
+              "fork_sha256": "c52ae56c1d52e9ff5bc1eb722ccebf533e0ddb06b351eaddcc60f280c4238f4c"
+            },
+            "content/buddies_b.rs": {
+              "upstream_sha256": "c0c21663d326236158f64e2ac074e7a133d53693303c837237522f4e71299147",
+              "fork_sha256": "c0c21663d326236158f64e2ac074e7a133d53693303c837237522f4e71299147"
+            },
+            "content/buddies_c.rs": {
+              "upstream_sha256": "95e2f26b7335218d2a4f1204e370767b023405fba5c2b6826594e404d0c3606b",
+              "fork_sha256": "95e2f26b7335218d2a4f1204e370767b023405fba5c2b6826594e404d0c3606b"
+            },
+            "content/darkmoon.rs": {
+              "upstream_sha256": "f3dbc4bd103f5cc2b7e7fdbdba4cf1b6fcb9c58e788137b890677fc123bbbdb1",
+              "fork_sha256": "f3dbc4bd103f5cc2b7e7fdbdba4cf1b6fcb9c58e788137b890677fc123bbbdb1"
+            },
+            "content/demons.rs": {
+              "upstream_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749",
+              "fork_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749"
+            },
+            "content/demons_p1.rs": {
+              "upstream_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102",
+              "fork_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102"
+            },
+            "content/dragons.rs": {
+              "upstream_sha256": "f45509cf23b9ee1ba9ea68183681e35dbb587e74e4543ea615191d041db6ecab",
+              "fork_sha256": "f45509cf23b9ee1ba9ea68183681e35dbb587e74e4543ea615191d041db6ecab"
+            },
+            "content/elementals.rs": {
+              "upstream_sha256": "21267f8a7910bb75199e3ff8de86734484e29dc92c3ed6db52fd2deb3b119ea7",
+              "fork_sha256": "21267f8a7910bb75199e3ff8de86734484e29dc92c3ed6db52fd2deb3b119ea7"
+            },
+            "content/gifts.rs": {
+              "upstream_sha256": "da499d0bf2cb14fa502eeccd57d4137e86789386b9001df09dc34f3a1a3a673f",
+              "fork_sha256": "da499d0bf2cb14fa502eeccd57d4137e86789386b9001df09dc34f3a1a3a673f"
+            },
+            "content/helpful.rs": {
+              "upstream_sha256": "48b7a63fefef0fb1fc81147a4601330202dc4c6f0a23489e8ebfda9010c38418",
+              "fork_sha256": "48b7a63fefef0fb1fc81147a4601330202dc4c6f0a23489e8ebfda9010c38418"
+            },
+            "content/hero_powers.rs": {
+              "upstream_sha256": "57375fe9ec573bd65d62e10ed8fcd0907949ffd1bc938a2f9e83f5cee531fa09",
+              "fork_sha256": "57375fe9ec573bd65d62e10ed8fcd0907949ffd1bc938a2f9e83f5cee531fa09"
+            },
+            "content/heroes.rs": {
+              "upstream_sha256": "1c0a84a511f055d9679ae56495038dcc4e74cde581127d20cac441b7a8ee5a5f",
+              "fork_sha256": "1c0a84a511f055d9679ae56495038dcc4e74cde581127d20cac441b7a8ee5a5f"
+            },
+            "content/heroes_active.rs": {
+              "upstream_sha256": "dc06d11c5a171d7e0afeb8fd434496c773cfe6f2beb2b5ebd3c312964334e969",
+              "fork_sha256": "dc06d11c5a171d7e0afeb8fd434496c773cfe6f2beb2b5ebd3c312964334e969"
+            },
+            "content/heroes_combat.rs": {
+              "upstream_sha256": "6e62985b677deae3bda36f90eb878d09150f55c892c02dd40ca0ca0353912d9e",
+              "fork_sha256": "6e62985b677deae3bda36f90eb878d09150f55c892c02dd40ca0ca0353912d9e"
+            },
+            "content/heroes_eco.rs": {
+              "upstream_sha256": "09781798e7e1d7c2088c7cc05b58e18f598f614dee53d9a16796b5888aaaaabc",
+              "fork_sha256": "09781798e7e1d7c2088c7cc05b58e18f598f614dee53d9a16796b5888aaaaabc"
+            },
+            "content/heroes_gen.rs": {
+              "upstream_sha256": "f374883a95440e416c86cde38e09362db280a9e701f8717f3e9c8683174b5c7a",
+              "fork_sha256": "f374883a95440e416c86cde38e09362db280a9e701f8717f3e9c8683174b5c7a"
+            },
+            "content/heroes_special.rs": {
+              "upstream_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee",
+              "fork_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee"
+            },
+            "content/mechs.rs": {
+              "upstream_sha256": "e6c35513f96abd69bfcbdd09e79c36f5166a4be4c97c08e9a63b8720d87a94af",
+              "fork_sha256": "e6c35513f96abd69bfcbdd09e79c36f5166a4be4c97c08e9a63b8720d87a94af"
+            },
+            "content/mechs_p1.rs": {
+              "upstream_sha256": "af7a63fec976bc5f90e9c1a48c02146453303df490f69dd63dba96dfd102d853",
+              "fork_sha256": "af7a63fec976bc5f90e9c1a48c02146453303df490f69dd63dba96dfd102d853"
+            },
+            "content/minions.rs": {
+              "upstream_sha256": "eb48eedfc775010963a3109ffb5d986571d52b585272b77f0dba0199fee2f79c",
+              "fork_sha256": "eb48eedfc775010963a3109ffb5d986571d52b585272b77f0dba0199fee2f79c"
+            },
+            "content/mod.rs": {
+              "upstream_sha256": "9f2c497a8a8c321b9c4734df6cf512f964d8adb0b4a52bc55cbda7743482ee28",
+              "fork_sha256": "c0468b55557207cd5e8462021f8020a58eb2d274a70773ea55068af0b5611447",
+              "reason": "登记朋友 P3 新增脚本，无重复覆盖上游注册"
+            },
+            "content/murlocs.rs": {
+              "upstream_sha256": "b77c5898678c098963f00510273fa45bde93c3884219e529a8b212f355b3f33e",
+              "fork_sha256": "b77c5898678c098963f00510273fa45bde93c3884219e529a8b212f355b3f33e"
+            },
+            "content/murlocs_p1.rs": {
+              "upstream_sha256": "5b41433403d33e2a5445d483b99fccf09de635bef604f4cc8182542006bdff45",
+              "fork_sha256": "5b41433403d33e2a5445d483b99fccf09de635bef604f4cc8182542006bdff45"
+            },
+            "content/naga.rs": {
+              "upstream_sha256": "0cbffe59fe59a0f256dfa054ec22db613dc30f95d39bed1198b955aff6ae09ec",
+              "fork_sha256": "0cbffe59fe59a0f256dfa054ec22db613dc30f95d39bed1198b955aff6ae09ec"
+            },
+            "content/neutral.rs": {
+              "upstream_sha256": "4be858d65fd3dcdc042ce508600b16c384f457fcf4486fec147c42c8f46228c0",
+              "fork_sha256": "4be858d65fd3dcdc042ce508600b16c384f457fcf4486fec147c42c8f46228c0"
+            },
+            "content/p3_batch_a.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "1bafbae936d890d58cec95c4e70042696cd4c3c9553b260479cdb215a5ca91d4",
+              "reason": "朋友已有 Naga/Spellcraft 扩展，保留定向测试"
+            },
+            "content/p3_batch_b.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "a8c3d586037fa982e95c1ad886ced1a83e355fca8d35b9a597468897c3354127",
+              "reason": "朋友已有 Naga/法术扩展，保留定向测试"
+            },
+            "content/p3_systems.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "e9bac27829a317b93f17ca5082dd9d847462993405d9a0a3006bcd2f435f5a31",
+              "reason": "朋友已有艾萨拉技能扩展，保留定向测试"
+            },
+            "content/pirates.rs": {
+              "upstream_sha256": "43d8f0c167371f2eb7722998869b95ddc091e8e6503516516b099f024a2b0df7",
+              "fork_sha256": "43d8f0c167371f2eb7722998869b95ddc091e8e6503516516b099f024a2b0df7"
+            },
+            "content/pirates_p1.rs": {
+              "upstream_sha256": "aad148fcc52d2a06879618a348edb3c9046cbbd086e86afe0d33ee4b3f65ddef",
+              "fork_sha256": "aad148fcc52d2a06879618a348edb3c9046cbbd086e86afe0d33ee4b3f65ddef"
+            },
+            "content/putricide.rs": {
+              "upstream_sha256": "ccdf6349126c42196c37360be3f9589a3ee39f172c264d66adab15f335e10f56",
+              "fork_sha256": "ccdf6349126c42196c37360be3f9589a3ee39f172c264d66adab15f335e10f56"
+            },
+            "content/quests.rs": {
+              "upstream_sha256": "c590f37796c0f3cbeb2acb016623a68307cf7c0a1890b33f6b564505d480994b",
+              "fork_sha256": "c590f37796c0f3cbeb2acb016623a68307cf7c0a1890b33f6b564505d480994b"
+            },
+            "content/quilboar.rs": {
+              "upstream_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b",
+              "fork_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b"
+            },
+            "content/quilboar_p1.rs": {
+              "upstream_sha256": "f55e4e9d3f84603a3354167a50a8fc9da4fcadf09face538bab44694bd0825a7",
+              "fork_sha256": "f55e4e9d3f84603a3354167a50a8fc9da4fcadf09face538bab44694bd0825a7"
+            },
+            "content/secrets.rs": {
+              "upstream_sha256": "39833ad779f4fc861d6c019ab8439a6827d077e86beb43412848a880ff938f14",
+              "fork_sha256": "39833ad779f4fc861d6c019ab8439a6827d077e86beb43412848a880ff938f14"
+            },
+            "content/spells.rs": {
+              "upstream_sha256": "3b192f1e71b4a49e95d7a1481065a2445fea2cd1e3a2faafeb8e814bf6552b01",
+              "fork_sha256": "3b192f1e71b4a49e95d7a1481065a2445fea2cd1e3a2faafeb8e814bf6552b01"
+            },
+            "content/spells_p2.rs": {
+              "upstream_sha256": "2a1ec634d822a1bbe1535847ccd383b6d8d6e65b35ae6bf5e16ec9e002aeba7e",
+              "fork_sha256": "2a1ec634d822a1bbe1535847ccd383b6d8d6e65b35ae6bf5e16ec9e002aeba7e"
+            },
+            "content/starcraft.rs": {
+              "upstream_sha256": "d4719dacace45513fadae241d00bcbb27e2002a8b796db22e0c7311dbf164130",
+              "fork_sha256": "d4719dacace45513fadae241d00bcbb27e2002a8b796db22e0c7311dbf164130"
+            },
+            "content/tier7.rs": {
+              "upstream_sha256": "63a35a923e2c52a40b613eb9c1aa648ec5eb9a32789b289a606dddec3685b0ac",
+              "fork_sha256": "63a35a923e2c52a40b613eb9c1aa648ec5eb9a32789b289a606dddec3685b0ac"
+            },
+            "content/timewarp.rs": {
+              "upstream_sha256": "5fa9c91996fcc9061f9bbe7a451730e8515cfbba85a62b457427b68f2f05e489",
+              "fork_sha256": "684311667435925c7f34214eeea7acd98c97972d9d724cd8ae23c272a7c08801",
+              "reason": "满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+            },
+            "content/trinket_offers.rs": {
+              "upstream_sha256": "92befb7f6a607ef4744a20933a75d4cfab6fd54d7578b45c442406f310318b3b",
+              "fork_sha256": "92befb7f6a607ef4744a20933a75d4cfab6fd54d7578b45c442406f310318b3b"
+            },
+            "content/trinkets.rs": {
+              "upstream_sha256": "f4a2ed76fbf5da6d82c088693dbc64b282d28d3ede63147109a8a71d85f91412",
+              "fork_sha256": "f4a2ed76fbf5da6d82c088693dbc64b282d28d3ede63147109a8a71d85f91412"
+            },
+            "content/trinkets_3702.rs": {
+              "upstream_sha256": "dfd92186a1e5f07903238b6701483263d55baa42463a12c211eb87a6d5b19c69",
+              "fork_sha256": "dfd92186a1e5f07903238b6701483263d55baa42463a12c211eb87a6d5b19c69"
+            },
+            "content/trinkets_p1.rs": {
+              "upstream_sha256": "8763903d63ce28a403f12cdb2b7bc26d20f50643cb803221839ff3b6fb210615",
+              "fork_sha256": "8763903d63ce28a403f12cdb2b7bc26d20f50643cb803221839ff3b6fb210615"
+            },
+            "content/trinkets_p2.rs": {
+              "upstream_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24",
+              "fork_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24"
+            },
+            "content/trinkets_p3.rs": {
+              "upstream_sha256": "8f4e8a0cb5630aaeedd333c9fe61a57a7869699d821a28ce2c096712c6721943",
+              "fork_sha256": "8f4e8a0cb5630aaeedd333c9fe61a57a7869699d821a28ce2c096712c6721943"
+            },
+            "content/trinkets_p4.rs": {
+              "upstream_sha256": "1c89a713d10e6c7b3ba565999f96a0736a54c12d573ab61a483d3d3c9f38aab2",
+              "fork_sha256": "1c89a713d10e6c7b3ba565999f96a0736a54c12d573ab61a483d3d3c9f38aab2"
+            },
+            "content/trinkets_p5.rs": {
+              "upstream_sha256": "77948d68c666a201d6a576088a7c66798962203ec115d1a44cf5c74eee3a5d88",
+              "fork_sha256": "77948d68c666a201d6a576088a7c66798962203ec115d1a44cf5c74eee3a5d88"
+            },
+            "content/trinkets_p6.rs": {
+              "upstream_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403",
+              "fork_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403"
+            },
+            "content/trinkets_p7.rs": {
+              "upstream_sha256": "f46f985b8d430fc533625c256b2de3056815fa2132b5051b2867fac30bcc58d2",
+              "fork_sha256": "f46f985b8d430fc533625c256b2de3056815fa2132b5051b2867fac30bcc58d2"
+            },
+            "content/trinkets_p8.rs": {
+              "upstream_sha256": "4f8cb55a65c75dd831d9ab2be37f85864f9f59c876727a14969f27b0673ba6d7",
+              "fork_sha256": "8c5d2fe5835820e48ab847d62107039b95170b410f6e3890a534b047401522e9",
+              "reason": "37.0.2 Jar o' Gems once-per-combat fix (official 37.0.2 text)"
+            },
+            "content/tw_beasts.rs": {
+              "upstream_sha256": "bf90dd34adf111ae02cd5be3a4af81beed9d923b0c70cb57853f7b7cb325546f",
+              "fork_sha256": "bf90dd34adf111ae02cd5be3a4af81beed9d923b0c70cb57853f7b7cb325546f"
+            },
+            "content/tw_demons.rs": {
+              "upstream_sha256": "516fa7c4de426d1a9f4752e389164a5f1815f25b0103c3d8188a1ee528e08006",
+              "fork_sha256": "516fa7c4de426d1a9f4752e389164a5f1815f25b0103c3d8188a1ee528e08006"
+            },
+            "content/tw_dragons_pirates.rs": {
+              "upstream_sha256": "a4e777537777f61ac3089e413dc4c60ef241af28e3004d9a399c0f90d413d4ca",
+              "fork_sha256": "a4e777537777f61ac3089e413dc4c60ef241af28e3004d9a399c0f90d413d4ca"
+            },
+            "content/tw_elementals.rs": {
+              "upstream_sha256": "beace9d59da8bfff7962ddaeb1d23f2919fcba4bb2a437f3a48da267798c0938",
+              "fork_sha256": "beace9d59da8bfff7962ddaeb1d23f2919fcba4bb2a437f3a48da267798c0938"
+            },
+            "content/tw_murlocs_mechs.rs": {
+              "upstream_sha256": "ce98772b0001ac4e1d8220ade0f424009a06f73a676a9f0bbf10c25418acd4ff",
+              "fork_sha256": "ce98772b0001ac4e1d8220ade0f424009a06f73a676a9f0bbf10c25418acd4ff"
+            },
+            "content/tw_quilboar_neutral.rs": {
+              "upstream_sha256": "3462fa3e5a37c2529a195bd58a630916244d2b15a3d70e4266ece211f6979918",
+              "fork_sha256": "3462fa3e5a37c2529a195bd58a630916244d2b15a3d70e4266ece211f6979918"
+            },
+            "content/tw_spells.rs": {
+              "upstream_sha256": "1fdf4dee2c6f593a8a4ff4e199dd13fa1a677337c950d10e84de8429aef7d1bd",
+              "fork_sha256": "1fdf4dee2c6f593a8a4ff4e199dd13fa1a677337c950d10e84de8429aef7d1bd"
+            },
+            "content/tw_undead.rs": {
+              "upstream_sha256": "fe7da8a20f99e328690c06620e50c7495589039b76ca3bb86c6eb99eacb2bc39",
+              "fork_sha256": "fe7da8a20f99e328690c06620e50c7495589039b76ca3bb86c6eb99eacb2bc39"
+            },
+            "content/undead.rs": {
+              "upstream_sha256": "60caf79485a5308f93895ee9bcfb3497b4dcb00e634f8b778ed1d147aac7d672",
+              "fork_sha256": "60caf79485a5308f93895ee9bcfb3497b4dcb00e634f8b778ed1d147aac7d672"
+            },
+            "content/yogg.rs": {
+              "upstream_sha256": "fa16ee0a9eb9c0eaf980e738398e4303aba157a13e99af3c2f783b1db68f805f",
+              "fork_sha256": "fa16ee0a9eb9c0eaf980e738398e4303aba157a13e99af3c2f783b1db68f805f"
+            },
+            "debug.rs": {
+              "upstream_sha256": "0c44f1e64779f7ee0ed980c4a96098927ff455ddee47d3fda0e40d5b3571aa28",
+              "fork_sha256": "9dd5d7f07e10f547a1f3442dce3f84fb8825398a27748ac477ec606814316f3d",
+              "reason": "版本输出跟随固定数据 meta"
+            },
+            "engine.rs": {
+              "upstream_sha256": "50b0d8d42c00e087fd12fa69ec71e5ee598f96602d6b0fa135378e72dbe1f440",
+              "fork_sha256": "bdd11185ff15c0e5cda5b3506170590efa939a60d47e296d16a37b3ab6720458",
+              "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；配对卡生成即时三连与实体失效引用不变量修复；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记"
+            },
+            "env.rs": {
+              "upstream_sha256": "99dfdd9dfe92cfd3fe6d7cf4f80fcbf4344fbfc9e67cb32e6f52c2e88247bf5a",
+              "fork_sha256": "99dfdd9dfe92cfd3fe6d7cf4f80fcbf4344fbfc9e67cb32e6f52c2e88247bf5a"
+            },
+            "event.rs": {
+              "upstream_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e",
+              "fork_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e"
+            },
+            "experimental.rs": {
+              "upstream_sha256": "3c174ea10d152d683ab52f3352f796018f3403edb9f4ad3f68b69848b8ac929b",
+              "fork_sha256": "2be05ad051a212e49dcb8e280b724cd2c534a7f1973259615f84def6c09a7f1e",
+              "reason": "满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+            },
+            "flow.rs": {
+              "upstream_sha256": "16186657f8fd65997d28eaca5e5385ff561f28ce2049b5416204a8afad923f16",
+              "fork_sha256": "acb983d33671eafec1da76918a180ae0dcbd254722d9fea6caf9f655e1d14aa2",
+              "reason": "HSRL 快照推进接口；待选修复、在线禁用池过滤、回合末失败保留现场；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记"
+            },
+            "guard.rs": {
+              "upstream_sha256": "005604a828d377950c59ac77dbd6a476bd90f68969c5c9c2ca058f21f98cc7d8",
+              "fork_sha256": "77809e6df19d42be7bae5fcccaf4533d85fa778729ec2f77952486f10ca0210c",
+              "reason": "诊断目录和前缀改为 HSBG_ENGINE"
+            },
+            "invariants.rs": {
+              "upstream_sha256": "0b9f919ec49c1a87f9d991747ea1d49a2f22e47d242554498a4ccb758d77d872",
+              "fork_sha256": "436f804b9d0dc66c3ac441b070c0fa8759fb032d2ceef204af7aaa67f74efc8b",
+              "reason": "配对卡生成即时三连与实体失效引用不变量修复"
+            },
+            "lib.rs": {
+              "upstream_sha256": "cab9ca0682f8d2bca615cd06fef0a490d636a891ed9f7213b79d307e01c33efb",
+              "fork_sha256": "b2da1a83a7ab67b0ccca681fa7f342047c59c9959239fbdaf0032d6fc1f37d1f",
+              "reason": "fork 模块与接口导出，版本 meta 读取和说明"
+            },
+            "obs.rs": {
+              "upstream_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1",
+              "fork_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1"
+            },
+            "recruit.rs": {
+              "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
+              "fork_sha256": "ec14d10f86bce17d8f31599a41e792d57899edccc7c68fa3a851b08f25387291",
+              "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用"
+            },
+            "rng.rs": {
+              "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",
+              "fork_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e"
+            },
+            "script.rs": {
+              "upstream_sha256": "90e56e23b563952de3ee114dab9225f30845e815d06bcb038dedf574d4150385",
+              "fork_sha256": "90e56e23b563952de3ee114dab9225f30845e815d06bcb038dedf574d4150385"
+            },
+            "search.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "6f756d63c2cf7342c5a5ae132e0db0c41845d38c18d6336183f2b0f24fc6e96f",
+              "reason": "HSRL AZ 搜索接口"
+            },
+            "snapshot.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "a4cd22b23f149f4d72529a8ec4ee8edbd83dd03267952d23e1dca4ef9ee130bb",
+              "reason": "HSRL 严格快照注入及池账本"
+            },
+            "state.rs": {
+              "upstream_sha256": "ba8f1cd7191f20f864e91bbac42862537fa53676a4b1ad9a00a752d2f8083e00",
+              "fork_sha256": "e4a5cd3bd28659d27359828b63d49762ecc20f5dc719514c5877d3a086a6e8b4",
+              "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记；满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+            },
+            "turn_search.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "94d91b7cc6aa4b025f174fffa2c92bb728fba128796837fea70f61b6f27c6a17",
+              "reason": "既有可选回合搜索接口，不接入当前 sims=0 个人 PPO"
+            },
+            "types.rs": {
+              "upstream_sha256": "1b3bb9e4dd3395b1205a1eaaab8aa2bbd8e9152ac188a97bfd91038d6165dc21",
+              "fork_sha256": "1b3bb9e4dd3395b1205a1eaaab8aa2bbd8e9152ac188a97bfd91038d6165dc21"
+            },
+            "workers.rs": {
+              "upstream_sha256": "decec43d9a3483e8e68fc35569209306f7d34bc53f2abe98776ceecc7a42457f",
+              "fork_sha256": "decec43d9a3483e8e68fc35569209306f7d34bc53f2abe98776ceecc7a42457f"
+            }
+          },
+          "upstream_tests": [
+            "buddies_a.rs",
+            "buddies_b.rs",
+            "buddies_c.rs",
+            "cards_content.rs",
+            "cards_core.rs",
+            "cards_diagnostics.rs",
+            "cards_heroes.rs",
+            "combat_analytics.rs",
+            "common/mod.rs",
+            "complex_interactions.rs",
+            "experimental_rules.rs",
+            "games.rs",
+            "mechanics.rs",
+            "patch_3702.rs",
+            "persistence.rs",
+            "recruit_batches.rs",
+            "s_tier_engines.rs",
+            "scoreboard.rs",
+            "shown.rs",
+            "shown_heroes.rs",
+            "shown_minions_a.rs",
+            "shown_minions_b.rs",
+            "shown_spells.rs",
+            "shown_timewarp.rs",
+            "shown_trinkets_a.rs",
+            "shown_trinkets_b.rs",
+            "tw_beasts.rs",
+            "tw_demons.rs",
+            "tw_dragons_pirates.rs",
+            "tw_elementals.rs",
+            "tw_engine.rs",
+            "tw_murlocs_mechs.rs",
+            "tw_quilboar_neutral.rs",
+            "tw_spells.rs",
+            "tw_undead.rs",
+            "validation.rs"
+          ]
+        },
+        {
+          "local": "engine/crates/hsbg-engine-py/src",
+          "upstream": "crates/taverngym-py/src",
+          "files": {
+            "collector.rs": {
+              "upstream_sha256": null,
+              "fork_sha256": "2f46ccf777e0a0641d0f0aee63cf220cce2bb19c0dbaaf454e8212e08a4a6992",
+              "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口"
+            },
+            "lib.rs": {
+              "upstream_sha256": "043212d44e8e67975e2d1ba3af8db45d65e23aae98b857b5f119272736c64478",
+              "fork_sha256": "bb289e6908abc3101cb650f6e7f26c9a80609b9d469dca186d5f2b3524e21f76",
+              "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口；常数时间公开四项引擎质量诊断，保护采集与评测"
+            }
+          },
+          "upstream_tests": []
+        }
+      ]
+    }
+  },
+  "tier_counts": {
+    "A": 18,
+    "B": 10,
+    "S": 5
+  },
+  "unresolved_total": 119,
+  "comps": [
+    {
+      "name": "亡灵 - 手速亡灵",
+      "tier": "S",
+      "difficulty": "困难",
+      "expected_tribe": "undead",
+      "tribe_suspect": false,
+      "foreign_core": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "tribe": "pirate"
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "tribe": "pirate"
+        }
+      ],
+      "core": [
+        {
+          "zh": "断手被遗忘者",
+          "card_id": "BG25_010",
+          "en": "Handless Forsaken",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "被遗忘者纺织工",
+          "card_id": "BG34_692",
+          "en": "Forsaken Weaver",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 6
+        }
+      ],
+      "extra": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        }
+      ],
+      "formed_note": "悬赏令生成（空军上将罗杰斯）+ 骄傲的私掠者 + 被遗忘者纺织工",
+      "core_card_ids": [
+        "BG25_010",
+        "BG33_823",
+        "BG33_825",
+        "BG34_692"
+      ],
+      "tribes": [
+        "pirate",
+        "undead"
+      ],
+      "unresolved": {
+        "core": [
+          "时尚魅影"
+        ],
+        "extra": [
+          "上进的逃兵"
+        ],
+        "transition": []
+      },
+      "how": "空军上将罗杰斯 与 骄傲的私掠者 的组合能提供大量铸币，帮你找到更多阵容组件。 其他能帮你实现无限铸币的卡牌包括 上进的逃兵 和 布莱恩·铜须，但当你在场上投入更多亡灵后可以将它们替换掉。循环使用每一张免费卡牌（刷新畸体），以维持无限铸币。实现无限铸币后，用悬赏令 + 被遗忘者纺织工 提高亡灵的攻击力。使用一个具有复生的金色 断手被遗忘者 来保证强度。同时使用 时尚魅影，并循环使用 噬渊施法者 和 变装盗墓贼 等每一个能消灭亡灵的效果，消灭具有复生的随从，让时尚魅影永久获得数值。"
+    },
+    {
+      "name": "野猪人 - 手速酒馆强化",
+      "tier": "S",
+      "difficulty": "困难",
+      "expected_tribe": "quilboar",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "en": "Felboar",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "en": "Hot-Air Surveyor",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "扭曲的愤怒卫士",
+          "card_id": "BG35_155",
+          "en": "Twisted Wrathguard",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "早期无限铸币 + 邪能野猪人",
+      "core_card_ids": [
+        "BG28_633",
+        "BG35_883",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [],
+        "extra": [
+          "得胜的地卜术师",
+          "上进的逃兵",
+          "守门融合怪",
+          "恶魔干扰者"
+        ],
+        "transition": []
+      },
+      "how": "要玩这个流派，你必须拥有极其夸张的经济。通常在第9回合靠铜须 + 罗杰斯 + 私掠者实现。你也可以通过循环使用强化宝石和法术强度的随从，以及购买 老牌恶匪 等每一张宝石弹幕卡牌来强化酒馆。实现无限铸币后你还会生成大量法术，让 邪能野猪人 或 扭曲的愤怒卫士 一次又一次吞掉超强的酒馆随从。最适合循环的是 无畏的食客 等鲜血宝石生成卡牌。将指向性法术施放到 守门融合怪 或 恶魔干扰者 上也是不错的用法。"
+    },
+    {
+      "name": "元素 - 活化艾泽里特",
+      "tier": "S",
+      "difficulty": "普通",
+      "expected_tribe": "elemental",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "活化艾泽里特",
+          "card_id": "BG28_707",
+          "en": "Living Azerite",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "魔网浮灵",
+          "card_id": "BG35_881",
+          "en": "Leyline Surfacer",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "en": "Felboar",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "野火元素",
+          "card_id": "BGS_126",
+          "en": "Wildfire Elemental",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 3
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须 + 活化艾泽里特 + 良好经济",
+      "core_card_ids": [
+        "BG28_707",
+        "BG35_881",
+        "BG35_883",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "elemental"
+      ],
+      "unresolved": {
+        "core": [
+          "海藻护卫"
+        ],
+        "extra": [],
+        "transition": []
+      },
+      "how": "用 活化艾泽里特 强化酒馆。可以用 空军上将罗杰斯 + 骄傲的私掠者 施放大量法术。然后，酒馆强化的收益手段是尽可能多地生成奥术吸收，也就是 魔网浮灵 生成的法术。 用 布莱恩·铜须 和 海藻护卫 生成它们，再用 巴琳达·斯通赫尔斯 使其效果翻倍。最后，最值得强化的元素是 野火元素。"
+    },
+    {
+      "name": "鱼人 - 关键词",
+      "tier": "S",
+      "difficulty": "普通",
+      "expected_tribe": "murloc",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "黑客鱼人",
+          "card_id": "BG31_148",
+          "en": "Hackerfin",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "怒胆喷毒鱼人",
+          "card_id": "BG33_318",
+          "en": "Bile Spitter",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "小瞎眼",
+          "card_id": "BG22_403",
+          "en": "Young Murk-Eye",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "气泡枪手",
+          "card_id": "BG31_149",
+          "en": "Bubble Gunner",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 1
+        },
+        {
+          "zh": "戈姆蛴食客",
+          "card_id": "BG32_336",
+          "en": "Gormling Gourmet",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 4
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须 + 下水道逃生鱼人",
+      "core_card_ids": [
+        "BG31_148",
+        "BG33_318",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "murloc"
+      ],
+      "unresolved": {
+        "core": [
+          "下水道逃生鱼人",
+          "海藻护卫"
+        ],
+        "extra": [],
+        "transition": [
+          "下水道逃生鱼人"
+        ]
+      },
+      "how": "尽早使用 下水道逃生鱼人，开始为一个优质鱼人添加关键词，首选 怒胆喷毒鱼人。然后用 布莱恩·铜须 循环使用 蛮鱼斥候 和 黑客鱼人。如果能用 海藻护卫 反复触发优质战吼就更好了。进阶玩法：打造完美的气泡枪手，留在手牌中，之后用金色 凶饿的觅食者 召唤它们。之后用 怒胆喷毒鱼人 + 全关键词转型为搅局打法。"
+    },
+    {
+      "name": "野兽 - 美味龙虾",
+      "tier": "S",
+      "difficulty": "简单",
+      "expected_tribe": "beast",
+      "tribe_suspect": true,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "辛多雷直射手",
+          "card_id": "BG25_016",
+          "en": "Sin'dorei Straight Shot",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 4
+        }
+      ],
+      "transition": [],
+      "formed_note": "猎头狮鹫 + 逐亡陆行鸟",
+      "core_card_ids": [
+        "BG25_354"
+      ],
+      "tribes": [],
+      "unresolved": {
+        "core": [
+          "美味龙虾",
+          "猎头狮鹫",
+          "逐亡陆行鸟"
+        ],
+        "extra": [
+          "深潜狮子鱼",
+          "囤食土狼"
+        ],
+        "transition": [
+          "猎头狮鹫"
+        ]
+      },
+      "how": "尽可能多次触发 美味龙虾 的亡语。通过多次进击 + 逐亡陆行鸟 和 提图斯·瑞文戴尔，让每次进击都触发龙虾的亡语。在酒馆阶段，使用金色 猎头狮鹫 并买下每一张 尖利的鲨鱼 和 深潜狮子鱼 来触发龙虾的亡语。让龙虾获得复生和嘲讽，再用 机变甲虫 让狮鹫获得风怒。"
+    },
+    {
+      "name": "亡灵 - 攻击力成长",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "undead",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "断手被遗忘者",
+          "card_id": "BG25_010",
+          "en": "Handless Forsaken",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "木乃伊工匠",
+          "card_id": "BG28_309",
+          "en": "Mummifier",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "德鲁斯特堕落屠夫",
+          "card_id": "BG32_324",
+          "en": "Drustfallen Butcher",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "永恒召唤者",
+          "card_id": "BG25_009",
+          "en": "Eternal Summoner",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "致命打击者",
+          "card_id": "BG31_835",
+          "en": "Deathly Striker",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "友善的恶鬼",
+          "card_id": "BG32_880",
+          "en": "Friendly Geist",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 4
+        }
+      ],
+      "transition": [
+        {
+          "zh": "致命打击者",
+          "card_id": "BG31_835",
+          "en": "Deathly Striker",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 6
+        }
+      ],
+      "formed_note": "攻击力成长（德鲁斯特堕落屠夫）+ 召唤（断手被遗忘者）",
+      "core_card_ids": [
+        "BG25_010",
+        "BG28_309",
+        "BG32_324"
+      ],
+      "tribes": [
+        "undead"
+      ],
+      "unresolved": {
+        "core": [
+          "丧钟死灵",
+          "时尚魅影"
+        ],
+        "extra": [
+          "障蔽女妖"
+        ],
+        "transition": [
+          "亡灵中期过渡（疫病行尸）"
+        ]
+      },
+      "how": "用 德鲁斯特堕落屠夫 生成的“宰割”法术提高亡灵及其召唤物的攻击力。友善的恶鬼 提供的法术成长能进一步强化“宰割”。优质召唤物来自 断手被遗忘者。时尚魅影 能在战斗中以及酒馆阶段为你最右边的随从提供大量攻击力和生命值。场上有 时尚魅影 时，开始对具有复生的随从使用“宰割”，以获得永久数值。这个流派最强的变体是使用 丧钟死灵 + 木乃伊工匠，先让整个场面都获得复生。然后，在手中存满“宰割”且场上有时尚魅影时，让丧钟死灵对木乃伊工匠发动效果，丧钟死灵会获得复生，接着对丧钟死灵使用“宰割”，用手中全部“宰割”重复这一过程。这样能疯狂触发时尚魅影。"
+    },
+    {
+      "name": "元素 - 无羁雷暴",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "elemental",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "空气亡魂",
+          "card_id": "BG34_858",
+          "en": "Air Revenant",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "酒馆旋风",
+          "card_id": "BGS_123",
+          "en": "Tavern Tempest",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 4
+        }
+      ],
+      "extra": [
+        {
+          "zh": "活化艾泽里特",
+          "card_id": "BG28_707",
+          "en": "Living Azerite",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "魔焰执行者",
+          "card_id": "BG34_500",
+          "en": "Flaming Enforcer",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 4
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须 + 酒馆强化（空气亡魂）+ 无羁雷暴",
+      "core_card_ids": [
+        "BG34_858",
+        "BG_LOE_077",
+        "BGS_123"
+      ],
+      "tribes": [
+        "elemental"
+      ],
+      "unresolved": {
+        "core": [
+          "无羁雷暴",
+          "海藻护卫"
+        ],
+        "extra": [],
+        "transition": [
+          "酒馆旋风 + 海藻护卫"
+        ]
+      },
+      "how": "用 活化艾泽里特 或 空气亡魂 强化酒馆，先找到哪个就用哪个。用 布莱恩·铜须 + 酒馆旋风 + 海藻护卫 获得大量经济并生成元素。中期可以用 魔焰执行者 稳住局面，再用 无羁雷暴 将成长拉满。有了无羁雷暴后，循环使用 商贩元素 和 刷新畸体 等优质元素。"
+    },
+    {
+      "name": "恶魔 - 自伤",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "demon",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "灰烬腐蚀者",
+          "card_id": "BG32_873",
+          "en": "Ashen Corruptor",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "提克迪奥斯",
+          "card_id": "BG26_523",
+          "en": "Tichondrius",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "舞蹈王子玛克扎尔",
+          "card_id": "BG26_524",
+          "en": "Malchezaar, Prince of Dance",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "愤怒编织者",
+          "card_id": "BGS_004",
+          "en": "Wrath Weaver",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 1
+        }
+      ],
+      "transition": [],
+      "formed_note": "灰烬腐蚀者 + 自伤（愤怒编织者 或 舞蹈王子玛克扎尔）+ 收益组件（提克迪奥斯 或 艾瑞达逃脱大师）",
+      "core_card_ids": [
+        "BG32_873",
+        "BG35_883",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "demon"
+      ],
+      "unresolved": {
+        "core": [
+          "艾瑞达逃脱大师",
+          "恶魔干扰者"
+        ],
+        "extra": [],
+        "transition": [
+          "愤怒编织者 + 灵魂回溯者 恶魔中期过渡"
+        ]
+      },
+      "how": "这个流派的思路是利用 舞蹈王子玛克扎尔、愤怒编织者 或饰品等效果对自己的英雄造成伤害，再用 灰烬腐蚀者 抵消这些伤害。提克迪奥斯 能从自伤中获得一定收益，用于在中期稳住局面。用 艾瑞达逃脱大师 生成腐化糕点是后期的主要收益手段，对 灰烬腐蚀者 使用它们来强化酒馆。巴琳达·斯通赫尔斯 能使腐化糕点和 恶魔干扰者 的效果触发两次。最好的恶魔生成方式是 布莱恩·铜须 以及循环使用 奇瑰打击乐手。"
+    },
+    {
+      "name": "机械 - 手速磁力",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "mechanical",
+      "tribe_suspect": false,
+      "foreign_core": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "tribe": "pirate"
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "tribe": "pirate"
+        }
+      ],
+      "core": [
+        {
+          "zh": "极性B-Box拳手",
+          "card_id": "BG26_149",
+          "en": "Polarizing Beatboxer",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 7
+        },
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "无限铸币（空军上将罗杰斯 + 骄傲的私掠者）+ 自动起床号",
+      "core_card_ids": [
+        "BG26_149",
+        "BG33_823",
+        "BG33_825"
+      ],
+      "tribes": [
+        "mechanical",
+        "pirate"
+      ],
+      "unresolved": {
+        "core": [
+          "自动起床号",
+          "火花破坏机"
+        ],
+        "extra": [
+          "复映无人机",
+          "上进的逃兵"
+        ],
+        "transition": [
+          "无限铸币（空军上将罗杰斯）"
+        ]
+      },
+      "how": "首先，实现无限铸币。空军上将罗杰斯、骄傲的私掠者、上进的逃兵 和 布莱恩·铜须 全部都能帮你实现无限铸币，并循环使用每一张便宜的卡牌（商贩元素）。然后，用 自动起床号 开始生成磁力随从。强化一个 火花破坏机，让你吸附的每个磁力随从都迅速变大。拿到 火花破坏机 后，在场上留一个金色 复映无人机，开始向它吸附，打造一个巨大的扩音机。用自动起床号轻松将其三连，然后把三连得到的巨大磁力随从吸附到已发动的复映无人机上。最后，买下每一张 贪婪的诈骗犯，并对它使用大地母亲之眼来获得 极性B-Box拳手。"
+    },
+    {
+      "name": "海盗 - 手速金色",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "pirate",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        }
+      ],
+      "extra": [
+        {
+          "zh": "刀剑收藏家",
+          "card_id": "BG26_817",
+          "en": "Blade Collector",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "上进的逃兵 + 无限铸币",
+      "core_card_ids": [
+        "BG33_823"
+      ],
+      "tribes": [
+        "pirate"
+      ],
+      "unresolved": {
+        "core": [
+          "掠夺大师钩牙",
+          "上进的逃兵"
+        ],
+        "extra": [],
+        "transition": [
+          "上进的逃兵"
+        ]
+      },
+      "how": "用 上进的逃兵 + 空军上将罗杰斯 + 骄傲的私掠者 的组合实现无限铸币，布莱恩·铜须 可以帮你启动循环。有了上进的逃兵，你会打出大量金色随从和发现效果，两者都能配合 掠夺大师钩牙。依靠无限铸币购买发现效果来成长。 进阶玩家：转型为上限更高的恶魔酒馆强化流派"
+    },
+    {
+      "name": "畸变怪 - 亡语/法术",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "aberration",
+      "tribe_suspect": true,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "辛多雷直射手",
+          "card_id": "BG25_016",
+          "en": "Sin'dorei Straight Shot",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "无面转化者 + 提图斯·瑞文戴尔 / 空军上将罗杰斯 + 骄傲的私掠者 转型上限最高",
+      "core_card_ids": [
+        "BG25_354"
+      ],
+      "tribes": [],
+      "unresolved": {
+        "core": [
+          "猎头狮鹫",
+          "逐亡陆行鸟",
+          "无面转化者"
+        ],
+        "extra": [
+          "强制躺平怪",
+          "恩拉其工兵",
+          "疑之影",
+          "梦魇侵蚀怪"
+        ],
+        "transition": [
+          "法术生成（强制躺平怪）"
+        ]
+      },
+      "how": "神明是克苏恩时强得多！用 无面转化者 + 提图斯·瑞文戴尔 强化你的神明。生成法术来强化无面转化者，最好用 强制躺平怪，不过 恩拉其工兵、梦魇侵蚀怪 或手速悬赏令体系也可以。然后尽可能多次触发亡语，通常使用 逐亡陆行鸟。最佳策略是使用野兽进击（猎头狮鹫），循环使用 尖利的鲨鱼 和 深潜狮子鱼，在酒馆阶段触发你的亡语。"
+    },
+    {
+      "name": "畸变怪 - 手速神明",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "aberration",
+      "tribe_suspect": true,
+      "foreign_core": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "tribe": "pirate"
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "tribe": "pirate"
+        }
+      ],
+      "core": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "骄傲的私掠者",
+          "card_id": "BG33_825",
+          "en": "Proud Privateer",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "空军上将罗杰斯",
+          "card_id": "BG33_823",
+          "en": "Sky Admiral Rogers",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 6
+        }
+      ],
+      "formed_note": "空军上将罗杰斯 + 骄傲的私掠者 + 疑之影",
+      "core_card_ids": [
+        "BG33_823",
+        "BG33_825"
+      ],
+      "tribes": [
+        "pirate"
+      ],
+      "unresolved": {
+        "core": [
+          "疑之影",
+          "惧之煞"
+        ],
+        "extra": [
+          "无面转化者",
+          "上进的逃兵"
+        ],
+        "transition": [
+          "疑之影"
+        ]
+      },
+      "how": "以 空军上将罗杰斯 和 骄傲的私掠者 为核心，用海盗实现无限铸币。上进的逃兵 和 布莱恩·铜须 能帮你在前期花掉铸币，让经济开始滚雪球。之后，用 疑之影 强化你的神明。实现无限铸币后，买下每一张 贪婪的诈骗犯，并用 大地母亲之眼 或 精英导航员 将它们变为金色，以便发现 惧之煞。务必确保回合结束时始终有3个畸变怪。"
+    },
+    {
+      "name": "鱼人 - 魔鳍",
+      "tier": "A",
+      "difficulty": "困难",
+      "expected_tribe": "murloc",
+      "tribe_suspect": false,
+      "foreign_core": [
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "tribe": "dragon"
+        }
+      ],
+      "core": [
+        {
+          "zh": "小瞎眼",
+          "card_id": "BG22_403",
+          "en": "Young Murk-Eye",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "达卡莱附魔师",
+          "card_id": "BG26_ICC_901",
+          "en": "Drakkari Enchanter",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "en": "Felfire Conjurer",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "魔鳍学徒",
+          "card_id": "BG33_890t",
+          "en": "Magicfin Apprentice",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 1
+        },
+        {
+          "zh": "魔鳍真菌学家",
+          "card_id": "BG33_891",
+          "en": "Magicfin Mycologist",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "艾萨拉的刀客",
+          "card_id": "BG33_830",
+          "en": "Azsharan Cutlassier",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "龙族看护员",
+          "card_id": "BG34_633",
+          "en": "Draconic Warden",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "魔鳍真菌学家",
+          "card_id": "BG33_891",
+          "en": "Magicfin Mycologist",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须 + 魔鳍真菌学家 + 小瞎眼",
+      "core_card_ids": [
+        "BG22_403",
+        "BG26_ICC_901",
+        "BG32_821",
+        "BG33_890t",
+        "BG33_891",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "dragon",
+        "murloc"
+      ],
+      "unresolved": {
+        "core": [],
+        "extra": [],
+        "transition": []
+      },
+      "how": "这个流派依靠教会魔鳍学徒一个强力法术，并反复触发它。小瞎眼 是每回合触发这些法术的必备卡，其效果可被 布莱恩·铜须 和 达卡莱附魔师 放大。教会学徒 闪亮的戒指、艾泽里特强化 或 时间管理，并搭配一些来自 邪火咒龙 的法术成长。前期也可以教它一些经济法术，尤其是 钻探原油，或者触发 刷新畸体。"
+    },
+    {
+      "name": "元素 - 紫外线",
+      "tier": "A",
+      "difficulty": "普通",
+      "expected_tribe": "elemental",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "极紫外升腾者",
+          "card_id": "BG31_810",
+          "en": "Ultraviolet Ascendant",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "酒馆旋风",
+          "card_id": "BGS_123",
+          "en": "Tavern Tempest",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 4
+        }
+      ],
+      "extra": [
+        {
+          "zh": "空气亡魂",
+          "card_id": "BG34_858",
+          "en": "Air Revenant",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "野火元素",
+          "card_id": "BGS_126",
+          "en": "Wildfire Elemental",
+          "tribe": "elemental",
+          "tribe_id": 18,
+          "tavern_tier": 3
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须加极紫外升腾者",
+      "core_card_ids": [
+        "BG31_810",
+        "BG_LOE_077",
+        "BGS_123"
+      ],
+      "tribes": [
+        "elemental"
+      ],
+      "unresolved": {
+        "core": [
+          "海藻护卫"
+        ],
+        "extra": [
+          "无羁雷暴"
+        ],
+        "transition": []
+      },
+      "how": "用布莱恩·铜须循环每一张免费卡牌，例如刷新畸体。在场上保留酒馆旋风和海藻护卫来生成元素。然后利用你的经济，靠极紫外升腾者成长。"
+    },
+    {
+      "name": "喝茶流",
+      "tier": "A",
+      "difficulty": "普通",
+      "expected_tribe": "UNKNOWN",
+      "tribe_suspect": false,
+      "foreign_core": [
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "tribe": "quilboar"
+        }
+      ],
+      "core": [
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "en": "Hot-Air Surveyor",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "en": "Felboar",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "en": "Felfire Conjurer",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "魔鳍真菌学家",
+          "card_id": "BG33_891",
+          "en": "Magicfin Mycologist",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [],
+      "formed_note": "守门融合怪 + 巴琳达·斯通赫尔斯 或法术强度（黑暗傀儡师）",
+      "core_card_ids": [
+        "BG30_121",
+        "BG35_883",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [
+          "守门融合怪"
+        ],
+        "extra": [
+          "黑暗傀儡师",
+          "得胜的地卜术师",
+          "上进的逃兵"
+        ],
+        "transition": [
+          "法术强度（黑暗傀儡师）",
+          "守门融合怪"
+        ]
+      },
+      "how": "对 守门融合怪 施放法术，使每种类型各一个随从获得强化。巴琳达·斯通赫尔斯 能让你的成长翻倍，布莱恩·铜须 则能提高法术生成和整体经济。此外，这个流派也很适合使用法术强度随从，例如（黑暗傀儡师）。上进的逃兵 或 魔鳍真菌学家 等经济随从能提供更多铸币，帮你找到更多核心卡牌和指向性法术。最后，热气球测绘员 和/或 得胜的地卜术师 能增加你对融合怪施放的法术总数。如果神明是亚煞极，使用具有复生的融合怪会非常强，因为亚煞极会再次召唤它。"
+    },
+    {
+      "name": "恶魔 - 酒馆强化",
+      "tier": "A",
+      "difficulty": "普通",
+      "expected_tribe": "demon",
+      "tribe_suspect": true,
+      "foreign_core": [
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "tribe": "quilboar"
+        }
+      ],
+      "core": [
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "en": "Felboar",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "extra": [
+        {
+          "zh": "贪食的乌祖尔",
+          "card_id": "BG21_004",
+          "en": "Insatiable Ur'zul",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "灵魂回溯者",
+          "card_id": "BG26_174",
+          "en": "Soul Rewinder",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 2
+        },
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "en": "Hot-Air Surveyor",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "灰烬腐蚀者",
+          "card_id": "BG32_873",
+          "en": "Ashen Corruptor",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "扭曲的愤怒卫士",
+          "card_id": "BG35_155",
+          "en": "Twisted Wrathguard",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "扭曲的愤怒卫士",
+          "card_id": "BG35_155",
+          "en": "Twisted Wrathguard",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 6
+        }
+      ],
+      "formed_note": "强化酒馆（恶魔干扰者）+ 扭曲的愤怒卫士",
+      "core_card_ids": [
+        "BG28_633",
+        "BG35_883"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [
+          "鬼影幻术师",
+          "恶魔干扰者"
+        ],
+        "extra": [],
+        "transition": []
+      },
+      "how": "用 恶魔干扰者 强化酒馆，最好搭配 巴琳达·斯通赫尔斯。之后，强化酒馆的收益组件最常见的是 邪能野猪人，也可以是 扭曲的愤怒卫士 和/或具有复生的 鬼影幻术师。对酒馆中具有圣盾或烈毒的随从使用 理性癫狂 法术，让你的全部恶魔获得这些关键词。"
+    },
+    {
+      "name": "野猪人 - 宝石弹幕",
+      "tier": "A",
+      "difficulty": "普通",
+      "expected_tribe": "quilboar",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "剃刀沼泽舞扇者",
+          "card_id": "BG34_682",
+          "en": "Razorfen Flapper",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "堑壕斗士",
+          "card_id": "BG34_684",
+          "en": "Trench Fighter",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 3
+        }
+      ],
+      "extra": [
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "达卡莱附魔师",
+          "card_id": "BG26_ICC_901",
+          "en": "Drakkari Enchanter",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "邪能野猪人",
+          "card_id": "BG28_633",
+          "en": "Felboar",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "剃刀沼泽舞扇者",
+          "card_id": "BG34_682",
+          "en": "Razorfen Flapper",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        }
+      ],
+      "formed_note": "宝石成长/法术强度 + 剃刀沼泽舞扇者 + 收益组件（堑壕斗士/邪能野猪人）",
+      "core_card_ids": [
+        "BG34_682",
+        "BG34_684"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [],
+        "extra": [],
+        "transition": [
+          "宝石成长/法术强度"
+        ]
+      },
+      "how": "首先，想办法提升宝石效果或法术强度。然后，用宝石弹幕强化酒馆，通常通过 提图斯·瑞文戴尔 或 布莱恩·铜须 + 剃刀沼泽舞扇者 实现。最后，强化酒馆后的收益组件是 堑壕斗士，这样你就能在酒馆中使用查抄宝石，使一个随从的数值变为三倍。把它用在 刀剑收藏家 等优质随从上。用 达卡莱附魔师 来刷查抄宝石。"
+    },
+    {
+      "name": "恶魔 - 亡语/酒馆强化",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "demon",
+      "tribe_suspect": true,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "扭曲的愤怒卫士",
+          "card_id": "BG35_155",
+          "en": "Twisted Wrathguard",
+          "tribe": "demon",
+          "tribe_id": 15,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [],
+      "formed_note": "早期获得 牺牲的愤怒卫士",
+      "core_card_ids": [
+        "BG25_354"
+      ],
+      "tribes": [],
+      "unresolved": {
+        "core": [
+          "牺牲的愤怒卫士",
+          "鬼影幻术师"
+        ],
+        "extra": [
+          "缚魂狱卒"
+        ],
+        "transition": [
+          "牺牲的愤怒卫士"
+        ]
+      },
+      "how": "尽早拿到 牺牲的愤怒卫士（最晚第6回合），就可以确定玩这个流派。每回合都要发动它的效果。用 提图斯·瑞文戴尔 使其效果触发两次，大幅提升酒馆随从的数值。鬼影幻术师 + 巴琳达·斯通赫尔斯 是这个流派的核心收益组件，能吞掉好几轮酒馆随从。缚魂狱卒 是帮你稳住局面的优秀恶魔。"
+    },
+    {
+      "name": "机械 - 磁力/法术",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "mechanical",
+      "tribe_suspect": false,
+      "foreign_core": [
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "tribe": "quilboar"
+        }
+      ],
+      "core": [
+        {
+          "zh": "多面辅助无人机",
+          "card_id": "BG26_152",
+          "en": "Utility Drone",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "en": "Hot-Air Surveyor",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "extra": [
+        {
+          "zh": "达卡莱附魔师",
+          "card_id": "BG26_ICC_901",
+          "en": "Drakkari Enchanter",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "炫彩机器人 + 巴琳达·斯通赫尔斯",
+      "core_card_ids": [
+        "BG26_152",
+        "BG30_121",
+        "BG35_883"
+      ],
+      "tribes": [
+        "mechanical",
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [
+          "炫彩机器人"
+        ],
+        "extra": [
+          "得胜的地卜术师",
+          "救援机器人"
+        ],
+        "transition": [
+          "用 炫彩机器人 稳住局面"
+        ]
+      },
+      "how": "场上有 炫彩机器人 时，尽可能多地对机械使用指向性法术。巴琳达·斯通赫尔斯 能使效果翻倍。循环使用 无畏的食客 等优质宝石卡牌，并购买三支尖利箭矢等优质法术。最终买下 多面辅助无人机，兑现中期通过微光机器人吸附的磁力效果。"
+    },
+    {
+      "name": "野兽 - 深潜巨兽",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "beast",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "香蕉猛猿",
+          "card_id": "BG26_802",
+          "en": "Banana Slamma",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "深潜巨兽",
+          "card_id": "BG35_602",
+          "en": "Lurking Leviathan",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "下水道老鼠头目",
+          "card_id": "BG35_604",
+          "en": "Sewer Lord",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [],
+      "transition": [],
+      "formed_note": "早期获得 深潜巨兽 + 野兽召唤（下水道老鼠头目）",
+      "core_card_ids": [
+        "BG26_802",
+        "BG35_602",
+        "BG35_604"
+      ],
+      "tribes": [
+        "beast"
+      ],
+      "unresolved": {
+        "core": [
+          "猎头狮鹫"
+        ],
+        "extra": [
+          "暴虐巨蝎"
+        ],
+        "transition": [
+          "野兽召唤中期过度（甲虫）"
+        ]
+      },
+      "how": "尽早拿到 深潜巨兽 后，尽可能多地召唤野兽。最好的野兽召唤组件是具有复生的 下水道老鼠头目。其次是囤食土狼，它能召唤一个具有嘲讽的随从。再搭配 香蕉猛猿，每个召唤物都会拥有超高攻击力。"
+    },
+    {
+      "name": "野兽 - 甲虫",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "beast",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "香蕉猛猿",
+          "card_id": "BG26_802",
+          "en": "Banana Slamma",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "绿松石飞掠虫",
+          "card_id": "BG31_809",
+          "en": "Turquoise Skitterer",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "森林游虫",
+          "card_id": "BG31_801",
+          "en": "Forest Rover",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 2
+        },
+        {
+          "zh": "嗡鸣害虫",
+          "card_id": "BG31_803",
+          "en": "Buzzing Vermin",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 1
+        },
+        {
+          "zh": "深潜巨兽",
+          "card_id": "BG35_602",
+          "en": "Lurking Leviathan",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "下水道老鼠头目",
+          "card_id": "BG35_604",
+          "en": "Sewer Lord",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "早期获得 暴虐巨蝎 或 绿松石飞掠虫",
+      "core_card_ids": [
+        "BG26_802",
+        "BG31_809"
+      ],
+      "tribes": [
+        "beast"
+      ],
+      "unresolved": {
+        "core": [
+          "猎头狮鹫",
+          "暴虐巨蝎"
+        ],
+        "extra": [],
+        "transition": [
+          "猎头狮鹫"
+        ]
+      },
+      "how": "前期拿到 暴虐巨蝎 或 绿松石飞掠虫 后，开始提升甲虫的数值。猎头狮鹫 可以配合 尖利的鲨鱼，帮你生成这个流派的组件。尽可能多地使用 香蕉猛猿，它们能使甲虫的攻击力翻倍，帮助你应对高生命值的阵容。"
+    },
+    {
+      "name": "野猪人 - 抉择",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "quilboar",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "极速野猪骑士",
+          "card_id": "BG31_323",
+          "en": "Turbo Hogrider",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "健身搏猪",
+          "card_id": "BG31_326",
+          "en": "Gem Rat",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "鲜血精研者",
+          "card_id": "BG33_885",
+          "en": "Sanguine Refiner",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "堑壕斗士",
+          "card_id": "BG34_684",
+          "en": "Trench Fighter",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 3
+        }
+      ],
+      "extra": [
+        {
+          "zh": "鲜血勇士",
+          "card_id": "BG23_017",
+          "en": "Sanguine Champion",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "刺棘开拓者",
+          "card_id": "BG31_327",
+          "en": "Thorned Trailblazer",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 3
+        }
+      ],
+      "transition": [],
+      "formed_note": "健身搏猪/棘刺挖掘工 + 极速野猪骑士",
+      "core_card_ids": [
+        "BG31_323",
+        "BG31_326",
+        "BG33_885",
+        "BG34_684"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [
+          "棘刺挖掘工"
+        ],
+        "extra": [
+          "天诞逃生飞龙"
+        ],
+        "transition": [
+          "宝石成长（健身搏猪）"
+        ]
+      },
+      "how": "首先要有宝石成长，最常见的是 健身搏猪，也可以用 鲜血精研者。极速野猪骑士 是宝石成长的收益组件。最好能通过 健身搏猪 或 棘刺挖掘工 生成一些抉择效果。如果本局有龙，用 天诞逃生飞龙 触发 棘刺挖掘工，生成非常强力的抉择效果。"
+    },
+    {
+      "name": "鱼人 - 烈毒搅局",
+      "tier": "A",
+      "difficulty": "简单",
+      "expected_tribe": "murloc",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "莽神火车王",
+          "card_id": "BG23_318",
+          "en": "Leeroy the Reckless",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "怒胆喷毒鱼人",
+          "card_id": "BG33_318",
+          "en": "Bile Spitter",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "凶饿的觅食者",
+          "card_id": "BG27_556",
+          "en": "Diremuck Forager",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "英勇的逆袭者",
+          "card_id": "BG34_604",
+          "en": "Heroic Underdog",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "致命的孢子",
+          "card_id": "BGS_131",
+          "en": "Deadly Spore",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 3
+        }
+      ],
+      "transition": [],
+      "formed_note": "当你觉得没有未来或明显快被淘汰时",
+      "core_card_ids": [
+        "BG23_318",
+        "BG33_318"
+      ],
+      "tribes": [
+        "murloc"
+      ],
+      "unresolved": {
+        "core": [
+          "下水道逃生鱼人"
+        ],
+        "extra": [
+          "天诞逃生飞龙"
+        ],
+        "transition": [
+          "快被淘汰了"
+        ]
+      },
+      "how": "购买所有干扰卡牌，尽可能多地击杀敌方随从来保住排名。把你最强的随从留在场上（这就是你要集中数值的原因！），并用能够一换一的随从填满剩余的场位。也可以用天诞逃生飞龙让鱼人获得永久烈毒。"
+    },
+    {
+      "name": "畸变怪 - 腐泥",
+      "tier": "B",
+      "difficulty": "普通",
+      "expected_tribe": "aberration",
+      "tribe_suspect": true,
+      "foreign_core": [
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "tribe": "dragon"
+        }
+      ],
+      "core": [
+        {
+          "zh": "达卡莱附魔师",
+          "card_id": "BG26_ICC_901",
+          "en": "Drakkari Enchanter",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "en": "Felfire Conjurer",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [],
+      "transition": [],
+      "formed_note": "法术生成（梦魇侵蚀怪、腐泥肖像）+ 法术强度（恩拉其唤冰者）",
+      "core_card_ids": [
+        "BG26_ICC_901",
+        "BG32_821"
+      ],
+      "tribes": [
+        "dragon"
+      ],
+      "unresolved": {
+        "core": [
+          "黑暗傀儡师",
+          "梦魇侵蚀怪",
+          "神秘的克熙尔"
+        ],
+        "extra": [
+          "恩拉其工兵",
+          "恩拉其唤冰者",
+          "摧心招募者"
+        ],
+        "transition": [
+          "梦魇侵蚀怪 + 弃牌中期过渡"
+        ]
+      },
+      "how": "*神明是亚煞极时效果最佳* 用 梦魇侵蚀怪 + 达卡莱附魔师 生成腐泥。用 恩拉其唤冰者、邪火咒龙 或 黑暗傀儡师 提升法术强度，让腐泥更强。最后，用 神秘的克熙尔 和霜咒者弃牌，弃掉你生成的腐泥。拿到大型饰品“腐泥肖像”，或神明是亚煞极时，这个流派会显著变强。"
+    },
+    {
+      "name": "野兽 - 召唤",
+      "tier": "B",
+      "difficulty": "普通",
+      "expected_tribe": "beast",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "提图斯·瑞文戴尔",
+          "card_id": "BG25_354",
+          "en": "Titus Rivendare",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "香蕉猛猿",
+          "card_id": "BG26_802",
+          "en": "Banana Slamma",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "下水道老鼠头目",
+          "card_id": "BG35_604",
+          "en": "Sewer Lord",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "巨狼戈德林",
+          "card_id": "BGS_018",
+          "en": "Goldrinn, the Great Wolf",
+          "tribe": "beast",
+          "tribe_id": 20,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [],
+      "transition": [],
+      "formed_note": "猎头狮鹫 + 逐亡陆行鸟 + 巨狼戈德林",
+      "core_card_ids": [
+        "BG25_354",
+        "BG26_802",
+        "BG35_604",
+        "BGS_018"
+      ],
+      "tribes": [
+        "beast"
+      ],
+      "unresolved": {
+        "core": [
+          "猎头狮鹫",
+          "逐亡陆行鸟"
+        ],
+        "extra": [
+          "深潜狮子鱼"
+        ],
+        "transition": [
+          "猎头狮鹫"
+        ]
+      },
+      "how": "首先，在中期拿到 猎头狮鹫，开始生成大量野兽，并在此过程中凑齐这个流派的核心组件。然后，借助 逐亡陆行鸟 在酒馆阶段触发 巨狼戈德林。提图斯·瑞文戴尔 还能让这套策略的效果翻倍。利用 深潜狮子鱼 的发动效果或循环使用 尖利的鲨鱼，迫使猎头狮鹫攻击。最理想的情况是生成更多深潜狮子鱼和尖利的鲨鱼，在酒馆阶段连续攻击。最后，使用 下水道老鼠头目 和 香蕉猛猿，借助巨狼戈德林的光环召唤攻击力超高的野兽。"
+    },
+    {
+      "name": "鱼人 - 招潮者",
+      "tier": "B",
+      "difficulty": "普通",
+      "expected_tribe": "murloc",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "合唱鱼人",
+          "card_id": "BG26_354",
+          "en": "Choral Mrrrglr",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "凶饿的觅食者",
+          "card_id": "BG27_556",
+          "en": "Diremuck Forager",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "魔鳍真菌学家",
+          "card_id": "BG33_891",
+          "en": "Magicfin Mycologist",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "怒胆喷毒鱼人",
+          "card_id": "BG33_318",
+          "en": "Bile Spitter",
+          "tribe": "murloc",
+          "tribe_id": 14,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "布莱恩·铜须 + 大量经济 + 萨满招潮者",
+      "core_card_ids": [
+        "BG26_354",
+        "BG27_556",
+        "BG33_891",
+        "BG35_883",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "murloc"
+      ],
+      "unresolved": {
+        "core": [
+          "萨满招潮者"
+        ],
+        "extra": [],
+        "transition": [
+          "萨满招潮者"
+        ]
+      },
+      "how": "首先，你需要拥有大量经济资源，通常从金色布莱恩·铜须，或铜须配合魔鳍真菌学家开始，同时别忘了克隆海螺或战吼发现等优质经济法术。接下来，这些经济资源的收益核心是萨满招潮者。配合巴琳达·斯通赫尔斯，尽可能对潮汐召唤者使用更多法术，可以是鲜血宝石或钢铁场地管理员钢铁场地管理员生成的法术。强化手牌中的优质鱼人，例如怒胆喷毒鱼人，这样你就可以召唤它们，同时合唱鱼人也能获得你手牌中所有鱼人的数值。"
+    },
+    {
+      "name": "龙 - 战吼",
+      "tier": "B",
+      "difficulty": "普通",
+      "expected_tribe": "dragon",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "执念诗心龙",
+          "card_id": "BG29_813",
+          "en": "Persistent Poet",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "龙族看护员",
+          "card_id": "BG34_633",
+          "en": "Draconic Warden",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "奥术守护者卡雷苟斯",
+          "card_id": "BGS_041",
+          "en": "Kalecgos, Arcane Aspect",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "红衣纳迪娜",
+          "card_id": "BGS_040",
+          "en": "Nadina the Red",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "formed_note": "奥术守护者卡雷苟斯 + 布莱恩·铜须",
+      "core_card_ids": [
+        "BG29_813",
+        "BG34_633",
+        "BG_LOE_077",
+        "BGS_041"
+      ],
+      "tribes": [
+        "dragon"
+      ],
+      "unresolved": {
+        "core": [
+          "海藻护卫",
+          "英勇的巢母"
+        ],
+        "extra": [
+          "青铜时光行者"
+        ],
+        "transition": [
+          "青铜时光行者"
+        ]
+      },
+      "how": "布莱恩·铜须 + 奥术守护者卡雷苟斯 能让你每打出一个战吼，你的全部龙都获得+4/+4。你要尽可能多地触发战吼。阵容成型后，只循环使用优质战吼牌，例如 酒馆旋风、刷新畸体 或 龙族看护员。如果本场对局中有 海藻护卫，就把它留在场上，每回合触发一个优质战吼，最好是 龙族看护员。最高上限的打法是每回合尽可能多地找到使攻击力翻倍的法术，并借助 执念诗心龙 每回合永久翻倍英勇的巢母的攻击力。此外，用 红衣纳迪娜 为你的龙永久附加圣盾。"
+    },
+    {
+      "name": "亡灵 - 永恒骑士",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "undead",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "永恒骑士",
+          "card_id": "BG25_008",
+          "en": "Eternal Knight",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 2
+        },
+        {
+          "zh": "永恒召唤者",
+          "card_id": "BG25_009",
+          "en": "Eternal Summoner",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "永恒大亨",
+          "card_id": "BG34_403",
+          "en": "Eternal Tycoon",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "木乃伊工匠",
+          "card_id": "BG28_309",
+          "en": "Mummifier",
+          "tribe": "undead",
+          "tribe_id": 11,
+          "tavern_tier": 3
+        }
+      ],
+      "transition": [],
+      "formed_note": "早期获得 永恒骑士 + 永恒召唤者",
+      "core_card_ids": [
+        "BG25_008",
+        "BG25_009",
+        "BG34_403"
+      ],
+      "tribes": [
+        "undead"
+      ],
+      "unresolved": {
+        "core": [],
+        "extra": [
+          "丧钟死灵",
+          "时尚魅影"
+        ],
+        "transition": [
+          "早期获得 永恒骑士"
+        ]
+      },
+      "how": "必须尽早拿到 永恒骑士 并开始强化它（最晚第4回合）。然后用 永恒召唤者 和 永恒大亨 填满其余位置。如果找到 时尚魅影 + 丧钟死灵，每回合都用丧钟死灵对你的 永恒骑士 发动效果，持续成长。"
+    },
+    {
+      "name": "机械 - 圣盾",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "mechanical",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "蓄能女沙皇",
+          "card_id": "BG28_741",
+          "en": "Charging Czarina",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "坠落的飞天魔像",
+          "card_id": "BG35_342",
+          "en": "Falling Sky Golem",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [],
+      "formed_note": "2张蓄能女沙皇",
+      "core_card_ids": [
+        "BG28_741"
+      ],
+      "tribes": [
+        "mechanical"
+      ],
+      "unresolved": {
+        "core": [],
+        "extra": [
+          "希望信使",
+          "机鳍鱼人"
+        ],
+        "transition": [
+          "圣盾"
+        ]
+      },
+      "how": "用蓄能女沙皇增益你的圣盾随从。购买所有实际只需1枚铸币的法术（例如招募新人招募新人和强固强固）。"
+    },
+    {
+      "name": "机械 - 扩音机",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "mechanical",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "多面辅助无人机",
+          "card_id": "BG26_152",
+          "en": "Utility Drone",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "达卡莱附魔师",
+          "card_id": "BG26_ICC_901",
+          "en": "Drakkari Enchanter",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        },
+        {
+          "zh": "转运构筑机",
+          "card_id": "BG34_171",
+          "en": "Conveyor Construct",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 4
+        }
+      ],
+      "extra": [
+        {
+          "zh": "自动加速机",
+          "card_id": "BG34_170",
+          "en": "Auto Accelerator",
+          "tribe": "mechanical",
+          "tribe_id": 17,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "早期生成扩音机（转运构筑机）+ 多面辅助无人机",
+      "core_card_ids": [
+        "BG26_152",
+        "BG26_ICC_901",
+        "BG34_171"
+      ],
+      "tribes": [
+        "mechanical"
+      ],
+      "unresolved": {
+        "core": [
+          "机智的机器人"
+        ],
+        "extra": [
+          "自动起床号",
+          "海藻护卫",
+          "火花破坏机"
+        ],
+        "transition": [
+          "扩音机生成器(转运构筑机)"
+        ]
+      },
+      "how": "生成扩音机，可以先用 机智的机器人 或具有复生的 转运构筑机。另一个选择是 自动加速机 + 布莱恩·铜须 + 海藻护卫。前期打出扩音机来补充经济，尽快找到作为核心收益组件的 多面辅助无人机。之后再加入 达卡莱附魔师，利用你吸附的扩音机继续成长。"
+    },
+    {
+      "name": "野猪人 - 手牌宝石",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "quilboar",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "地卜大师鲁古格",
+          "card_id": "BG28_583",
+          "en": "Geomagus Roogug",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "热气球测绘员",
+          "card_id": "BG30_121",
+          "en": "Hot-Air Surveyor",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "鲜血精研者",
+          "card_id": "BG33_885",
+          "en": "Sanguine Refiner",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "鲜血勇士",
+          "card_id": "BG23_017",
+          "en": "Sanguine Champion",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 6
+        },
+        {
+          "zh": "刀剑收藏家",
+          "card_id": "BG26_817",
+          "en": "Blade Collector",
+          "tribe": "pirate",
+          "tribe_id": 23,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "重伤的强盗",
+          "card_id": "BG28_582",
+          "en": "Mangled Bandit",
+          "tribe": "quilboar",
+          "tribe_id": 43,
+          "tavern_tier": 3
+        },
+        {
+          "zh": "巴琳达·斯通赫尔斯",
+          "card_id": "BG35_883",
+          "en": "Balinda Stonehearth",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "transition": [],
+      "formed_note": "宝石成长（鲜血精研者）+ 热气球测绘员",
+      "core_card_ids": [
+        "BG28_583",
+        "BG30_121",
+        "BG33_885"
+      ],
+      "tribes": [
+        "quilboar"
+      ],
+      "unresolved": {
+        "core": [
+          "得胜的地卜术师"
+        ],
+        "extra": [],
+        "transition": [
+          "宝石成长（鲜血精研者）"
+        ]
+      },
+      "how": "首先，你需要宝石成长（鲜血精研者）才能玩这个流派。之后主要依靠 得胜的地卜术师 将宝石加入手牌，再用 热气球测绘员 施放它们。把宝石用在 刀剑收藏家 等功能强大的随从上。到了后期，完成数值集中后，用 莽神火车王 等收尾随从填满剩余位置"
+    },
+    {
+      "name": "龙 - 希望信使",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "dragon",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "执念诗心龙",
+          "card_id": "BG29_813",
+          "en": "Persistent Poet",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "红衣纳迪娜",
+          "card_id": "BGS_040",
+          "en": "Nadina the Red",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 6
+        }
+      ],
+      "extra": [
+        {
+          "zh": "青铜守卫",
+          "card_id": "BGS_034",
+          "en": "Bronze Warden",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 2
+        }
+      ],
+      "transition": [],
+      "formed_note": "早期获得 希望信使 + 圣盾",
+      "core_card_ids": [
+        "BG29_813",
+        "BGS_040"
+      ],
+      "tribes": [
+        "dragon"
+      ],
+      "unresolved": {
+        "core": [
+          "希望信使",
+          "英勇的巢母"
+        ],
+        "extra": [
+          "赤红守备巨龙"
+        ],
+        "transition": [
+          "圣盾(青铜守卫)"
+        ]
+      },
+      "how": "尽早找到 希望信使（最晚第8回合），开始叠加它的效果。用 执念诗心龙 保留希望信使提供的数值。最值得强化的龙是 英勇的巢母，它还能大幅提升希望信使的成长。红衣纳迪娜 能为希望信使提供永久圣盾，还能小幅提升其成长。赤红守备巨龙 可以用来稳住局面。"
+    },
+    {
+      "name": "龙 - 法术强度",
+      "tier": "B",
+      "difficulty": "简单",
+      "expected_tribe": "dragon",
+      "tribe_suspect": false,
+      "foreign_core": [],
+      "core": [
+        {
+          "zh": "执念诗心龙",
+          "card_id": "BG29_813",
+          "en": "Persistent Poet",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 4
+        },
+        {
+          "zh": "布莱恩·铜须",
+          "card_id": "BG_LOE_077",
+          "en": "Brann Bronzebeard",
+          "tribe": null,
+          "tribe_id": null,
+          "tavern_tier": 5
+        }
+      ],
+      "extra": [
+        {
+          "zh": "邪火咒龙",
+          "card_id": "BG32_821",
+          "en": "Felfire Conjurer",
+          "tribe": "dragon",
+          "tribe_id": 24,
+          "tavern_tier": 5
+        }
+      ],
+      "transition": [],
+      "formed_note": "法术强度（青铜时光行者）+ 赤红守备巨龙",
+      "core_card_ids": [
+        "BG29_813",
+        "BG_LOE_077"
+      ],
+      "tribes": [
+        "dragon"
+      ],
+      "unresolved": {
+        "core": [
+          "赤红守备巨龙",
+          "青铜时光行者",
+          "天诞逃生飞龙",
+          "符文奥术师"
+        ],
+        "extra": [
+          "受雇坐骑",
+          "英勇的巢母"
+        ],
+        "transition": [
+          "法强 (青铜时光行者)"
+        ]
+      },
+      "how": "先通过生成多彩幼龙来叠加法术强度，通常可以依靠 青铜时光行者 + 天诞逃生飞龙。然后使用 布莱恩·铜须，使多彩幼龙的效果触发两次。将 赤红守备巨龙 作为核心收益组件，再用 天诞逃生飞龙 触发它的进击效果。使用 执念诗心龙，永久保留 赤红守备巨龙 和 符文奥术师 在战斗中获得的强化。"
+    }
+  ]
+}

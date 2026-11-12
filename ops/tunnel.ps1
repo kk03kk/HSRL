@@ -62,12 +62,15 @@ $bastion = 'hengzhi@sjump.comp.nus.edu.sg'
 
 function Test-TunnelUp {
     param([int]$p)
+    # ConnectTimeout 只覆盖 TCP 连接；对端死掉但端口仍在监听时，卡住的是 SSH banner，
+    # 所以要配合 Stop-StaleForward 使用，否则每次探测都会等满 ConnectTimeout。
     if ($p -eq 2222) {
         $probe = & ssh hsai-nus 'echo TUNNEL_OK' 2>$null
         return ($LASTEXITCODE -eq 0 -and $probe -match 'TUNNEL_OK')
     }
     $probe = & ssh -p $p -o HostKeyAlias=$target -o BatchMode=yes `
-                   -o ConnectTimeout=8 hengzhi@127.0.0.1 'echo TUNNEL_OK' 2>$null
+                   -o ConnectionAttempts=1 -o ConnectTimeout=8 `
+                   hengzhi@127.0.0.1 'echo TUNNEL_OK' 2>$null
     return ($LASTEXITCODE -eq 0 -and $probe -match 'TUNNEL_OK')
 }
 
@@ -272,10 +275,13 @@ if ((Test-TunnelUp -p $Port) -and -not $Force) {
     exit 0
 }
 
-if ($Force) {
-    Write-Host ("Rebuilding tunnel on port {0}..." -f $Port) -ForegroundColor Yellow
-    Stop-StaleForward -p $Port
+# 探测失败时端口可能**仍然被一个死掉的转发进程占着**：TCP 能连上，但远端的
+# SSH banner 永远不来，于是每次探测都要等满 ConnectTimeout（实测 15s × 8 次 = 120s
+# 挂死）。所以先清掉陈旧转发再重建，让后续探测立刻被 refused。
+if (-not $Force) {
+    Write-Host ("Port {0} does not answer; clearing any stale forward first." -f $Port) -ForegroundColor DarkGray
 }
+Stop-StaleForward -p $Port
 
 $secret = Test-HsaiSecret
 $auto = $secret.Ok
