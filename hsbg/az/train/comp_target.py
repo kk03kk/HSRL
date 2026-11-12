@@ -61,6 +61,9 @@ DEFAULT_CARDS_PATH = "config/strategy_cards.json"
 #: 默认从第 8 回合开始打分：更早的回合阵容还没成形，打分会鼓励"为了凑卡乱买"。
 DEFAULT_MIN_TURN = 8
 
+#: 反刷分门槛（默认 2 张核心卡才算"在拼这个流派"）：线性给分会退化成"只买一张"。
+DEFAULT_MIN_HITS = 2
+
 #: ``load_comps`` 的结果缓存：``(path, 权重表) -> comps``（每局都会构造 tracker）。
 _COMPS_CACHE: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
 
@@ -99,16 +102,16 @@ def _norm_card(card_id: Any) -> str:
     return s[:-2] if s.endswith("_G") else s
 
 
-def load_comps(path: str, tier_w: Optional[Dict[str, float]] = None
-               ) -> List[Dict[str, Any]]:
-    """读流派库 → ``[{name, tier, weight, cards, denom}, ...]``（跳过无核心卡的流派）。
+def load_comps(path: str, tier_w: Optional[Dict[str, float]] = None,
+               min_hits: int = 2) -> List[Dict[str, Any]]:
+    """读流派库 → ``[{name, tier, weight, cards, denom, need}, ...]``（跳过无核心卡的流派）。
 
-    结果按 ``(path, 权重表)`` 缓存在模块级：每局都会 ``CompTargetTracker(cfg)``，
+    结果按 ``(path, 权重表, min_hits)`` 缓存在模块级：每局都会 ``CompTargetTracker(cfg)``，
     不缓存就是每轮 512 次 JSON 读（网络盘上不是零成本）。返回的是**共享对象**，
     调用方只读不改（:meth:`CompTargetTracker.score_board` 只做集合交）。
     """
     weights = dict(tier_w or DEFAULT_TIER_W)
-    key = (str(path), format_tier_weights(weights))
+    key = (str(path), format_tier_weights(weights), int(min_hits))
     cached = _COMPS_CACHE.get(key)
     if cached is not None:
         return cached
@@ -127,6 +130,8 @@ def load_comps(path: str, tier_w: Optional[Dict[str, float]] = None
             "weight": float(weights.get(tier, 0.0)),
             # 只有 1 张核心卡的流派不该靠"买到那一张"拿满分，所以分母至少 2。
             "denom": float(max(2, len(cards))),
+            # 反刷分门槛：命中数不足就不给分（核心卡本来就少的流派按自己张数算）。
+            "need": float(min(int(max(1, min_hits)), len(cards))),
             "cards": frozenset(cards),
         })
     if not comps:
@@ -141,7 +146,7 @@ class CompTargetTracker:
     def __init__(self, cfg: Any = None, *, coef: Optional[float] = None,
                  min_turn: Optional[int] = None, cards_path: Optional[str] = None,
                  tier_w: Any = None, cap: Optional[float] = None,
-                 lookup: Any = None) -> None:
+                 min_hits: Optional[int] = None, lookup: Any = None) -> None:
         self.coef = float(_cfg(cfg, "comp_target_coef", coef, 0.0) or 0.0)
         self.enabled = self.coef != 0.0
         self.min_turn = int(_cfg(cfg, "comp_target_min_turn", min_turn,
@@ -151,8 +156,12 @@ class CompTargetTracker:
                                   DEFAULT_CARDS_PATH) or DEFAULT_CARDS_PATH)
         self.tier_w = parse_tier_weights(
             _cfg(cfg, "comp_target_tier_w", tier_w, None))
-        self.comps: List[Dict[str, Any]] = (load_comps(self.cards_path, self.tier_w)
-                                            if self.enabled else [])
+        #: 反刷分门槛：命中核心卡数不足就不给分（H1 实测线性部分给分会被"只买一张"刷）。
+        self.min_hits = int(_cfg(cfg, "comp_target_min_hits", min_hits,
+                                 DEFAULT_MIN_HITS) or DEFAULT_MIN_HITS)
+        self.comps: List[Dict[str, Any]] = (
+            load_comps(self.cards_path, self.tier_w, self.min_hits)
+            if self.enabled else [])
         self._lookup = lookup
         self._lookup_failed = False
         self._cache: Dict[int, str] = {}
@@ -211,7 +220,14 @@ class CompTargetTracker:
     # ── 打分 ────────────────────────────────────────────────────────────
     def score_board(self, have: Iterable[str]) -> Tuple[float, Optional[str],
                                                         Optional[str], int]:
-        """→ (最高分, 流派名, 流派等级, 该流派命中数)。"""
+        """→ (最高分, 流派名, 流派等级, 该流派命中数)。
+
+        ``min_hits``（默认 2）是**反刷分门槛**：2026-11-13 的 H1 实验显示，线性部分给分
+        会让模型只买"任意一张核心卡"就把水位抬到 0.17，然后在面板上毫无改善
+        （训练内 `c_best` 0.13→0.17，面板仍是 0.14）。所以命中数不足 ``min_hits`` 时
+        该流派直接记 0；核心卡本来就少于门槛的流派（如只有 1 张核心卡的 S 级）
+        按它自己的核心卡数处理。
+        """
         have_set = {c for c in have if c}
         best = 0.0
         best_name = None
@@ -221,7 +237,7 @@ class CompTargetTracker:
             if c["weight"] <= 0.0:
                 continue
             hits = len(c["cards"] & have_set)
-            if not hits:
+            if hits < c["need"]:
                 continue
             s = c["weight"] * min(1.0, hits / c["denom"])
             if s > best + 1e-12:

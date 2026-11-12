@@ -476,6 +476,11 @@ def aggregate_tier_target(metas: Iterable[Any]) -> Dict[str, Any]:
         "tier_target_applied": int(sum(int(m.get("tier_target_applied", 0)) for m in rows)),
         "tier_target_dropped": int(sum(int(m.get("tier_target_dropped", 0)) for m in rows)),
         "tier_hit_rate": (float(hits) / float(checks) if checks else 0.0),
+        # 板面门控：不给这两项就看不出"等级奖励被挡了多少次"（`board_target` 踩过
+        # 同类坑：配了但没进 history，于是静默跑完一整段）。
+        "tier_gate_k": float(first.get("tier_gate_k", 0.0) or 0.0),
+        "tier_gate_blocked": int(sum(int(m.get("tier_gate_blocked", 0) or 0)
+                                     for m in rows)),
     }
     return out
 

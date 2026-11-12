@@ -76,7 +76,7 @@ OPTIONS = {
     # 2026-11-12 面板证据：升本节奏修好后，同一等级下板面仍只有真人的 0.22 倍，
     # ≥1 张 S 核心卡只有 0.19–0.29（真人 0.60）。这条奖励直接对"拼出哪个流派"记账。
     "comp-target-coef", "comp-target-min-turn", "comp-target-cards",
-    "comp-target-tier-w", "comp-target-cap",
+    "comp-target-tier-w", "comp-target-cap", "comp-target-min-hits",
 }
 
 

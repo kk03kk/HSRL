@@ -498,6 +498,8 @@ class CollectConfig:
     comp_target_tier_w: str = "S:1.0,A:0.6,B:0.3"
     #: 单局完成度上界（默认 1.0 = 拼满一个 S 级流派）。
     comp_target_cap: float = 1.0
+    #: 反刷分门槛：命中核心卡数不足就不给分（默认 2；H1 实测线性给分会被"只买一张"刷）。
+    comp_target_min_hits: int = 2
     #: ── 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）──
     #: 计划 ``turn:tier``（逗号分隔），默认空 = 关闭（不构造对象、不读状态、
     #: 不新增 record 字段，采集/打包/GAE 与旧路径逐位一致）。

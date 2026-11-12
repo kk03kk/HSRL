@@ -77,18 +77,19 @@ def test_reward_is_increment_of_running_best(comps_path):
     g.turn, g.boards[7] = 7, [1, 2, 3]
     assert tr.observe(g, 0) == 0.0                      # min_turn 之前不打分
     g.turn, g.boards[8] = 8, [1]
-    assert tr.observe(g, 0) == pytest.approx(1 / 3)      # 命中 1/3
-    g.turn, g.boards[9] = 9, [1, 2]
-    assert tr.observe(g, 0) == pytest.approx(2 / 3 - 1 / 3)
-    assert tr.observe(g, 0) == 0.0                       # 同回合幂等
-    g.turn, g.boards[10] = 10, [9]                       # 卖光换 B 级：低于历史最高
+    # 反刷分门槛：只有 1 张核心卡 < min_hits=2 → 0（H1 实测线性给分会被"只买一张"刷）
     assert tr.observe(g, 0) == 0.0
-    g.turn, g.boards[11] = 11, [1, 2, 3]                 # 转型拼满 S 级
+    g.turn, g.boards[9] = 9, [1, 2]
+    assert tr.observe(g, 0) == pytest.approx(2 / 3)       # 命中 2/3，首次给分
+    assert tr.observe(g, 0) == 0.0                        # 同回合幂等
+    g.turn, g.boards[10] = 10, [9]                        # 卖光换 B 级：低于历史最高
+    assert tr.observe(g, 0) == 0.0
+    g.turn, g.boards[11] = 11, [1, 2, 3]                  # 转型拼满 S 级
     assert tr.observe(g, 0) == pytest.approx(1.0 - 2 / 3)
     assert tr.best_name == "S-comp" and tr.best_tier == "S"
     st = tr.stats()
     assert st["comp_target_turns"] == 4
-    assert st["comp_target_s_turns"] == 3
+    assert st["comp_target_s_turns"] == 2
     assert st["comp_target_reward_sum"] == pytest.approx(1.0)
 
 

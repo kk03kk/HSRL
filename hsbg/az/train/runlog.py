@@ -71,7 +71,7 @@ INJECTION_KEYS = (
     "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
     "comp_target_cards", "comp_target_turns", "comp_target_best_mean",
     "comp_target_s_turns", "comp_target_reward_sum", "comp_target_applied",
-    "comp_target_dropped", "comp_target_errors",
+    "comp_target_dropped", "comp_target_errors", "comp_target_min_hits",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -118,7 +118,7 @@ INJECTION_FIRST_KEYS = frozenset({
     "tier_target_coef", "tier_penalty", "tier_bonus", "tier_target_table",
     "tier_gate_k",
     "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
-    "comp_target_cards",
+    "comp_target_cards", "comp_target_min_hits",
 })
 
 

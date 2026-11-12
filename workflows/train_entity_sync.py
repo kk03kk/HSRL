@@ -689,6 +689,8 @@ def main() -> int:
                     help="流派等级权重（默认 S:1.0,A:0.6,B:0.3）")
     ap.add_argument("--comp-target-cap", type=float, default=1.0,
                     help="单局完成度上界（默认 1.0）")
+    ap.add_argument("--comp-target-min-hits", type=int, default=2,
+                    help="反刷分门槛：命中核心卡数不足就不给分（默认 2）")
     # ---- 强制升本课程（默认关闭，见 docs/FORCED_TIER.md）----
     ap.add_argument("--forced-tier-plan", default="",
                     help="强制升本计划 turn:tier，逗号分隔（如 2:2,5:3,6:4,8:5）；"
@@ -2464,6 +2466,7 @@ def main() -> int:
             comp_target_cards=str(args.comp_target_cards),
             comp_target_tier_w=str(args.comp_target_tier_w),
             comp_target_cap=float(args.comp_target_cap),
+            comp_target_min_hits=int(args.comp_target_min_hits),
             # 经济课程（默认 none+1.0 -> 采集侧不碰金币，逐位等价）
             curriculum_stage=str(_curr_cfg["curriculum_stage"]),
             curriculum_gold_mult=float(_gold_mult),
