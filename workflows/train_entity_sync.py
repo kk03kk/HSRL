@@ -672,6 +672,11 @@ def main() -> int:
                     help="首次达标某回合目标时的一次性奖励（乘 coef；默认 0.15）")
     ap.add_argument("--tier-target-table", default="7:4,9:5,12:6",
                     help="目标曲线 turn:tier，逗号分隔（默认 7:4,9:5,12:6）")
+    ap.add_argument("--tier-gate-k", type=float, default=0.0,
+                    help="板面门控系数：只有板面 Σ >= k*参考曲线才计入该回合（0=关闭）。"
+                         "无门控的等级奖励会被「只升本不买人」打穿（2026-11-13 实测）")
+    ap.add_argument("--tier-gate-ref", default="",
+                    help="门控参考曲线 turn:strength；空=用 champion 面板 p50 默认曲线")
     # ---- 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）----
     ap.add_argument("--comp-target-coef", type=float, default=0.0,
                     help="阵容覆盖奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）。"
@@ -2451,6 +2456,8 @@ def main() -> int:
             tier_target_coef=float(args.tier_target_coef),            tier_penalty=float(args.tier_penalty),
             tier_bonus=float(args.tier_bonus),
             tier_target_table=str(args.tier_target_table),
+            tier_gate_k=float(args.tier_gate_k),
+            tier_gate_ref=str(args.tier_gate_ref),
             # 阵容覆盖奖励（默认 coef=0 -> 采集侧不构造对象、不新增 meta 键）
             comp_target_coef=float(args.comp_target_coef),
             comp_target_min_turn=int(args.comp_target_min_turn),

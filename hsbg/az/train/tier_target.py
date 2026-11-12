@@ -62,6 +62,39 @@ _TIER_SCALE = float(GLOBAL_FIELD_SCALE["tier"])
 _TIER_MIN = 1
 _TIER_MAX = 7
 
+#: 板面门控的默认参考曲线：**champion（league-final-14858）在 96 局真人-gap 面板上的
+#: 各回合 Σ(atk+hp) p50**（`artifacts/runs/gap-g24-20261113/panel.json` 的 `base` 曲线）。
+#: 含义："升本奖励只发给'板面至少和现役冠军一样厚'的局面"——两个已知失败模式
+#: （只升本不买人 / 只买人不升本）都会被这条线挡住。
+DEFAULT_GATE_REF: Dict[int, int] = {
+    8: 220, 9: 380, 10: 591, 11: 888,
+    12: 1193, 13: 1489, 14: 1876, 15: 1862,
+}
+
+#: 默认参考曲线的字符串形式（``turn:strength``）。
+DEFAULT_GATE_REF_SPEC = ",".join(f"{t}:{v}" for t, v in sorted(DEFAULT_GATE_REF.items()))
+
+
+def parse_gate_ref(spec: Any) -> Dict[int, int]:
+    """``"10:591,12:1193"`` / dict / 空 → ``{turn: strength}``（空用默认曲线）。"""
+    if spec is None:
+        return dict(DEFAULT_GATE_REF)
+    if isinstance(spec, dict):
+        return {int(k): int(v) for k, v in spec.items()}
+    text = str(spec).strip()
+    if not text:
+        return dict(DEFAULT_GATE_REF)
+    out: Dict[int, int] = {}
+    for raw in text.replace(";", ",").split(","):
+        item = raw.strip()
+        if not item:
+            continue
+        if ":" not in item:
+            raise ValueError(f"非法门控参考 {item!r}（应为 turn:strength）")
+        turn_s, val_s = item.split(":", 1)
+        out[int(turn_s)] = int(float(val_s))
+    return out or dict(DEFAULT_GATE_REF)
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. 目标表解析 / 格式化
@@ -206,6 +239,24 @@ def _cfg_value(cfg: Any, name: str, explicit: Any, default: Any) -> Any:
     return default
 
 
+def board_strength_of(game: Any, seat: int) -> Optional[float]:
+    """``game.player_json(seat)`` 的战团 Σ(atk+hp)；读不到返回 ``None``。
+
+    只给**板面门控**用（``tier_gate_k > 0``），此时每回合多一次 ``player_json``
+    （实测 6–50 µs），与 ``board_target`` 是同一条慢路径。门控关闭时**不会**调用它。
+    """
+    try:
+        import json
+
+        pj = json.loads(game.player_json(int(seat)))
+        total = 0
+        for m in pj.get("board") or []:
+            total += int(m.get("atk") or 0) + int(m.get("hp") or 0)
+        return float(total)
+    except BaseException:  # noqa: BLE001 - 奖励绝不能打断采集
+        return None
+
+
 class TierTargetTracker:
     """一局一个的目标曲线状态机：检查点、一次性奖励与待应用 reward 增量。
 
@@ -221,12 +272,17 @@ class TierTargetTracker:
 
     def __init__(self, cfg: Any = None, *, coef: Optional[float] = None,
                  penalty: Optional[float] = None, bonus: Optional[float] = None,
-                 table: Any = None) -> None:
+                 table: Any = None, gate_k: Optional[float] = None,
+                 gate_ref: Any = None) -> None:
         self.coef = float(_cfg_value(cfg, "tier_target_coef", coef, 0.0) or 0.0)
         self.enabled = self.coef != 0.0
         self.penalty = float(_cfg_value(cfg, "tier_penalty", penalty,
                                         DEFAULT_TIER_PENALTY))
         self.bonus = float(_cfg_value(cfg, "tier_bonus", bonus, DEFAULT_TIER_BONUS))
+        # 板面门控（默认关）：k=0 关闭；>0 时要求 Σ >= k * gate_ref[turn]
+        self.gate_k = float(_cfg_value(cfg, "tier_gate_k", gate_k, 0.0) or 0.0)
+        self.gate_ref = parse_gate_ref(_cfg_value(cfg, "tier_gate_ref", gate_ref,
+                                                 DEFAULT_GATE_REF_SPEC))
         if self.enabled:
             if self.penalty < 0.0:
                 raise ValueError(f"tier_penalty 必须 >= 0，得到 {self.penalty}")
@@ -253,12 +309,19 @@ class TierTargetTracker:
         self.reward_sum = 0.0
         self.applied = 0
         self.dropped = 0
+        self.gate_blocked = 0
 
     # ── 检查点 ──────────────────────────────────────────────────────────
-    def check(self, turn: Any, tier: Any) -> float:
+    def check(self, turn: Any, tier: Any,
+              board_strength: Optional[float] = None) -> float:
         """在 turn 起点检查一次 tier，返回**该回合第一条 decision** 的 reward 增量。
 
         同一 turn 重复调用返回 0；没有目标 / 已领取过该档位 / 已达标不再发奖。
+
+        ``gate_k > 0`` 时启用**板面门控**：只有 ``board_strength >= gate_k * 目标回合的
+        参考板面`` 才计入本回合。门控不通过时回**中性**（不发奖也不扣分），因为
+        2026-11-13 的实测显示：只看 tier 的奖励会被"把金币全砸升级、不买随从"打穿
+        （板面 −33%、覆盖 −70%）。``board_strength`` 缺失时按门控不通过处理。
         """
         if not self.enabled:
             return 0.0
@@ -272,6 +335,12 @@ class TierTargetTracker:
         target = self.table.get(t)
         if target is None:
             return 0.0
+        if self.gate_k > 0.0:
+            ref = self.gate_ref.get(t)
+            if (ref is None or board_strength is None
+                    or float(board_strength) < self.gate_k * float(ref)):
+                self.gate_blocked += 1
+                return 0.0
         try:
             current = int(tier)
         except (TypeError, ValueError):
@@ -293,7 +362,7 @@ class TierTargetTracker:
         return delta
 
     def observe(self, game: Any, seat: int, turn: Optional[int] = None) -> float:
-        """读当前 tier 并检查该 turn；已检查过的 turn 直接返回 0（不读状态）。"""
+        """读当前 tier（门控开启时还读一次板面）并检查该 turn；已检查过返回 0。"""
         if not self.enabled:
             return 0.0
         try:
@@ -302,7 +371,8 @@ class TierTargetTracker:
             return 0.0
         if t in self.evaluated:
             return 0.0
-        return self.check(t, tier_of(game, int(seat)))
+        strength = board_strength_of(game, int(seat)) if self.gate_k > 0.0 else None
+        return self.check(t, tier_of(game, int(seat)), board_strength=strength)
 
     def check_obs(self, turn: Any, features: Any) -> float:
         """由观测 features 直接检查（离线/测试用；不读 game）。"""
@@ -372,6 +442,8 @@ class TierTargetTracker:
             "tier_target_reward_sum": float(self.reward_sum),
             "tier_target_applied": int(self.applied),
             "tier_target_dropped": int(self.dropped),
+            "tier_gate_k": float(self.gate_k),
+            "tier_gate_blocked": int(self.gate_blocked),
         }
 
 
@@ -419,6 +491,10 @@ __all__ = [
     "tier_from_obs",
     "tier_from_player_json",
     "tier_of",
+    "board_strength_of",
+    "DEFAULT_GATE_REF",
+    "DEFAULT_GATE_REF_SPEC",
+    "parse_gate_ref",
     "TierTargetTracker",
     "aggregate_tier_target",
 ]

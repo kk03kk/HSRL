@@ -64,6 +64,8 @@ INJECTION_KEYS = (
     "tier_checks", "tier_hits", "tier_misses", "tier_bonus_sum",
     "tier_penalty_sum", "tier_target_reward_sum", "tier_target_applied",
     "tier_target_dropped", "tier_hit_rate",
+    # 板面门控：不带它就看不出"等级奖励到底被挡了多少次"。
+    "tier_gate_k", "tier_gate_blocked",
     # 阵容覆盖奖励（hsbg/az/train/comp_target.py）：默认 coef=0 = 关闭。
     # 这是四件套里"核心卡覆盖"那一项的**训练侧对应物**，必须能在 history 里验证生效。
     "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
@@ -89,7 +91,7 @@ INJECTION_SUM_KEYS = frozenset({
     "board_target_reward_sum",
     "tier_checks", "tier_hits", "tier_misses", "tier_bonus_sum",
     "tier_penalty_sum", "tier_target_reward_sum", "tier_target_applied",
-    "tier_target_dropped",
+    "tier_target_dropped", "tier_gate_blocked",
     "comp_target_turns", "comp_target_s_turns", "comp_target_reward_sum",
     "comp_target_applied", "comp_target_dropped", "comp_target_errors",
 })
@@ -114,6 +116,7 @@ INJECTION_FIRST_KEYS = frozenset({
     "board_target_coef", "board_target_w_str", "board_target_w_card",
     "board_target_cap",
     "tier_target_coef", "tier_penalty", "tier_bonus", "tier_target_table",
+    "tier_gate_k",
     "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
     "comp_target_cards",
 })

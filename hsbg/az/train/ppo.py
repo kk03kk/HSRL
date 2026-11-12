@@ -479,6 +479,12 @@ class CollectConfig:
     tier_bonus: float = 0.15
     #: 目标曲线 ``turn:tier``（逗号分隔），默认 ``7:4,9:5,12:6``。
     tier_target_table: str = "7:4,9:5,12:6"
+    #: 板面门控（默认 0 = 关闭）：只有 ``Σ(atk+hp) >= k * gate_ref[turn]`` 才计入该回合，
+    #: 否则既不奖也不罚。2026-11-13 实测：无门控的 tier-target 会被「只升本不买人」打穿
+    #: （tier 超额达成、板面 −33%、覆盖 −70%）。
+    tier_gate_k: float = 0.0
+    #: 门控参考曲线 ``turn:strength``（默认 = champion 的 96 局真人-gap 面板 p50 曲线）。
+    tier_gate_ref: str = ""
     #: ── 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）──
     #: 系数：**0 = 关闭**（不构造对象、不读状态、不新增 meta 键，旧路径逐位一致）。
     #: 非 0 时按 ``comp_target_cards``（33 个流派的核心卡）计算"历史最高阵容完成度"
