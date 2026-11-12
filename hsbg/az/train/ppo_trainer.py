@@ -452,7 +452,14 @@ class PPOTrainer:
         if "torch_rng" in state:
             torch.set_rng_state(state["torch_rng"].cpu())
         if state.get("cuda_rng") and torch.cuda.is_available():
-            torch.cuda.set_rng_state_all([s.cpu() for s in state["cuda_rng"]])
+            # trainer.pt 里的 cuda_rng 是按**保存时**可见设备数存的（当前是 2）。
+            # 在一张卡的作业里 torch.cuda.set_rng_state_all 会 IndexError
+            # （``default_generators[idx]``），所以只恢复到实际可见的设备数：
+            # 2 卡时逐位等价旧行为；1 卡时只恢复 device 0（本来也没有 device 1）。
+            _states = [s.cpu() for s in state["cuda_rng"]]
+            _n = int(torch.cuda.device_count())
+            if _n > 0:
+                torch.cuda.set_rng_state_all(_states[:_n])
         if "python_rng" in state:
             random.setstate(state["python_rng"])
 
