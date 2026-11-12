@@ -140,12 +140,17 @@ def main(argv=None):
             "tier_target_reward_sum": s.get("tier_target_reward_sum"),
             "board_target_reward_sum": s.get("board_target_reward_sum"),
             "board_target_str_delta_mean": s.get("board_target_str_delta_mean"),
+            # 阵容覆盖奖励（comp_target）：四件套里"核心卡覆盖"的训练侧对应物。
+            "comp_target_turns": s.get("comp_target_turns"),
+            "comp_target_best_mean": s.get("comp_target_best_mean"),
+            "comp_target_s_turns": s.get("comp_target_s_turns"),
+            "comp_target_reward_sum": s.get("comp_target_reward_sum"),
         })
 
     # 控制台表：只打最关键的几列。
     print(f"{'iter':>6} {'dec':>9} {'ent_ok/att':>11} {'hb_ok':>7} "
           f"{'str_mean':>9} {'ratio':>6} {'sell%':>6} {'refr%':>6} "
-          f"{'t_hit%':>7} {'t_rw':>7} {'bt_rw':>7}")
+          f"{'t_hit%':>7} {'t_rw':>7} {'bt_rw':>7} {'c_best':>7} {'cS%':>5} {'c_rw':>6}")
     for c in curve:
         ea = c.get("entry_applied")
         att = c.get("entry_attempt")
@@ -160,7 +165,14 @@ def main(argv=None):
               f"{(('%.1f' % float(c['tier_target_reward_sum']))
                  if c.get('tier_target_reward_sum') is not None else '-'):>7} "
               f"{(('%.1f' % float(c['board_target_reward_sum']))
-                 if c.get('board_target_reward_sum') is not None else '-'):>7}",
+                 if c.get('board_target_reward_sum') is not None else '-'):>7} "
+              f"{(('%.3f' % float(c['comp_target_best_mean']))
+                 if c.get('comp_target_best_mean') is not None else '-'):>7} "
+              f"{(('%.1f' % (100.0 * float(c['comp_target_s_turns'])
+                             / max(1.0, float(c['comp_target_turns'] or 1))))
+                 if c.get('comp_target_turns') else '-'):>5} "
+              f"{(('%.0f' % float(c['comp_target_reward_sum']))
+                 if c.get('comp_target_reward_sum') is not None else '-'):>6}",
               flush=True)
     if curve:
         f, l = curve[0], curve[-1]
