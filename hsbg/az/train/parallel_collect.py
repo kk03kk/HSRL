@@ -424,6 +424,26 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     _process_on = bool(getattr(cfg, "process_value", False))
     _teacher = ScalingTeacher() if _teacher_on else None
 
+    # ── 中后期入场课程：先算好开关与区间（states 构造时就要用它们抽 T0）────────
+    entry_on = (entry_pool is not None and float(entry_p) > 0.0
+                and int(entry_turn_min or 0) > 0)
+    entry_lo = max(1, int(entry_turn_min or 0)) if entry_on else 0
+    entry_hi = max(entry_lo, int(entry_turn_max or entry_lo)) if entry_on else 0
+    entry_fid = str(entry_fidelity or "full").strip().lower()
+    if entry_fid not in ("board", "hand", "full"):
+        raise ValueError(f"entry_fidelity 非法: {entry_fid!r}（只支持 board/hand/full）")
+    entry_fast = bool(entry_fast_inject) and entry_fid != "board"
+    entry_stats: Dict[str, Any] = {
+        "entry_on": bool(entry_on), "entry_attempt": 0, "entry_applied": 0,
+        "entry_rejected": 0, "entry_missing": 0, "entry_errors": 0,
+        "entry_hand_applied": 0, "entry_counters_applied": 0,
+        "entry_turn_min": int(entry_lo), "entry_turn_max": int(entry_hi),
+        "entry_fidelity": str(entry_fid), "entry_sample": str(entry_sample),
+        "entry_boards": int(getattr(entry_pool, "kept", 0) or 0),
+        "entry_rejected_by_reason": {}, "entry_turns_hist": {},
+        "entry_learner_steps": 0,
+    }
+
     def _entry_turn_of(gi: int) -> int:
         """本局入场回合（0 = 本局不入场，保持原配方）。逐局确定性可复现。"""
         if not entry_on:
@@ -563,34 +583,14 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         need = "apply_turn_snapshots"
         if not hasattr(_probe, need):
             raise RuntimeError(f"hsbg_engine.Game 缺少 {need}：旧构建无法做 hand/full 注入")
-    human_min_turn = max(1, int(human_board_min_turn or 1))
-    # ── 中后期入场课程（learner 席注入真人完整状态；默认关闭）────────────────
-    entry_on = (entry_pool is not None and float(entry_p) > 0.0
-                and int(entry_turn_min or 0) > 0)
-    entry_lo = max(1, int(entry_turn_min or 0)) if entry_on else 0
-    entry_hi = max(entry_lo, int(entry_turn_max or entry_lo)) if entry_on else 0
-    entry_fidelity = str(entry_fidelity or "full").strip().lower()
-    if entry_fidelity not in ("board", "hand", "full"):
-        raise ValueError(f"entry_fidelity 非法: {entry_fidelity!r}（只支持 board/hand/full）")
     if entry_on:
-        _epk = int(getattr(entry_pool, "payload_kept", 0) or 0)
-        if entry_fidelity != "board" and _epk <= 0:
+        if entry_fid != "board" and int(getattr(entry_pool, "payload_kept", 0) or 0) <= 0:
             raise RuntimeError(
-                f"entry_fidelity={entry_fidelity} 需要带 board_detail payload 的准完整库；"
+                f"entry_fidelity={entry_fid} 需要带 board_detail payload 的准完整库；"
                 "当前入场库没有任何 payload，注入会 100% 退化成 board-only。")
         if not hasattr(_probe, "player_json") or not hasattr(_probe, "apply_turn_snapshots"):
             raise RuntimeError("hsbg_engine.Game 缺少 player_json/apply_turn_snapshots：旧构建")
-    entry_fast = bool(entry_fast_inject) and entry_fidelity != "board"
-    entry_stats: Dict[str, Any] = {
-        "entry_on": bool(entry_on), "entry_attempt": 0, "entry_applied": 0,
-        "entry_rejected": 0, "entry_missing": 0, "entry_errors": 0,
-        "entry_hand_applied": 0, "entry_counters_applied": 0,
-        "entry_turn_min": int(entry_lo), "entry_turn_max": int(entry_hi),
-        "entry_fidelity": str(entry_fidelity), "entry_sample": str(entry_sample),
-        "entry_boards": int(getattr(entry_pool, "kept", 0) or 0),
-        "entry_rejected_by_reason": {}, "entry_turns_hist": {},
-        "entry_learner_steps": 0,
-    }
+    human_min_turn = max(1, int(human_board_min_turn or 1))
 
     if strict_library is not None:
         for st in states:
@@ -667,7 +667,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         r = st["human_rng"]
         payload: Optional[Dict[str, Any]] = None
         try:
-            if entry_fidelity != "board":
+            if entry_fid != "board":
                 payload = entry_pool.sample_payload(int(t), rng=r)
             if payload is None or not payload.get("board_flat"):
                 board = entry_pool.sample(int(t), rng=r)
@@ -683,7 +683,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         try:
             from .human_board_pool import _reject_class, turn_tier as _turn_tier  # noqa: PLC0415
             from .human_obs_full import inject_quasi_state  # noqa: PLC0415
-            rep = inject_quasi_state(g, seat, payload, entry_fidelity,
+            rep = inject_quasi_state(g, seat, payload, entry_fid,
                                      reset_ended=True, tier_fn=_turn_tier,
                                      fast=entry_fast)
         except BaseException as exc:  # noqa: BLE001
