@@ -40,6 +40,9 @@ from hsai_ops import check_heavy  # noqa: E402
         # 空脚本 / 只有注释
         "",
         "# just a comment\n\n",
+        # 循环头只是列出文件名，不是执行它（同一行若有 ; 则仍会被扫）
+        "for f in workflows/bc_pretrain.py\\n  workflows/train_entity_sync.py\\ndo\\n  echo $f\\ndone",
+        "for f in workflows/bc_pretrain.py workflows/run_curriculum_long.py",
     ],
 )
 def test_guard_allows(script: str) -> None:
@@ -58,6 +61,8 @@ def test_guard_allows(script: str) -> None:
         ("pip install -r requirements.txt", "pip install"),
         ("srun --gres=gpu:2 hostname", "srun"),        # heredoc 结束后面的真实调用仍然要拦
         ("cat <<'EOF'\nhi\nEOF\n.venv/bin/python -m pytest -q", "pytest"),
+        # 循环体里真的跑起来，仍然要拦
+        ("for f in a b; do .venv/bin/python -m pytest -q; done", "pytest"),
     ],
 )
 def test_guard_blocks(script: str, expected: str) -> None:

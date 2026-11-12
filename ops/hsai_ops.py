@@ -116,6 +116,14 @@ SAFE_LEADING_TOKENS = frozenset(
     """.split()
 )
 
+#: shell 结构关键字。像 ``for f in workflows/bc_pretrain.py ...`` 这样的**循环头**
+#: 只是列出文件名，不是执行它；但 ``for f in x; do pytest; done`` 仍然要拦。
+#: 判据：以关键字开头且该行不含命令分隔符。
+SHELL_KEYWORDS = frozenset(
+    "for while case if elif then else do done fi esac function select until { } ( )".split()
+)
+CMD_SEPARATORS = re.compile(r"[;|]|&&|\|\|")
+
 
 HEREDOC_RE = re.compile(r"<<-?\s*'?([A-Za-z_][A-Za-z0-9_]*)'?")
 
@@ -165,6 +173,8 @@ def _executed_lines(script: str) -> List[str]:
             parts = line.split(None, 1)
             first = parts[1].split(None, 1)[0] if len(parts) > 1 else ""
         if first in SAFE_LEADING_TOKENS:
+            continue
+        if first in SHELL_KEYWORDS and not CMD_SEPARATORS.search(line):
             continue
         kept.append(line)
     return kept
