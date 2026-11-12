@@ -164,8 +164,10 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     )
     started = time.time()
     result = evaluate_policy(policy, cfg)
-    rows = result.pop("economy", []) or []
-    hist = result.pop("action_hist", None)
+    # evaluate_policy returns results per SEAT: seats[].end_turn_economy
+    rows = [r for seat in (result.get("seats") or []) if isinstance(seat, dict)
+            for r in (seat.get("end_turn_economy") or [])]
+    hist = result.get("action_hist")
     return {
         "name": name,
         "checkpoint": str(path),
