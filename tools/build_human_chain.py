@@ -70,8 +70,20 @@ def main(argv=None):
     for gid, per_turn in best.items():
         turns = sorted(per_turn)
         vals = [int(per_turn[t].get("strength") or 0) for t in turns]
+        cards = []
+        ok = True
+        for t in turns:
+            detail = per_turn[t].get("board_detail") or []
+            try:
+                cards.append([int(m["card"]) for m in detail])
+            except (KeyError, TypeError, ValueError):
+                ok = False
+                break
+        if not ok:
+            dropped["bad_cards"] += 1
+            continue
         if len(turns) >= int(args.min_series) and all(v > 0 for v in vals):
-            series[gid] = (turns, vals)
+            series[gid] = (turns, vals, cards)
 
     kept = 0
     dropped = collections.Counter()
@@ -89,6 +101,7 @@ def main(argv=None):
             out = dict(r)
             out["chain_turn"] = list(s[0])
             out["chain_strength"] = list(s[1])
+            out["chain_cards"] = [list(c) for c in s[2]]
             f.write(json.dumps(out, ensure_ascii=False, sort_keys=True) + "\n")
             kept += 1
     os.replace(tmp, args.out)
