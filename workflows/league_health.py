@@ -22,13 +22,16 @@ ZERO_KEYS = (
     "search_failures",
 )
 MIRROR_ZERO_KEYS = (
-    "mirror_rejected",
     "mirror_missing",
-    "mirror_fallback",
     "mirror_errors",
     "mirror_pool_unbalanced",
     "mirror_pool_species_unbalanced",
 )
+
+#: 这些计数**允许**非零，但必须能被 ``mirror_rejected_by_reason`` 完全解释。
+#: ``not_alive``（座位已死/已结束）与 ``pending_choice``（饰品/任务回合不许替换状态）
+#: 都是预期内的情况，不是缺陷。
+MIRROR_EXPLAINABLE_KEYS = ("mirror_rejected", "mirror_fallback")
 PPO_FINITE_KEYS = (
     "total",
     "policy_loss",
@@ -102,6 +105,11 @@ def check(history: Path, latest: Path, *, min_version: int = 0,
         for key in MIRROR_ZERO_KEYS:
             if int(collect.get(key, 0) or 0) != 0:
                 issues.append(f"collect.{key}={collect.get(key)}")
+        for key in MIRROR_EXPLAINABLE_KEYS:
+            value = int(collect.get(key, 0) or 0)
+            if value and not explained:
+                issues.append(
+                    f"collect.{key}={value} but no rejection reason was recorded")
     epochs = ppo.get("epochs") or []
     if not epochs:
         issues.append("ppo.epochs is empty")
