@@ -110,7 +110,41 @@ hero_power 5,312 / upgrade 4,795`。
 3. **`armor`、`triple`、`dark_gift`、`freeze` 未覆盖**（前两者白名单外 / 字段缺失）。
 4. **`hero` 已修正为 self 视角**，但仍有 5 局 PMS 缺失（`xml_ok=995/1000`）。
 
-## 7. 下一步
+## 7. 验证进度（截至 2026-11-12 17:55）
+
+### 7.1 已验证：BC 在真实训练里加载成功
+
+`config/league-bc-smoke.json`（`bc-coef 0.05`、`bc-mmr-min 8000`）的 smoke 输出：
+
+```
+[bc] 真实人类 BC 池: samples=22439 mmr>=8000 load=3.5s path=data/firestone_bc/bc_samples.jsonl.gz
+[bc] class_counts={"sell": 4928, "reroll": 3347, "buy_minion": 1631, "buy_spell": 999,
+                   "play_spell": 3501, "play_minion": 6641, "upgrade": 296,
+                   "hero_power": 258, "end_turn": 838}
+[bc] 分层目标: type_weight=1 card_weight=0.5 card_head=on coef(dec=0)=0.05
+```
+
+- `mmr>=8000` 筛出 **22,439** 条高手样本（9 类齐全），加载 3.5 秒；
+- 分层损失参数按预期生效（type 1.0 / card 0.5 / card head on / coef 0.05）。
+
+**这条链路第一次真正跑起来了。**
+
+### 7.2 冒烟在训练启动阶段失败——原因与 BC 无关
+
+```
+File ".../ppo_trainer.py", line 455, in load_state_dict
+    torch.cuda.set_rng_state_all([s.cpu() for s in state["cuda_rng"]])
+...
+    default_generator = torch.cuda.default_generators[idx]
+```
+
+trainer state 里存的是**两张卡的 CUDA RNG**，而冒烟用 `--gres=gpu:1` 只给了一张，
+恢复第 2 张卡的 RNG 时越界。
+
+**结论：任何续训作业都必须给 2 张卡。** 这与 BC 无关，也与本仓的 `gpus` 配置无关
+（那是 actor 用哪张卡的列表，不是设备数量）。下一轮把冒烟改成 2 卡即可。
+
+## 8. 下一步
 
 用 `--bc-coef` 做一次**低系数的辅助 BC**（不是纯 BC 预训练——历史上 9 类纯 BC 会把
 moves/turn 从 2.4 推到 17.3、top4 从 96% 打到 29%，见 `bc_pretrain.py` 文档里的实测记录），
