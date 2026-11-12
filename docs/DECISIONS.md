@@ -508,3 +508,37 @@ evidence: `docs/LATE_GAME_ENTRY.md`、`docs/analysis/HUMAN_GAP_20261112.md`、
    （≥1/≥2/≥3）、前期名次回归。卖牌次数/终端数值可被无意义刷高，只作辅证。
 
 
+
+## D-035 · 2026-11-12 · local · 入场课程的病灶是升本节奏：启用 tier-target 奖励
+
+**背景（新增证据，推翻上一轮的方向判断）**
+
+- 用 `tools/inspect_gap_panel.py` 把 `gap-e3c-20261112/panel.json` 逐回合拆开看：
+  E3 与 champion 在 T2–T7 的板面与 tier **几乎完全一致**，崩的是 T8–T12 的升本节奏
+  ——learner T10 平均 tier `4.62`，champion `5.25`，真人 `5.52`，慢了**整整一级**；
+  板面强度随之在 T14 掉到 champion 的 0.70 倍（比值 0.107 → 0.075）。
+- 因此"把入场回合提前"（F1，入场 T6–8）是错方向：F1 四件套里**三项全退**——
+  `mean_rank 1.177→1.417`、T10 之后 tier 卡在 4.5–4.7、`≥1 S` 核心卡 0.292→0.170。
+  F1 已撤销，现场保留在 `artifacts/runs/human-gap-f1-20261112/`。
+- 机制解释：入场课程在 `T0` 之前把 learner 交给 bot 且**不产生 learner record**，
+  于是"T8 之前升到 5 级"从未进入梯度；而 `board-target` 奖励按回合比板面，
+  升本当期掉板面 → "别升本、买属性"成了局部最优。
+
+**决定**
+
+1. **启用 `tier-target` 奖励**（`hsbg/az/train/tier_target.py`，早就实现、从未启用）：
+   每个新回合起点读一次 tier，低于目标扣 `coef*0.02`，首次达标一次性加 `coef*0.15`，
+   目标表用真人曲线取整 `7:4,9:5,12:6`，`coef=1.0`。这是**有意的策略偏置**，
+   不是势函数塑形（不满足最优策略不变性），所以只在本阶段课程里开。
+2. **工程配套**：`personal.py` 的 `OPTIONS` 加 4 个 `tier-target-*` 键（否则 config
+   JSON 会被当成"未知配置项"直接拒掉）；`runlog.py` 的 `INJECTION_KEYS` 加 13 个
+   `tier_*` 键，`analyze_entry_run.py` 加 `t_hit% / t_rw / bt_rw` 三列。
+   理由就是 `board_target` 踩过的坑：**配了但没进 history，会静默跑完一整段**。
+3. **两个配方**：G2 = `entry-p 0.5`（一半整局 / 一半入场）+ board-target 0.30 +
+   tier-target 1.0；G3 = `entry-p 1.0` + 同样两个奖励（= E4 的单变量对照）。
+4. **验收工具落地为代码**：`tools/accept_gap_panel.py` 把四件套做成逐项 PASS/FAIL
+   （排名 / 固定回合板面比值 / 核心卡覆盖 / 前期回归），并单独打印 T8/T10/T12 的
+   tier 差作为机制变量。判据写在工具里，避免每次靠肉眼挑好数字。
+5. **同步约束重申**：`training_source_digest()` 覆盖 `hsbg/az/train/*.py` 与
+   `workflows/train_entity_sync.py`，所以**段与段之间不能推这两个目录的改动**；
+   本轮为此先撤销只跑了 3 分钟的 G1，再推 tier-target 改动，然后重开 G2/G3。
