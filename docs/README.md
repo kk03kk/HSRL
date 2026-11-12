@@ -21,6 +21,7 @@
 | [LEADERBOARD.md](LEADERBOARD.md) | 当前排行榜规则与分数 |
 | [EVAL_DUEL.md](EVAL_DUEL.md) | 2 model + 6 bot 对局协议、口径、门禁 |
 | [nus/ENVIRONMENT.md](nus/ENVIRONMENT.md) | NUS 环境限制、Slurm、GPU、恢复 |
+| [nus/GPU_SELECTION.md](nus/GPU_SELECTION.md) | **GPU 选型实测基准与调度约束** |
 | [nus/INCIDENTS.md](nus/INCIDENTS.md) | 历史故障与防复发规则 |
 | [nus/EVAL_DEPLOYMENT.md](nus/EVAL_DEPLOYMENT.md) | NUS 评测提交与监控 |
 | [nus/ENGINE_RELEASES.md](nus/ENGINE_RELEASES.md) | 引擎发版记录 |
