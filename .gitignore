@@ -60,3 +60,7 @@ secrets.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# 大型原始数据（只在服务器，不进 Git）
+data/firestone_replays/
+data/real_library/

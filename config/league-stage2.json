@@ -23,7 +23,7 @@
   "sims": 0,
   "processes": 8,
   "workers": 1,
-  "mirror-sample": "p75band",
+  "mirror-sample": "turnband:1-4=55,5-8=60,9-12=70,13-16=75,17-20=80,21-99=75",
   "max-actions-per-turn": 80,
   "snapshot-every": 5,
   "keep-snapshots": 3,

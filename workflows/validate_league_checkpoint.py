@@ -74,6 +74,8 @@ def main() -> int:
     ap.add_argument("--max-steps", type=int, default=50000)
     ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--strict", type=int, default=1)
+    ap.add_argument("--forbid-unfreeze", type=int, choices=[0, 1], default=0,
+                    help="1=与训练/实机一致，全冻结时屏蔽 Freeze")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
@@ -97,7 +99,8 @@ def main() -> int:
     evaluator = PPOEvaluator(model, device=args.device,
                              norm_mean=meta.get("norm_mean"),
                              norm_std=meta.get("norm_std"))
-    policy = PPOGreedyPolicy(evaluator, max_actions_per_turn=args.max_actions_per_turn)
+    policy = PPOGreedyPolicy(evaluator, max_actions_per_turn=args.max_actions_per_turn,
+                             forbid_unfreeze=bool(int(args.forbid_unfreeze)))
     cfg = EvalConfig(
         games=int(args.games),
         seed=int(args.seed),
@@ -123,6 +126,7 @@ def main() -> int:
         "strict": bool(int(args.strict)),
         "max_steps": int(args.max_steps),
         "max_actions_per_turn": int(args.max_actions_per_turn),
+        "forbid_unfreeze": bool(int(args.forbid_unfreeze)),
         "engine": engine_info(),
     }
     protocol_bytes = json.dumps(protocol, sort_keys=True, separators=(",", ":")).encode()

@@ -8,7 +8,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from hsbg.az.train.mirror_snapshots import MirrorSnapshotPool, SnapshotFrame  # noqa: E402
+from hsbg.az.train.mirror_snapshots import (MirrorSnapshotPool, SnapshotFrame,  # noqa: E402
+                                            parse_turn_bands, turn_band_percentile)
 
 
 def _frame(seed: int, strength: int) -> SnapshotFrame:
@@ -47,3 +48,36 @@ def test_unknown_mode_falls_back_to_random():
     rng = random.Random(3)
     picks = [pool.get(8, 0, rng=rng) for _ in range(200)]
     assert len({f.source_game_seed for f in picks}) > 10
+
+
+def test_turn_bands_parse_and_percentile():
+    bands = parse_turn_bands(
+        "turnband:1-4=55,5-8=60,9-12=70,13-16=75,17-20=80,21-99=75")
+    assert [round(turn_band_percentile(bands, t), 2) for t in (1, 8, 12, 16, 20, 25)] == [
+        0.55, 0.60, 0.70, 0.75, 0.80, 0.75]
+
+
+def test_turn_bands_reject_gaps():
+    try:
+        parse_turn_bands("turnband:1-4=55,6-8=60,9-24=75")
+    except ValueError as exc:
+        assert "连续" in str(exc)
+    else:
+        raise AssertionError("gap should fail")
+
+
+def test_turnband_uses_configured_band():
+    pool = MirrorSnapshotPool(
+        sample="turnband:1-4=55,5-8=60,9-12=70,13-16=75,17-20=80,21-99=75")
+    for turn, lo, hi in ((8, 55, 65), (12, 65, 75), (16, 70, 80), (20, 75, 85)):
+        pool.index[(turn, 0)] = [
+            SnapshotFrame(turn=turn, seat=0,
+                          player={"board": [{"atk": i, "hp": 0}]},
+                          source_game_seed=i, strength=i)
+            for i in range(1, 101)]
+    rng = random.Random(7)
+    for turn, lo, hi in ((8, 55, 65), (12, 65, 75), (16, 70, 80), (20, 75, 85)):
+        picks = [pool.get(turn, 0, rng=rng) for _ in range(200)]
+        assert min(f.strength for f in picks) >= lo
+        assert max(f.strength for f in picks) <= hi + 1
+        assert len({f.source_game_seed for f in picks}) > 5

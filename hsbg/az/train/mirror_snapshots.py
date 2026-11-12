@@ -37,6 +37,7 @@ import json
 import math
 import os
 import random
+import re
 import time
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -62,7 +63,59 @@ SAMPLE_BANDS = {
     "p90band": (0.85, 0.95),
 }
 SAMPLE_MODES = ("p50", "p75", "p90", "p50band", "p75band", "p90band",
-                "max", "strong", "weak", "random")
+                "turnband", "max", "strong", "weak", "random")
+
+
+def parse_turn_bands(spec: Any) -> List[Tuple[int, int, float]]:
+    """Parse a turn-dependent band schedule.
+
+    Format: ``turnband:1-4=55,5-8=60,9-12=70,13-16=75,17-20=80,21-99=75``.
+    Each range is inclusive; the percentile is the center of a ±5 point band
+    (55 -> [50, 60]). Ranges must be sorted, non-overlapping, contiguous from
+    turn 1, and cover at least turn 24. The last range is used for later turns.
+    """
+    text = str(spec or "").strip()
+    if text.lower().startswith("turnband"):
+        if ":" not in text:
+            raise ValueError("turnband 采样需要 `turnband:<range=percent,...>`")
+        text = text.split(":", 1)[1]
+    if not text:
+        raise ValueError("turnband 采样缺少分段")
+    out: List[Tuple[int, int, float]] = []
+    pat = re.compile(r"^(\d+)-(\d+)=(\d+)$")
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        m = pat.match(part)
+        if not m:
+            raise ValueError(f"turnband 片段应为 lo-hi=pct: {part!r}")
+        lo, hi, pct = (int(x) for x in m.groups())
+        if lo < 1 or hi < lo:
+            raise ValueError(f"turnband 回合范围非法: {part!r}")
+        if not 1 <= pct <= 100:
+            raise ValueError(f"turnband 分位必须在 1..100: {part!r}")
+        out.append((lo, hi, pct / 100.0))
+    if not out:
+        raise ValueError("turnband 采样缺少分段")
+    out.sort(key=lambda x: x[0])
+    if out[0][0] != 1:
+        raise ValueError("turnband 必须从 turn 1 开始")
+    for (lo0, hi0, _), (lo1, _hi1, _) in zip(out, out[1:]):
+        if lo1 != hi0 + 1:
+            raise ValueError(f"turnband 回合段必须连续且不重叠: {hi0} -> {lo1}")
+    if out[-1][1] < 24:
+        raise ValueError("turnband 必须覆盖到 turn 24（真实长局）")
+    return out
+
+
+def turn_band_percentile(bands: Sequence[Tuple[int, int, float]], turn: int) -> float:
+    """Return the center percentile (0..1) for ``turn``; later turns use last."""
+    t = int(turn)
+    for lo, hi, pct in bands:
+        if lo <= t <= hi:
+            return float(pct)
+    return float(bands[-1][2])
 
 
 # ────────────────────────── Player JSON 工具 ──────────────────────────
@@ -307,7 +360,12 @@ class MirrorSnapshotPool:
         self.index: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
         #: 每个桶按 strength 排序一次的缓存；get() 被每回合/每座位高频调用。
         self._sorted: Dict[Tuple[int, int], List[SnapshotFrame]] = {}
+        self.sample_spec = str(sample)
         self.sample_mode = str(sample)
+        self.turn_bands: Optional[List[Tuple[int, int, float]]] = None
+        if self.sample_mode.lower().startswith("turnband"):
+            self.turn_bands = parse_turn_bands(self.sample_spec)
+            self.sample_mode = "turnband"
         self.files = 0
         self.frames = 0
         self.bad_files = 0
@@ -401,6 +459,11 @@ class MirrorSnapshotPool:
         if mode == "weak":
             return self._sorted_candidates(turn, seat)[0]
         band = SAMPLE_BANDS.get(mode)
+        if mode == "turnband":
+            if self.turn_bands is None:
+                raise ValueError("turnband 采样缺少分段")
+            pct = turn_band_percentile(self.turn_bands, turn)
+            band = (max(0.0, pct - 0.05), min(1.0, pct + 0.05))
         if band is not None:
             ordered = self._sorted_candidates(turn, seat)
             lo = int(math.floor(band[0] * (len(ordered) - 1)))
@@ -437,6 +500,10 @@ class MirrorSnapshotPool:
                 "bad_files": int(self.bad_files), "keys": len(self.index),
                 "turn_min": turns[0], "turn_max": turns[-1], "seats": seats,
                 "sample": str(self.sample_mode),
+                "sample_spec": str(self.sample_spec),
+                "turn_bands": ([{"lo": lo, "hi": hi, "p": pct}
+                                for lo, hi, pct in self.turn_bands]
+                               if self.turn_bands else None),
                 "frames_per_key_p50": sorted(per_key)[len(per_key) // 2],
                 "schema_versions": dict(self.schema_versions)}
 
@@ -713,7 +780,7 @@ def load_pool(root: Optional[str], *, sample: str = "strong") -> Optional[Mirror
 
 __all__ = [
     "SCHEMA", "SCHEMA_VERSION", "STAGE_EOT", "SAMPLE_MODES", "SAMPLE_PERCENTILES",
-    "SAMPLE_BANDS",
+    "SAMPLE_BANDS", "parse_turn_bands", "turn_band_percentile",
     "EXPECTED_REJECT_REASONS", "SnapshotFrame", "MirrorSnapshotPool",
     "MirrorStats", "board_strength", "capture_eot", "engine_stamp", "held_pool_parts",
     "inject_turn", "is_expected_reject", "load_pool", "mirror_seats",

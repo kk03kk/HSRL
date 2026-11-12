@@ -44,7 +44,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from hsbg.az.train.common import engine_available, engine_info, to_jsonable  # noqa: E402
-from hsbg.az.train.mirror_snapshots import SAMPLE_MODES, ramp_p  # noqa: E402
+from hsbg.az.train.mirror_snapshots import parse_turn_bands, ramp_p  # noqa: E402
 from hsbg.az.train.checkpoint_io import publish_checkpoint  # noqa: E402
 from hsbg.az.train.reward_shaping import (parse_tier_bonus,  # noqa: E402
                                           shaping_gamma_warning)
@@ -535,9 +535,10 @@ def main() -> int:
     ap.add_argument("--mirror-p", type=float, default=0.0,
                     help="每座位每回合注入快照的概率（默认 0=关闭，零影响）")
     ap.add_argument("--mirror-sample", "--sample", dest="mirror_sample", default="p50",
-                    choices=list(SAMPLE_MODES),
+                    metavar="MODE",
                     help="快照桶内采样：p50/p75/p90=强度分位课程，p75band 等=分位带内"
-                         "均匀取样（保留难度且恢复对手多样性），max/strong=旧上限")
+                         "均匀取样（保留难度且恢复对手多样性），turnband:<lo-hi=pct,...>="
+                         "按回合的分位带宽课程，max/strong=旧上限")
     ap.add_argument("--mirror-p-ramp", default="",
                     help="线性 p ramp，如 0.1@0,0.25@0.3,0.25@1.0（x 与 iteration 同单位）；"
                          "空=用固定 --mirror-p")
@@ -947,6 +948,12 @@ def main() -> int:
               "请用 --trajectory-pool/--trajectory-p", file=sys.stderr)
         return 2
     # 回合末场面快照镜像（默认关闭；--mirror-p 0 且无 ramp 时完全零影响）
+    if str(args.mirror_sample).lower().startswith("turnband"):
+        try:
+            parse_turn_bands(str(args.mirror_sample))
+        except ValueError as exc:
+            print(f"[error] --mirror-sample turnband 配置错误: {exc}", file=sys.stderr)
+            return 2
     _mirror_ramp = str(args.mirror_p_ramp).strip()
     if args.mirror_strict and (not args.lockstep or args.rust_collector or not args.mirror_snaps
             or args.mirror_p != 1 or args.mirror_seats != 7 or _mirror_ramp):
