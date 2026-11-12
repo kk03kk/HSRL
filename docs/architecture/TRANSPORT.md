@@ -59,10 +59,15 @@ ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 `
 `Connection refused`（2222 端口没人监听）。
 
 ```powershell
-python ops/hsai_ops.py tunnel     # 打印需要手动执行的那一条命令
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 ```
 
-然后**由用户在本地 PowerShell 里执行一次**（需要输密码），再 `python ops/hsai_ops.py doctor`。
+这个脚本会先探测、已通就什么都不做，否则建立隧道并验证；已存在陈旧转发时用
+`-Force` 精确清理（只杀 `-L 2222:xlogin2...:22` 那一条，不碰其它 ssh 会话）。
+
+只想看命令而不执行：`python ops/hsai_ops.py tunnel`。
+
+**由用户在本地 PowerShell 里执行一次**（需要输密码），然后 `python ops/hsai_ops.py doctor`。
 这是单 Agent 架构里**唯一**需要人介入的时刻，频率约每天一次。
 
 **为什么不让 Agent 自己输密码：** 密码进对话就进了会话记录；进命令行就进了进程列表。

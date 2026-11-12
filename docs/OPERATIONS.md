@@ -8,7 +8,11 @@
 ## 0. 用户只需要做两件事
 
 1. **提目标**（"把模型拉回本地""跑一轮长训""看看为什么棋力没提升"）。
-2. **隧道断了时执行一条命令**（`python ops/hsai_ops.py tunnel` 会打印出来，要输一次密码）。
+2. **隧道断了时跑一个脚本**（要输一次密码）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
+```
 
 其余全部由 Agent 完成，包括判断先做什么。
 
@@ -265,6 +269,7 @@ python ops/hsai_ops.py model-pull <name>
 .venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 .venv\Scripts\python.exe tools\verify_workspace.py --skip-rust
 
-# 追踪断了
-python ops/hsai_ops.py tunnel
+# 隧道断了
+python ops/hsai_ops.py tunnel                         # 打印命令
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1   # 或直接跑脚本
 ```
