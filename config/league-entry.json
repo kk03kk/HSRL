@@ -27,7 +27,7 @@
   "mirror-seats": 7,
   "mirror-p": 1,
   "mirror-strict": 0,
-  "mirror-max-turn": 8,
+  "mirror-max-turn": 4,
   "human-boards": "data/real_library/firestone-bank-1000/train-m8k.jsonl",
   "human-board-p": 1.0,
   "human-board-seats": 7,
