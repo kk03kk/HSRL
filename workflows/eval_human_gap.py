@@ -268,6 +268,9 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "outcome": {k: result.get(k) for k in
                     ("mean_rank", "top4_rate", "win_rate", "illegal_actions",
                      "truncated_games", "decisions", "decisions_per_game")},
+        # 逐局名次（同 `--seed` 下各模型打的是同一批种子，所以可以**配对**比较，
+        # 显著性强于比两个均值；见 docs/analysis/ACCEPTANCE_BASELINE.md §4.5）。
+        "rank_sequence": result.get("rank_sequence"),
         "action_hist": hist,
         "survival": survival(rows),
         "curves": economy_curves(rows),
