@@ -26,7 +26,7 @@ SLIM_DROP_KEYS = ("worker_meta", "games_meta")
 INJECTION_KEYS = (
     "mirror_on", "mirror_attempt", "mirror_applied", "mirror_rejected",
     "mirror_missing", "mirror_fallback", "mirror_errors",
-    "mirror_p", "mirror_sample", "mirror_p_ramp",
+    "mirror_p", "mirror_sample", "mirror_p_ramp", "mirror_max_turn",
     "mirror_seats", "mirror_frames", "mirror_last_rejected",
     "mirror_rejected_by_reason", "mirror_strict_counts", "mirror_pool_unbalanced", "mirror_pool_species_unbalanced",
     "mirror_pool_preexisting", "mirror_pool_species_preexisting", "mirror_pool_observations",
@@ -70,6 +70,7 @@ INJECTION_ANY_KEYS = frozenset({"mirror_on", "human_board_on", "entry_on"})
 INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
+    "mirror_max_turn",
     "human_board_sample", "human_board_seats", "human_board_source",
     "human_board_fidelity", "human_board_payload_rows",
     "entry_turn_min", "entry_turn_max", "entry_fidelity", "entry_sample",

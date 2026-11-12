@@ -747,6 +747,7 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                     mirror_p=float(getattr(cfg, "mirror_p", 0.0)),
                     mirror_p_ramp=str(getattr(cfg, "mirror_p_ramp", "")),
                     mirror_seat_random=bool(getattr(cfg, "mirror_seat_random", False)),
+                    mirror_max_turn=int(getattr(cfg, "mirror_max_turn", 0) or 0),
                     human_board_pool=hpool,
                     human_board_p=float(getattr(cfg, "human_board_p", 0.0)),
                     human_board_seats=int(getattr(cfg, "human_board_seats", 2)),

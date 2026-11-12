@@ -386,6 +386,9 @@ class CollectConfig:
     mirror_p_ramp: str = ""
     #: True=每个回合从全部非 learner 座位随机抽 mirror_seats 个（课程模式）；默认 False。
     mirror_seat_random: bool = False
+    #: 只在 turn <= N 时注入镜像快照（0=不限）。中后期课程用它把镜像对手关在入场
+    #: 回合之前，入场之后改由人类战团提供对手。
+    mirror_max_turn: int = 0
     #: 人类战团（board-only）注入库：``data/real_library/library_real_degraded.jsonl``
     #: （空=不用）。只替换 board + 派生 tier，见 docs/HUMAN_BOARD_OPPONENT.md。
     human_boards: str = ""

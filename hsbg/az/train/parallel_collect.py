@@ -320,6 +320,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                          mirror_pool: Any = None, mirror_seats_count: int = 0,
                          mirror_p: float = 0.0, mirror_p_ramp: str = "",
                          mirror_seat_random: bool = False,
+                         mirror_max_turn: int = 0,
                          human_board_pool: Any = None,
                          human_board_p: float = 0.0,
                          human_board_seats: int = 2,
@@ -602,6 +603,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             return
         t = int(g.turn)
         if t == int(st.get("mirror_turn", t)):
+            return
+        if int(mirror_max_turn or 0) > 0 and t > int(mirror_max_turn):
             return
         st["mirror_turn"] = t
         st["mirror_applied_seats"] = []
@@ -1033,6 +1036,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "mirror_sample": (str(getattr(mirror_pool, "sample_mode", ""))
                               if mirror_pool is not None else ""),
             "mirror_p_ramp": str(mirror_p_ramp),
+            "mirror_max_turn": int(mirror_max_turn or 0),
             "mirror_frames": int(getattr(mirror_pool, "frames", 0)) if mirror_on else 0,
             # 人类战团（board-only）注入：开关 / 参数 / 数据源
             "human_board_on": bool(human_on), "human_board_p": float(human_p),

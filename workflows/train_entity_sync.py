@@ -544,6 +544,9 @@ def main() -> int:
                          "空=用固定 --mirror-p")
     ap.add_argument("--mirror-seat-random", type=int, default=0,
                     help="1=每回合从全部非 learner 座位随机抽 --mirror-seats 个（课程模式）")
+    ap.add_argument("--mirror-max-turn", type=int, default=0,
+                    help="只在 turn <= N 时注入镜像快照（0=不限）。中后期入场课程用它把"
+                         "镜像对手关在入场回合之前")
     ap.add_argument("--human-boards", default="",
                     help="人类战团（board-only）JSONL（默认 "
                          "data/real_library/library_real_degraded.jsonl；空=不用）；见 "
@@ -2353,6 +2356,7 @@ def main() -> int:
             mirror_p=_mp, mirror_sample=str(args.mirror_sample),
             mirror_p_ramp=str(args.mirror_p_ramp),
             mirror_seat_random=bool(int(args.mirror_seat_random)),
+            mirror_max_turn=int(args.mirror_max_turn),
             human_boards=str(args.human_boards),
             human_board_p=_hb_p,
             human_board_seats=_hb_seats,

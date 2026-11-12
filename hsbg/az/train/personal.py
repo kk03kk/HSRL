@@ -58,6 +58,8 @@ OPTIONS = {
     # 默认 ``entry-p=0`` / ``entry-turn-min=0`` = 完全关闭。
     "entry-boards", "entry-p", "entry-turn-min", "entry-turn-max",
     "entry-sample", "entry-fidelity", "entry-fast-inject", "entry-set-health",
+    # 镜像对手的回合上界（0=不限）：中后期课程用它把镜像关在入场回合之前。
+    "mirror-max-turn",
 }
 
 
