@@ -38,6 +38,12 @@ if [[ -n "${HSAI_HC_SOURCES:-}" ]]; then
   sources="$HSAI_HC_SOURCES"
 else
   sources="{\"league\":\"artifacts/libraries/league-eot-v1.1-20261109/${split}\"}"
+  # 额外的板块来源，格式 name=path。用 '=' 而不是 JSON，因为 sbatch --export 以逗号分隔。
+  if [[ -n "${HSAI_HC_EXTRA_SOURCE:-}" ]]; then
+    extra_name="${HSAI_HC_EXTRA_SOURCE%%=*}"
+    extra_path="${HSAI_HC_EXTRA_SOURCE#*=}"
+    sources="${sources%\}},\"${extra_name}\":\"${extra_path}\"}"
+  fi
 fi
 work="artifacts/runs/humancurve-work-${ts}"
 

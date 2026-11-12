@@ -145,6 +145,37 @@ def survival(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def final_boards(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Each game's last recorded board, as card ids. Feeds composition coverage.
+
+    Card ids carry a ``_G`` suffix for golden minions; strip it so a golden copy
+    still matches the base id in config/strategy_cards.json.
+    """
+    last: Dict[Any, Dict[str, Any]] = {}
+    for r in rows:
+        g = r.get("seed")
+        t = int(r["turn"])
+        if g not in last or t >= int(last[g]["turn"]):
+            last[g] = r
+    out = []
+    for g, r in sorted(last.items(), key=lambda kv: str(kv[0])):
+        board = r.get("eot_board") or r.get("board") or []
+        ids = []
+        for m in board:
+            cid = m.get("card_id")
+            if not isinstance(cid, str):
+                continue
+            ids.append(cid[:-2] if cid.endswith("_G") else cid)
+        out.append({
+            "seed": g,
+            "turn": int(r["turn"]),
+            "tier": r.get("tier"),
+            "strength": (r.get("eot_attack") or 0) + (r.get("eot_board_hp") or 0),
+            "card_ids": ids,
+        })
+    return out
+
+
 def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     model, meta = load_checkpoint(str(path), device=args.device)
     evaluator = PPOEvaluator(model, device=args.device,
@@ -181,6 +212,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "action_hist": hist,
         "survival": survival(rows),
         "curves": economy_curves(rows),
+        "final_boards": final_boards(rows),
     }
 
 
