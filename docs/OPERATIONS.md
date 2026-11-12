@@ -277,8 +277,9 @@ python ops/hsai_ops.py model-pull <name>
 .venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 .venv\Scripts\python.exe tools\verify_workspace.py --skip-rust
 
-# 隧道断了
+# 隧道断了（凭据已登记时 Agent 自己就能做，不需要问你）
 python ops/hsai_ops.py tunnel                              # Agent 自动尝试自愈
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1     # 手动等价操作
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify   # 临时端口演练
 ```

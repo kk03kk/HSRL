@@ -249,12 +249,13 @@ powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup
 
 # 以后任何时候（包括 Agent 自己调用），无人值守重建
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
-powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status   # 只报告
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status   # 只报告，不动手
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify   # 临时端口演练，不碰 2222
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Forget   # 删除凭据
 ```
 
-`-Setup` 会做完整闭环验证：保存 → 回读解密 → 真实认证一次 → 报告 OK。密码错误当场就
-知道，而不是等下一次断线才发现。
+`-Setup` 会做完整闭环验证：保存 → 回读解密 → **真的建一条转发并探通** → 报告 OK。
+密码错误当场就知道，而不是等下一次断线才发现。
 
 ### 6.2 组成
 
@@ -296,7 +297,31 @@ Windows PowerShell 5.1 对无 BOM 脚本按系统 ANSI 代码页读取。中文�
 行结构**——`ops/tunnel-auth.ps1` 里那段 C# here-string 曾被整段当成 PowerShell 代码，
 报"缺少 using 指令"。`tests/test_ops_guard.py` 里有守卫钉死这个格式。
 
-### 6.4 验证证据（用假密码走通全链路）
+**(d) `sjump` 是只做端口转发、没有 shell 的跳板机。**
+
+真实密码认证**成功**后仍然返回：
+
+```
+This account is currently not available.
+```
+
+这是 `nologin` shell 的提示，不是密码错误（密码错会明确说
+`Permission denied (password)`）。所以：
+
+- 隧道用 `-N` **不申请 shell**，一直正常；
+- 想"验证密码对不对"**不能**用 `ssh hsai-bastion 'echo ok'` —— 必然失败。
+  唯一可靠的验证是真的建一条转发，从里面探一次。`-Setup` 与 `-Verify` 就是这么做的。
+
+**(e) Windows 上 `ssh -f` 配管道会死锁。**
+
+`ssh -f` fork 出来的子进程会继承调用方的 stdout 句柄，于是 `cmd /c` /
+PowerShell 永远等不到 EOF，命令挂死（实测挂满 120 s）。因此 `New-Tunnel` 改用
+`Start-Process -WindowStyle Hidden` 把 ssh 完全独立出去、输出重定向到
+`C:\ProgramData\HSAI\tunnel-<port>.log`，再轮询端口来判断成败。
+
+### 6.4 验证证据
+
+**用假密码走通全链路（不涉及真凭据）：**
 
 | 步骤 | 结果 |
 |---|---|
@@ -306,6 +331,18 @@ Windows PowerShell 5.1 对无 BOM 脚本按系统 ANSI 代码页读取。中文�
 | 密文不含明文 | 直接读 `.cred` 找不到密码字面量 |
 | ssh 是否真用助手 | 是：`Permission denied (password)`（假密码被拒，说明链路通） |
 | 清理 | `-Forget` 后文件消失，助手回到 `credential not found` |
+
+**用真凭据的实机验证（2026-11-12 14:45）：**
+
+| 步骤 | 结果 |
+|---|---|
+| `-Setup` | 凭据 16 字节入库，助手编译成功 |
+| `-Verify`（临时端口） | `self-heal verified`，退出码 0 |
+| `-Force -Port 2222` | 杀掉现有隧道 → 无人值守重建 → `Tunnel on port 2222 is up` |
+| 重建后连通性 | `ssh hsai-nus 'echo TUNNEL_OK'` → `xlogin2` |
+| `doctor` | 1–7 全通过 |
+
+**这就是目标状态：隧道断了，Agent 自己调 `hsai_ops.py tunnel` 就恢复了，不需要问人。**
 
 ### 6.5 安全边界与代价
 

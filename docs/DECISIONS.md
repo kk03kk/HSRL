@@ -463,4 +463,15 @@ evidence: `ops/tunnel-auth.ps1`、`ops/tunnel.ps1`、`docs/architecture/TRANSPOR
 5. **代价与回退**：跳板机密码从此常驻本机（加密态），风险模型从"每次手输"变成"本机 +
    本 Windows 账户被攻破即失守"。`-Forget` 随时退回手动模式。NUS 改密后自愈失败会报
    `Permission denied`，重跑 `-Setup` 即可。
+6. **实施中发现的三个新约束**（已写进 `ops/tunnel.ps1` 与 TRANSPORT §6.3）：
+   - **`sjump` 没有 shell**：认证成功后返回 `This account is currently not available.`
+     这是 `nologin` 而非密码错误。**验证密码必须用真实的端口转发**，不能用
+     `ssh hsai-bastion 'echo ok'`——第一版 `-Setup` 就是因此误报"密码错误"，其实密码是对的。
+     已改为 `-Setup` / `-Verify` 都起临时转发探通再拆。
+   - **`ssh -f` 配管道在 Windows 上死锁**：fork 出的子进程继承 stdout，调用方永远等不到
+     EOF（实测挂满 120 s）。改用 `Start-Process -WindowStyle Hidden` + 输出重定向到
+     `C:\ProgramData\HSAI\tunnel-<port>.log`，靠轮询端口判成败。
+   - 含中文的 `.ps1` 必须 UTF-8 BOM（见第 3 条）。
+7. **真凭据实测（2026-11-12 14:45）**：`-Verify` 临时端口演练通过；`-Force -Port 2222`
+   杀掉现有隧道后**无人值守重建成功**，`doctor` 七点全通过。目标状态达成。
 

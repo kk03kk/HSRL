@@ -26,6 +26,10 @@
 .PARAMETER Status
     只报告凭据与隧道状态，不做任何改动。
 
+.PARAMETER Verify
+    用已登记的凭据在**临时端口**上真的建一条转发、探通、再拆掉，
+    证明自愈可用。不碰现有的 2222 隧道。
+
 .PARAMETER Force
     隧道已在跑时仍然重建；并精确清理同端口的陈旧转发进程。
 
@@ -42,6 +46,7 @@ param(
     [switch]$Setup,
     [switch]$Forget,
     [switch]$Status,
+    [switch]$Verify,
     [switch]$Force,
     [int]$Port = 2222
 )
@@ -66,6 +71,14 @@ function Test-TunnelUp {
     return ($LASTEXITCODE -eq 0 -and $probe -match 'TUNNEL_OK')
 }
 
+function Get-FreePort {
+    $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
+    $l.Start()
+    $p = $l.LocalEndpoint.Port
+    $l.Stop()
+    return $p
+}
+
 function Stop-StaleForward {
     param([int]$p)
     Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" -ErrorAction SilentlyContinue |
@@ -78,36 +91,97 @@ function Stop-StaleForward {
 }
 
 function New-Tunnel {
+    <#
+      起一个后台端口转发。
+
+      注意两点（都踩过）：
+      * **不要用 ssh -f 并把输出接到管道**。fork 出来的子进程会继承那个 pipe，
+        cmd/PowerShell 于是永远等不到 EOF，命令挂死。
+      * 因此用 Start-Process 把 ssh 完全独立出去，输出重定向到文件，不 -Wait。
+    #>
     param([int]$p, [switch]$Auto)
-    $sshArgs = @('-N', '-f',
+
+    $logDir = 'C:\ProgramData\HSAI'
+    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
+    $log = Join-Path $logDir ("tunnel-{0}.log" -f $p)
+
+    $sshArgs = @('-N',
                  '-L', "${p}:${target}:22",
                  '-o', 'ServerAliveInterval=30',
                  '-o', 'ServerAliveCountMax=10',
                  '-o', 'ExitOnForwardFailure=yes')
+    if ($Auto) { $sshArgs += @('-o', 'NumberOfPasswordPrompts=1') }
+    $sshArgs += $bastion
+
+    $saved = @{}
     if ($Auto) {
-        # askpass 只在没有终端、或强制时使用；force 在 Windows 上是唯一可靠的方式
-        $sshArgs += @('-o', 'NumberOfPasswordPrompts=1')
+        $saved['SSH_ASKPASS'] = $env:SSH_ASKPASS
+        $saved['SSH_ASKPASS_REQUIRE'] = $env:SSH_ASKPASS_REQUIRE
+        $saved['DISPLAY'] = $env:DISPLAY
+        $saved['HSAI_TUNNEL_CRED'] = $env:HSAI_TUNNEL_CRED
         $env:SSH_ASKPASS = (Build-HsaiAskPass)
         $env:SSH_ASKPASS_REQUIRE = 'force'
         $env:DISPLAY = 'localhost:0'
         $env:HSAI_TUNNEL_CRED = (Get-HsaiTunnelPaths).CredPath
     }
-    $sshArgs += $bastion
-    & ssh @sshArgs
-    $rc = $LASTEXITCODE
-    if ($Auto) {
-        Remove-Item Env:\SSH_ASKPASS, Env:\SSH_ASKPASS_REQUIRE, Env:\DISPLAY, Env:\HSAI_TUNNEL_CRED -ErrorAction SilentlyContinue
+
+    try {
+        $proc = Start-Process -FilePath 'ssh' -ArgumentList $sshArgs `
+                              -WindowStyle Hidden -PassThru `
+                              -RedirectStandardOutput ($log + '.out') `
+                              -RedirectStandardError $log
     }
-    return $rc
+    finally {
+        if ($Auto) {
+            foreach ($k in $saved.Keys) {
+                if ($null -eq $saved[$k]) { Remove-Item ("Env:\" + $k) -ErrorAction SilentlyContinue }
+                else { Set-Item ("Env:\" + $k) $saved[$k] }
+            }
+        }
+    }
+    return [pscustomobject]@{ Process = $proc; Log = $log }
 }
 
 function Wait-Tunnel {
-    param([int]$p)
-    foreach ($i in 1..5) {
-        Start-Sleep -Seconds 1
+    param([int]$p, [object]$Proc)
+    foreach ($i in 1..8) {
+        Start-Sleep -Milliseconds 700
         if (Test-TunnelUp -p $p) { return $true }
+        if ($Proc -and $Proc.HasExited) { return $false }
     }
     return $false
+}
+
+function Show-TunnelLog {
+    param([string]$LogPath)
+    if ($LogPath -and (Test-Path $LogPath)) {
+        $text = Get-Content $LogPath -Raw -ErrorAction SilentlyContinue
+        if ($text) {
+            $text.Trim().Split("`n") | Select-Object -First 6 |
+                ForEach-Object { Write-Host ("    | " + $_.TrimEnd()) -ForegroundColor DarkGray }
+        }
+    }
+}
+
+function Test-BastionAuth {
+    <#
+      验证已登记的凭据能否真正打通隧道。
+
+      **不能用 `ssh hsai-bastion 'echo ok'`**：sjump 是一个只做端口转发、没有 shell 的
+      跳板机，认证成功后会返回 `This account is currently not available.`，看起来像失败
+      其实是正常现象。唯一可靠的验证是真的建一条转发，从里面探一次，再拆掉。
+    #>
+    param([int]$ProbePort)
+
+    if (-not $ProbePort -or $ProbePort -le 0) { $ProbePort = Get-FreePort }
+    Stop-StaleForward -p $ProbePort
+    $r = New-Tunnel -p $ProbePort -Auto
+    if (-not (Wait-Tunnel -p $ProbePort -Proc $r.Process)) {
+        return [pscustomobject]@{ Ok = $false; Log = $r.Log }
+    }
+    $ok = Test-TunnelUp -p $ProbePort
+    Stop-StaleForward -p $ProbePort
+    return [pscustomobject]@{ Ok = $ok; Log = $r.Log }
 }
 
 # ────────────────────────── -Status ──────────────────────────
@@ -154,25 +228,39 @@ if ($Setup) {
     Write-Host ("  askpass helper built: {0}" -f $exe) -ForegroundColor Green
 
     Write-Host ''
-    Write-Host 'Verifying with a real authentication attempt against the bastion...' -ForegroundColor Cyan
-    $env:SSH_ASKPASS = $exe
-    $env:SSH_ASKPASS_REQUIRE = 'force'
-    $env:DISPLAY = 'localhost:0'
-    $env:HSAI_TUNNEL_CRED = (Get-HsaiTunnelPaths).CredPath
-    $probe = cmd /c "ssh -o BatchMode=no -o NumberOfPasswordPrompts=1 -o ConnectTimeout=20 hsai-bastion ""echo HSAI_AUTH_OK"" < nul 2>&1"
-    $rc = $LASTEXITCODE
-    Remove-Item Env:\SSH_ASKPASS, Env:\SSH_ASKPASS_REQUIRE, Env:\DISPLAY, Env:\HSAI_TUNNEL_CRED -ErrorAction SilentlyContinue
-
-    if ($rc -eq 0 -and ($probe -join "`n") -match 'HSAI_AUTH_OK') {
+    Write-Host 'Verifying with a real port-forward (sjump has no shell, so a plain command cannot be used)...' -ForegroundColor Cyan
+    $auth = Test-BastionAuth
+    if ($auth.Ok) {
         Write-Host '  authentication OK - self-heal is armed.' -ForegroundColor Green
         Write-Host ''
         Write-Host 'From now on just run:  powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1' -ForegroundColor Green
         exit 0
     }
 
-    Write-Host '  authentication FAILED. The password is probably wrong.' -ForegroundColor Red
-    $probe | Select-Object -First 4 | ForEach-Object { Write-Host ("    | $_") -ForegroundColor DarkGray }
+    Write-Host '  authentication FAILED.' -ForegroundColor Red
+    Show-TunnelLog -LogPath $auth.Log
+    Write-Host ''
+    Write-Host 'Reading the log: "Permission denied (password)" means the password is wrong.' -ForegroundColor Yellow
     Write-Host 'Re-run -Setup to try again.' -ForegroundColor Yellow
+    exit 1
+}
+
+# ────────────────────────── -Verify（不碰现有隧道） ──────────────────────────
+
+if ($Verify) {
+    $secret = Test-HsaiSecret
+    if (-not $secret.Ok) {
+        Write-Host ("No usable credential ({0}). Run -Setup first." -f $secret.Reason) -ForegroundColor Red
+        exit 2
+    }
+    Write-Host 'Checking the stored credential with a throwaway forward on a free port...' -ForegroundColor Cyan
+    $auth = Test-BastionAuth
+    if ($auth.Ok) {
+        Write-Host 'self-heal verified: the stored credential can rebuild the tunnel.' -ForegroundColor Green
+        exit 0
+    }
+    Write-Host 'self-heal FAILED:' -ForegroundColor Red
+    Show-TunnelLog -LogPath $auth.Log
     exit 1
 }
 
@@ -190,9 +278,9 @@ if ($Force) {
 }
 
 $secret = Test-HsaiSecret
-if ($secret.Ok) {
+$auto = $secret.Ok
+if ($auto) {
     Write-Host ("Creating tunnel on port {0} using the stored credential (unattended)..." -f $Port) -ForegroundColor Cyan
-    $rc = New-Tunnel -p $Port -Auto
 }
 else {
     if ([Console]::IsInputRedirected) {
@@ -202,24 +290,20 @@ else {
         exit 3
     }
     Write-Host ("Creating tunnel on port {0}. Enter the sjump password once." -f $Port) -ForegroundColor Cyan
-    $rc = New-Tunnel -p $Port
 }
 
-if ($rc -ne 0) {
-    Write-Host ("ssh exited {0} - tunnel NOT established." -f $rc) -ForegroundColor Red
-    Write-Host 'Checks:' -ForegroundColor Yellow
-    Write-Host '  * wrong or rotated sjump password   -> re-run -Setup'
-    Write-Host ("  * port {0} already in use          -> try -Force" -f $Port)
-    Write-Host '  * no route to sjump.comp.nus.edu.sg'
-    exit $rc
-}
+$r = New-Tunnel -p $Port -Auto:$auto
 
-if (Wait-Tunnel -p $Port) {
+if (Wait-Tunnel -p $Port -Proc $r.Process) {
     Write-Host ("Tunnel on port {0} is up." -f $Port) -ForegroundColor Green
     Write-Host 'Verify with:  python ops/hsai_ops.py doctor' -ForegroundColor DarkGray
     exit 0
 }
 
-Write-Host 'ssh reported success but the tunnel does not answer.' -ForegroundColor Red
-Write-Host 'Check ~/.ssh/config for the hsai-nus block, then retry.' -ForegroundColor Yellow
+Write-Host ("Tunnel on port {0} did NOT come up." -f $Port) -ForegroundColor Red
+Show-TunnelLog -LogPath $r.Log
+Write-Host 'Checks:' -ForegroundColor Yellow
+Write-Host '  * wrong or rotated sjump password   -> re-run -Setup'
+Write-Host ("  * port {0} already in use          -> try -Force" -f $Port)
+Write-Host '  * no route to sjump.comp.nus.edu.sg'
 exit 1

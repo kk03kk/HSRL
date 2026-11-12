@@ -22,6 +22,7 @@ python ops/hsai_ops.py tunnel    # 有登记凭据 → 自动重建；否则打�
 ```powershell
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify   # 临时端口演练
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Forget
 ```
 
@@ -51,6 +52,15 @@ powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup
 
 还有一条：**含中文的 `.ps1` 必须带 UTF-8 BOM**，否则 Windows PowerShell 5.1 按 ANSI
 解码会打乱行结构。`tests/test_ops_guard.py` 有守卫。
+
+再加两条（2026-11-12 实测）：
+
+3. **`sjump` 没有 shell**。认证成功后返回 `This account is currently not available.`
+   —— 这是 `nologin`，不是密码错。**不要**用 `ssh hsai-bastion 'echo ok'` 验证密码，
+   必须真的建一条转发再探（`-Setup` / `-Verify` 就是这么做的）。
+4. **`ssh -f` 配管道会在 Windows 上死锁**（fork 出的子进程继承 stdout）。所以
+   `New-Tunnel` 用 `Start-Process -WindowStyle Hidden` 独立出去，输出写
+   `C:\ProgramData\HSAI\tunnel-<port>.log`，靠轮询端口判成败。
 
 ## 命令
 
