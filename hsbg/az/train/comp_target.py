@@ -61,6 +61,9 @@ DEFAULT_CARDS_PATH = "config/strategy_cards.json"
 #: 默认从第 8 回合开始打分：更早的回合阵容还没成形，打分会鼓励"为了凑卡乱买"。
 DEFAULT_MIN_TURN = 8
 
+#: ``load_comps`` 的结果缓存：``(path, 权重表) -> comps``（每局都会构造 tracker）。
+_COMPS_CACHE: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+
 
 def parse_tier_weights(spec: Any) -> Dict[str, float]:
     """``"S:1.0,A:0.6,B:0.3"`` → ``{"S":1.0,...}``；空/None 用默认表。"""
@@ -98,8 +101,17 @@ def _norm_card(card_id: Any) -> str:
 
 def load_comps(path: str, tier_w: Optional[Dict[str, float]] = None
                ) -> List[Dict[str, Any]]:
-    """读流派库 → ``[{name, tier, weight, cards, denom}, ...]``（跳过无核心卡的流派）。"""
+    """读流派库 → ``[{name, tier, weight, cards, denom}, ...]``（跳过无核心卡的流派）。
+
+    结果按 ``(path, 权重表)`` 缓存在模块级：每局都会 ``CompTargetTracker(cfg)``，
+    不缓存就是每轮 512 次 JSON 读（网络盘上不是零成本）。返回的是**共享对象**，
+    调用方只读不改（:meth:`CompTargetTracker.score_board` 只做集合交）。
+    """
     weights = dict(tier_w or DEFAULT_TIER_W)
+    key = (str(path), format_tier_weights(weights))
+    cached = _COMPS_CACHE.get(key)
+    if cached is not None:
+        return cached
     with open(path, "r", encoding="utf-8-sig") as fh:
         data = json.load(fh)
     comps: List[Dict[str, Any]] = []
@@ -119,6 +131,7 @@ def load_comps(path: str, tier_w: Optional[Dict[str, float]] = None
         })
     if not comps:
         raise ValueError(f"{path} 里没有可用的核心卡（core_card_ids 全空）")
+    _COMPS_CACHE[key] = comps
     return comps
 
 
