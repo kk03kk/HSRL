@@ -127,6 +127,14 @@
 - 单 Agent 双环境管理已落地：`ops/hsai_ops.py` 是唯一远端入口，GitHub 降级为异地归档，
   `docs/sync/` 散文协议已退休（归档于 `records/archive/sync-protocol-20261112/`）。
 - 两端 HEAD 一致、工作区干净；服务器 12 个未提交文件已审阅、验证并提交（`304cb0b`）。
+- 验证证据（2026-11-12 14:14）：
+  - 三方同步：本地 / NUS / GitHub 全部 `5f028c9`，两端 `dirty=0`；
+  - `ops/hsai_ops.py doctor` 七点全通过；
+  - 本地 `tools/verify_workspace.py --skip-rust` 全绿；服务器 `ops/check_docs.py` 干净、
+    `tests/test_mirror_band.py tests/test_ops_guard.py` 30 passed；
+  - 漂移守卫实测：服务器工作区脏 → 推送被拒；干净 → 推送被接受并更新工作区；
+  - 模型传输实测：67.9 MB / 6.8 s，243 MB / 13.7 s（17.7 MB/s），逐文件 SHA256 一致；
+  - 新 clone 一致性：`git archive HEAD` 743 文件 / 23.9 MB，其中 `ops/check_docs.py` 全绿。
 - `docs/DECISIONS.md` D-026 仍然开放：实机观测/动作差异，待本地取证。
 
 ## 7.4 跨端遗留
