@@ -59,7 +59,7 @@ python client/live_245.py autoplay --game-dir D:\Hearthstone `
 
 - 每局结束把 `summary.json`/`performance.json`/`result.json` 摘要贴进 `records/research/e-phase-<date>.md`。
 - `artifacts/runs/live-*` 全量保留；用 `python tools/audit_live_run.py --run <dir>` 复查。
-- 通过后：把结论写入 `docs/PROJECT_STATE.md`，并在 `docs/sync/LOCAL.md` 记录"E 阶段通过"。
+- 通过后：把结论写入 `docs/PROJECT_STATE.md`，并在 `docs/DECISIONS.md` 追加一条决议。
 
 ## 4. 停止条件（任一即停）
 

@@ -1,31 +1,40 @@
 # HSAI
 
 Hearthstone Battlegrounds 的强化学习 + **真实游戏自动化**工作区。模拟器基于
-AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），**模拟器与训练/评测系统统一由 NUS 服务器维护**，
-本地 Windows 只负责真实游戏桥接（读屏、推理接入、自动操作、执行验证、日志采集），
-代码与文档经 GitHub 同步。
+AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`）。**由一个 Agent 同时管理两个环境**：
+本地 Windows 负责真实游戏桥接与运维，NUS 服务器负责模拟器、训练、评测与 GPU 资产。
 
 ```text
-本地 Windows (D:\HSAI)  ──push/pull──  GitHub kk03kk/HSRL  ──pull/push──  NUS ~/projects/HSAI
-  实机桥接 client/ + config/live/          唯一代码与文档真源              模拟器内核与规则
-  读屏 / 推理 / 操作 / 回执对账             （不含任何大文件）              动作空间 / 观测 / 奖励
-  实机证据 artifacts/runs/live-*                                           模型 / 损失 / 采样 / 评测
-                                                                           训练编排 / 权重 / 库 / 数据
+             ┌───────────────────────────────┐
+             │  GitHub kk03kk/HSRL           │  异地归档（里程碑推送）
+             └───────────────▲───────────────┘
+                             │
+        ┌────────────────────┴────────────────────┐
+        │            git over SSH（随时）          │
+┌───────▼──────────────┐                   ┌──────▼───────────────────┐
+│ 本地 Windows D:\HSAI │                   │ NUS ~/projects/HSAI      │
+│ 实机桥接 client/     │                   │ 模拟器内核 engine/       │
+│ 运维层 ops/          │◄──── ssh cat ────►│ 训练栈 hsbg/az           │
+│ 实机证据             │   权重/大文件      │ 权重 / 库 / 数据 / 产物  │
+└───────▲──────────────┘                   └──────────────────────────┘
+        │ 用户只在这里对话
 ```
 
-**职责边界（2026-11-10 起）**：规则与学习系统只在服务器改，实机桥接只在本地改。
-完整矩阵、迁移步骤与例外（引擎 Windows 轮子由本地做部署构建）见
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+接入方式、隧道原理、实测吞吐见 [docs/architecture/TRANSPORT.md](docs/architecture/TRANSPORT.md)。
+完整职责与三层结构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，日常流程见
+[docs/OPERATIONS.md](docs/OPERATIONS.md)，规则见 [AGENTS.md](AGENTS.md)。
 
-## 当前状态（2026-11-11）
+## 当前状态（2026-11-12）
 
+- 架构：**单 Agent 双环境管理已上线**。`ops/hsai_ops.py` 是唯一远端入口；GitHub 降级为
+  异地归档；`docs/sync/` 散文协作协议已退休并归档。
 - 模拟器：酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`，原生动作 **245**，观测 **3227 floats + 124 cards**。
-- 训练：`1102669 hsai-league-36h` **已完成**（72/72 段，`2026-11-11T16:46:33+08:00`；final `v14858`、累计 `1,552,463,499`；`illegal/truncated/dropped=0`）。final 资产在 `artifacts/models/league-final-20261111-step014858/`。
-- 审计：2026-11-11 全链路审计已完成，报告 `docs/AUDIT_2026-11-11.md`；发现并修复镜像 p75 退化、Freeze 空转、评测 Elo 尺度/shared bootstrap 等问题。
-- 评测（**当前引擎 `c4c71014`**）：E1 四模型校准正式报告为 r2（2,688 局，协议 `0fbf28d2…`；与 r1 六对逐对一致）：`league-final-14858` 点估计冠军 **1086.53**（CI [1062.49, 1111.01]），`13806` 1068.45，`12311` 1055.92，`V1.1` 1000；final vs 13806 为 240–208，不显著。按用户规则只跑一轮、不做挑战赛。
-- 旧结果：v2 榜（12311 1067.68）是过渡榜，协议与 E1 不同，不能混榜；11 模型 live-v1 锚定旧引擎 `c7b5f27d`，只作历史证据。
-- 实机：V1.1 已完成 7 局夜间测试 + 6 次 D 阶段 canary；**E1 冠军 final 14858 已交接本地**（live 包 + 步骤见 `docs/sync/SERVER_TO_LOCAL_20261111.md`），当前 live pin 待本地更新，先跑 E-0 canary。本地实机 obs/action 差异见 `docs/sync/DECISIONS.md` D-026。
-- 下一阶段：本地用 final 14858 做 E-0 canary（交接见 `docs/sync/SERVER_TO_LOCAL_20261111.md`）；下一轮长训使用 `config/league-stage2.json`（p75band + forbid-unfreeze + stage fork，2×H100，72×30min），**等待用户确认后再启动**。
+- 训练：`1102669 hsai-league-36h` **已完成**（72/72 段；final `v14858`、累计 `1,552,463,499`；`illegal/truncated/dropped=0`）。final 资产在 `artifacts/models/league-final-20261111-step014858/`。**当前没有正式作业在跑。**
+- 审计：2026-11-11 全链路审计已完成，报告 `docs/AUDIT_2026-11-11.md`；修复了镜像 p75 退化、Freeze 空转、评测 Elo 尺度/shared bootstrap 等问题。
+- 评测（引擎 `c4c71014`）：E1 四模型校准正式报告 r2（2,688 局，与 r1 六对逐对一致）：`league-final-14858` 点估计冠军 **1086.53**（CI [1062.49, 1111.01]），`13806` 1068.45，`12311` 1055.92，`V1.1` 1000；final vs 13806 为 240–208，不显著。按用户规则只跑一轮、不做挑战赛。
+- 旧结果：v2 榜（12311 1067.68）协议与 E1 不同，不能混榜；11 模型 live-v1 锚定旧引擎 `c7b5f27d`，只作历史证据。
+- 实机：pin 已更新为 `league-final-14858`，`real_game_accepted: false`；两局终局有效（第 6 / 第 5 名），尚未显示相对 12311 的优势，与 D-026（`public-approx-v1` 有损投影）一致，待取证。
+- 下一阶段：下一轮长训使用 `config/league-stage2.json`（turnband + forbid-unfreeze + stage fork，2×H100，94×30min），**等待用户确认后再启动**。
 
 详细状态：[docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
 
@@ -37,7 +46,8 @@ AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`），**模拟器与训练/评�
 | `hsbg/` | 观测/动作编码、网络、BC/PPO、并行采集、评测 | ✅ |
 | `client/` | 实机桥接：`hsrl_agent/live/`（当前）、`bg_agent/`、`legacy_policy/`（历史） | ✅ |
 | `workflows/` | 建库、迁移、训练、评测入口 | ✅ |
-| `tools/` | 运维脚本（`sync_manifest.py`、`verify_workspace.py`、`live_archive_index.py`…） | ✅ |
+| `tools/` | 运维脚本（`verify_workspace.py`、`live_archive_index.py`…） | ✅ |
+| `ops/` | **跨端运维层**：`hsai_ops.py`（state / doctor / sh / push / pull / model-pull） | ✅ |
 | `tests/` | 契约/规则/离线回归（`test_live_*.py` 覆盖实机链路） | ✅ |
 | `deploy/` | NUS `setup`、`bootstrap_nus.sh`、`slurm/*.sbatch` | ✅ |
 | `config/` | **仅当前配置**：`live/`（实机 profile + 模型 SHA）、评测、训练、引擎锁 | ✅ |
@@ -75,34 +85,32 @@ python client/live_245.py autoplay --game-dir D:\Hearthstone `
   `status.json`、`health.json`、`result.json`、`session-archives/`（Power.log 字节前缀）。
 - 审计：`python tools/audit_live_run.py --run artifacts/runs/<dir> --out <json>`。
 
-### 服务器（NUS，训练/评测）
+### 跨端运维（本地一个入口管两端）
 
-```bash
-cd ~/projects/HSAI && git pull --rebase
-sbatch deploy/slurm/<job>.sbatch      # 作业内不要再包 srun；GPU 以原始 Driver UUID 为准
-squeue -u "$USER"; sacct -S today -X -o JobID,JobName,State,Elapsed
+```powershell
+python ops/hsai_ops.py state                 # 双端状态快照（隧道/HEAD/漂移/作业/模型）
+python ops/hsai_ops.py doctor                # 七点自检
+python ops/hsai_ops.py push                  # 本地 main -> 服务器
+python ops/hsai_ops.py pull                  # 服务器 -> 本地
+python ops/hsai_ops.py jobs                  # Slurm 队列 + 最近记账
+python ops/hsai_ops.py model-pull <name>     # 拉模型到本地，逐文件 SHA256 校验
+python ops/hsai_ops.py sh "<命令>"            # 远端执行（带登录节点守卫）
+python ops/hsai_ops.py tunnel                # 隧道断了时打印重建命令
 ```
 
-硬约束：登录节点约 1 GiB 虚拟内存，只做 Git/`sbatch`/`tail`/小 JSON；训练、评测、建库、编译只在计算节点。
-
-### 三端同步
-
-```bash
-python tools/sync_manifest.py --side local  --out docs/sync/manifests/local.json     # Windows
-python tools/sync_manifest.py --side server --out docs/sync/manifests/server.json    # NUS
-```
-
-两份 manifest 的 diff 就是 drift 报告；协作规则见 [docs/SYNC_MODEL.md](docs/SYNC_MODEL.md)
-与 [docs/sync/README.md](docs/sync/README.md)。
+前置：隧道在跑（`probe` 返回 `ok: true`）。原理、恢复与实测吞吐见
+[docs/architecture/TRANSPORT.md](docs/architecture/TRANSPORT.md)。
 
 ## 文档导航
 
 | 文档 | 说明 |
 |---|---|
+| [AGENTS.md](AGENTS.md) | **唯一权威约定**：放哪、红线、自主权边界、技术口径 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 单 Agent 双环境职责与三层结构 |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | 日常工作流：开工开场、改代码、训练、拉模型、实机、应急 |
+| [docs/architecture/TRANSPORT.md](docs/architecture/TRANSPORT.md) | SSH 隧道、git over SSH、GitHub 定位、大文件传输 |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | 当前作业、模型结论、下一步 |
-| [docs/SYNC_MODEL.md](docs/SYNC_MODEL.md) | 三端文件管理、真源、同步与协作规范 |
-| [docs/INVENTORY_LOCAL.md](docs/INVENTORY_LOCAL.md) | 本地盘点（有什么、缺什么、待确认） |
-| [docs/sync/SERVER.md](docs/sync/SERVER.md) | 交给服务器 Agent 的盘点任务书 |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 决策留痕（`D-###`，只追加） |
 | [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md) | V1.1 实机审计、D 阶段改造与实机验证 |
 | [docs/SIMULATOR_AUDIT_2026-11-09.md](docs/SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 模拟器规则审计 |
 | [docs/LEADERBOARD.md](docs/LEADERBOARD.md) | 当前唯一排行榜规则与分数 |
@@ -111,9 +119,9 @@ python tools/sync_manifest.py --side server --out docs/sync/manifests/server.jso
 
 ## 项目边界
 
-- 模型/训练协议/奖励由服务器侧负责；本地不改模型权重与训练语义。
+- 规则与学习系统只在服务器改；实机桥接只在本地改（不是因为无权，而是避免两端不一致）。
 - 实机桥接是 `public-approx-v1`：显式近似，不等价于模拟器精确状态。
 - 不修改游戏目录、不执行历史未决输入账本、不伪造 plan/checkpoint/SHA。
-- 没有用户明确要求时不提交 commit、不 push、不创建 PR。
+- 自主权边界与红线见 [AGENTS.md](AGENTS.md) §6/§7。
 
 来源：[AutoTavern](https://github.com/MCG-NJU/AutoTavern)、[HSBRSIM](https://github.com/Gallo13th/HSBRSIM)，历史原作者与许可证声明保留在原始证据与源码中。

@@ -1,19 +1,26 @@
 # HSAI 当前状态
 
-更新：2026-11-11 22:20 +0800
-阶段：**36h 联赛已完成并通过全链路审计；E1 校准 r1 有效（final 点估计第一，但与 13806 不显著）；
-r2 复现已完成并与 r1 一致；按用户规则不做挑战赛。下一轮长训未启动，等待用户确认。**
+更新：2026-11-12 14:10 +0800
+阶段：**单 Agent 双环境架构已上线（本文 §1）。36h 联赛完成；E1 校准 r1/r2 一致，final
+点估计第一（对 13806 不显著），按用户规则不做挑战赛。下一轮长训未启动，等待用户确认。**
 
 ## 1. 运行位置与工作方式
 
-- **三端分工**（详见 `docs/SYNC_MODEL.md`）：
-  - 本地 Windows `D:\HSAI`：实机桥接与真实对局验证、实机证据、Windows 轮子部署构建；
-  - GitHub `kk03kk/HSRL`（`main`）：唯一代码/配置/文档真源，不含大文件；
-  - NUS `~/projects/HSAI`：模拟器、训练、评测、建库、数据、权重与服务器侧资产。
-- 本地活动工作区就是 `D:\HSAI`；两端通过 `docs/sync/` 交换结论。
-- 用户只给大方向；两端 Agent 各自自主规划、执行、验证、归档。
+- **单 Agent，两个执行环境**（详见 `docs/ARCHITECTURE.md`）：
+  - 本地 Windows `D:\HSAI`：实机桥接与真实对局验证、实机证据、运维层 `ops/`、全量源码副本；
+  - NUS `~/projects/HSAI`：模拟器、训练、评测、建库、数据、权重与服务器侧资产；
+  - GitHub `kk03kk/HSRL`：**异地归档**，里程碑推送，不再是同步总线。
+- 两端用 **git over SSH** 同步（`python ops/hsai_ops.py push|pull`）；服务器仓库设
+  `receive.denyCurrentBranch=updateInstead`，有未提交改动时推送会被**拒绝**。
+- 大文件（权重/库/回放）走 `ssh cat` 流式传输 + SHA256，实测 17.7 MB/s，不进 Git。
+- 用户只给目标；Agent 自主规划、执行、验证、归档。开工先跑 `python ops/hsai_ops.py state`。
 
-## 2. 当前作业（2026-11-11 22:20 盘点）
+## 2. 当前作业
+
+**2026-11-12 14:10 实测（`hsai_ops.py state`）**：队列里只有一条 `1117116 long no-shell`
+（`xcnc23` 上的分配，非训练），**没有任何正式训练或评测在跑**。
+
+2026-11-11 22:20 盘点（历史）：
 
 | 作业 | 状态 | 说明 |
 |---|---|---|
@@ -88,7 +95,7 @@ r2 复现已完成并与 r1 一致；按用户规则不做挑战赛。下一轮�
 - 进程池：`weights_loaded` 泄漏修复；reload 版本/标准化一致性。
 - 评测：Elo→sigmoid 尺度、shared seed-block bootstrap、`_fit_bt` 失败显式报错、
   code SHA、ordered56 座位校验、challenge 校验、rank CI 冠军规则。
-- 观测：新增字段级 gold test；本地实机的 obs/action 差异已写入 `docs/sync/DECISIONS.md` D-026。
+- 观测：新增字段级 gold test；本地实机的 obs/action 差异已写入 `docs/DECISIONS.md` D-026。
 - 回归：`1115905` `verify_workspace` 全绿（Rust 942 passed / Python 全绿）。
 
 ## 7. 下一阶段
@@ -106,25 +113,35 @@ r2 复现已完成并与 r1 一致；按用户规则不做挑战赛。下一轮�
 4. 先用短程（≤2h）确认 p75band + forbid-unfreeze + stage fork 的实际吞吐/稳定性，
    再决定是否进入正式长训。
 
-### 7.2 实机（等待用户授权）
+### 7.2 实机（待 D-026 取证）
 
-- 当前 live pin 仍是 V1.1；**服务器已交接 final 14858 的 live 包与本地步骤**
-  （`docs/sync/SERVER_TO_LOCAL_20261111.md`），等待本地 E-0 canary。
-- 本地实机 obs/action 投影存在 D-026 列出的近似/差异，需要本地用真实日志确认；
-  在修复或明确接受前，不建议把新模型直接上 E 阶段连续验收。
+- live pin 已是 `league-final-14858`（`config/live/model.json`，SHA `ba7e8bbc…`），
+  但 `real_game_accepted: false`。
+- 2026-11-12 夜间两局终局有效（第 6 名 / 第 5 名，12 回合），**未见相对 12311 的优势**
+  （12311 那批是 2/2/3/3/4）。记录见 `docs/analysis/LIVE_NIGHT_RUN_20261112.md`。
+- 与 D-026 一致：实机观测是 `public-approx-v1` 有损投影，训练用的是完整引擎观测。
+  在取证并修复或明确接受之前，不建议把新模型直接上 E 阶段连续验收。
 
-### 7.3 跨端
+### 7.3 架构（2026-11-12 完成）
 
-- `docs/sync/DECISIONS.md` D-026：实机观测/动作差异，待本地取证。
-- E1/协议/审计文档为服务器写；本地只读。服务器已提交并 push 到 GitHub
-  `main@9c69521`；本地 `git pull --rebase` 即可（见 `docs/sync/SERVER_TO_LOCAL_20261111.md`）。
+- 单 Agent 双环境管理已落地：`ops/hsai_ops.py` 是唯一远端入口，GitHub 降级为异地归档，
+  `docs/sync/` 散文协议已退休（归档于 `records/archive/sync-protocol-20261112/`）。
+- 两端 HEAD 一致、工作区干净；服务器 12 个未提交文件已审阅、验证并提交（`304cb0b`）。
+- `docs/DECISIONS.md` D-026 仍然开放：实机观测/动作差异，待本地取证。
+
+## 7.4 跨端遗留
+
+- D-026：实机观测/动作投影差异，待本地用真实日志取证。
+- 实机 pin 已更新为 `league-final-14858`，但 `real_game_accepted: false`；
+  两局终局有效（第 6 / 第 5 名），尚未显示相对于 12311 的优势。
 
 ## 8. 硬约束
 
 - **E1 评测只跑一轮**（6 对 × 448 局，4 模型排名）；报告 valid 后停止。不做第二轮复现、
   不做冠军挑战赛；只有 invalid/工程错误才重跑并先请示。
 
-- 登录节点约 1 GiB 虚拟内存；重任务只在 Slurm 计算节点。
+- 登录节点实测 **4 核 / 16 GB**、多人共享（旧文档的"约 1 GiB"是错的）；重任务只在
+  Slurm 计算节点，`ops/hsai_ops.py` 的守卫默认拦截。
 - 作业内不要包 `srun`；GPU 以原始 Driver UUID/Torch 实际计算为准。
 - 新作业使用新输出目录；不覆盖历史证据。
 - 工程错误、非法动作、截断、引擎异常、注入失败严格拒绝；正常棋力波动不自动止损。

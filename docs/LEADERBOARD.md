@@ -73,4 +73,4 @@ final 对 13806 为 240–208（53.57%，Wilson 95% CI 约 [48.9%, 58.2%]），�
 
 E1 点估计前二是 final 与 13806；两者统计上未分开。实机仍走 `live-v1` / 真机验收，
 不能把 E1 第一直接当作 live pin。当前 live pin 仍是 V1.1；新模型上实机前先完成
-`docs/sync/DECISIONS.md` D-026 的本地 obs/action 取证。
+`docs/DECISIONS.md` D-026 的本地 obs/action 取证。

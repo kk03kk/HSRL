@@ -1,131 +1,170 @@
-# HSAI 架构：服务器统一开发，本地专注实机（2026-11-10 起）
+# HSAI 架构：单 Agent 统一管理双环境
 
-状态：**已生效（文档与所有权部分）**，代码/流程部分见 §3 的分步迁移。
-决策依据：`docs/analysis/` 三份审计报告 + 用户 2026-11-10 指示。
+状态：**当前生效**（2026-11-12 起）。取代 2026-11-10 的"双 Agent + GitHub 同步"架构。
+传输层细节见 [`architecture/TRANSPORT.md`](architecture/TRANSPORT.md)；
+日常工作流见 [`OPERATIONS.md`](OPERATIONS.md)。
 
 ---
 
-## 0. 判断：这个调整合理，且能解决已经发生过的真实问题
+## 0. 一句话
 
-**合理的理由**
+**一个决策者，两个执行环境。** 本地 Windows 提供"真实游戏边上"的能力，NUS 提供 GPU
+与模拟器；两端由同一个 Agent 通过 SSH 直接管理，代码用 git over SSH 同步，GitHub 只做
+异地备份。
 
-1. 模拟器规则只有一个真源。此前已经出现"本地跑 `c7b5f27d`、服务器源码 `c4c71014`"的错位，
-   本地任何模拟器结论都可能与服务器不一致——这正是本轮架构要消除的。
-2. 本地机器的定位很清晰：它**唯一不可替代**的能力是"对真实客户端读屏+操作"。
-   模拟器/训练/评测本来就在 NUS 上跑，本地重复维护只会产生两套环境。
-3. 训练与评测是重活（H100 + 大库），本地无 GPU、无数据库、无 Slurm，重复建设没有收益。
-4. 实机链路对模拟器的依赖比想象小：`client/` 只用到 3 个纯常量模块 + 1 个原生扩展（见 §2.3），
-   完全不需要本地编译或修改模拟器。
+---
 
-**风险与缓解**
+## 1. 为什么要改
 
-| 风险 | 缓解 |
+2026-11-10 的架构把项目切成两个"拥有写权"的域，两个 Agent 各自维护，靠 GitHub
+`main` 与 `docs/sync/` 里的散文互相沟通（该机制已于 2026-11-12 退休，见 §5）。
+它解决了当时的真问题（本地/服务器引擎指纹错位），但也留下了结构性的成本：
+
+| 问题 | 表现 |
 |---|---|
-| 本地需要 `hsbg_engine` 的 Windows 轮子（服务器是 Linux，不能替本地出 Windows 产物） | 保留"**部署构建**"例外：仅在服务器升级引擎版本时，用固定脚本在本机构建一次并写入版本锚（§3-S3） |
-| 本地不再跑模拟器测试，改错了没人发现 | 模拟器测试全部在服务器跑；本地只跑 `tests/test_live_*.py`（实机链路） |
-| 两端重复开发同一条规则 | 单写权 + `client/tools/check_ownership.py` 自检 + PR 级清单（§2.1） |
-| 真实游戏日志无法用于规则验证 | 新增"日志回传"通道，只走 tar.gz + sha256，不进 Git（§2.4） |
+| Agent 之间不能对话 | 一切协调要走 `docs/sync/*.md`（已废止）：LOCAL.md 9 KB + SERVER.md 37 KB + manifests 27 KB ≈ **84 KB 散文要在两端轮流更新** |
+| 同步是"希望"而不是"保证" | 服务器上 12 个文件未提交、飘了 24 小时才被发现；其中有 1525 行真实工作（turnband 采样、健康门禁、48h 作业脚本） |
+| 消息靠人中转 | 用户被迫在两端之间复制粘贴结论 |
+| 职责切分催生重复 | 同一个文件在两端都存在，谁改的算谁的成了日常问题 |
+
+现在这两个 Agent 已经能直接连通，没有理由继续付这份成本。
 
 ---
 
-## 1. 职责矩阵（唯一写权）
+## 2. 环境职责
 
-| 层 | 服务器 `~/projects/HSAI` | 本地 `D:\HSAI` | GitHub `kk03kk/HSRL` |
-|---|---|---|---|
-| 模拟器内核 `engine/` | **写**（规则/编译/测试/版本） | 只读镜像 | 同步 |
-| 动作空间/观测 `hsbg/env/` | **写** | 只读（运行时依赖） | 同步 |
-| 训练/损失/采样 `hsbg/az/` | **写** | 不参与 | 同步 |
-| 评测 `hsbg/eval/`、`workflows/`、`deploy/` | **写** | — | 同步 |
-| 卡表/数据 `data/` | **写** | 只读 | 同步 |
-| 测试 `tests/` | **写**（除 `test_live_*`） | 只跑 `test_live_*` | 同步 |
-| 实机桥接 `client/` | 只读 | **写** | 同步 |
-| 实机配置 `config/live/` | 只读 | **写** | 同步 |
-| 实机证据 `artifacts/runs/live-*`、`records/evidence/` | 接收（导入件） | **写** | ❌ 不进 Git |
-| 文档 `docs/`（除下列） | **写** | 只读 | 同步 |
-| `docs/sync/LOCAL.md`、`docs/live/**`、`docs/LIVE_V1_1_AUDIT.md`、`docs/E_PHASE_RUNBOOK.md` | 只读 | **写** | 同步 |
-| `docs/analysis/**`（差异审计） | 可写 | 可写 | 同步 |
-| `AGENTS.md`、`README.md` | **写** | 只读 | 同步 |
-| 模型权重 / 战团库 / 数据集 | **写** | 只读子集 | ❌ |
+职责不再是"谁能写"，而是"**什么东西只能在这里产生**"。
 
-**一句话**：**规则与学习系统只在服务器改；实机桥接只在本地改；GitHub 只同步代码与文档。**
-
----
-
-## 2. 边界怎么落地
-
-### 2.1 单写权自检
-
-本地改动前/提交前跑：
-
-```powershell
-python client/tools/check_ownership.py           # 只看 git status
-python client/tools/check_ownership.py --strict  # 有越界改动时退出码 1
-```
-
-它列出所有"本地无权修改"的路径（`engine/** hsbg/** workflows/** deploy/** data/** tests/**（除 test_live_*）
-tools/** pyproject.toml requirements.txt`）。越界改动**不会自动回滚**，只是明确提示"这应该由服务器改"。
-
-### 2.2 文档头
-
-每份跨端文档头部保留 `status / owner / updated / base_commit`；`owner: server` 的文档本地只读。
-
-### 2.3 本地运行时依赖（保持最小）
-
-实机链路实际只需要：
-
-| 依赖 | 用途 | 来源 |
+| | 本地 Windows `D:\HSAI` | NUS `~/projects/HSAI` |
 |---|---|---|
-| `client/**`（含 `model.py`/`encoder.py`/`actor.py`） | 读屏、决策、输入、回执 | 本地自有 |
-| `hsbg/env/obs_std.py`、`hsbg/env/action_space_std.py` | 观测/动作布局常量 | 只读镜像 |
-| `hsbg/az/train/common.py` | 245/3227/124 等固定常量（numpy） | 只读镜像 |
-| `hsbg_engine` 原生扩展（Windows wheel） | 卡表/契约校验 | **部署构建**，见 S3 |
-| `numpy torch pillow rapidocr onnxruntime opencv` | 推理与视觉 | 各端自建 |
+| 独有能力 | **真实游戏**：读屏、推理接入、自动操作、回执验证 | **GPU**：H100/H200/A100、Slurm、大库、长训 |
+| 独有产物 | 实机对局证据、`artifacts/runs/live-*` | 训练权重、战团库、评测报告、Slurm 日志 |
+| 代码 | 全量副本（能读、能测） | 全量副本（能读、能跑） |
+| 不能做 | 训练、建库、大评测、编译 Rust 引擎 | 实机操作 |
+| Python | `.venv` 3.13.5，torch **cpu** | `.venv` 3.12.3，torch CUDA |
 
-不需要：Rust 编译、`hsbg/az` 训练栈、评测器、`workflows/`、Slurm。
+**两端都保留全量源码**，因为两端都要读代码；**大资产按上表单向存放**，因为搬来搬去
+没有收益（详见 `architecture/TRANSPORT.md` §4）。
 
-### 2.4 真实日志回传（不进 Git）
-
-```powershell
-# 本地：打包一局的证据（Power.log + 截图 + decisions trace）
-python client/tools/pack_evidence.py --run artifacts/runs/live-v1.1-d-phase-006 --out D:\xfer
-# 产出 live-<date>-<seq>.tar.gz + .sha256（默认只含 Power.log / 结果屏 / summary，不含模型）
-```
-
-服务器侧解包到 `artifacts/imports/live-<date>/`（与现有 `artifacts/imports/nus-*` 风格一致），
-用于规则验证与问题排查。传输方式任选（scp/网盘），**不提交到 Git**。
-
-### 2.5 引擎版本锚
-
-`config/live/engine.json` 记录"本地实机链路期望的引擎构建"：
-
-```json
-{"schema": "hsai.live-engine/v1", "expected_source_hash": "c4c71014e3d41760",
- "db_info": [3983, "37.0.2.256589", "37.0.2"], "built_on": "server", "wheel_sha256": "..."}
-```
-
-`doctor` 读取它并与 `hsbg_engine.build_info()` 对比；不一致时**报告为警告并写进 `health.json`**，
-默认不阻断 `autoplay`（避免影响正在进行的实机验收），需要严格时把 `require_match` 设为 `true`。
+本地仍然保留模拟器的**只读副本**与 `hsbg_engine` 的 Windows 轮子，用于：
+实机链路的契约校验、离线回放、以及实机侧的单元测试。**不在本地改模拟器**——不是因为
+没权限，而是因为改了就与训练侧不一致，那是 2026-11-09 审计已经付过代价的错误。
 
 ---
 
-## 3. 迁移方案（分 5 步，S1 本轮已完成）
+## 3. 三层结构
 
-| 步 | 内容 | 负责端 | 状态 |
-|---|---|---|---|
-| **S1** | 文档与所有权：本文件、`AGENTS.md`、`docs/SYNC_MODEL.md`、`docs/README.md`、`docs/sync/LOCAL.md`；根目录清理；`check_ownership.py` | 本地 | ✅ 本轮完成 |
-| **S2** | 本地瘦身：停止在本地跑模拟器/训练测试；`tests/` 只保留/运行 `test_live_*`；不再本地编译 Rust（除非 S3 部署构建） | 本地 | ✅ 规则已定，本轮只做文档 |
-| **S3** | 引擎版本锚 + 部署构建脚本（`client/tools/build_engine.ps1`）：服务器 bump 引擎 → 本地一条命令重建 wheel → 写 `engine.json` | 本地（脚本）+ 服务器（发版） | ✅ 完成（D-023；`config/live/engine.json` 已建立，wheel SHA `524d6871…`） |
-| **S4** | 日志回传通道：`pack_evidence.py` + 服务器侧 `artifacts/imports/live-*` 约定 | 双方 | ⏳ 待做 |
-| **S5** | 服务器侧验收：`main` 上 `pytest`/`cargo test`/`verify_workspace` 全绿；训练与评测按新边界运行 | 服务器 | ✅ 完成（D-021；`1109179` 全绿） |
+```
+                        ┌─────────────────────────┐
+                        │  GitHub kk03kk/HSRL     │  异地归档
+                        │  里程碑推送，不是同步总线 │  只在两端都没了时才用
+                        └────────────▲────────────┘
+                                     │ git push（偶尔）
+        ┌────────────────────────────┴───────────────────────────┐
+        │                                                        │
+┌───────▼──────────────┐        git over SSH        ┌────────────▼───────────┐
+│ 本地 Windows D:\HSAI │ ◄────────────────────────► │ NUS ~/projects/HSAI    │
+│ · client/ 实机桥接   │   push / pull（随时）      │ · engine/ 模拟器内核    │
+│ · 实机证据           │   updateInstead 硬拒漂移   │ · hsbg/ 训练栈          │
+│ · ops/ 运维层        │                            │ · workflows/ deploy/    │
+│ · 全量源码副本       │   ssh cat（大文件）        │ · 权重/库/数据/产物     │
+└──────────────────────┘   17.7 MB/s + SHA256      └────────────────────────┘
+        │
+        │ 用户在本地与 Agent 对话
+        ▼
+   ┌─────────┐
+   │  用户   │  只提目标，不当中转站
+   └─────────┘
+```
 
-**兼容性**：本调整不改任何规则/动作/观测/模型，引擎指纹保持 `c4c71014e3d41760`；
-S3 的"构建一次 Windows wheel"只是把已有产物对齐到源码，不改变训练语义。
-**回退**：S1/S2 全部是文档与新增脚本，删除即可回到旧流程。
+### 3.1 谁听谁的
+
+- **用户**只和本地 Agent 对话，不需要知道服务器上发生了什么。
+- **本地 Agent** 是唯一决策者：规划、改代码、跑测试、提作业、收结果、写文档。
+- **服务器**没有任何自主进程。它不是"另一个 Agent"，是被 `ssh` 驱动的执行环境。
+
+### 3.2 为什么不需要服务器常驻 Agent
+
+曾经考虑保留一个服务器侧 Agent 做长任务看护。没有采纳，理由：
+
+1. **Slurm 本身就是看护者。** 作业提交后由调度器管理，失败会留现场；不需要一个
+   进程盯着。
+2. **常驻 Agent 会制造第二份状态**，而两份状态必然漂移——这正是要消除的问题。
+3. **它救不了的场景它都在**：真正需要"隧道断了还能动"的时候，用户本来就要重连，
+   不如直接重连。
+
+**应急保留**：如果隧道长期不可用而服务器上有紧急动作，用户可以直接 SSH 到服务器手动
+执行——`docs/OPERATIONS.md` §7 给了最小命令集。这是"应急恢复能力"，不是一个 Agent。
 
 ---
 
-## 4. 与既有结论的关系
+## 4. 运维层 `ops/`
 
-- 引擎规则审计结论不变：**不修改模拟器**（`docs/analysis/ENGINE_RULES_FINAL_DECISION.md`）。
-- 本地扩展已按 S3 重建为 `c4c71014`（D-023）；`config/live/engine.json` 的 `expected_source_hash` 与服务器一致，Windows wheel SHA `524d6871…`。
-- 训练/评测的唯一执行地仍是 NUS；本地不再产生任何训练或评测结论。
+```
+ops/
+├── hsai_ops.py    单入口 CLI：probe / state / doctor / sh / push / pull /
+│                  jobs / models / model-pull / tunnel
+└── （所有远端动作都经过它）
+```
+
+设计要点：
+
+1. **脚本走 stdin。** `ssh host bash -s` 而不是拼命令行。PowerShell 的引号、here-string、
+   反斜杠会吞掉 shell 语法，这个坑已经踩掉好几轮调试时间。
+2. **登录节点守卫。** 登录节点是 4 核 / 16 GB 的共享 VM。`HEAVY_PATTERNS` 里的命令
+   （pytest、torch、cargo、pip、训练工作流、`srun`）默认拒绝执行，必须加
+   `--allow-heavy` 显式放行。守卫会剥掉 heredoc 正文与反斜杠续行，只看真正会被执行的
+   行——所以 `git add workflows/train_entity_sync.py` 放行，而
+   `.venv/bin/python workflows/train_entity_sync.py` 拒绝。
+3. **输出默认截断。** 远端输出会进入 Agent 上下文，默认 12 KB 截断，`--full` 才全量。
+4. **留痕。** 每条远端命令写进 `artifacts/state/ssh-audit.jsonl`（时间、rc、耗时、字节数）。
+
+---
+
+## 5. 与旧架构的对应关系
+
+| 旧机制 | 现状 |
+|---|---|
+| `docs/sync/LOCAL.md`、`SERVER.md`、`README.md` | **归档**到 `records/archive/sync-protocol-20261112/` |
+| `docs/sync/SERVER_HANDOFF_20261110.md`、`SERVER_TO_LOCAL_20261111.md` | **归档**（历史交接记录） |
+| `docs/sync/manifests/{local,server}.json` + `tools/sync_manifest.py` | **归档**；实时状态改由 `hsai_ops.py state` 生成 |
+| `docs/sync/DECISIONS.md` | **保留并上移**为 `docs/DECISIONS.md`（决策留痕仍然有效） |
+| `docs/sync/ENGINE_RELEASES.md` | **上移**为 `docs/nus/ENGINE_RELEASES.md`（引擎发版史仍有效） |
+| `docs/SYNC_MODEL.md` | **归档**，内容由 `docs/OPERATIONS.md` 取代 |
+| `client/tools/check_ownership.py` | **保留**，语义改为"提示这个文件通常由哪端维护"，不再阻止本地修改 |
+| GitHub 作为同步总线 | **降级**为异地归档（§5.4 of TRANSPORT） |
+
+归档目录只作证据，不是启动命令。归档后不再更新，也不参与任何流程。
+
+---
+
+## 6. 不变的东西
+
+架构调整**不改变**任何技术口径。以下与旧文档完全一致：
+
+- 模拟器 `engine/hsbg_engine`，酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`。
+- 动作原生 **245**；观测 **3227 floats + 124 cards**。
+- 训练栈 `hsbg/az`；一个学习席 + 七个严格 EOT 快照席；`sims=0`。
+- 冻结训练契约：`max-actions-per-turn=80`、`move-guard=1`（cap 5 / repeat 2）、
+  `forbid-cancel=1`。
+- 评测口径：E1 单轮、`protocol_sha256` 不同不混榜、P50 口径。
+- 安全红线：不 `reset --hard`、不 `git clean`、不 force-push、不删资产/证据、
+  不改游戏目录、不伪造 SHA/清单、不写密钥进日志。
+
+这些规则现在写在 [`../AGENTS.md`](../AGENTS.md)，仍然是唯一权威。
+
+---
+
+## 7. 已知限制
+
+| 限制 | 影响 | 缓解 |
+|---|---|---|
+| 隧道依赖一次人工密码 | 每天约一次需要用户执行一条命令 | `ops/hsai_ops.py tunnel` 打印现成命令；可选升级见 TRANSPORT §6 |
+| Agent 不是常驻进程 | 用户不说话时不会自主巡检 | 需要时用定时任务唤醒；不假装 7×24 |
+| 无交互式 TTY | 不能用 `vim`/`top`/`less`/REPL | 批量命令 + `bash -s`；`tail`/`grep` 代替分页 |
+| 远端输出占上下文 | 大输出会挤掉工作记忆 | 默认截断 + 子 Agent 做探索 |
+| 登录节点 4 核共享 | 不能在那儿跑测试/训练 | `sbatch`；守卫强制 |
+| 本地无 GPU | 不能在本地验证训练行为 | 训练侧验证一律在服务器算 |
+
+> 旧文档写"登录节点约 1 GiB 虚拟内存"。2026-11-12 实测是 **4 核 / 16 GB**。数字错了，
+> 但结论不变：4 核且多人共享，仍然不该在上面跑重活。

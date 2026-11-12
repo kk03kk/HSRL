@@ -1,4 +1,4 @@
-# DECISIONS —— 三端管理的决议记录
+# DECISIONS —— 项目决议记录
 
 只追加、不改历史。一条决议一个编号，格式：
 
@@ -9,6 +9,13 @@ evidence: <文件路径或命令>
 ```
 
 冲突时以编号最大的 `accepted` 条目为准。
+
+> **2026-11-12 迁移说明**：本文件原位于 `docs/sync/DECISIONS.md`，随双 Agent 协作协议
+> 退休而移到 `docs/DECISIONS.md`。D-001 … D-027 里的 `evidence:` 路径**保持原样不作修改**
+> （只追加不改历史），其中指向 `docs/sync/**`、`docs/SYNC_MODEL.md`、`docs/INVENTORY_LOCAL.md`、
+> `tools/sync_manifest.py` 的引用已经归档到 `records/archive/sync-protocol-20261112/`；
+> 恢复方法见该目录的 `README.md`。历史上 `side` 字段的 local/server 现在表示"该决议由哪一端
+> 提出"，不再表示所有权边界。
 
 ---
 
@@ -346,3 +353,86 @@ evidence: `docs/AUDIT_2026-11-11.md` §7–8、`docs/LEADERBOARD.md`、
    SHA256 `32ccdabd…`，model SHA `ba7e8bbc…`；本地更新 `config/live/model.json`
    后先跑 E-0 canary；D-026 的 obs/action 差异仍需本地取证。
 5. 下一轮长训未启动；`config/league-stage2.json` 等只作准备，等待用户确认。
+
+## D-028 · 2026-11-12 · both · 单 Agent 双环境管理，退役双 Agent 协作协议
+
+status: accepted
+evidence: `AGENTS.md`、`docs/ARCHITECTURE.md`、`docs/OPERATIONS.md`、
+`docs/architecture/TRANSPORT.md`、`ops/hsai_ops.py`、
+`records/archive/sync-protocol-20261112/README.md`
+
+用户 2026-11-12 授予完整规划与执行权，要求把双端管理彻底整理成单 Agent 模式。
+
+1. **一个决策者，两个执行环境。** 服务器上不再有自主 Agent；它是被 `ssh` 驱动的执行端。
+2. **职责不再靠"写权"隔离**，改为按"什么只能在这里产生"划分：实机只在本地，GPU 只在
+   服务器。两端都保留全量源码副本。
+3. **退役 `docs/sync/` 散文协议**：LOCAL.md / SERVER.md / README.md / 两份交接文档 /
+   manifests / `tools/sync_manifest.py` / `docs/SYNC_MODEL.md` / `docs/INVENTORY_LOCAL.md`
+   全部归档到 `records/archive/sync-protocol-20261112/`（不删除，git 历史完整保留）。
+   `DECISIONS.md` 上移为 `docs/DECISIONS.md`，`ENGINE_RELEASES.md` 上移为
+   `docs/nus/ENGINE_RELEASES.md`。
+4. **CODEOWNERS 式约束改为自检提示**：`client/tools/check_ownership.py` 保留，但语义从
+   "禁止本地修改服务器代码"降级为"提示这个文件通常由哪端维护"。
+
+## D-029 · 2026-11-12 · both · 传输架构：git over SSH 为主，GitHub 降为异地归档
+
+status: accepted
+evidence: `docs/architecture/TRANSPORT.md`、`ops/hsai_ops.py`、
+实测：`model-pull` 67.9 MB / 6.8 s = 10.0 MB/s；`trainer.pt` 243 MB / 13.7 s = 17.7 MB/s
+
+1. **代码同步 = git over SSH**。本地加远端
+   `server ssh://hsai-nus/home/h/hengzhi/projects/HSAI`，双向 fetch/push。
+   服务器仓库设 `receive.denyCurrentBranch=updateInstead`：工作区干净时推送会更新工作区，
+   **有未提交改动时推送被拒绝**。已在隔离沙箱实测拒绝行为，并在真实仓库实测正向更新
+   （`304cb0b..5683aa0`）。漂移不再可能被一次"看起来成功"的推送掩盖。
+2. **GitHub 保留但降级**：只作**异地归档**，在里程碑点推送，不再作为日常同步通道或
+   Agent 间沟通渠道。理由：本地与服务器两份副本都在会坏的硬盘上，需要一份不在那两台
+   机器上的副本；而绕第三方同步比直连慢、且多一个故障点。
+3. **大文件永不进 Git**：权重/库/回放走 `ssh cat` 流式传输 + 逐文件 SHA256 校验。
+   实测链路约 140 Mbit/s，1 GB 约 1 分钟。
+4. **不用 scp 覆盖源码**；不用 rsync（本地未安装，且两端没有"目录必须一致"的诉求）。
+
+## D-030 · 2026-11-12 · both · 服务器 12 个未提交文件定性：真实工作，验证后提交
+
+status: accepted
+evidence: commit `304cb0b`；`tests/test_mirror_band.py` 6 passed；
+`hsbg/az/train/mirror_snapshots.py`、`workflows/league_health.py`、
+`deploy/slurm/league_stage2_48h.sbatch`
+
+退役服务器 Agent 留下 5 个已跟踪改动 + 7 个未跟踪文件，在服务器上飘了约 24 小时。
+逐个读 diff 后定性为**真实工作**，不是垃圾：
+
+1. `turnband:<lo-hi=pct,...>` 回合相关分位带镜像采样（带严格校验与 6 个测试）；
+2. `validate_league_checkpoint.py --forbid-unfreeze`（默认 0，评测与训练/实机对齐）；
+3. `workflows/league_health.py` 分段健康门禁（纯标准库，不 import torch）；
+4. `deploy/slurm/league_stage2_48h.sbatch`（94×30min + 周期验证 + 健康门禁）；
+5. 三份 stage2 配置与 1,026 行策略指南；`data/firestone_replays/`（741 MB）与
+   `data/real_library/`（15 MB）加入 `.gitignore` 留在服务器。
+
+**没有任何正式作业在使用这些文件，也没有启动 48h 训练。** `turnband` 是否采用、
+48h 是否启动，仍需用户批准（D-027 第 5 条不变）。
+
+## D-031 · 2026-11-12 · local · 登录节点规格更正：4 核 / 16 GB
+
+status: accepted
+evidence: `ssh hsai-nus 'nproc; free -g'`、`ops/hsai_ops.py doctor`
+
+旧文档（`AGENTS.md` §3、`README.md`、`docs/PROJECT_STATE.md` §8）写"登录节点约 1 GiB
+虚拟内存"。实测为 **4 核 / 16 GB**，旧数字是错的。
+
+结论方向不变：4 核且多人共享，仍然不允许在登录节点跑 pytest / torch / 编译 / 建库 /
+训练。`ops/hsai_ops.py` 新增登录节点守卫，把这条从"文档要求"变成"默认拦截"。
+
+## D-032 · 2026-11-12 · local · 实机链路 UTF-8 决定性输出
+
+status: accepted
+evidence: commit `eec4896`、`workflows/run_4159_long.py`、
+`tests/test_4159_long.py::test_login_source_precheck_uses_stdlib_without_slurm_or_audit_plan`
+
+该测试在 Windows 上长期失败：子进程以 `-S` 通过管道输出 JSON，中间含中文 `scope`
+字段，Python 用 cp936 编码而测试按 UTF-8 解码；解码异常让 `result.stdout` 变成 `None`，
+最终报成误导性的 "JSON object must be str, bytes or bytearray, not NoneType"。
+
+修法是在脚本入口把 stdout/stderr 钉死为 UTF-8（Linux 上本来就是 UTF-8，无行为变化）。
+`ops/hsai_ops.py` 同样处理，避免 Agent 看到的服务器输出变成乱码。
+

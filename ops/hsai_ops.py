@@ -479,13 +479,23 @@ def local_sha256(path: Path) -> str:
 
 
 def stream_file_down(remote_rel: str, local_path: Path, *, label: str = "pull") -> int:
-    """``ssh cat`` 流式下载单个文件，避免 scp 在 Windows 上的路径怪癖。"""
+    """``ssh cat`` 流式下载单个文件，避免 scp 在 Windows 上的路径怪癖。
+
+    注意：脚本必须走 **stdin**（``bash -s``）。ssh 会把多余参数用空格拼起来，
+    ``ssh host bash -c "cd X && cat f"`` 实际只把 ``cd`` 交给 bash，其余变成独立
+    词，于是 cat 在 $HOME 里找文件——这个坑已经踩过一次。
+    """
     local_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = local_path.with_suffix(local_path.suffix + ".partial")
     script = f"cd {REMOTE_ROOT} && cat -- {shlex.quote(remote_rel)}"
     started = time.time()
     with tmp.open("wb") as fh:
-        proc = subprocess.run(ssh_argv() + ["bash -c", script], stdout=fh, stderr=subprocess.PIPE)
+        proc = subprocess.run(
+            ssh_argv() + ["bash -s"],
+            input=script.encode("utf-8"),
+            stdout=fh,
+            stderr=subprocess.PIPE,
+        )
     if proc.returncode != 0:
         tmp.unlink(missing_ok=True)
         raise OpsError(
