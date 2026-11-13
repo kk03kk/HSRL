@@ -1,64 +1,109 @@
 # 隧道重建快路（TUNNEL FAST PATH）
 
-状态：**已实测**（2026-11-12 22:20）。适用于 NUS VPN 重连后隧道必然断开的情形。
+状态：**2026-11-13 12:55 重写**（含实测数字）。适用于 NUS VPN 重连/断开后隧道必然断开的情形。
 
-## 1. 真正的根因（2026-11-12 22:30 更正）：**脚本成功之后不退出**
+## 0. 先记住三个数字（本次实测）
 
-实测证据：日志里已经打印 `Tunnel on port 2222 is up.`，但调用进程一直不返回；
-**不接任何管道、用 `*> 文件` 重定向，同样会挂**。所以问题不在调用方的管道。
+| 动作 | 实测耗时 | 说明 |
+|---|---|---|
+| `-Status` | 0.4–0.8 s | 只读本地：凭据、helper、2222 是否有人听 |
+| **banner 探测（预检）** | **5.0 s** | 决定"VPN 好了没"，**不碰隧道** |
+| VPN 正常时的重建 | 2–12 s 到 UP | 之后 `state` 3–5 s |
 
-更重要的是：`ssh -f -N` 起的转发是**那个包装进程的子进程**，用 `job_kill` / `Stop-Process`
-杀掉包装进程会**连隧道一起杀掉**（实测两次都是 DOWN）。之前把这种后台任务当"幽灵"杀掉
-是错的——**它就是隧道的父进程，必须留着**。
+**VPN 未生效时的完整代价**：`tunnel.ps1 -Force` 的失败路径 = 初始探测 + `Wait-Tunnel`
+8 次 ×（0.7 s sleep + ≤8 s 硬杀探测）≈ **50 s**（本次用组件实测反推：单次 ssh 探测 5.0 s，
+`Get-NetTCPConnection` 0.16–0.52 s，`Get-CimInstance` 0.08 s）。
+所以"卡很久"通常是**在等这 50 s**，不是脚本有问题。
 
-结论：**不要在同一个调用里等 `-Force` 返回**。正确动作是
-「后台起 → 只轮询 `-Status` → 保留那个后台任务」。
+## 1. 为什么会"卡几分钟"——三个不同的坑，别再混为一谈
+
+1. **成功之后包装进程不退出**（2026-11-12 实测）：日志已打印
+   `Tunnel on port 2222 is up.`，但调用方一直不返回；**接管道、`*> 文件` 都一样挂**。
+   → 不要在同一个调用里等它返回；在 Agent 里用 `run_in_background`，
+   或者用 `Start-Process` 彻底脱离（见 §3 的 B）。
+2. **杀掉包装进程会连隧道一起杀掉**（实测两次）：`ssh -N` 起的转发是包装进程的**子进程**，
+   `job_kill`/`Stop-Process` 包装进程 → 隧道 DOWN。**它是隧道的父进程，必须留着。**
+3. **VPN 没生效时 TCP 会"假通"**：`Test-NetConnection sjump:22` 返回 True（校园边缘接了 SYN），
+   但 SSH banner 永远不来 → 每次探测都要等满超时。这就是"看起来有网、实际不通"。
+
+## 2. VPN 断开时的指纹（2026-11-13 12:52 实测）
+
+```
+Test-NetConnection sjump.comp.nus.edu.sg -Port 22   -> True (0.47 s)     ← 假通
+ssh -o ConnectTimeout=5 ... hengzhi@sjump... true   -> 5.04 s 退出
+  stderr: Connection timed out during banner exchange
+          Connection to 137.132.80.27 port 22 timed out
+```
+
+**VPN 正常时的指纹**是立刻返回 `Permission denied (...)`（因为故意不给任何认证方式），
+**不是超时**。这条差异就是预检的判据。
+
+## 3. 标准动作：一步步、每步都有上界
+
+### A. 预检（0–6 s，不碰隧道）
 
 ```powershell
-# ✗ 都会挂住（管道不是原因，但别接）
-python ops/hsai_ops.py tunnel 2>&1 | Select-Object -Last 8
-powershell -File ops\tunnel.ps1 -Force -Port 2222 *> file
+ssh -o ConnectTimeout=5 -o BatchMode=yes -o PubkeyAuthentication=no `
+    -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no `
+    -o ConnectionAttempts=1 hengzhi@sjump.comp.nus.edu.sg true
+```
 
-# ✓ Status 是有界的（实测 0.8 s），用它判断成没成
+- 输出 **`Permission denied`** → 路已通 → 进 **B**。
+- 输出 **`Connection timed out during banner exchange`**（或 `port 22 timed out`）
+  → **VPN 还没生效，立刻停**，回报用户；不要重建、不要重试、不要等。
+
+### B. 起隧道（返回 ~0.2 s，绝不等待）
+
+```powershell
+Start-Process -FilePath powershell -WorkingDirectory 'D:\HSAI' -ArgumentList `
+  '-NoProfile','-ExecutionPolicy','Bypass','-File','ops\tunnel.ps1','-Force' -WindowStyle Hidden
+```
+
+实测这条命令 **0.07 s 返回**（用 `Start-Sleep 3` 的等价调用验证过），
+包装进程完全脱离本次调用：既不会被调用方等住，也不会因为工具超时被"顺带"杀掉
+（同时避开坑 1 和坑 2）。`-WorkingDirectory` 必须给，否则相对路径 `ops\tunnel.ps1` 可能解析不到。
+（Agent 里如果非要用 `run_in_background`，那就**永远不要 job_kill 它**。）
+
+### C. 轮询（每 1.5 s 一次，最多 25 s）
+
+```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
-# ✓ 重建：后台起，别等它返回，别杀它
-powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Force -Port 2222
 ```
 
-**待修**（下次改代码时做，需要真实环境验证）：让 `ops/tunnel.ps1` 把 ssh 子进程**彻底脱离**
-包装进程（独立 job object / 独立 stdio），使脚本能在建好后正常 exit 而不带走转发。
+看到 `tunnel 2222: UP` → **立刻**进 D；**不要**去等 B 里那个进程，也不要去查它的退出码。
 
-## 1b. 附带教训：管道确实也会挂（独立问题）
-
-`ssh -f -N` fork 的子进程继承 stdout，只要脚本 stdout 是管道，管道就等不到 EOF——
-这与上面的"包装进程不退出"是两个不同的坑，都会表现为"卡住"。**两种都别做**。
-
-## 2. 标准动作（有界、不会卡）
+### D. 立刻探活（3–5 s，证明不只是端口通了）
 
 ```powershell
-# ① 先看状态：这条路径不 fork 任何东西，实测 0.8 s 返回
-powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
-
-# ② 需要时重建：后台起，然后轮询状态（不要在同一个调用里等它）
-#    （Agent 里用 run_in_background，人手动跑就直接跑，别加管道）
-powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Force -Port 2222
-
-# ③ 约 12 s 后复查
-powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status   # 期望 tunnel 2222: UP
+python ops/hsai_ops.py probe        # 纯连通性
+python ops/hsai_ops.py state        # 顺便看双端同步与作业（推荐）
 ```
 
-实测时间线（2026-11-12 22:20，VPN 刚重连）：`-Status` 0.8 s 报 DOWN → 后台 `-Force`
-→ 12 s 后 `-Status` 报 **UP**，重建本身约 2 s。
-
-## 3. 排查顺序（不要盲目等）
-
-1. `-Status`（0.8 s）：DOWN 才需要重建；它同时会打印凭据与 helper 状态。
-2. 无 ssh 进程 + 2222 无监听 = 隧道完全没起，直接重建。
-3. 有 ssh 进程但 2222 无监听 = 半死状态，`-Force` 会先清理再建。
-4. **任何一步超过 ~30 s 没有结果，就掐掉看现场**，不要等它"自己好"。
-
-## 4. 重建后确认
+### E. 25 s 仍 DOWN：读日志分类，不要盲等
 
 ```powershell
-python ops/hsai_ops.py state      # 期望 drift: IN SYNC
+Get-Content C:\ProgramData\HSAI\tunnel-2222.log -Tail 5
 ```
+
+| 日志特征 | 含义 | 动作 |
+|---|---|---|
+| `banner exchange` / `Connection timed out` | VPN/校园侧未生效 | **停**，请用户确认 VPN |
+| `Permission denied` | 跳板机密码变了 | 请用户跑 `ops\tunnel.ps1 -Setup` |
+| `bind: Address already in use` | 有陈旧监听 | 再跑一次 `-Force`（脚本会先清） |
+| 本地 2222 `Connection refused` | 转发没建起来 | 再跑一次 `-Force` |
+
+## 4. 禁止清单
+
+- ✗ 在同一个调用里等 `tunnel.ps1 -Force` 返回（坑 1）
+- ✗ 给 `tunnel.ps1` 接管道 / `*> 文件`（坑 1 的另一半）
+- ✗ `job_kill` / `Stop-Process` 任何隧道相关后台进程（坑 2）
+- ✗ VPN 没确认前就重建隧道（坑 3），然后在 50 s 的失败路径里等
+- ✗ 任何一步超过 ~25–30 s 没有结果还继续等——掐掉看现场
+
+## 5. 拓扑备忘（为什么必须端口转发）
+
+- 跳板机 `sjump.comp.nus.edu.sg` 只接受**密码**认证；`xlogin2` 在校园网内不可直连；
+  NUS VPN 不路由 `192.168.5x`。
+- 所以本机 `2222` → `xlogin2:22`；`~/.ssh/config` 里 `hsai-nus` = `127.0.0.1:2222`（`BatchMode`）。
+- 密码只以 DPAPI 加密形式存于 `%LOCALAPPDATA%\HSAI\tunnel.cred`，由
+  `C:\ProgramData\HSAI\hsai-askpass.exe` 读取；**永不进对话/命令行/日志**。
