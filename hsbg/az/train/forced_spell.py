@@ -239,6 +239,10 @@ class ForcedSpellTracker:
         else:
             key = (int(game_id), 0 if seat is None else int(seat))
             rows = [self._state[key]] if key in self._state else []
+        if not rows:
+            # 没有这局的数据 ⇒ 返回 {}（调用方用 `if game: meta[...]` 判断，
+            # 返回全零 dict 会给每一局都写一条无意义的 meta）
+            return {}
         return {
             "forced": int(sum(r.forced for r in rows)),
             "blocked": int(sum(r.blocked for r in rows)),
