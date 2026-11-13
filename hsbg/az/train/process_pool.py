@@ -705,17 +705,21 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                     from .human_board_pool import load_pool as _load_entry
                     epath = str(cfg.entry_boards)
                     esample = str(getattr(cfg, "entry_sample", "auto") or "auto")
+                    etier = int(getattr(cfg, "entry_min_tier", 0) or 0)
                     ekey = os.path.getmtime(epath) if os.path.isfile(epath) else None
-                    eck = ("entry", epath, esample)
+                    eck = ("entry", epath, esample, etier)
                     cached = _HUMAN_BOARD_CACHE.get(eck)
                     if cached is None or cached[0] != ekey:
-                        epool = _load_entry(epath, sample=esample) if ekey is not None else None
+                        epool = (_load_entry(epath, sample=esample, min_tier=etier)
+                                 if ekey is not None else None)
                         _HUMAN_BOARD_CACHE[eck] = (ekey, epool)
                         if epool is None:
-                            print(f"[warn] 入场库为空/不存在: {epath}", flush=True)
+                            print(f"[warn] 入场库为空/不存在: {epath} min_tier={etier}",
+                                  flush=True)
                         else:
                             print(f"[entry] 入场库 {epath} frames={epool.kept} "
-                                  f"payload={epool.payload_kept}", flush=True)
+                                  f"payload={epool.payload_kept} min_tier={etier} "
+                                  f"filtered={epool.filtered}", flush=True)
                     else:
                         epool = cached[1]
                 opp_pol = None

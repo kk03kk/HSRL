@@ -171,7 +171,8 @@ class HumanBoardPool:
                  max_board: int = MAX_BOARD,
                  max_minion_stat: int = MAX_MINION_STAT,
                  max_board_strength: int = MAX_BOARD_STRENGTH,
-                 check_cards: bool = True):
+                 check_cards: bool = True,
+                 min_tier: Optional[int] = None):
         self.path = str(path) if path else ""
         #: ``turn -> [HumanBoard]``（载入顺序，采样时按 strength 排序）
         self.index: Dict[int, List[HumanBoard]] = {}
@@ -182,6 +183,11 @@ class HumanBoardPool:
         self.max_minion_stat = int(max_minion_stat)
         self.max_board_strength = int(max_board_strength)
         self.check_cards = bool(check_cards)
+        #: 只保留**观测到的**酒馆等级 >= ``min_tier`` 的帧（``None``/0 = 不过滤）。
+        #: 用于入场课程：专家先验是「T8 左右到五本」，所以只在五本以上的真人帧上开课，
+        #: 让模型第一次经历「五本位置怎么运营」。等级缺失（``tier=None``，即没有 payload
+        #: 的 board-only 行）**一律丢弃**——宁可小池子，也不假装知道等级。
+        self.min_tier = int(min_tier) if min_tier else None
         self.rows = 0
         self.kept = 0
         #: 带准完整 payload（``board_detail``）的行数；hand/full 档必须 > 0。
@@ -218,6 +224,13 @@ class HumanBoardPool:
                 hb = self._row_to_board(row)
                 if hb is None:
                     continue
+                if self.min_tier is not None:
+                    if hb.tier is None:
+                        self._drop("tier_unknown")
+                        continue
+                    if int(hb.tier) < int(self.min_tier):
+                        self._drop("tier_below_min")
+                        continue
                 self.index.setdefault(int(hb.turn), []).append(hb)
                 self._sorted.pop(int(hb.turn), None)   # 桶内容变了，缓存失效
                 if isinstance(hb.payload, dict):
