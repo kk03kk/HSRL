@@ -68,7 +68,7 @@
   "pipeline-zero-step-fallback": 1,
   "reset-anchor": 1,
   "forbid-unfreeze": 1,
-  "comp-target-coef": 0.3,
+  "comp-target-coef": 0.0,
   "comp-target-min-turn": 10,
   "comp-target-cards": "config/strategy_cards.json",
   "comp-target-tier-w": "S:1.0,A:0.6,B:0.3",
