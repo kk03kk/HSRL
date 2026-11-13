@@ -90,12 +90,12 @@ python workflows/train_entity_sync.py \
   --opponent bot --behavior net --pipeline 0 --rust-collector 0 --lockstep 1 \
   --mirror-snaps artifacts/libraries/league-eot-v1.1-20261109/train \
   --mirror-seats 7 --mirror-p 1 --human-board-p 0 \
-  --games 256 --iterations 0 --minutes "${HSAI_LR_MINUTES:-150}" \
+  --games "${HSAI_LR_GAMES:-256}" --iterations 0 --minutes "${HSAI_LR_MINUTES:-150}" \
   --epochs 2 --minibatch 1024 --grad-accum 1 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 25000 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta 0.02 --anchor-iterations 0 --anchor-beta-tail 0.02 \
-  --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes 12 --workers 1 \
+  --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
   --mirror-sample p50 --mirror-seats 7 --mirror-p 1 --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --human-board-p 1.0 --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
