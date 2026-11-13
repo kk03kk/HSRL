@@ -614,6 +614,12 @@ def cmd_push(args: argparse.Namespace) -> int:
     服务器仓库配置了 ``receive.denyCurrentBranch=updateInstead``，所以推送成功
     会直接更新服务器工作区；服务器有未提交改动时 git 会**拒绝**——这正是我们要的
     漂移保护。
+
+    **digest 守卫（D-037 / D-046 的代码化）**：``training_source_digest()`` 覆盖
+    ``hsbg/az/train/*.py`` 与 ``workflows/train_entity_sync.py``。若有训练作业正在跑，
+    推送这些文件会让它在下一个分段边界因"训练代码已变更"直接 FAILED。
+    因此：**只要改动里含 digest 文件且队列里有 RUNNING 的训练作业，就拒绝推送**，
+    除非显式给 ``--force-digest``（只应在"就是要中止这些作业"时使用）。
     """
     require_tunnel()
     ensure_server_remote()
@@ -623,6 +629,22 @@ def cmd_push(args: argparse.Namespace) -> int:
     dirty = [ln for ln in _git(["status", "--porcelain=v1"]).splitlines() if ln.strip()]
     if dirty and not args.allow_dirty:
         raise OpsError(f"本地有 {len(dirty)} 个未提交改动，先提交再推送")
+
+    # ---- digest 守卫 ----
+    changed = _git(["diff", "--name-only", "server/main..HEAD"]).split()
+    digest_files = [p for p in changed if _is_digest_path(p)]
+    if digest_files and not getattr(args, "force_digest", False):
+        running = _running_training_jobs()
+        if running:
+            raise OpsError(
+                "拒绝推送：这次推送含 digest 相关文件 "
+                f"{digest_files}，而队列里还有 RUNNING 的作业 {running}。\n"
+                "  这些作业会在下一个分段边界被续训守卫判死（D-037/D-046）。\n"
+                "  处理方式：① 等作业结束；② 把 digest 改动放侧分支 pending-digest/；\n"
+                "  ③ 确实要中止时显式加 --force-digest")
+        else:
+            print(f"[guard] 含 digest 文件 {digest_files}，但队列里没有 RUNNING 作业，放行。")
+
     proc = subprocess.run(
         ["git", "push", "server", f"main:main"],
         cwd=str(REPO_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -630,6 +652,34 @@ def cmd_push(args: argparse.Namespace) -> int:
     print(proc.stdout.decode("utf-8", "replace"))
     audit({"label": "push", "rc": proc.returncode})
     return proc.returncode
+
+
+#: ``training_source_digest()`` 覆盖的路径（改这些会让在跑的作业无法精确续训）。
+DIGEST_PATTERNS = ("hsbg/az/train/", "workflows/train_entity_sync.py")
+
+
+def _is_digest_path(path: str) -> bool:
+    p = str(path).replace("\\", "/")
+    if p == "workflows/train_entity_sync.py":
+        return True
+    return p.startswith("hsbg/az/train/") and p.endswith(".py")
+
+
+def _running_training_jobs() -> list:
+    """队列里正在跑的 ``hsai-*`` 作业（训练/评测都算，保守处理）。"""
+    try:
+        out = subprocess.run(
+            ["ssh", SSH_HOST, "squeue -u $USER -h -o '%i,%T,%j'"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20,
+        ).stdout.decode("utf-8", "replace")
+    except BaseException:  # noqa: BLE001 - 查不到就退化为"无作业"，不阻塞推送
+        return []
+    rows = []
+    for line in out.splitlines():
+        parts = line.strip().split(",")
+        if len(parts) >= 3 and parts[1] == "RUNNING" and parts[2].startswith("hsai-"):
+            rows.append(f"{parts[0]}({parts[2]})")
+    return rows
 
 
 def cmd_pull(args: argparse.Namespace) -> int:
@@ -862,6 +912,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     p = sub.add_parser("push", help="本地 main -> 服务器")
     p.add_argument("--allow-dirty", action="store_true")
+    p.add_argument("--force-digest", action="store_true",
+                   help="确实要中止在跑作业时才用：允许推送 digest 相关文件")
     p.set_defaults(func=cmd_push)
 
     p = sub.add_parser("pull", help="服务器 -> 本地")
