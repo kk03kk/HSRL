@@ -45,6 +45,7 @@ INJECTION_KEYS = (
     "entry_missing", "entry_errors", "entry_hand_applied",
     "entry_counters_applied", "entry_boards", "entry_games",
     "entry_turn_min", "entry_turn_max", "entry_fidelity", "entry_sample",
+    "entry_min_tier",
     "entry_rejected_by_reason", "entry_turns_hist",
     "entry_last_error", "entry_last_rejected", "entry_health_error",
     "human_board_min_turn",

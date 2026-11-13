@@ -595,6 +595,9 @@ def main() -> int:
                     help="1=入场注入走快速路径（与 --human-board-fast-inject 逐位等价）")
     ap.add_argument("--entry-set-health", type=int, default=0,
                     help="1=把观测到的 hero_hp 一起写回 learner 席；默认 0（血量随局演进）")
+    ap.add_argument("--entry-min-tier", type=int, default=0,
+                    help="只使用观测等级 >= 本值的入场帧（0=不过滤）。"
+                         "专家先验：T8 左右到五本 → 0/1 都不过滤，5 = 只在五本以上开课")
     # ---- 专家相对过程奖励（默认 coef=0 = 关闭；见 hsbg/az/train/board_target.py）----
     ap.add_argument("--board-target-coef", type=float, default=0.0,
                     help="每回合 (强度差 + 阵容召回) 奖励的系数；0=关闭。需要入场库带 "
@@ -1145,9 +1148,29 @@ def main() -> int:
             print("[error] 入场课程与 --mirror-strict 互斥（严格镜像要求七席全概率且"
                   "禁人类战团）", file=sys.stderr)
             return 2
+        _etier = int(getattr(args, "entry_min_tier", 0) or 0)
+        if _etier > 0:
+            # 只保留观测等级 >= _etier 的帧：先把池子建一遍，池子空就直接拒绝启动。
+            # （等级未知的 board-only 行会被丢弃，见 human_board_pool.HumanBoardPool.min_tier）
+            try:
+                from hsbg.az.train.human_board_pool import load_pool as _load_entry_pool
+                _epool = _load_entry_pool(str(args.entry_boards),
+                                          sample=str(args.entry_sample), min_tier=_etier)
+            except BaseException as exc:  # noqa: BLE001
+                print(f"[error] --entry-min-tier={_etier} 建池失败: {exc!r}",
+                      file=sys.stderr)
+                return 2
+            if _epool is None or not int(getattr(_epool, "kept", 0)):
+                print(f"[error] --entry-min-tier={_etier} 过滤后入场池为空"
+                      f"（文件 {args.entry_boards}）；放宽等级或换库", file=sys.stderr)
+                return 2
+            print(f"[info] 入场池按等级过滤：min_tier={_etier} frames={_epool.kept} "
+                  f"payload={_epool.payload_kept} filtered={_epool.filtered}",
+                  flush=True)
         print(f"[info] 中后期入场课程：p={args.entry_p} 回合 "
               f"{args.entry_turn_min}..{max(int(args.entry_turn_min), int(args.entry_turn_max))}"
               f" fidelity={_efid} sample={args.entry_sample} "
+              f"min_tier={_etier} "
               f"health={int(args.entry_set_health)}；T0 之前 learner 由 bot 代打",
               flush=True)
     # ── 搜索作为行为策略 μ=(1−ε)π+ε·π_search（默认 eps=0 = 完全关闭）──────────
@@ -2428,6 +2451,7 @@ def main() -> int:
             entry_fidelity=str(args.entry_fidelity),
             entry_fast_inject=bool(int(args.entry_fast_inject)),
             entry_set_health=bool(int(args.entry_set_health)),
+            entry_min_tier=int(args.entry_min_tier),
             # 专家相对过程奖励（默认 coef=0 -> 零开销）
             board_target_coef=float(args.board_target_coef),
             board_target_w_card=float(args.board_target_w_card),
