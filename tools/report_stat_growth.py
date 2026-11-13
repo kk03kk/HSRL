@@ -27,6 +27,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bank", required=True)
     ap.add_argument("--turns", default="9-12", help="统计 t→t+1（t 取该区间）")
+    ap.add_argument("--top-cards", type=int, default=0,
+                    help="额外列出该回合增重最多的卡（0=不列）")
     args = ap.parse_args()
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
@@ -58,6 +60,9 @@ def main() -> int:
 
     acc: Dict[int, Dict[str, List[float]]] = collections.defaultdict(
         lambda: collections.defaultdict(list))
+    #: card_id -> turn -> 该卡（作为留存随从）的逐局增重，用于"哪张卡在涨"
+    per_card: Dict[str, Dict[int, List[float]]] = collections.defaultdict(
+        lambda: collections.defaultdict(list))
     for turns in games.values():
         for t in range(lo, hi + 1):
             a, b = turns.get(t), turns.get(t + 1)
@@ -71,6 +76,8 @@ def main() -> int:
             d["total_after"].append(sum(b.values()))
             if kept:
                 d["kept_gain"].append(sum(b[k] - a[k] for k in kept) / len(kept))
+                for k in kept:
+                    per_card[k][t].append(b[k] - a[k])
             if new:
                 d["new_mean"].append(sum(b[k] for k in new) / len(new))
             if gone:
@@ -94,6 +101,19 @@ def main() -> int:
               f"{mean(d['kept_gain']):>15.1f} {mean(d['new_mean']):>10.1f} "
               f"{mean(d['gone_mean']):>10.1f}")
     print("\n读法：『留存的平均增重』大 ⇒ 靠养；『新进平均Σ』远高于『换掉平均Σ』⇒ 靠换质量。")
+    if args.top_cards:
+        T = int(args.top_cards)
+        rows = []
+        for cid, per in per_card.items():
+            v = per.get(T) or []
+            if len(v) >= 20:
+                rows.append((sum(v) / len(v), len(v), cid))
+        rows.sort(reverse=True)
+        print(f"\n增重最多的卡（t={T}→{T + 1}，按平均增重排序，n>=20）")
+        if not rows:
+            print("  （样本不足：该回合留存卡的观测少于 20 次/张）")
+        for gain, n, cid in rows[:20]:
+            print(f"  {cid:>16}  平均增重 {gain:>9.1f}  n={n}")
     return 0
 
 
