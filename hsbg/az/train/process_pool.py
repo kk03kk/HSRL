@@ -707,12 +707,14 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                     esample = str(getattr(cfg, "entry_sample", "auto") or "auto")
                     etier = int(getattr(cfg, "entry_min_tier", 0) or 0)
                     ecards = str(getattr(cfg, "entry_require_cards", "") or "").strip()
+                    ehand = int(getattr(cfg, "entry_min_hand", 0) or 0)
                     ekey = os.path.getmtime(epath) if os.path.isfile(epath) else None
-                    eck = ("entry", epath, esample, etier, ecards)
+                    eck = ("entry", epath, esample, etier, ecards, ehand)
                     cached = _HUMAN_BOARD_CACHE.get(eck)
                     if cached is None or cached[0] != ekey:
                         epool = (_load_entry(epath, sample=esample, min_tier=etier,
-                                             require_any_cards=ecards or None)
+                                             require_any_cards=ecards or None,
+                                             min_hand=ehand or None)
                                  if ekey is not None else None)
                         _HUMAN_BOARD_CACHE[eck] = (ekey, epool)
                         if epool is None:

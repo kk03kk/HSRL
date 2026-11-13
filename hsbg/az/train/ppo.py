@@ -431,6 +431,9 @@ class CollectConfig:
     #: 只使用**战团里至少含 1 张**这些 card_id 的入场帧（逗号/分号分隔，空=不过滤）。
     #: 用途：引擎入场课程——真人 T12 有 64% 战团含引擎卡，模型只有 9%。
     entry_require_cards: str = ""
+    #: 只使用**观测手牌数** >= 本值的入场帧（0=不过滤）。动机：真人后期在跑循环
+    #: （T12 每回合 play 22 / sell 10.4），模型只有 8 / 1.2 —— 需要「手里有资源」的起点。
+    entry_min_hand: int = 0
     #: 入场注入保真度（board/hand/full；full 需要准完整库）。
     entry_fidelity: str = "full"
     #: 入场注入快速路径（与 human_board_fast_inject 同语义）。
