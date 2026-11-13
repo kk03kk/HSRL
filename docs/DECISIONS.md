@@ -778,3 +778,32 @@ evidence: 作业 `1131577`（FAILED: `checkpoint not found: .../step_015001/mode
    （`"...HSAI_GAP_MODELS=base=x/model.pt\;h10=pin-y/model.pt,..."`）。
    裸写会被 PowerShell 当语句分隔符；单引号会被 `hsai_ops.py sh` 丢掉。
 3. 提交后**先看 `run.env` 与 `panel.log` 头**再等结果（D-038 的同一条纪律）。
+## D-045 · 2026-11-13 · local · 两个长臂的最终判定为负：覆盖类与板面类奖励都换不来强度；主线转向"五本入场课程"
+
+status: accepted
+evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h10l1-bot-20261113/`、
+`artifacts/runs/entry-h10-20261113`（COMPLETED 2:03:07）、`artifacts/runs/entry-l1-20261113`（COMPLETED 1:59:47）
+
+两个作业按用户要求跑到自然结束，双场 96 局面板（快照 h10@15031 / l1@14961，最终快照均为 15046）：
+
+| 臂 | 配方 | 真人场 mean_rank（配对 CI） | bot 场 mean_rank | T10 板面 | T10 tier | `≥1 S` | 前期 |
+|---|---|---|---|---|---|---|---|
+| base | champion | **5.4375** | **1.177** | 1.000 | 4.44 | 0.292 | — |
+| h10 | comp-target 1.0 + anchor 0.02（174 轮） | 5.8125 (+0.375 [−0.03,+0.77]) | **1.354** (+0.177，CI [+0.02,+0.35] **显著变差**) | −11.4% | **4.07** | **0.579** | −6~−14% |
+| l1 | h10 + `terminal-strength-coef 0.3`（128 轮） | 5.6354 (+0.198 [−0.19,+0.57]) | 1.167 (−0.010，中性) | −7.6% | 4.22 | 0.438 | −8~−15% |
+
+**三条结论**
+
+1. **`comp-target` 的代价被钉死在"等级"上**：覆盖率 0.292→0.579（近 2×）的同时，
+   T10 平均等级 4.44→**4.07**、板面 −11%、名次变差（bot 场显著）。机制清楚：它奖励"持有核心卡"，
+   而模型能拿到的核心卡集中在低本，于是它选择留在低本刷卡。
+   **H10 在 83 轮时还是"覆盖 1.95×、板面持平"，到 174 轮就翻负**——短窗口乐观的又一次实例。
+2. **直接奖励"终局板面厚度"（`terminal-strength-coef 0.3`）无效**：L1 的 T10 板面 −7.6%，
+   名次中性。板面类奖励至此**四次证否**（Σ 口径 / `board-target` / `terminal-strength` / 加倍）。
+3. 两臂都出现**前期回归**（T3–T7 −6~−15%），说明这些后期奖励在 anchor=0.02 的自由度下
+   连早期行为一起带偏了。
+
+**决定**：主线转向 **课程而非奖励**——`M1/M0`（`config/league-entry-m1.json` / `-m0.json`）：
+入场收窄到 **T8 单回合 + p75**，`comp-target` 与 `tier-target` **全关**，
+`human-board-min-turn 7`；两臂唯一差别是 `entry-min-tier`（M1=5 只用五本以上的入场帧，M0=0 不过滤）。
+6k 入场库的注入门禁已通过（`smoke-inject-6k-20261113`：6/6 applied、tier_match 6/6、3.7 ms）。
