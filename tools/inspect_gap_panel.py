@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Compact per-turn comparison across ``hsai.human_gap_panel/v1`` panels.
 
 Why this exists
