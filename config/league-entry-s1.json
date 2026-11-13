@@ -79,5 +79,7 @@
   "tier-gate-k": 0.75,
   "shaping-coef": 0.1,
   "shaping-mode": "log_strength",
-  "shaping-gamma": 1.0
+  "shaping-gamma": 1.0,
+  "shaping-w-str": 1.0,
+  "shaping-w-tier": 0.0
 }
