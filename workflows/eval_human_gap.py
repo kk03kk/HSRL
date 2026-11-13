@@ -95,6 +95,8 @@ def economy_curves(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             b["gold"].append(float(r["gold"]))
         if isinstance(r.get("actions"), int):
             b["actions"].append(float(r["actions"]))
+        if isinstance(r.get("hand_n"), int):
+            b["hand"].append(float(r["hand_n"]))
         # recruitment-end board == what the human snapshots call combat_start
         atk, hp = r.get("eot_attack"), r.get("eot_board_hp")
         if isinstance(atk, int) and isinstance(hp, int):
@@ -118,6 +120,7 @@ def economy_curves(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             "tier5plus_share": _r(sum(1 for x in b["tier"] if x >= 5) / n, 3),
             "tier_hist": dict(sorted(hist.items())),
             "gold_p50": _r(_pct(b["gold"], 0.5)),
+            "hand_p50": _r(_pct(b["hand"], 0.5)),
             "strength_p50": _r(_pct(b["strength"], 0.5)),
             "strength_p90": _r(_pct(b["strength"], 0.90)),
             "strength_mean": _r(sum(b["strength"]) / len(b["strength"])) if b["strength"] else None,

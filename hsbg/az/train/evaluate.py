@@ -316,6 +316,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 eot_attack=sum(int(m['atk']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_hp=sum(int(m['hp']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_stage='recruitment_end_before_combat',
+                                # 手牌数：判断"不循环"是因为"没钱买"还是"手里没牌可打"
+                                hand_n=(len(player.get('hand') or []) if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),
                             ))
                             turn_actions = 0
