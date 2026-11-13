@@ -1,0 +1,368 @@
+{
+ "schema": "hsai.z_vocab/v1",
+ "note": "流派条件化 token 的词表：index 0 必须是 none（无条件），其余按 strategy_cards.json 顺序。训练时 none 与随机流派混合采样，推理时可指定。",
+ "n": 34,
+ "entries": [
+  {
+   "z": 0,
+   "name": "none",
+   "tier": null,
+   "n_core": 0
+  },
+  {
+   "z": 1,
+   "name": "亡灵 - 手速亡灵",
+   "tier": "S",
+   "n_core": 4,
+   "core_card_ids": [
+    "BG25_010",
+    "BG33_823",
+    "BG33_825",
+    "BG34_692"
+   ]
+  },
+  {
+   "z": 2,
+   "name": "野猪人 - 手速酒馆强化",
+   "tier": "S",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG28_633",
+    "BG35_883",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 3,
+   "name": "元素 - 活化艾泽里特",
+   "tier": "S",
+   "n_core": 4,
+   "core_card_ids": [
+    "BG28_707",
+    "BG35_881",
+    "BG35_883",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 4,
+   "name": "鱼人 - 关键词",
+   "tier": "S",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG31_148",
+    "BG33_318",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 5,
+   "name": "野兽 - 美味龙虾",
+   "tier": "S",
+   "n_core": 1,
+   "core_card_ids": [
+    "BG25_354"
+   ]
+  },
+  {
+   "z": 6,
+   "name": "亡灵 - 攻击力成长",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG25_010",
+    "BG28_309",
+    "BG32_324"
+   ]
+  },
+  {
+   "z": 7,
+   "name": "元素 - 无羁雷暴",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG34_858",
+    "BG_LOE_077",
+    "BGS_123"
+   ]
+  },
+  {
+   "z": 8,
+   "name": "恶魔 - 自伤",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG32_873",
+    "BG35_883",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 9,
+   "name": "机械 - 手速磁力",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG26_149",
+    "BG33_823",
+    "BG33_825"
+   ]
+  },
+  {
+   "z": 10,
+   "name": "海盗 - 手速金色",
+   "tier": "A",
+   "n_core": 1,
+   "core_card_ids": [
+    "BG33_823"
+   ]
+  },
+  {
+   "z": 11,
+   "name": "畸变怪 - 亡语/法术",
+   "tier": "A",
+   "n_core": 1,
+   "core_card_ids": [
+    "BG25_354"
+   ]
+  },
+  {
+   "z": 12,
+   "name": "畸变怪 - 手速神明",
+   "tier": "A",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG33_823",
+    "BG33_825"
+   ]
+  },
+  {
+   "z": 13,
+   "name": "鱼人 - 魔鳍",
+   "tier": "A",
+   "n_core": 6,
+   "core_card_ids": [
+    "BG22_403",
+    "BG26_ICC_901",
+    "BG32_821",
+    "BG33_890t",
+    "BG33_891",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 14,
+   "name": "元素 - 紫外线",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG31_810",
+    "BG_LOE_077",
+    "BGS_123"
+   ]
+  },
+  {
+   "z": 15,
+   "name": "喝茶流",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG30_121",
+    "BG35_883",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 16,
+   "name": "恶魔 - 酒馆强化",
+   "tier": "A",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG28_633",
+    "BG35_883"
+   ]
+  },
+  {
+   "z": 17,
+   "name": "野猪人 - 宝石弹幕",
+   "tier": "A",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG34_682",
+    "BG34_684"
+   ]
+  },
+  {
+   "z": 18,
+   "name": "恶魔 - 亡语/酒馆强化",
+   "tier": "A",
+   "n_core": 1,
+   "core_card_ids": [
+    "BG25_354"
+   ]
+  },
+  {
+   "z": 19,
+   "name": "机械 - 磁力/法术",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG26_152",
+    "BG30_121",
+    "BG35_883"
+   ]
+  },
+  {
+   "z": 20,
+   "name": "野兽 - 深潜巨兽",
+   "tier": "A",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG26_802",
+    "BG35_602",
+    "BG35_604"
+   ]
+  },
+  {
+   "z": 21,
+   "name": "野兽 - 甲虫",
+   "tier": "A",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG26_802",
+    "BG31_809"
+   ]
+  },
+  {
+   "z": 22,
+   "name": "野猪人 - 抉择",
+   "tier": "A",
+   "n_core": 4,
+   "core_card_ids": [
+    "BG31_323",
+    "BG31_326",
+    "BG33_885",
+    "BG34_684"
+   ]
+  },
+  {
+   "z": 23,
+   "name": "鱼人 - 烈毒搅局",
+   "tier": "A",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG23_318",
+    "BG33_318"
+   ]
+  },
+  {
+   "z": 24,
+   "name": "畸变怪 - 腐泥",
+   "tier": "B",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG26_ICC_901",
+    "BG32_821"
+   ]
+  },
+  {
+   "z": 25,
+   "name": "野兽 - 召唤",
+   "tier": "B",
+   "n_core": 4,
+   "core_card_ids": [
+    "BG25_354",
+    "BG26_802",
+    "BG35_604",
+    "BGS_018"
+   ]
+  },
+  {
+   "z": 26,
+   "name": "鱼人 - 招潮者",
+   "tier": "B",
+   "n_core": 5,
+   "core_card_ids": [
+    "BG26_354",
+    "BG27_556",
+    "BG33_891",
+    "BG35_883",
+    "BG_LOE_077"
+   ]
+  },
+  {
+   "z": 27,
+   "name": "龙 - 战吼",
+   "tier": "B",
+   "n_core": 4,
+   "core_card_ids": [
+    "BG29_813",
+    "BG34_633",
+    "BG_LOE_077",
+    "BGS_041"
+   ]
+  },
+  {
+   "z": 28,
+   "name": "亡灵 - 永恒骑士",
+   "tier": "B",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG25_008",
+    "BG25_009",
+    "BG34_403"
+   ]
+  },
+  {
+   "z": 29,
+   "name": "机械 - 圣盾",
+   "tier": "B",
+   "n_core": 1,
+   "core_card_ids": [
+    "BG28_741"
+   ]
+  },
+  {
+   "z": 30,
+   "name": "机械 - 扩音机",
+   "tier": "B",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG26_152",
+    "BG26_ICC_901",
+    "BG34_171"
+   ]
+  },
+  {
+   "z": 31,
+   "name": "野猪人 - 手牌宝石",
+   "tier": "B",
+   "n_core": 3,
+   "core_card_ids": [
+    "BG28_583",
+    "BG30_121",
+    "BG33_885"
+   ]
+  },
+  {
+   "z": 32,
+   "name": "龙 - 希望信使",
+   "tier": "B",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG29_813",
+    "BGS_040"
+   ]
+  },
+  {
+   "z": 33,
+   "name": "龙 - 法术强度",
+   "tier": "B",
+   "n_core": 2,
+   "core_card_ids": [
+    "BG29_813",
+    "BG_LOE_077"
+   ]
+  }
+ ]
+}
