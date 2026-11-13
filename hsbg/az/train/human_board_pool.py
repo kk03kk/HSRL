@@ -173,7 +173,8 @@ class HumanBoardPool:
                  max_board_strength: int = MAX_BOARD_STRENGTH,
                  check_cards: bool = True,
                  min_tier: Optional[int] = None,
-                 require_any_cards: Optional[Any] = None):
+                 require_any_cards: Optional[Any] = None,
+                 min_hand: Optional[int] = None):
         self.path = str(path) if path else ""
         #: ``turn -> [HumanBoard]``（载入顺序，采样时按 strength 排序）
         self.index: Dict[int, List[HumanBoard]] = {}
@@ -200,6 +201,9 @@ class HumanBoardPool:
             self.require_cards = frozenset(p for p in parts if p)
         else:
             self.require_cards = frozenset(str(x) for x in require_any_cards)
+        #: 只保留**观测手牌数** >= 本值的帧（None/0 = 不过滤）。用途：真人后期在跑循环
+        #: （T12 每回合 play 22 / sell 10.4，模型只有 8 / 1.2），需要"手里有资源"的起点。
+        self.min_hand = int(min_hand) if min_hand else None
         self.rows = 0
         self.kept = 0
         #: 带准完整 payload（``board_detail``）的行数；hand/full 档必须 > 0。
@@ -243,6 +247,9 @@ class HumanBoardPool:
                     if int(hb.tier) < int(self.min_tier):
                         self._drop("tier_below_min")
                         continue
+                if self.min_hand is not None and int(getattr(hb, "hand_n", 0) or 0) < int(self.min_hand):
+                    self._drop("hand_below_min")
+                    continue
                 if self.require_cards:
                     cards = set()
                     detail = row.get("board_detail")

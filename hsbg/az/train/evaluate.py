@@ -289,9 +289,36 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                             repeated_actions = 0
                             upgrade_legal_steps = 0
                             gold_events = []
-                        gold_before = int(json.loads(game.player_json(seat))['gold'])
+                        _pj = json.loads(game.player_json(seat))
+                        gold_before = int(_pj['gold'])
                         turn_actions += 1
                         action_counts[group_of(action)] += 1
+                        # 按**卡类**再拆一层（随从 / 法术）——真人库的 action_counts 就是
+                        # 这个粒度（buy_minion / play_spell …），拆开才能同口径比较。
+                        # 编码（actions.rs）：buy=8+slot（slot<8）、play=46+slot*8+pos（slot<10）、
+                        # magnetize=126+slot*7+pos；手牌/商店项的 `type` 为 "minion"|"spell"。
+                        _a = int(action)
+                        _item = None
+                        if 8 <= _a < 16:
+                            _shop = _pj.get("shop") or []
+                            _i = _a - 8
+                            if _i < len(_shop) and isinstance(_shop[_i], dict):
+                                _item = ("buy", _shop[_i])
+                        elif 46 <= _a < 126:
+                            _hand = _pj.get("hand") or []
+                            _i = (_a - 46) // 8
+                            if _i < len(_hand) and isinstance(_hand[_i], dict):
+                                _item = ("play", _hand[_i])
+                        elif 126 <= _a < 196:
+                            _hand = _pj.get("hand") or []
+                            _i = (_a - 126) // 7
+                            if _i < len(_hand) and isinstance(_hand[_i], dict):
+                                _item = ("magnetize", _hand[_i])
+                        if _item is not None:
+                            _verb, _it = _item
+                            _kind = str(_it.get("type") or "").lower()
+                            _suffix = "spell" if _kind == "spell" else "minion"
+                            action_counts[f"{_verb}_{_suffix}"] += 1
                         upgrade_legal_steps += int(mask[ACTION_SEGMENTS["upgrade"][0]])
                         repeated_actions += action == previous_action
                         previous_action = action
@@ -316,8 +343,14 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 eot_attack=sum(int(m['atk']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_hp=sum(int(m['hp']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_stage='recruitment_end_before_combat',
-                                # 手牌数：判断"不循环"是因为"没钱买"还是"手里没牌可打"
-                                hand_n=(len(player.get('hand') or []) if isinstance(player.get('hand'), list) else None),
+                                # 逐卡属性 + 手牌数：面板侧用它们算
+                                # ①"留存的随从每回合涨多少"（真人同口径：T10→11 每只 +690 Σ，RUNS §5.48）
+                                # ②"不循环"是没钱买，还是手里没牌可打
+                                board_stats={str(m.get('card_id') or m.get('card')):
+                                             [int(m.get('atk') or 0), int(m.get('hp') or 0)]
+                                             for m in describe_board(board)},
+                                hand_n=(len(player.get('hand') or [])
+                                        if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),
                             ))
                             turn_actions = 0

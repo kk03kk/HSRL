@@ -324,6 +324,49 @@ def mechanics_by_turn(rows: List[Dict[str, Any]], min_turn: int = 6) -> Dict[str
     return out
 
 
+def retained_gain_by_turn(rows: List[Dict[str, Any]], min_turn: int = 6) -> Dict[str, Any]:
+    """模型侧「留存随从每回合涨多少」——与真人库同一口径（RUNS §5.48）。
+
+    真人 T10→11：每只留存随从平均 **+690 Σ**，整局增长几乎全部来自这一项。
+    面板里用 `board_stats`（逐卡 atk/hp）按 seed 串成回合序列，
+    把相邻回合都在场的卡（按 card_id）配对，算平均增重。
+    """
+    by_seed: Dict[str, Dict[int, Dict[str, List[int]]]] = collections.defaultdict(dict)
+    for r in rows:
+        t = int(r["turn"])
+        if t < int(min_turn):
+            continue
+        stats = r.get("board_stats")
+        if not isinstance(stats, dict) or not stats:
+            continue
+        by_seed[str(r.get("seed"))][t] = {
+            str(k): [int(v[0]), int(v[1])] for k, v in stats.items()
+            if isinstance(v, (list, tuple)) and len(v) >= 2
+        }
+    acc: Dict[int, Dict[str, float]] = collections.defaultdict(
+        lambda: {"n": 0, "gain": 0.0, "before": 0.0, "after": 0.0})
+    for turns in by_seed.values():
+        for t in sorted(turns):
+            a, b = turns.get(t), turns.get(t + 1)
+            if not a or not b:
+                continue
+            kept = [k for k in a if k in b]
+            if not kept:
+                continue
+            d = acc[t]
+            d["n"] += 1
+            d["gain"] += sum((b[k][0] + b[k][1]) - (a[k][0] + a[k][1]) for k in kept) / len(kept)
+            d["before"] += sum(a[k][0] + a[k][1] for k in kept) / len(kept)
+            d["after"] += sum(b[k][0] + b[k][1] for k in kept) / len(kept)
+    out: Dict[str, Any] = {}
+    for t, d in acc.items():
+        n = max(d["n"], 1)
+        out[str(t)] = {"games": d["n"], "kept_gain": _r(d["gain"] / n, 1),
+                       "kept_before": _r(d["before"] / n, 1),
+                       "kept_after": _r(d["after"] / n, 1)}
+    return out
+
+
 def boards_by_turn(rows: List[Dict[str, Any]],
                    min_turn: int = 6) -> Dict[str, Dict[str, List[str]]]:
     """``seed -> turn -> [card_id]``（只留 ``turn >= min_turn``）。
@@ -406,6 +449,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "action_mix_by_turn": action_mix_by_turn(rows),
         "combat_by_turn": combat_by_turn(result.get("combat_exposure") or []),
         "mechanics_by_turn": mechanics_by_turn(rows),
+        "retained_gain_by_turn": retained_gain_by_turn(rows),
         "final_boards": final_boards(rows),
         "boards_by_turn": boards_by_turn(rows),
     }

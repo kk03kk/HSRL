@@ -62,6 +62,8 @@ OPTIONS = {
     "entry-min-tier",
     # 入场帧必须含的引擎卡 id（逗号分隔；空=不过滤），用于引擎入场课程。
     "entry-require-cards",
+    # 入场帧的最低观测手牌数（0=不过滤）：给"资源在手"的起点。
+    "entry-min-hand",
     # 镜像对手的回合上界（0=不限）：中后期课程用它把镜像关在入场回合之前。
     "mirror-max-turn",
     # 专家相对过程奖励（默认 board-target-coef=0 = 关闭；见 board_target.py）。

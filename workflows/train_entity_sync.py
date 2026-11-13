@@ -595,6 +595,9 @@ def main() -> int:
                     help="1=入场注入走快速路径（与 --human-board-fast-inject 逐位等价）")
     ap.add_argument("--entry-set-health", type=int, default=0,
                     help="1=把观测到的 hero_hp 一起写回 learner 席；默认 0（血量随局演进）")
+    ap.add_argument("--entry-min-hand", type=int, default=0,
+                    help="入场帧的最低观测手牌数（0=不过滤）。真人后期每回合 play 22/sell 10.4，"
+                         "模型只有 8/1.2 —— 用它给「资源在手」的起点")
     ap.add_argument("--entry-require-cards", default="",
                     help="入场帧必须含这些引擎卡 card_id（逗号/分号分隔；空=不过滤）。"
                          "用于'引擎入场课程'：真人 T12 有 64%% 战团含引擎卡，模型只有 9%%")
@@ -1153,7 +1156,8 @@ def main() -> int:
             return 2
         _etier = int(getattr(args, "entry_min_tier", 0) or 0)
         _ecards = str(getattr(args, "entry_require_cards", "") or "").strip()
-        if _etier > 0 or _ecards:
+        _ehand = int(getattr(args, "entry_min_hand", 0) or 0)
+        if _etier > 0 or _ecards or _ehand:
             # 只保留观测等级 >= _etier 的帧：先把池子建一遍，池子空就直接拒绝启动。
             # （等级未知的 board-only 行会被丢弃，见 human_board_pool.HumanBoardPool.min_tier）
             try:
@@ -1161,7 +1165,8 @@ def main() -> int:
                 _epool = _load_entry_pool(str(args.entry_boards),
                                           sample=str(args.entry_sample), min_tier=_etier,
                                           require_any_cards=str(getattr(
-                                              args, "entry_require_cards", "") or "") or None)
+                                              args, "entry_require_cards", "") or "") or None,
+                                          min_hand=_ehand or None)
             except BaseException as exc:  # noqa: BLE001
                 print(f"[error] --entry-min-tier={_etier} 建池失败: {exc!r}",
                       file=sys.stderr)
@@ -2459,6 +2464,7 @@ def main() -> int:
             entry_set_health=bool(int(args.entry_set_health)),
             entry_min_tier=int(args.entry_min_tier),
             entry_require_cards=str(args.entry_require_cards or ""),
+            entry_min_hand=int(getattr(args, "entry_min_hand", 0) or 0),
             # 专家相对过程奖励（默认 coef=0 -> 零开销）
             board_target_coef=float(args.board_target_coef),
             board_target_w_card=float(args.board_target_w_card),
