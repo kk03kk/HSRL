@@ -37,6 +37,9 @@ BANK_TO_MODEL = {
     "upgrade": "upgrade",
     "hero_power": "hero_power",
     "sell_minion": "sell",
+    "sell": "sell",
+    "buy_spell": "buy_spell",
+    "triple": "triple",
 }
 
 
@@ -105,7 +108,8 @@ def main() -> int:
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
 
-    groups = ("buy", "play", "refresh", "sell", "upgrade", "hero_power")
+    groups = ("buy", "buy_spell", "play", "refresh", "sell", "triple",
+              "upgrade", "hero_power")
     if args.dump_game and args.bank:
         seen: List[str] = []
         rows = []
