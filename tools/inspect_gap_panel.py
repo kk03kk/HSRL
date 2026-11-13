@@ -193,7 +193,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.action_mix:
         print()
         print("ACTION MIX（逐回合、每局均值）")
-        groups = ("buy", "sell", "refresh", "play", "upgrade", "hero_power")
+        groups = ("buy", "sell", "refresh", "play", "upgrade", "dark_gift",
+                  "hero_power", "choose", "activate", "magnetize")
         for tag, name, model in rows:
             am = model.get("action_mix_by_turn") or {}
             if not am:
