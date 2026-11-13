@@ -149,3 +149,19 @@ HSAI_LE_SEGMENTS=2 HSAI_LE_MINUTES=30 \
 `run.env` 记录 config / library / source / git SHA / `training_source_digest()` /
 GPU / 节点，便于事后核对。**任何跨段实验期间不要提交 `hsbg/` 或 `workflows/`**
 （续训守卫会以 `训练代码已变更` 拒绝，见 `docs/OPERATIONS.md` §3.5）。
+
+## 追加：`--entry-min-tier`（2026-11-13，专家先验）
+
+专家先验：当前版本高手 **T8 左右到五本**。而实测 champion 的升本曲线 T2/T5 与标准一致，
+**T8 之后停住**（T8 4.33 / T10 4.44，真人 4.82 / 5.52；`upgrade` 使用率 T9 之后 ≈0）。
+结构上 **15/33 个流派最高核心在 6 本、16/33 在 5 本、0/33 能在 4 本成型**，
+所以停在 4 本等于拿不到真核心。
+
+因此新增 `--entry-min-tier k`（默认 0 = 不过滤）：只使用**观测等级 ≥ k** 的入场帧，
+让入场课程直接落在"五本位置"上。实现要点（`hsbg/az/train/human_board_pool.py`）：
+
+- 等级取**观测值**（库行的 `tier` 字段）；等级未知（无 `board_detail` 的 board-only 行）**丢弃**
+  ——宁可池子小，也不假装知道等级；
+- 过滤计数落在 `pool.filtered`（`tier_below_min` / `tier_unknown`），作业启动时打印；
+- 过滤后池子为空 → `train_entity_sync` **拒绝启动**（fail-loud，不拿空池子跑）；
+- 6k 库 T8 实测有 **657 行 tier≥5**（占 64%），够 `p75` 采样。
