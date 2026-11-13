@@ -632,3 +632,32 @@ PPO 于是收敛到捷径「把金币全砸在升级上、不买随从」。
 **本轮结果**：g5b/f4b/g6b 全部 scancel + 删目录，按规则 1 重开为
 `entry-g5c-20261113`（`1125428`）与 `entry-g6c-20261113`（`1125429`），
 `run.env` 已确认分别指向 `config/league-entry-g5.json` / `-g6.json`。
+
+## D-039 · 2026-11-13 · local · 发现并修正 anchor 日程：我所有的 fork 都比 champion 被约束 5 倍
+
+**发现**：`workflows/train_entity_sync.py` 的 anchor 日程是
+
+```python
+anchor_beta_i = anchor_beta if i < anchor_iterations else anchor_beta_tail
+```
+
+- **champion 的配方**（`config/league-36h.json`）：`anchor_beta=0.1, anchor_iterations=250,
+  tail=0.02` → **250 轮后就降到 0.02**；它一共训练了 5,316 轮，也就是**绝大部分时间在 0.02**。
+- **我这一夜所有从联赛 fork 的臂**（B3/C1/D1/F4/G5/G6/G7/G8/H1/H2/H3/H4）：
+  `anchor_iterations=15108`（这是 S1 配方里的值），而每个臂只跑 100–200 轮
+  → **全程停在 0.1，永远到不了 0.02**。
+
+也就是说：这些 arm 的 KL 锚是 champion 稳态的 **5 倍**，每步都被拉住。
+这解释了一个反复出现的困惑——**为什么十几个臂的改动都"有方向、没幅度"**：
+D1 名次只从 1.333 回到 1.177、H2 覆盖虽然翻倍但板面只掉 12%……
+
+反过来，E 系列（`anchor_beta=0.02` 恒定）**确实动了**（tier 超额达成、板面 −33%），
+只是被 `tier-target` 的捷径带偏。**两代结果的差异有相当一部分来自 anchor，而不是奖励本身**。
+
+**决定**
+
+1. 主线配方改用 **champion 自己的日程**：`anchor-beta 0.1` + `anchor-iterations 250`
+   + `anchor-beta-tail 0.02`。已生成 `config/league-entry-h6.json` 并启动（`1126696`）。
+2. 今后任何"fork 后没有变化"的实验，**先核对 anchor 日程**再归因给奖励。
+3. 记录口径：`history.jsonl` 里若只有 `anchor_kl` 递增而无策略位移，
+   第一嫌疑就是 anchor 没衰减；报告实验时必须写明 `anchor-beta/-iterations/-tail` 三元组。
