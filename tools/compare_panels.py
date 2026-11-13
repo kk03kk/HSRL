@@ -31,18 +31,27 @@ def models_of(panel: dict) -> Dict[str, dict]:
 
 
 def ranks(model: dict) -> Dict[str, float]:
+    """逐局名次。
+
+    面板里 ``rank_sequence`` 实际是**纯整数列表**（第 i 项 = seed ``base+i`` 那一局，
+    见 ``evaluate.py`` 的 ``[int(r) for r in ranks]``），所以这里用**下标**当配对键；
+    两次运行只要 `--seed` 与 `--games` 相同，下标就一一对应。
+    （如果将来改成分数对/带 seed 的字典，这个函数也兼容。）
+    """
     seq = model.get("rank_sequence") or []
     out: Dict[str, float] = {}
-    for item in seq:
+    for i, item in enumerate(seq):
         if isinstance(item, dict):
             seed, rank = item.get("seed"), item.get("rank")
+            if seed is not None and rank is not None:
+                out[str(seed)] = float(rank)
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
-            seed, rank = item[0], item[1]
+            out[str(item[0])] = float(item[1])
         else:
-            continue
-        if seed is None or rank is None:
-            continue
-        out[str(seed)] = float(rank)
+            try:
+                out[str(i)] = float(item)
+            except (TypeError, ValueError):
+                continue
     return out
 
 
