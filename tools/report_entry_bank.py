@@ -32,6 +32,8 @@ def main() -> int:
     by_turn_tier: dict[int, collections.Counter] = collections.defaultdict(
         collections.Counter)
     games: collections.defaultdict[int, set] = collections.defaultdict(set)
+    by_gold: dict[int, collections.Counter] = collections.defaultdict(collections.Counter)
+    by_hand: dict[int, collections.Counter] = collections.defaultdict(collections.Counter)
     no_tier = 0
     no_detail = 0
     for line in open(args.bank, encoding="utf-8"):
@@ -59,6 +61,16 @@ def main() -> int:
             continue
         by_turn[t] += 1
         by_turn_tier[t][int(tier)] += 1
+        gold = r.get("gold")
+        hand_n = r.get("hand_n")
+        if hand_n is None and isinstance(r.get("hand"), list):
+            hand_n = len(r["hand"])
+        if isinstance(gold, (int, float)):
+            gb = ">=9" if gold >= 9 else "6-8" if gold >= 6 else "3-5" if gold >= 3 else "<3"
+            by_gold[t][gb] += 1
+        if isinstance(hand_n, (int, float)):
+            hb = ">=6" if hand_n >= 6 else "4-5" if hand_n >= 4 else "2-3" if hand_n >= 2 else "<2"
+            by_hand[t][hb] += 1
         if r.get("game_id"):
             games[t].add(str(r["game_id"]))
 
@@ -69,6 +81,13 @@ def main() -> int:
         c = by_turn_tier.get(t) or collections.Counter()
         print(f"{t:>5} {by_turn.get(t, 0):>6} {len(games.get(t, ())):>6} "
               + " ".join(f"{c.get(k, 0):>6}" for k in range(1, 8)))
+    print()
+    print(f"{'turn':>5}  gold(<3/3-5/6-8/>=9)          hand(<2/2-3/4-5/>=6)")
+    for t in range(lo, hi + 1):
+        g = by_gold.get(t) or collections.Counter()
+        h = by_hand.get(t) or collections.Counter()
+        print(f"{t:>5}  {g.get('<3',0):>5}/{g.get('3-5',0):<6}/{g.get('6-8',0):<6}/{g.get('>=9',0):<7} "
+              f"{h.get('<2',0):>5}/{h.get('2-3',0):<6}/{h.get('4-5',0):<6}/{h.get('>=6',0):<7}")
     tot = sum(by_turn.values())
     ge5 = sum(v for t in by_turn_tier for k, v in by_turn_tier[t].items() if k >= 5)
     print(f"合计 {tot} 行；其中 tier>=5 有 {ge5} 行 "
