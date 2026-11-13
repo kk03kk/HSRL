@@ -98,11 +98,33 @@ def main() -> int:
     ap.add_argument("--bank", default="")
     ap.add_argument("--panel", action="append", default=[], metavar="TAG=PATH")
     ap.add_argument("--turns", default="8-12")
+    ap.add_argument("--dump-game", type=int, default=0,
+                    help="打印第 N 局（perspective=self）的逐回合原始 action_counts，"
+                         "用来核对它到底是「当回合计数」还是「整局累计」")
     args = ap.parse_args()
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
 
     groups = ("buy", "play", "refresh", "sell", "upgrade", "hero_power")
+    if args.dump_game and args.bank:
+        seen: List[str] = []
+        rows = []
+        for line in open(args.bank, encoding="utf-8"):
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            if str(r.get("perspective") or "") != "self":
+                continue
+            gid = str(r.get("game_id") or "")
+            if gid not in seen:
+                seen.append(gid)
+            if seen and gid == seen[-1]:
+                rows.append(r)
+        for r in rows:
+            counts = json.dumps(r.get("action_counts"), ensure_ascii=False)
+            print(f"T{r.get('turn')}: {counts}")
+        return 0
     rows: List[tuple] = []
     if args.bank:
         rows.append(("human", bank_volume(args.bank, lo, hi)))
