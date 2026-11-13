@@ -57,6 +57,10 @@ fs_teacher="${HSAI_FORCED_SPELL_TEACHER:-0}"
 # 对手强度混合：1.0（默认）= 7 个座位全用真人赢家战团（旧行为逐位一致）；
 # <1.0 时其余对局用 EOT 镜像快照（较弱）——用来检验"场太强导致名次信号退化"这一假设。
 human_p="${HSAI_HUMAN_BOARD_P:-1.0}"
+# 镜像席位占比：1.0（默认）= 尽量都用 EOT 镜像快照。**注意**：镜像按"同座位同回合"优先，
+# mirror-p=1 时 human-board-p 几乎会被完全压制（实测 applied=70 vs skipped_by_mirror=11252），
+# 所以"混合对手场"必须调 mirror-p，不是调 human-board-p。
+mirror_p="${HSAI_MIRROR_P:-1.0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -80,6 +84,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "comp_target_coef=$comp_coef"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
+  echo "mirror_p=$mirror_p"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -118,14 +123,14 @@ python workflows/train_entity_sync.py \
   --device cuda --out "$out/train" \
   --opponent bot --behavior net --pipeline 0 --rust-collector 0 --lockstep 1 \
   --mirror-snaps artifacts/libraries/league-eot-v1.1-20261109/train \
-  --mirror-seats 7 --mirror-p 1 --human-board-p 0 \
+  --mirror-seats 7 --mirror-p "$mirror_p" --human-board-p 0 \
   --games "${HSAI_LR_GAMES:-256}" --iterations 0 --minutes "${HSAI_LR_MINUTES:-150}" \
   --epochs 2 --minibatch 1024 --grad-accum 1 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 25000 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations 0 --anchor-beta-tail "$anchor_beta" \
   --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
-  --mirror-sample p50 --mirror-seats 7 --mirror-p 1 --mirror-strict 0 --mirror-max-turn 4 \
+  --mirror-sample p50 --mirror-seats 7 --mirror-p "$mirror_p" --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --human-board-p "$human_p" --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn 9 \
