@@ -807,3 +807,32 @@ evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h1
 入场收窄到 **T8 单回合 + p75**，`comp-target` 与 `tier-target` **全关**，
 `human-board-min-turn 7`；两臂唯一差别是 `entry-min-tier`（M1=5 只用五本以上的入场帧，M0=0 不过滤）。
 6k 入场库的注入门禁已通过（`smoke-inject-6k-20261113`：6/6 applied、tier_match 6/6、3.7 ms）。
+## D-046 · 2026-11-13 · local · 同一事故第二次：把 `evaluate.py` 随文档推进 main，判死 M2/M3；改为**代码级守卫**
+
+**事故**：19:20 左右为记录 `hand_n` 改了 `hsbg/az/train/evaluate.py`（digest 相关），
+用 `git add -A` 和文档一起提交并 `push` 到 main。正在跑的 **M2（`1132980`）/ M3（`1132981`）**
+在各自第二个分段边界（约 20 分钟处）双双 FAILED：
+`ValueError: 训练代码已变更；请另开实验，不能伪装为精确续训`。
+快照保留（`keep-snapshots 3`），损失约 40 分钟 GPU ×2。
+
+这是 **D-037 的同一条规则第二次被违反**——问题不在"不知道规则"，而在"靠记性执行"。
+
+**决定：把规则变成代码，不再靠记性**
+
+`ops/hsai_ops.py` 的 `push` 现在内置 **digest 守卫**：
+
+1. 取 `git diff --name-only server/main..HEAD`；
+2. 若含 `hsbg/az/train/**.py` 或 `workflows/train_entity_sync.py`；
+3. 就查 `squeue -u $USER`，**只要有 RUNNING 的 `hsai-*` 作业就拒绝推送**，并在错误里列出
+   作业号与三条处理方式（等作业结束 / 放侧分支 / 确实要中止就加 `--force-digest`）。
+
+实测（2026-11-13 19:25）：`_is_digest_path` 对 `hsbg/az/train/ppo.py` 与
+`workflows/train_entity_sync.py` 返回 True、对 `config/*.json` 返回 False；
+`_running_training_jobs()` 正确返回 `['1133079(hsai-late-entry)', '1133069(hsai-late-entry)']`。
+
+**副作用（重要）**：一旦把侧分支 merge 进本地 main 但还没推送，
+**后续所有 push 都会被守卫拦下**（因为 `server/main..HEAD` 里始终有 digest 文件）。
+正确顺序是：**等作业结束 → merge → 立刻 push**，中间不要夹别的推送需求。
+
+**本轮复跑**：M3 由加速版 `N1`（引擎入场 + `games 256`）接手，M2 由 `M2b`
+（均匀 p50 + `games 256`）接手，19:20 起在 h100-47 上跑，5 段 × 20 min。
