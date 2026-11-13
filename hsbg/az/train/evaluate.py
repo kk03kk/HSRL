@@ -316,6 +316,14 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 eot_attack=sum(int(m['atk']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_hp=sum(int(m['hp']) for m in eot_board) if eot_board is not None else None,
                                 eot_board_stage='recruitment_end_before_combat',
+                                # 逐卡属性 + 手牌数：面板侧用它们算
+                                # ①"留存的随从每回合涨多少"（真人同口径：T10→11 每只 +690 Σ，RUNS §5.48）
+                                # ②"不循环"是没钱买，还是手里没牌可打
+                                board_stats={str(m.get('card_id') or m.get('card')):
+                                             [int(m.get('atk') or 0), int(m.get('hp') or 0)]
+                                             for m in describe_board(board)},
+                                hand_n=(len(player.get('hand') or [])
+                                        if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),
                             ))
                             turn_actions = 0
