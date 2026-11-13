@@ -243,6 +243,15 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     policy = PPOGreedyPolicy(evaluator,
                              max_actions_per_turn=int(args.max_actions_per_turn),
                              forbid_unfreeze=bool(int(args.forbid_unfreeze)))
+    pool = None
+    if str(getattr(args, "human_opponents", "") or "").strip():
+        from hsbg.az.train.human_board_pool import HumanBoardPool
+        pool = HumanBoardPool(str(args.human_opponents),
+                              sample=str(getattr(args, "human_opponent_sample",
+                                                 "auto") or "auto"))
+        print(f"[{name}] 对手换成真人战团：{args.human_opponents} "
+              f"sample={getattr(args, 'human_opponent_sample', 'auto')} "
+              f"turns={sorted(pool.turns())[:3]}...", flush=True)
     cfg = EvalConfig(
         games=int(args.games),
         seed=int(args.seed),
@@ -251,6 +260,8 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         collect_economy=True,
         collect_action_hist=True,
         forced_tier_plan=str(args.forced_tier_plan or ""),
+        human_board_pool=pool,
+        human_board_set_tier=True,
     )
     started = time.time()
     result = evaluate_policy(policy, cfg)
@@ -318,6 +329,14 @@ def main(argv=None) -> int:
     ap.add_argument("--forced-tier-plan", default="",
                     help='e.g. "2:2,5:3,6:4,8:5" — diagnostic only, never for ranking')
     ap.add_argument("--human-baseline", default="")
+    #: 把 7 个对手从引擎 bot 换成**真人战团**（`HumanBoardPool`，按回合注入）。
+    #: 为什么需要：对 7 个引擎 bot，champion 已经是 `mean_rank 1.177`（饱和），
+    #: 名次类指标无法区分优劣；换成真人战团后名次重新有信息量。
+    ap.add_argument("--human-opponents", default="",
+                    help="真人战团库 JSONL；给空=保持 engine_bot 对手（默认，历史协议）")
+    ap.add_argument("--human-opponent-sample", default="auto",
+                    choices=["auto", "p50", "p75", "p90", "max"],
+                    help="真人对手强度档（auto = turn<=8 p50 / 9..12 p75 / >=13 p90）")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
@@ -344,7 +363,10 @@ def main(argv=None) -> int:
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "engine": engine_info(),
         "panel": {
-            "opponent": "engine_bot x7",
+            "opponent": (f"human_board_pool x7 ({args.human_opponents}, "
+                         f"sample={args.human_opponent_sample})"
+                         if str(args.human_opponents or "").strip()
+                         else "engine_bot x7"),
             "games": int(args.games),
             "seed": int(args.seed),
             "max_actions_per_turn": int(args.max_actions_per_turn),
