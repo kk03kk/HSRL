@@ -867,7 +867,11 @@ def cmd_sh(args: argparse.Namespace) -> int:
         raise OpsError("没有给出命令")
     warn = non_ascii_warning(script)
     if warn:
-        print(warn, file=sys.stderr)
+        # stdout, not stderr: Windows PowerShell 5.1 turns any stderr byte from a native
+        # command into a NativeCommandError when the caller redirects (``2>&1 | ...``),
+        # which flips the whole invocation's exit code to 1. A prefixed stdout line is
+        # visible without wrecking exit codes.
+        print("[warn] " + warn)
     rc, out, err = remote_run(
         script, timeout=args.timeout, allow_heavy=args.allow_heavy, label="sh"
     )
