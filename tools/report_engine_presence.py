@@ -63,7 +63,9 @@ def load_name_ids() -> Dict[str, str]:
 
 def bank_presence(bank: str, ids: Set[str], lo: int, hi: int
                   ) -> Dict[int, Dict[str, float]]:
-    per = collections.defaultdict(lambda: {"boards": 0, "with_engine": 0})
+    per = collections.defaultdict(lambda: {
+        "boards": 0, "with_engine": 0,
+        "sum_with": 0.0, "sum_without": 0.0, "n_with": 0, "n_without": 0})
     for line in open(bank, encoding="utf-8"):
         line = line.strip()
         if not line:
@@ -81,14 +83,31 @@ def bank_presence(bank: str, ids: Set[str], lo: int, hi: int
         d = per[t]
         d["boards"] += 1
         cids = set()
+        strength = 0.0
         for m in detail:
             cid = m.get("card_id")
             if isinstance(cid, str):
                 cids.add(cid[:-2] if cid.endswith("_G") else cid)
+            strength += float(m.get("atk") or 0) + float(m.get("hp") or 0)
         if cids & ids:
             d["with_engine"] += 1
-    return {t: {"boards": d["boards"], "with_engine": d["with_engine"] / max(d["boards"], 1)}
-            for t, d in per.items()}
+            d["sum_with"] += strength
+            d["n_with"] += 1
+        else:
+            d["sum_without"] += strength
+            d["n_without"] += 1
+    out: Dict[int, Dict[str, float]] = {}
+    for t, d in per.items():
+        out[t] = {
+            "boards": d["boards"],
+            "with_engine": d["with_engine"] / max(d["boards"], 1),
+            # 「一台引擎值多少战力」：有引擎 vs 无引擎的战团 Σ 均值
+            "str_with": (d["sum_with"] / d["n_with"]) if d["n_with"] else 0.0,
+            "str_without": (d["sum_without"] / d["n_without"]) if d["n_without"] else 0.0,
+            "lift": ((d["sum_with"] / d["n_with"]) / (d["sum_without"] / d["n_without"])
+                     if d["n_with"] and d["n_without"] and d["sum_without"] else 0.0),
+        }
+    return out
 
 
 def panel_presence(panel: str, ids: Set[str], lo: int, hi: int
@@ -135,8 +154,10 @@ def main() -> int:
     print(f"引擎卡 {len(ids)}/{len(names)} 命中卡表；未找到：{missing or '无'}")
 
     cols: List[tuple] = []
+    bank_lift: Dict[int, Dict[str, float]] = {}
     if args.bank:
         b = bank_presence(args.bank, ids, lo, hi)
+        bank_lift = b
         cols.append(("human-bank", {t: b[t]["with_engine"] for t in b}))
     for spec in args.panel:
         tag, _, path = spec.partition("=")
@@ -148,8 +169,18 @@ def main() -> int:
         line = f"{t:>5}"
         for _name, per in cols:
             v = per.get(t)
+            if isinstance(v, dict):
+                v = v.get("with_engine")
             line += f" {('%.3f' % v) if v is not None else '—':>22}"
         print(line)
+    if args.bank and bank_lift:
+        print()
+        print("引擎的「战力溢价」（真人库）：有引擎 vs 无引擎的战团 Σ 均值")
+        print(f"{'turn':>5} {'有引擎':>13} {'无引擎':>13} {'倍数':>7}")
+        for t in sorted(bank_lift):
+            d = bank_lift[t]
+            print(f"{t:>5} {d['str_with']:>13.0f} {d['str_without']:>13.0f} "
+                  f"{d['lift']:>7.2f}")
     print("\n（值 = 该回合战团里至少含 1 张引擎卡的局占比）")
     return 0
 
