@@ -35,7 +35,7 @@
   "human-board-set-tier": 1,
   "human-board-fidelity": "full",
   "human-board-fast-inject": 1,
-  "human-board-min-turn": 7,
+  "human-board-min-turn": 9,
   "entry-boards": "data/real_library/firestone-bank-6k/train-m6k.jsonl",
   "entry-p": 0.5,
   "entry-turn-min": 8,
