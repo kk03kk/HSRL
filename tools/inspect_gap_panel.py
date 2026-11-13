@@ -86,6 +86,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                          "禁卖起始战团（K1/K2）这种规则会命中哪些回合")
     ap.add_argument("--mechanics", action="store_true",
                     help="打印逐回合金卡/每格攻血（专家 C1；需新面板的 mechanics_by_turn）")
+    ap.add_argument("--retained", action="store_true",
+                    help="打印留存随从的逐回合增重（与真人库同口径）")
     ap.add_argument("--combat", action="store_true",
                     help="打印逐回合实际战斗胜负（需要面板开 collect_exposure）")
     ap.add_argument("--economy", action="store_true",
@@ -199,6 +201,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if not d:
                     continue
                 print(f"    T{t:<3} " + " ".join(f"{float(d.get(k, 0) or 0):>11.2f}"
+                                                for k in keys))
+
+    # ---- 留存随从增重（与真人库同口径：T10→11 真人每只 +690）----
+    if args.retained:
+        print()
+        print("RETAINED（留存随从的平均增重；真人 T10→11 = +690 Σ）")
+        keys = ("games", "kept_before", "kept_after", "kept_gain")
+        for tag, name, model in rows:
+            rg = model.get("retained_gain_by_turn") or {}
+            if not rg:
+                print(f"  [{tag}:{name}] 没有 retained_gain_by_turn（旧面板）")
+                continue
+            print(f"  [{tag}:{name}]  " + " ".join(f"{k[:13]:>14}" for k in keys))
+            for t in turns:
+                d = rg.get(t)
+                if not d:
+                    continue
+                print(f"    T{t:<3} " + " ".join(f"{float(d.get(k, 0) or 0):>14.1f}"
                                                 for k in keys))
 
     # ---- 机制密度：金卡 / 每格攻血（专家 C1；真人对照见 tools/report_board_mechanics.py）----
