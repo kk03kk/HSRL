@@ -70,6 +70,17 @@ START_ARGS=(--checkpoint "$ckpt")
 if [[ "$resume" == "1" ]]; then
   START_ARGS=(--resume)
 fi
+# 法术自举补贴参数**只在真的开了才传**：main 分支上还没有这两个 argparse 项，
+# 传了会 "unrecognized arguments" 直接失败；塑形臂（spell=0）必须在未打补丁的代码上也能跑。
+SPELL_ARGS=()
+if [[ "${spell_coef}" != "0" && -n "${spell_coef}" ]]; then
+  SPELL_ARGS=(--spell-bootstrap-coef "$spell_coef" --spell-bootstrap-per-game "$spell_k")
+fi
+if [[ "${HSAI_DRY:-0}" == "1" ]]; then
+  echo "[dry-run] ckpt=$ckpt lr=$lr shaping=$shaping_coef spell=$spell_coef/$spell_k resume=$resume"
+  echo "[dry-run] spell_args=${SPELL_ARGS[*]:-<none>}"
+  exit 0
+fi
 
 python workflows/train_entity_sync.py \
   "${START_ARGS[@]}" \
@@ -102,7 +113,7 @@ python workflows/train_entity_sync.py \
   --shaping-coef "$shaping_coef" --shaping-mode log_strength --shaping-gamma 1.0 \
   --shaping-w-str 1.0 --shaping-w-tier 0.0 \
   --eval-panel bot --eval-every-decisions 0 \
-  --spell-bootstrap-coef "$spell_coef" --spell-bootstrap-per-game "$spell_k" \
+  ${SPELL_ARGS[@]+"${SPELL_ARGS[@]}"} \
   2>&1 | tee "$out/train.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
