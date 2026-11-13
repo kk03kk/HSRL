@@ -93,6 +93,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "comp_target_coef=$comp_coef"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
+  echo "entry_p=${HSAI_ENTRY_P:-0.5}"
   echo "mirror_p=$mirror_p mirror_ramp=$mirror_ramp human_ramp=$human_ramp quantile_ramp=$human_q_ramp"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
@@ -145,7 +146,7 @@ python workflows/train_entity_sync.py \
   --human-board-ramp "$human_ramp" --human-board-quantile-ramp "$human_q_ramp" \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn 9 \
   --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
-  --entry-p 0.5 --entry-turn-min 8 --entry-turn-max 8 --entry-sample p75 --entry-min-tier 5 \
+  --entry-p "${HSAI_ENTRY_P:-0.5}" --entry-turn-min 8 --entry-turn-max 8 --entry-sample p75 --entry-min-tier 5 \
   --entry-fidelity full --entry-fast-inject 1 --entry-set-health 0 \
   --max-actions-per-turn 80 --snapshot-every 25 --keep-snapshots 2 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
