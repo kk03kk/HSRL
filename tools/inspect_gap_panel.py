@@ -205,7 +205,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.mechanics:
         print()
         print("MECHANICS（每局金卡数 / 有金卡的局占比 / 每格攻血）")
-        keys = ("golden_per_game", "with_golden", "atk_per_minion", "hp_per_minion")
+        keys = ("golden_per_game", "with_golden", "atk_per_minion", "hp_per_minion",
+                "top1_share")
         for tag, name, model in rows:
             mb = model.get("mechanics_by_turn") or {}
             if not mb:

@@ -298,6 +298,13 @@ def mechanics_by_turn(rows: List[Dict[str, Any]], min_turn: int = 6) -> Dict[str
         d["golden"] += g
         if g:
             d["with_golden"] += 1
+        # 投资集中度：最强那一格占战团总 Σ 的比例（"养大哥" vs "均匀铺开"）
+        sums = [int(m.get("atk") or 0) + int(m.get("hp") or 0) for m in board
+                if isinstance(m, dict)]
+        tot = sum(sums)
+        if sums and tot > 0:
+            d["top1"] = d.get("top1", 0) + max(sums) / tot
+            d["conc_n"] = d.get("conc_n", 0) + 1
     out: Dict[str, Any] = {}
     for t in sorted(per_turn):
         d = per_turn[t]
@@ -309,6 +316,7 @@ def mechanics_by_turn(rows: List[Dict[str, Any]], min_turn: int = 6) -> Dict[str
             "with_golden": _r(d["with_golden"] / n, 3),
             "atk_per_minion": _r(d["atk"] / mn, 1),
             "hp_per_minion": _r(d["hp"] / mn, 1),
+            "top1_share": _r(d["top1"] / max(d.get("conc_n", 1), 1), 3),
         }
     return out
 
