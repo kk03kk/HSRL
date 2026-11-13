@@ -941,3 +941,34 @@ evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h1
 3. 改**启动器/作业脚本**后必须做两道核对：① 服务器上 `bash -n <脚本>`；② `grep` 出关键 flag
    （`--lr` / `--games` / `--processes` / 新增开关）**逐行肉眼确认**。
 4. 任何"参数化"改动后，先在**冒烟规模**（8 局 / 2 进程 / 8 min）跑一次，再上 150 分钟正式段。
+
+## D-050 · 2026-11-14 · local · 远端脚本一律纯 ASCII：PowerShell 的默认编码会毁 UTF-8 并吃掉引号
+
+**事故**：写 L4 边界脚本 `artifacts/state/at_l4_boundary2.sh` 时，用 PowerShell 把它包进
+`cat > /tmp/b2.sh <<'EOF' … EOF` 再经 `hsai_ops.py sh -f` 送远端。远端 `bash -n` 报
+`syntax error near unexpected token '('`，指向的却是一行**完全合法**的
+`echo "@@L4_RESUME_JOB=$res (afterany:$pan)"`。真正坏掉的是第 6 行：
+`echo "@@ABORT: L4 1135112 仍是 $st，边界未到"` 的中文被毁，行尾引号被吃成 `?`
+→ 引号不闭合 → 报错飘到 40 行之后。
+
+**根因（已实测复现，不是推测）**：`hsai_ops.py sh` 是**字节透明**的
+（`remote_run` 用 `input=script.encode("utf-8")` 走 ssh stdin，远端原样落盘）。
+坏在本地这一环：Windows PowerShell 5.1 的 `Get-Content` / `Set-Content` 默认按
+**ANSI 代码页**解码（本机 `ACP=936`），BOM-less UTF-8 中文先被当 GBK 解成乱码再存回：
+
+```
+Get-Content default : 浠嶇劧鏄?OK      # 原文 "仍然是 OK"
+Get-Content -Encoding UTF8 : 仍然是 OK
+```
+
+一个多字节字符被吃成 `?` 时，若它紧邻引号就会把引号一起吃掉。
+
+**决定**
+
+1. **文件内容只走编辑工具**（`write` / `edit`），不经 PowerShell 文本 cmdlet 中转；
+   必须用 PowerShell 读写时显式 `-Encoding UTF8` / `[IO.File]::ReadAllText($p, UTF8)`。
+2. 交给 `hsai_ops.py sh -f` 的脚本**一律纯 ASCII**（注释、`echo` 写英文）。
+   这条是**纵深防御**：即使编码环节再出问题，最多是乱码，不会把脚本变成语法错误。
+3. 新写的远端脚本先 `bash -n` 再执行（`cat > /tmp/x.sh <<'EOF' … EOF` + `bash -n /tmp/x.sh`）。
+4. 判据：远端报 `syntax error` 但**指向的行看着没问题** ⇒ 先怀疑**更早某行**的非 ASCII
+   字符，而不是去改那一行。

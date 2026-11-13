@@ -214,6 +214,20 @@ python ops/hsai_ops.py pull        # 服务器 -> 本地
 python ops/hsai_ops.py sh -f some_script.py     # 或用编辑器经 sftp
 ```
 
+`sh -f` 本身是**字节透明**的（`remote_run` 用 `input=script.encode("utf-8")` 走 ssh stdin），
+但**本地这一段不透明**：Windows PowerShell 5.1 的 `Get-Content` / `Set-Content` 默认按
+ANSI 代码页（本机 `ACP=936`）解码，BOM-less UTF-8 中文会先被当成 GBK 解出乱码再存回去，
+多字节字符被吃成 `?` 时还可能**吃掉行尾引号** —— 远端于是报
+`syntax error near unexpected token '('`，而报错行号指向无辜的一行（2026-11-14 凌晨踩过，
+见 `docs/DECISIONS.md` D-050）。所以：
+
+- **文件内容只走 `write` / `edit` 工具**（全程 UTF-8 无损）；非要用 PowerShell 读写就显式
+  写 `-Encoding UTF8`（或用 `[IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)`）。
+- 交给 `hsai_ops.py sh -f` 的脚本**一律纯 ASCII**（注释、`echo` 都写英文）：编码环节哪天再出
+  问题也只是乱码，不会把引号吃掉、不会把脚本变成语法错误。
+- 新写的远端脚本先 `bash -n` 过一遍再执行（`sh -f` 里 `cat > /tmp/x.sh <<'EOF' … EOF` 再
+  `bash -n /tmp/x.sh`）。
+
 改完**当轮提交**，然后 `pull` 回本地。**不允许在服务器上留未提交改动过夜**——
 这是 11-12 早上 12 个文件飘了 24 小时的直接教训。
 
