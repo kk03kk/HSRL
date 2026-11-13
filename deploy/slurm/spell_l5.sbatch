@@ -38,6 +38,7 @@ resume="${HSAI_LR_RESUME:-0}"
 ckpt="${HSAI_LR_CKPT:-artifacts/models/league-final-20261111-step014858/model.pt}"
 spell_coef="${HSAI_SPELL_COEF:-0.05}"
 spell_k="${HSAI_SPELL_PER_GAME:-3}"
+shaping_coef="${HSAI_SHAPING_COEF:-0.0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -55,6 +56,9 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "lr=$lr"
   echo "ckpt=$ckpt"
   echo "spell_bootstrap_coef=$spell_coef per_game=$spell_k"
+  echo "shaping_coef=$shaping_coef (log_strength, w_tier=0)"
+  # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
+  # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
     echo "mode=resume-from-fork (--resume, trainer state 里已是 $lr)"
   else
@@ -95,7 +99,7 @@ python workflows/train_entity_sync.py \
   --comp-target-coef 0.0 --comp-target-min-turn 10 --comp-target-cards config/strategy_cards.json \
   --comp-target-tier-w S:1.0,A:0.6,B:0.3 --comp-target-cap 1.0 --comp-target-min-hits 2 \
   --tier-target-coef 0.0 --tier-target-table 2:2,5:3,8:5 --tier-gate-k 0.75 \
-  --shaping-coef 0.0 --shaping-mode log_strength --shaping-gamma 1.0 \
+  --shaping-coef "$shaping_coef" --shaping-mode log_strength --shaping-gamma 1.0 \
   --shaping-w-str 1.0 --shaping-w-tier 0.0 \
   --eval-panel bot --eval-every-decisions 0 \
   --spell-bootstrap-coef "$spell_coef" --spell-bootstrap-per-game "$spell_k" \
