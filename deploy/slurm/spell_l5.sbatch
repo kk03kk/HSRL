@@ -61,6 +61,15 @@ human_p="${HSAI_HUMAN_BOARD_P:-1.0}"
 # mirror-p=1 时 human-board-p 几乎会被完全压制（实测 applied=70 vs skipped_by_mirror=11252），
 # 所以"混合对手场"必须调 mirror-p，不是调 human-board-p。
 mirror_p="${HSAI_MIRROR_P:-1.0}"
+# 对手场"退火"课程（默认空 = 用固定值，逐位等价）：
+#   HSAI_MIRROR_P_RAMP       线性 p ramp（按 iteration），如 "0@0,0.5@0.5,0@1.0"
+#   HSAI_HUMAN_BOARD_RAMP    按累计 decisions 的 seats/prob 课程，如 "0:1:0.30,10M:3:0.70,30M:5:0.90"
+#   HSAI_HUMAN_QUANTILE_RAMP 对手强度分位课程，如 "0:p50,20M:p90"
+# 为什么要它：全赢家场里吃鸡率恒为 0，名次只编码"多活一轮"，PPO 目标与真实棋力反相关
+# （RUNS §5.83）；先给能赢的对手、再逐步加硬，才有可能让奖励信号与棋力同向。
+mirror_ramp="${HSAI_MIRROR_P_RAMP:-}"
+human_ramp="${HSAI_HUMAN_BOARD_RAMP:-}"
+human_q_ramp="${HSAI_HUMAN_QUANTILE_RAMP:-}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -84,7 +93,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "comp_target_coef=$comp_coef"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
-  echo "mirror_p=$mirror_p"
+  echo "mirror_p=$mirror_p mirror_ramp=$mirror_ramp human_ramp=$human_ramp quantile_ramp=$human_q_ramp"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -130,9 +139,10 @@ python workflows/train_entity_sync.py \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations 0 --anchor-beta-tail "$anchor_beta" \
   --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
-  --mirror-sample p50 --mirror-seats 7 --mirror-p "$mirror_p" --mirror-strict 0 --mirror-max-turn 4 \
+  --mirror-sample p50 --mirror-seats 7 --mirror-p "$mirror_p" --mirror-p-ramp "$mirror_ramp" --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --human-board-p "$human_p" --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
+  --human-board-ramp "$human_ramp" --human-board-quantile-ramp "$human_q_ramp" \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn 9 \
   --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --entry-p 0.5 --entry-turn-min 8 --entry-turn-max 8 --entry-sample p75 --entry-min-tier 5 \
