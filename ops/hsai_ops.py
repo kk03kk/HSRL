@@ -635,16 +635,17 @@ def cmd_push(args: argparse.Namespace) -> int:
     changed = _git(["diff", "--name-only", "server/main..HEAD"]).split()
     digest_files = [p for p in changed if _is_digest_path(p)]
     if digest_files and not getattr(args, "force_digest", False):
-        running = _running_training_jobs()
+        running = _resume_sensitive_jobs()
         if running:
             raise OpsError(
                 "拒绝推送：这次推送含 digest 相关文件 "
-                f"{digest_files}，而队列里还有 RUNNING 的作业 {running}。\n"
+                f"{digest_files}，而队列里还有会 resume 的训练作业 {running}。\n"
                 "  这些作业会在下一个分段边界被续训守卫判死（D-037/D-046）。\n"
                 "  处理方式：① 等作业结束；② 把 digest 改动放侧分支 pending-digest/；\n"
                 "  ③ 确实要中止时显式加 --force-digest")
         else:
-            print(f"[guard] 含 digest 文件 {digest_files}，但队列里没有 RUNNING 作业，放行。")
+            print(f"[guard] 含 digest 文件 {digest_files}，但队列里没有会 resume 的"
+                  "训练作业（评测作业不算），放行。")
 
     proc = subprocess.run(
         ["git", "push", "server", f"main:main"],
@@ -666,8 +667,21 @@ def _is_digest_path(path: str) -> bool:
     return p.startswith("hsbg/az/train/") and p.endswith(".py")
 
 
-def _running_training_jobs() -> list:
-    """队列里正在跑的 ``hsai-*`` 作业（训练/评测都算，保守处理）。"""
+#: 会从 trainer state 续训的作业名前缀。只有这些作业会被 digest 改动打断：
+#: 评测（hsai-human-gap / hsai-bench / …）从不读 trainer state，改 digest 对它们无影响。
+_TRAINING_JOB_PREFIXES = ("hsai-spell", "hsai-lrfork", "hsai-late")
+
+
+def _resume_sensitive_jobs() -> list:
+    """队列里会被 digest 改动直接打断的作业（``RUNNING`` **或** ``PENDING``）。
+
+    两条精度修正（D-051）：
+
+    1. **只管训练作业**：``hsai-human-gap`` 这类评测/建库作业不 resume，
+       以前"任何 hsai-* 在跑就拦"会让整段夜班都推不了代码。
+    2. **PENDING 也要算**：``--dependency=afterany`` 链里的下一段一旦被调度，
+       就会以新 digest 启动并因 trainer state 不一致而失败——比 RUNNING 更隐蔽。
+    """
     try:
         out = subprocess.run(
             ["ssh", SSH_HOST, "squeue -u $USER -h -o '%i,%T,%j'"],
@@ -678,8 +692,11 @@ def _running_training_jobs() -> list:
     rows = []
     for line in out.splitlines():
         parts = line.strip().split(",")
-        if len(parts) >= 3 and parts[1] == "RUNNING" and parts[2].startswith("hsai-"):
-            rows.append(f"{parts[0]}({parts[2]})")
+        if len(parts) < 3:
+            continue
+        jid, state, name = parts[0], parts[1], parts[2]
+        if state in ("RUNNING", "PENDING") and name.startswith(_TRAINING_JOB_PREFIXES):
+            rows.append(f"{jid}({name},{state})")
     return rows
 
 

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ops"))
 
 from hsai_ops import check_heavy, non_ascii_warning  # noqa: E402
+import hsai_ops  # noqa: E402  (digest 守卫的内部函数要按模块访问)
 
 
 # ─────────────────── 守卫：必须放行 ───────────────────
@@ -205,6 +206,54 @@ def test_non_ascii_warning_fires_on_chinese() -> None:
 
 def test_non_ascii_warning_counts_every_non_ascii_char() -> None:
     assert "2 " in (non_ascii_warning("echo 仍是\n") or "")
+
+
+# ─────────────────── digest 守卫：只拦"会 resume 的训练作业" ───────────────────
+
+def _fake_squeue(monkeypatch, rows: str) -> None:
+    """把 ssh squeue 换成固定输出（不碰网络）。"""
+
+    class _Out:
+        stdout = rows.encode("utf-8")
+
+    def _run(*_a, **_k):
+        return _Out()
+
+    monkeypatch.setattr(hsai_ops.subprocess, "run", _run)
+
+
+def test_digest_guard_blocks_on_running_training_job(monkeypatch) -> None:
+    _fake_squeue(monkeypatch, "1,RUNNING,hsai-spell\n")
+    assert hsai_ops._resume_sensitive_jobs() == ["1(hsai-spell,RUNNING)"]
+
+
+def test_digest_guard_blocks_on_pending_chained_resume(monkeypatch) -> None:
+    """afterany 链里的下一段是 PENDING：被调度时才撞 digest 不一致，更隐蔽。"""
+    _fake_squeue(monkeypatch, "2,PENDING,hsai-lrfork\n")
+    assert hsai_ops._resume_sensitive_jobs() == ["2(hsai-lrfork,PENDING)"]
+
+
+def test_digest_guard_ignores_eval_and_data_jobs(monkeypatch) -> None:
+    """评测/建库作业从不读 trainer state，改 digest 对它们无影响（D-051）。
+
+    以前"任何 hsai-* 在跑就拦"会让整段夜班都推不了代码。
+    """
+    _fake_squeue(
+        monkeypatch,
+        "3,RUNNING,hsai-human-gap\n4,RUNNING,hsai-bench\n5,PENDING,hsai-library\n",
+    )
+    assert hsai_ops._resume_sensitive_jobs() == []
+
+
+def test_digest_guard_ignores_other_users_jobs(monkeypatch) -> None:
+    _fake_squeue(monkeypatch, "6,RUNNING,other-job\n7,PENDING,coursework\n")
+    assert hsai_ops._resume_sensitive_jobs() == []
+
+
+def test_digest_guard_ignores_completed_training_job(monkeypatch) -> None:
+    _fake_squeue(monkeypatch, "8,COMPLETED,hsai-spell\n9,CANCELLED,hsai-spell\n")
+    assert hsai_ops._resume_sensitive_jobs() == []
+
 
 
 # ─────────────────── 隧道自愈：不许把常驻 ssh 挂到管道上 ───────────────────

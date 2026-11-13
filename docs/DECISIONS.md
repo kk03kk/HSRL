@@ -972,3 +972,26 @@ Get-Content -Encoding UTF8 : 仍然是 OK
 3. 新写的远端脚本先 `bash -n` 再执行（`cat > /tmp/x.sh <<'EOF' … EOF` + `bash -n /tmp/x.sh`）。
 4. 判据：远端报 `syntax error` 但**指向的行看着没问题** ⇒ 先怀疑**更早某行**的非 ASCII
    字符，而不是去改那一行。
+
+## D-051 · 2026-11-14 · local · digest 推送守卫收窄到"会 resume 的训练作业"，并补上 PENDING
+
+**问题**：`hsai_ops.py push` 的 digest 守卫原来判据是"队列里有任何 `hsai-*` 且 `RUNNING`"
+就拒绝推送。两个方向都不对：
+
+1. **太宽**：`hsai-human-gap`（真人场面板）、`hsai-bench`、建库作业**从不读 trainer state**，
+   改 digest 对它们零影响。夜班整晚都有面板在跑 ⇒ 代码一行都推不上去，
+   只能等到"恰好没有评测"的窗口，实践中等于没有窗口。
+2. **太窄**：只看 `RUNNING`，漏掉 **`PENDING`**。`--dependency=afterany` 链里的下一段
+   在提交时就已经带着"旧 digest"排队；一旦被调度就以新代码启动、拿旧 trainer state
+   续训 ⇒ **开始即失败**，比 RUNNING 更隐蔽（2026-11-14 夜班 `1136176` / `1136229`
+   就是这种待命状态）。
+
+**决定**
+
+- 守卫判据改为：作业名以 `hsai-spell` / `hsai-lrfork` / `hsai-late` 开头，且状态是
+  `RUNNING` 或 `PENDING` ⇒ 拒绝推送（这些是唯一会 resume 的类型）。
+- 拒绝信息里直接列出 `jobid(名称,状态)`，不再只说"有作业在跑"。
+- 5 条测试钉住双向：RUNNING 训练要拦、PENDING 链要拦、评测/建库放行、别人的作业放行、
+  已结束的训练作业放行。
+
+**注**：这不是放宽纪律，而是把纪律对准它真正要保护的东西——"精确续训能力"。
