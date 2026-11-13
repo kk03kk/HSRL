@@ -27,6 +27,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bank", required=True)
     ap.add_argument("--turns", default="9-12", help="统计 t→t+1（t 取该区间）")
+    ap.add_argument("--top-cards", type=int, default=0,
+                    help="额外列出该回合增重最多的卡（0=不列）")
     args = ap.parse_args()
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
@@ -58,6 +60,8 @@ def main() -> int:
 
     acc: Dict[int, Dict[str, List[float]]] = collections.defaultdict(
         lambda: collections.defaultdict(list))
+    pc: Dict[str, Dict[int, List[float]]] = collections.defaultdict(
+        lambda: collections.defaultdict(list))
     for turns in games.values():
         for t in range(lo, hi + 1):
             a, b = turns.get(t), turns.get(t + 1)
@@ -71,6 +75,8 @@ def main() -> int:
             d["total_after"].append(sum(b.values()))
             if kept:
                 d["kept_gain"].append(sum(b[k] - a[k] for k in kept) / len(kept))
+                for k in kept:
+                    pc[k][t].append(b[k] - a[k])
             if new:
                 d["new_mean"].append(sum(b[k] for k in new) / len(new))
             if gone:
