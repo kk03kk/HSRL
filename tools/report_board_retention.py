@@ -43,6 +43,10 @@ def bank_retention(bank: str, lo: int, hi: int) -> Dict[int, float]:
             r = json.loads(line)
         except BaseException:  # noqa: BLE001
             continue
+        # 只跟**同一个玩家**的连续回合：库里同一 game_id 还有 7 个对手座位的行，
+        # 混在一起会把"换对手"当成"换战团"。（perspective=self 才是被跟踪的那一位）
+        if str(r.get("perspective") or "") != "self":
+            continue
         gid = str(r.get("game_id") or "")
         if not gid:
             continue
