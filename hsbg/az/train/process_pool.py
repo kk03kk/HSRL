@@ -54,6 +54,7 @@ from .tier_target import aggregate_tier_target
 from .comp_target import aggregate_comp_target
 from .move_guard import aggregate_move_guard
 from .forced_tier import aggregate_forced_tier
+from .forced_spell import aggregate_forced_spell
 from .archetype_bias import aggregate_archetype_bias
 from .ppo import (CollectConfig, PPOBatch, PPOSelfPlayPolicy, build_batch_from_arrays,
                   build_batch_from_records, pack_records_arrays)
@@ -1437,6 +1438,18 @@ class ProcessActorPool:
             _ft_agg["prob"] = float(_first.get("prob", 0.0) or 0.0)
             _ft_agg["teacher"] = bool(_first.get("teacher", False))
             meta["forced_tier"] = _ft_agg
+        # 强制买法术统计：与上面同口径（默认关闭 -> 不新增键）
+        _fs_games = []
+        for _m in metas:
+            for _g in (_m.get("games_meta") or []):
+                if isinstance(_g, dict) and isinstance(_g.get("forced_spell_game"), dict):
+                    _fs_games.append(_g)
+        _fs_agg = aggregate_forced_spell(_fs_games)
+        if _fs_agg:
+            _first_fs = next((m.get("forced_spell") for m in metas
+                              if isinstance(m.get("forced_spell"), dict)), {}) or {}
+            _fs_agg["prob"] = float(_first_fs.get("prob", 0.0) or 0.0)
+            meta["forced_spell"] = _fs_agg
         # 搜索行为混合（默认关闭 -> 空 dict，不新增键）：worker meta 逐 shard 汇总。
         _bm_agg = aggregate_behavior_mix(metas)
         if _bm_agg:

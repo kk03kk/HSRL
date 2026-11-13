@@ -720,6 +720,16 @@ def main() -> int:
                          "'0:1.0,40M:0.75,80M:0.4,120M:0.0'；空=全程用 --forced-tier-prob")
     ap.add_argument("--forced-tier-prob", type=float, default=1.0,
                     help="未给 schedule 时的强制概率（1.0=每回合必强制）")
+    # ---- 强制买法术探索课程（默认关闭；见 docs/analysis/DESIGN_FORCED_SPELL_20261114.md）----
+    ap.add_argument("--forced-spell-per-game", type=int, default=0,
+                    help="每局最多强制买几次法术；0=关闭（默认，旧路径逐位等价）。"
+                         "零频动作只能靠强制注入打开（动作条件奖励对它无效）")
+    ap.add_argument("--forced-spell-turn-min", type=int, default=6,
+                    help="从第几回合开始允许强制买法术（默认 6）")
+    ap.add_argument("--forced-spell-prob", type=float, default=1.0,
+                    help="配额内每次合法机会的强制概率（1.0=必强制）")
+    ap.add_argument("--forced-spell-teacher", type=int, default=0, choices=[0, 1],
+                    help="1=未被强制但法术槽合法时写 teacher_action 标签（默认 0）")
     ap.add_argument("--forced-teacher-until", default="",
                     help="在这段累计 decisions 之前，目标未达成且 Upgrade 合法时写 "
                          "teacher 标签（DAgger），如 '160M'；空=不写")
@@ -1415,6 +1425,19 @@ def main() -> int:
             pass
         if float(args.forced_tier_prob) <= 0.0 and not _ft_schedule[-1][1] > 0.0:
             print("[warn] 强制概率恒为 0：等价于只观察、不干预", file=sys.stderr)
+
+    # ---- 强制买法术探索课程（默认关闭）----
+    if int(args.forced_spell_per_game) < 0:
+        print("[error] --forced-spell-per-game 必须 >= 0", file=sys.stderr)
+        return 2
+    if int(args.forced_spell_turn_min) < 0:
+        print("[error] --forced-spell-turn-min 必须 >= 0", file=sys.stderr)
+        return 2
+    if int(args.forced_spell_per_game) > 0:
+        print(f"[forced-spell] 开启: per_game={int(args.forced_spell_per_game)} "
+              f"turn_min={int(args.forced_spell_turn_min)} "
+              f"prob={float(args.forced_spell_prob):g} "
+              f"teacher={int(args.forced_spell_teacher)} action=15", flush=True)
 
     # ---- 动作序列辅助任务：系数 ramp（默认关闭 = 零影响）----
     try:
@@ -2502,6 +2525,10 @@ def main() -> int:
             forced_tier_carry=int(args.forced_tier_carry),
             forced_tier_prob=float(_ft_prob),
             forced_tier_teacher=bool(_ft_teacher),
+            forced_spell_per_game=int(getattr(args, "forced_spell_per_game", 0) or 0),
+            forced_spell_turn_min=int(getattr(args, "forced_spell_turn_min", 6) or 0),
+            forced_spell_prob=float(getattr(args, "forced_spell_prob", 1.0) or 0.0),
+            forced_spell_teacher=bool(int(getattr(args, "forced_spell_teacher", 0) or 0)),
             rust_collector=bool(int(args.rust_collector)),
             rc_threads=int(args.rc_threads), leaf_amp=str(args.leaf_amp),
             leaf_fused=bool(args.leaf_fused),

@@ -127,6 +127,9 @@ class ForcedSpellTracker:
         #: 分段常数概率表（按累计决策数查表）；空 ⇒ 恒 1.0
         self.prob_schedule = parse_prob_schedule(prob_spec, default=1.0)
         self._state: Dict[Tuple[int, int], _GameState] = {}
+        #: ``decide()`` 被调用的次数（= 累计决策数）；概率表默认拿它当"时钟"，
+        #: 这样调用方（PPO 热路径）不必再单独维护一个计数器。
+        self._decisions_seen = 0
         #: 已结束对局的累计（``reset()`` 时折叠进来，避免逐局状态无限增长）
         self.forced_actions = 0
         self.blocked = 0
@@ -154,19 +157,21 @@ class ForcedSpellTracker:
 
     # ---- 主判定 ----
     def decide(self, *, game_id: Any = 0, seat: Any = 0, turn: Any = 0,
-               spell_legal: bool, decisions: float = 0.0,
+               spell_legal: bool, decisions: Optional[float] = None,
                force_prob: Optional[float] = None,
                rng: Optional[object] = None,
                teacher_enabled: bool = True) -> ForcedSpellDecision:
         """判断本次决策是否强制"买法术"。
 
         ``spell_legal`` 必须来自引擎合法掩码的法术槽位（唯一权威口径）。
-        ``decisions``：本次采集以来的累计决策数，用于查 ``prob_schedule``
-        （``force_prob`` 给定时优先用它，便于测试与逐段覆盖）。
+        ``decisions``：查 ``prob_schedule`` 用的累计决策数；``None`` ⇒ 用本对象的
+        ``decide()`` 调用次数（PPO 热路径走这个默认值，避免多维护一个计数器）。
+        ``force_prob`` 给定时优先用它（便于测试与逐段覆盖）。
         """
         out = ForcedSpellDecision()
         if not self.enabled:
             return out
+        self._decisions_seen += 1
         turn = int(turn)
         out.turn = turn
         st = self._game(game_id, seat)
@@ -185,7 +190,9 @@ class ForcedSpellTracker:
         st.legal_decisions += 1
         self.legal_decisions += 1
         p = (float(force_prob) if force_prob is not None
-             else prob_at(self.prob_schedule, float(decisions)))
+             else prob_at(self.prob_schedule,
+                          float(self._decisions_seen if decisions is None
+                                else decisions)))
         if p < 1.0:
             if self._draw(rng) >= p:
                 st.prob_skips += 1

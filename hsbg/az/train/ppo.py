@@ -94,6 +94,11 @@ from .forced_tier import (
     aggregate_forced_tier,
     summarize_forced_tier,
 )
+from .forced_spell import (
+    SPELL_BUY_ACTION,
+    ForcedSpellTracker,
+    aggregate_forced_spell,
+)
 from .power_trace import compact_diagnostics, compute_credit
 from .process_value import process_value_loss
 from .process_value import consume_count as _consume_count
@@ -541,6 +546,17 @@ class CollectConfig:
     forced_tier_prob: float = 1.0
     #: 未强制但目标未达成且 Upgrade 合法时，是否写 ``teacher_action``（DAgger 标签）。
     forced_tier_teacher: bool = False
+    #: ── 强制买法术课程（默认关闭；见 docs/analysis/DESIGN_FORCED_SPELL_20261114.md）──
+    #: 每局最多强制几次"买法术"。**0 = 关闭**（不构造对象、不读掩码、不新增 record 字段，
+    #: 旧路径逐位一致）。为什么需要它：champion 及其后代整局买 0 次法术，而动作条件奖励
+    #: 对零频动作结构性无效（RUNS §5.79）——必须先让它真的被采到。
+    forced_spell_per_game: int = 0
+    #: 从第几回合开始允许强制（之前买法术通常挤掉经营经济）。
+    forced_spell_turn_min: int = 6
+    #: 本 iteration 生效的强制概率（1.0 = 配额内必强制；0.0 = 一次都不强制）。
+    forced_spell_prob: float = 1.0
+    #: 未强制但法术槽合法时，是否写 ``teacher_action``（DAgger 标签）。
+    forced_spell_teacher: bool = False
     #: ── 流派（archetype）软偏置（默认关闭；见 docs/ARCHETYPE_BIAS.md）──
     #: 系数：**0 = 关闭**（不构造对象、不碰 logits、不新增 meta 键，旧路径逐位等价）。
     #: 建议 0.5–2.0：对「当前流派在当前 turn 的偏好动作」加 ``coef * 相对增益`` 的 logit，
@@ -3499,6 +3515,14 @@ class PPOSelfPlayPolicy(Policy):
             if _ft_plan else None)
         self._forced_prob = float(getattr(self.config, "forced_tier_prob", 1.0) or 0.0)
         self._forced_teacher = bool(getattr(self.config, "forced_tier_teacher", False))
+        # 强制买法术课程（per_game=0 -> None，零开销、零 record 字段）
+        _fs_per_game = int(getattr(self.config, "forced_spell_per_game", 0) or 0)
+        self._spell = (ForcedSpellTracker(
+            _fs_per_game,
+            turn_min=int(getattr(self.config, "forced_spell_turn_min", 6) or 0))
+            if _fs_per_game > 0 else None)
+        self._spell_prob = float(getattr(self.config, "forced_spell_prob", 1.0) or 0.0)
+        self._spell_teacher = bool(getattr(self.config, "forced_spell_teacher", False))
         self.records: List[Dict[str, Any]] = []
         #: 逐动作计数（采集 meta 用；每轮 collect 新建 policy，故天然按轮重置）。
         self.action_hist: Dict[int, int] = {}
@@ -3567,6 +3591,23 @@ class PPOSelfPlayPolicy(Policy):
         if self._forced is None:
             return {}
         return self._forced.game_stats(game_id, seat)
+
+    # ── 强制买法术（见 docs/analysis/DESIGN_FORCED_SPELL_20261114.md）──
+    def forced_spell_meta(self) -> Dict[str, Any]:
+        """强制买法术统计（默认关闭 -> ``{}``，不新增 meta 键）。"""
+        return {} if self._spell is None else self._spell.stats()
+
+    def forced_spell_game_meta(self, game_id: Any = None,
+                               seat: Any = None) -> Dict[str, Any]:
+        """本局强制买法术统计（写进逐局 meta；默认关闭 -> ``{}``）。
+
+        ``game_id``/``seat`` 必须给：lock-step 里一个 policy 同时服务 N 局，
+        不带过滤会把 N 局的合计写进每一局、再被顶层求和放大 N 倍
+        （``forced_tier`` 就在这里踩过 512 倍虚高的坑）。
+        """
+        if self._spell is None:
+            return {}
+        return self._spell.game_stats(game_id, seat)
 
     # ── 强制升本（见 docs/FORCED_TIER.md）──
     def _obs_tier(self, f: Any, game: Any, seat: int) -> int:
@@ -3728,19 +3769,37 @@ class PPOSelfPlayPolicy(Policy):
         n_turn = self._turn_counts.get(key, 0) + 1
         self._turn_counts[key] = n_turn
         forced_turn = bool(limit > 0 and n_turn > limit and bool(mask[0]))
-        script_forced = bool(forced_decision is not None
-                             and getattr(forced_decision, "force", False))
+        tier_forced = bool(forced_decision is not None
+                           and getattr(forced_decision, "force", False))
+        # 强制买法术课程：只在"没有别的守卫接管"时咨询 tracker（配额与合法性由它负责）。
+        # 注意顺序——先算 forced_turn，才能保证不会在只允许 EndTurn 的决策上强制买法术。
+        spell_decision = None
+        if (self._spell is not None and not forced_turn and not guard_forced
+                and not tier_forced):
+            spell_decision = self._spell.decide(
+                game_id=int(self.game_id), seat=seat, turn=turn,
+                spell_legal=bool(mask[SPELL_BUY_ACTION]),
+                force_prob=float(self._spell_prob), rng=self._rng,
+                teacher_enabled=bool(self._spell_teacher))
+        spell_forced = bool(spell_decision is not None
+                            and getattr(spell_decision, "force", False))
+        script_forced = bool(tier_forced or spell_forced)
         # 回合上限/守卫优先于脚本强制：那时 mask 只剩 EndTurn，强升会变成非法动作
         policy_forced = bool(script_forced and not forced_turn and not guard_forced)
         forced = bool(forced_turn or guard_forced or policy_forced)
+        if self._spell is not None:
+            # 记账：策略**未被强制**时自己选择了买法术（"学会没学会"的唯一口径）。
+            self._spell.note_policy_action(game_id=int(self.game_id), seat=seat,
+                                           action=int(action), forced=forced)
 
         legal = np.flatnonzero(mask)
         if legal.size == 0:
             action, logprob = 0, 0.0
         elif policy_forced:
-            # 强制升本：动作固定为 Upgrade，logprob=0（同守卫口径：不进策略梯度，
+            # 强制升本/强制买法术：动作固定，logprob=0（同守卫口径：不进策略梯度，
             # 不当成 on-policy 样本；价值/回报链照常保留）。
-            action, logprob = int(UPGRADE_ACTION), 0.0
+            _script_action = SPELL_BUY_ACTION if spell_forced else UPGRADE_ACTION
+            action, logprob = int(_script_action), 0.0
         elif forced:
             # 守卫动作是**环境确定性约束**（delta 在 EndTurn 上），不是行为分布采样。
             # 记录 logprob=0 且 forced=True；PPO 的策略/aux loss 会排除这些样本，
@@ -3783,6 +3842,9 @@ class PPOSelfPlayPolicy(Policy):
                     and not policy_forced and not guard_forced:
                 # DAgger 标签：目标未达成、Upgrade 此刻合法、但本回合没强制
                 rec["teacher_action"] = int(UPGRADE_ACTION)
+        if spell_decision is not None:
+            # 只在本局本回合真的咨询了 tracker 时才写（未启用时 record 集合不变）
+            rec["forced_spell"] = spell_decision.as_record()
         if self._mix is not None and self._mix.enabled:
             # 搜索行为混合：μ 的 logprob（ratio 分母）与 π 的 logprob（KL 口径）。
             # 未混合/搜索失败的决策两者都等于按 π 采样的 logprob。
@@ -4459,6 +4521,9 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
             _ft_game = policy.forced_tier_game_meta()
             if _ft_game:
                 games_meta[-1]["forced_tier_game"] = _ft_game
+            _fs_game = policy.forced_spell_game_meta()
+            if _fs_game:
+                games_meta[-1]["forced_spell_game"] = _fs_game
             if progress:
                 print(f"[collect] vs-bot game {gi + 1}/{cfg.games} "
                       f"decisions={game_decisions} truncated={game_truncated}",
@@ -4507,6 +4572,10 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
         _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
         _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
         collect_meta["forced_tier"] = _ft_agg
+    _fs_agg = aggregate_forced_spell(games_meta)
+    if _fs_agg:
+        _fs_agg["prob"] = float(getattr(cfg, "forced_spell_prob", 0.0) or 0.0)
+        collect_meta["forced_spell"] = _fs_agg
     # 流派软偏置统计（默认关闭 -> 空 dict，不新增键）。
     collect_meta.update(policy.archetype_bias_meta())
     if not records:

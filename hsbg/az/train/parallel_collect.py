@@ -42,6 +42,7 @@ from .tier_target import TierTargetTracker, aggregate_tier_target
 from .board_target import BoardTargetTracker, aggregate_board_target
 from .comp_target import CompTargetTracker, aggregate_comp_target
 from .forced_tier import aggregate_forced_tier
+from .forced_spell import aggregate_forced_spell
 from .curriculum import apply_turn_gold
 from .scaling_teacher import ScalingTeacher, in_scaling_window
 from .process_value import consume_count, process_target
@@ -179,6 +180,9 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
     _ft_game = policy.forced_tier_game_meta()
     if _ft_game:
         meta["forced_tier_game"] = _ft_game
+    _fs_game = policy.forced_spell_game_meta()
+    if _fs_game:
+        meta["forced_spell_game"] = _fs_game
     return records, meta
 
 def collect_ppo_records_parallel(
@@ -269,6 +273,11 @@ def collect_ppo_records_parallel(
         _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
         _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
         meta_out["forced_tier"] = _ft_agg
+    # 强制买法术统计（默认关闭 -> 空 dict，不新增键）
+    _fs_agg = aggregate_forced_spell(games_meta)
+    if _fs_agg:
+        _fs_agg["prob"] = float(getattr(cfg, "forced_spell_prob", 0.0) or 0.0)
+        meta_out["forced_spell"] = _fs_agg
     return records, meta_out
 
 
@@ -1069,6 +1078,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         _ft_game = policy.forced_tier_game_meta(st["gid"], seat)
         if _ft_game:
             metas[-1]["forced_tier_game"] = _ft_game
+        _fs_game = policy.forced_spell_game_meta(st["gid"], seat)
+        if _fs_game:
+            metas[-1]["forced_spell_game"] = _fs_game
     # ── learner 终局板面强度（学习曲线用；每局一次 player_json，成本可忽略）──
     # 这是本实验最直接的「有没有变强」信号：终局 Σ(atk+hp) 按「终局回合」分桶求和，
     # 父进程除以 n 就得到「该回合 learner 的平均板面」，可与真人同回合 p50 直接相除。
@@ -1208,4 +1220,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         _ft_agg["prob"] = float(getattr(cfg, "forced_tier_prob", 0.0) or 0.0)
         _ft_agg["teacher"] = bool(getattr(cfg, "forced_tier_teacher", False))
         meta["forced_tier"] = _ft_agg
+    # 强制买法术统计（默认关闭 -> 不新增键）：同样吃逐局 meta。
+    _fs_agg = aggregate_forced_spell(metas)
+    if _fs_agg:
+        _fs_agg["prob"] = float(getattr(cfg, "forced_spell_prob", 0.0) or 0.0)
+        meta["forced_spell"] = _fs_agg
     return records, meta

@@ -48,6 +48,12 @@ anchor_beta="${HSAI_ANCHOR_BETA:-0.02}"
 # 形状是"历史最高完成度的增量"（望远镜求和、有界、不鼓励短视贪心）。
 # L4 把 S 级核心卡命中从 0.139 练到 0.089（RUNS §5.80），这杆枪正对它。
 comp_coef="${HSAI_COMP_TARGET_COEF:-0.0}"
+# 强制买法术（探索课程）：零频动作只能靠强制注入打开（动作条件奖励对它无效，§5.79）。
+# per_game=0（默认）⇒ 不传这两个 flag，旧路径逐位一致。
+fs_per_game="${HSAI_FORCED_SPELL_PER_GAME:-0}"
+fs_turn_min="${HSAI_FORCED_SPELL_TURN_MIN:-6}"
+fs_prob="${HSAI_FORCED_SPELL_PROB:-1.0}"
+fs_teacher="${HSAI_FORCED_SPELL_TEACHER:-0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -69,6 +75,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "terminal_strength_coef=$term_coef"
   echo "anchor_beta=$anchor_beta"
   echo "comp_target_coef=$comp_coef"
+  echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -87,6 +94,14 @@ fi
 SPELL_ARGS=()
 if [[ "${spell_coef}" != "0" && -n "${spell_coef}" ]]; then
   SPELL_ARGS=(--spell-bootstrap-coef "$spell_coef" --spell-bootstrap-per-game "$spell_k")
+fi
+# 强制买法术同理：per_game=0 时**不传**，未打补丁的代码也能跑。
+FORCED_SPELL_ARGS=()
+if [[ "${fs_per_game}" != "0" && -n "${fs_per_game}" ]]; then
+  FORCED_SPELL_ARGS=(--forced-spell-per-game "$fs_per_game" \
+    --forced-spell-turn-min "$fs_turn_min" \
+    --forced-spell-prob "$fs_prob" \
+    --forced-spell-teacher "$fs_teacher")
 fi
 if [[ "${HSAI_DRY:-0}" == "1" ]]; then
   echo "[dry-run] ckpt=$ckpt lr=$lr shaping=$shaping_coef spell=$spell_coef/$spell_k resume=$resume"
@@ -127,6 +142,7 @@ python workflows/train_entity_sync.py \
   --shaping-w-str 1.0 --shaping-w-tier 0.0 \
   --eval-panel bot --eval-every-decisions 0 \
   ${SPELL_ARGS[@]+"${SPELL_ARGS[@]}"} \
+  ${FORCED_SPELL_ARGS[@]+"${FORCED_SPELL_ARGS[@]}"} \
   2>&1 | tee "$out/train.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
