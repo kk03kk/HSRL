@@ -54,6 +54,9 @@ fs_per_game="${HSAI_FORCED_SPELL_PER_GAME:-0}"
 fs_turn_min="${HSAI_FORCED_SPELL_TURN_MIN:-6}"
 fs_prob="${HSAI_FORCED_SPELL_PROB:-1.0}"
 fs_teacher="${HSAI_FORCED_SPELL_TEACHER:-0}"
+# 对手强度混合：1.0（默认）= 7 个座位全用真人赢家战团（旧行为逐位一致）；
+# <1.0 时其余对局用 EOT 镜像快照（较弱）——用来检验"场太强导致名次信号退化"这一假设。
+human_p="${HSAI_HUMAN_BOARD_P:-1.0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -76,6 +79,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "anchor_beta=$anchor_beta"
   echo "comp_target_coef=$comp_coef"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
+  echo "human_board_p=$human_p"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -123,7 +127,7 @@ python workflows/train_entity_sync.py \
   --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
   --mirror-sample p50 --mirror-seats 7 --mirror-p 1 --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
-  --human-board-p 1.0 --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
+  --human-board-p "$human_p" --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn 9 \
   --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --entry-p 0.5 --entry-turn-min 8 --entry-turn-max 8 --entry-sample p75 --entry-min-tier 5 \

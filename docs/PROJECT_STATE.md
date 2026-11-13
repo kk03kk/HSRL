@@ -33,6 +33,25 @@
 **口径铁律（今晚最贵的一课）**：**192 局面板分辨不出 0.2 名**（同一 champion 在 96 局 5.4375 /
 192 局 5.505 / 768 局 5.299）。名次结论一律以 768 局配对 CI 为准；192 局只做臂内趋势与机制指标。
 
+**03:50 增量：`forced_spell` 已实现并接线完毕（等冒烟，不占卡）**
+
+| 内容 | 状态 |
+|---|---|
+| `hsbg/az/train/forced_spell.py` tracker（配额/turn_min/概率门控/blocked/策略自选计数） | 完成 |
+| PPO `_finish()`（`decide` 与 `decide_batch` 共用收尾）里强制动作=15、`logprob=0`、不进策略梯度 | 完成 |
+| 三条采集路径的逐局 meta + 聚合（parallel_collect ×2、process_pool、ppo inline） | 完成 |
+| `personal.OPTIONS` → argparse → `CollectConfig` → 钩子；launcher `HSAI_FORCED_SPELL_*` | 完成 |
+| **测试** | **33 条全绿**（19 行为 + 8 热路径 + 6 接线） |
+| 默认 `per_game=0` | 不构造对象、不读掩码、不加 record/meta 键 ⇒ 旧路径逐位等价 |
+
+下一步（第一张空卡，约 07:00）：`sh -f artifacts/state/smoke_forced_spell.sh`（8 局/2 进程/8 min）
+→ `sh -f artifacts/state/verify_forced_spell.sh` 看三行（`[forced-spell]` 启动行、
+`forced_spell.forced_actions>0`、`action_hist[15]>0`）→ 才发 150 min 正式段。
+
+launcher 另新增两个单参数旋钮（默认值逐位不变，供后续实验）：`HSAI_COMP_TARGET_COEF`
+（阵容完成度奖励，已用于 05:56 的 `l6comp` 臂）、`HSAI_HUMAN_BOARD_P`（对手强度混合，
+用于检验"场太强导致名次信号退化"）。
+
 ---
 
 ## 0.1 上一版（2026-11-14 02:25，L4 首段边界前）
