@@ -44,6 +44,10 @@ term_coef="${HSAI_TERM_COEF:-0.0}"
 # （RUNS §5.73），继续同配方训练 100 轮名次不动（§5.78）。做成 env 以便做单参数扫描；
 # 默认值不变 => 旧配方逐位一致。
 anchor_beta="${HSAI_ANCHOR_BETA:-0.02}"
+# 阵容覆盖奖励（comp-target）：每局上界 = coef·1.0，与名次项（0..1）同量级，
+# 形状是"历史最高完成度的增量"（望远镜求和、有界、不鼓励短视贪心）。
+# L4 把 S 级核心卡命中从 0.139 练到 0.089（RUNS §5.80），这杆枪正对它。
+comp_coef="${HSAI_COMP_TARGET_COEF:-0.0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -64,6 +68,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "shaping_coef=$shaping_coef (log_strength, w_tier=0)"
   echo "terminal_strength_coef=$term_coef"
   echo "anchor_beta=$anchor_beta"
+  echo "comp_target_coef=$comp_coef"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -114,7 +119,7 @@ python workflows/train_entity_sync.py \
   --gpus 0 --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
   --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --reset-anchor 1 --forbid-unfreeze 1 \
-  --comp-target-coef 0.0 --comp-target-min-turn 10 --comp-target-cards config/strategy_cards.json \
+  --comp-target-coef "$comp_coef" --comp-target-min-turn 10 --comp-target-cards config/strategy_cards.json \
   --comp-target-tier-w S:1.0,A:0.6,B:0.3 --comp-target-cap 1.0 --comp-target-min-hits 2 \
   --tier-target-coef 0.0 --tier-target-table 2:2,5:3,8:5 --tier-gate-k 0.75 \
   --shaping-coef "$shaping_coef" --shaping-mode log_strength --shaping-gamma 1.0 \
