@@ -81,6 +81,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--human", default="artifacts/runs/human-baseline-20261112/baseline.json")
     ap.add_argument("--human-tier", action="store_true",
                     help="额外打印真人 tier_by_turn 原始字段（反推 tier-target 目标表用）")
+    ap.add_argument("--action-mix", action="store_true",
+                    help="打印逐回合的动作构成均值（买/卖/刷新/出牌…）——用来判断"
+                         "禁卖起始战团（K1/K2）这种规则会命中哪些回合")
     args = ap.parse_args(argv)
 
     panels: Dict[str, Dict[str, Any]] = {}
@@ -185,6 +188,27 @@ def main(argv: Optional[List[str]] = None) -> int:
             per = (s / n_min) if (s and n_min) else None
             line += f" {fmt(n_min, 1, 7)}{fmt(per, 0, 13)}"
         print(line)
+
+    # ---- 逐回合动作构成（判断"禁卖起始战团"会命中哪些回合）----
+    if args.action_mix:
+        print()
+        print("ACTION MIX（逐回合、每局均值）")
+        groups = ("buy", "sell", "refresh", "play", "upgrade", "hero_power")
+        for tag, name, model in rows:
+            am = model.get("action_mix_by_turn") or {}
+            if not am:
+                print(f"  [{tag}:{name}] 没有 action_mix_by_turn")
+                continue
+            print(f"  [{tag}:{name}]  "
+                  + " ".join(f"{g[:6]:>7}" for g in groups) + "   (games)")
+            for t in turns:
+                d = am.get(t) or {}
+                mean = d.get("mean") or {}
+                if not mean:
+                    continue
+                print(f"    T{t:<3} "
+                      + " ".join(f"{float(mean.get(g, 0) or 0):>7.2f}" for g in groups)
+                      + f"   ({d.get('games', '?')})")
 
     # ---- 结局 / 存活 ----
     print()
