@@ -921,3 +921,23 @@ evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h1
    **看到那一行为准**（`[lr]` / `[anchor]` / `[keep-start-board]` 之类），配了没中一律按失败处理。
 4. 顺带记录：`l3` 保留为"anchor-only"证据（13 轮，不作结论）；`config/league-long-l3.json` 不删，
    但标注为"lr 未生效，勿复用作解冻臂"。
+
+## D-049 · 2026-11-14 · local · 用 `python -c "…"` 改文件时，PowerShell 会吃掉 `${…}`；改文件一律走编辑工具
+
+**事故**：给 `deploy/slurm/spell_l5.sbatch` 加参数化时，我用
+`python -c "t.replace('--games 256', '--games ${HSAI_LR_GAMES:-256}')"`。
+**PowerShell 把 `${HSAI_LR_GAMES:-256}` 当自己的变量展开成空**，写进文件后变成
+`--games \ --iterations …` 与 `--processes \ --workers 1` —— 参数直接消失。
+而这个脚本正是 04:20 起 L5a 与所有 resume 作业要用的；若不发现，那一轮会白占卡甚至行为异常。
+（正在跑的 L4/L5c 不受影响：Slurm 提交时已快照脚本。）
+
+**根因**：PowerShell 的插值发生在**双引号内**，连 `python -c` 的字符串都会先被展开；
+`${name:-default}` 恰好是 PowerShell 的合法语法（`${}` 里可带表达式），所以不会报错，而是**静默变空**。
+
+**决定（与 D-038 同族，收紧一层）**
+
+1. **改文件一律用编辑工具**（write/edit），不用 `python -c` / `-replace` / `Set-Content` 拼字符串。
+2. 若确需脚本改文件：内容先落到文件（用 write 工具），再 `python script.py` 读取，**不经过 shell 插值**。
+3. 改**启动器/作业脚本**后必须做两道核对：① 服务器上 `bash -n <脚本>`；② `grep` 出关键 flag
+   （`--lr` / `--games` / `--processes` / 新增开关）**逐行肉眼确认**。
+4. 任何"参数化"改动后，先在**冒烟规模**（8 局 / 2 进程 / 8 min）跑一次，再上 150 分钟正式段。
