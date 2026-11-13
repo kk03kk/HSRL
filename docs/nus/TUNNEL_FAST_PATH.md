@@ -52,7 +52,7 @@ ssh -o ConnectTimeout=5 -o BatchMode=yes -o PubkeyAuthentication=no `
 - 输出 **`Connection timed out during banner exchange`**（或 `port 22 timed out`）
   → **VPN 还没生效，立刻停**，回报用户；不要重建、不要重试、不要等。
 
-### B. 起隧道（返回 ~0.2 s，绝不等待）
+### B. 起隧道（实测 0.07 s 返回，绝不等待）
 
 ```powershell
 Start-Process -FilePath powershell -WorkingDirectory 'D:\HSAI' -ArgumentList `
