@@ -725,3 +725,37 @@ trainer.config.anchor_coef = (args.anchor_beta if i < args.anchor_iterations
 
 **附带澄清**：`state` 报 `DRIFT` 且两端 `dirty=0` 通常是**本地有未推送提交**，
 不要据此做 `reset`/`checkout`。
+
+## D-043 · 2026-11-13 · local · 专家先验转为正式输入：升级曲线断在 T5 之后，覆盖奖励反压低等级
+
+status: accepted
+evidence: `docs/analysis/EXPERT_PRIORS_20261113.md`、`docs/analysis/COMP_SHARED_CORES_20261113.md`、
+`artifacts/runs/gap-priors-base-20261113/`、`artifacts/runs/gap-priors-h10-20261113/`、
+`tools/analyze_comp_structure.py`、`config/league-entry-m1.json`
+
+用户（版本 37.0.2.256589 的高水平实战者）书面回复了 23 条专家问题，并明确 9 条为**确认先验**；
+`config/strategy_cards.json` 的 33 个流派与 S/A/B 评级**由其本人编写**，不再作为"待怀疑的外部攻略"。
+
+**当场测到的三件事（96 局真人场，同种子）**
+
+1. 升本曲线 T2=1.92 / T5=3.05 与高手标准（T2 二本、T5 三本）一致，之后停住：
+   T8 4.33 / T10 4.44 / T12 4.79（真人 4.82 / 5.52 / 5.78）；`upgrade` 使用率
+   0.48(T6) → 0.29(T8) → 0.02(T9) → 0.00(T11/T12)。
+2. 每回合结束金币 p50 在 T5–T12 **全部为 0.0** ⇒ 从不存钱，升五本所需的 9 金币从未攒到。
+3. `comp-target`（h10）把 T10 平均等级压到 **4.08**（champion 4.44）：该奖励让模型留在
+   低本刷便宜核心卡。而结构分析显示 **15/33 个流派最高核心在 6 本、16/33 在 5 本、
+   0/33 能在 4 本成型**（铜须被 12 个流派列为核心、巴琳达 7 个）——
+   **模型在结构上拿不到真核心**，这才是"覆盖≠强度"反复出现的机制解释。
+
+**决定**
+
+1. 先验只进**配置 / 课程 / 指标**，不进动作掩码；不硬编码升本回合、卖牌次数、阵容标签
+   （用户红线：目标是学会经济与成长的因果，不是执行攻略）。
+2. 下一阶段主线候选 `M1`（`config/league-entry-m1.json`，未启动）：入场收窄到 **T8 + p75
+   + 只注入 tier≥5 的真人帧**，`comp-target` 降 0.3 且 T10 起计分，`human-board-min-turn` 9→7。
+   `entry-min-tier` 尚未登记进 `personal.OPTIONS`，接线前该配置 fail-loud 拒绝启动。
+3. 更正 §5.24 的 churn 结论：`action_mix_by_turn` 的分母缺陷已修（`mean/used_rate/mean_used`
+   三口径），真实值是 T3/T4/T5 每局卖 **0.04/0.01/0.01**，卖牌是后期现象。
+4. `keep-start-board`（K1/K2）按专家意见降级：V1 不再作候选主线，V2 只作可选临时约束；
+   代码与 4 条单测留在侧分支。
+5. 本项目此后**凡"游戏正解"类问题先问用户**，凡"模型是否做到 / RL 会不会学歪"类问题才做实验。
