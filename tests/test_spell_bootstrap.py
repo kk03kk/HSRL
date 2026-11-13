@@ -98,3 +98,25 @@ def test_invalid_config_rejected() -> None:
         CollectConfig(spell_bootstrap_coef=-0.1)
     with pytest.raises(ValueError):
         CollectConfig(spell_bootstrap_per_game=-1)
+
+
+def test_aggregate_reports_spell_hits_without_shaping() -> None:
+    """只开补贴、不开塑形时，汇总里也必须有 `spell_bootstrap_hits`。
+
+    否则 `history.jsonl` 里看不到这个数，就没法验证"补贴到底有没有触发过"——
+    这正是 board_target 那次"配了但没生效"的同类风险。
+    """
+    from hsbg.az.train.reward_shaping import aggregate_shaping
+
+    metas = [
+        {"spell_bootstrap_coef": 0.05, "spell_bootstrap_per_game": 3,
+         "spell_bootstrap_hits": 2, "spell_bootstrap_sum": 0.1},
+        {"spell_bootstrap_coef": 0.05, "spell_bootstrap_per_game": 3,
+         "spell_bootstrap_hits": 1, "spell_bootstrap_sum": 0.05},
+    ]
+    agg = aggregate_shaping(metas)
+    assert agg["spell_bootstrap_hits"] == 3
+    assert agg["spell_bootstrap_sum"] == pytest.approx(0.15)
+    assert agg["spell_bootstrap_coef"] == pytest.approx(0.05)
+    # 空 meta 仍然返回 {}（旧路径零键增量）
+    assert aggregate_shaping([{}]) == {}

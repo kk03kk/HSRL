@@ -516,7 +516,9 @@ def aggregate_shaping(metas: Iterable[Any], *,
     规则：sum 计数/时间/奖励和，``reward_shaping_mean = sum / decisions``；
     没有任一条带 ``shaping_coef`` 的 meta（= 默认关闭）返回 ``{}``。
     """
-    rows = [m for m in metas if isinstance(m, dict) and "shaping_coef" in m]
+    rows = [m for m in metas
+            if isinstance(m, dict)
+            and ("shaping_coef" in m or "spell_bootstrap_coef" in m)]
     if not rows:
         return {}
     first = rows[0]
@@ -549,6 +551,17 @@ def aggregate_shaping(metas: Iterable[Any], *,
     }
     if elapsed_s is not None and float(elapsed_s) > 0.0:
         out["shaping_overhead_pct"] = 100.0 * float(seconds) / float(elapsed_s)
+    # 法术自举补贴的汇总（只在有 worker 报过这类字段时出现）。
+    # 关键：只开补贴、不开塑形时也必须汇总，否则 `history.jsonl` 里看不到
+    # `spell_bootstrap_hits`，就无法验证"补贴到底有没有触发过"。
+    spell_rows = [m for m in rows if "spell_bootstrap_coef" in m]
+    if spell_rows:
+        out["spell_bootstrap_coef"] = float(spell_rows[0].get("spell_bootstrap_coef", 0.0))
+        out["spell_bootstrap_per_game"] = int(spell_rows[0].get("spell_bootstrap_per_game", 0))
+        out["spell_bootstrap_hits"] = sum(
+            int(m.get("spell_bootstrap_hits", 0)) for m in spell_rows)
+        out["spell_bootstrap_sum"] = sum(
+            float(m.get("spell_bootstrap_sum", 0.0)) for m in spell_rows)
     return out
 
 
