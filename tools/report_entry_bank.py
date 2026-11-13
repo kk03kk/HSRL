@@ -19,6 +19,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bank", required=True)
     ap.add_argument("--turns", default="7-10", help="回合区间 a-b（闭区间）")
+    ap.add_argument("--require-cards", default="",
+                    help="只统计战团里含这些 card_id 的行（逗号分隔；空=不过滤）")
     ap.add_argument("--perspective", default="",
                     help="只统计某个 perspective（self/opponent；空=全部）")
     args = ap.parse_args()
@@ -26,6 +28,7 @@ def main() -> int:
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
     want = args.perspective.strip()
+    want_cards = {x.strip() for x in str(args.require_cards or "").replace(";", ",").split(",") if x.strip()}
 
     rows = 0
     by_turn: collections.Counter = collections.Counter()
@@ -55,6 +58,16 @@ def main() -> int:
             continue
         if not isinstance(r.get("board_detail"), list):
             no_detail += 1
+        if want_cards:
+            det = r.get("board_detail")
+            cids = set()
+            if isinstance(det, list):
+                for m in det:
+                    cid = m.get("card_id") if isinstance(m, dict) else None
+                    if isinstance(cid, str):
+                        cids.add(cid[:-2] if cid.endswith("_G") else cid)
+            if not (cids & want_cards):
+                continue
         tier = r.get("tier")
         if tier is None:
             no_tier += 1
