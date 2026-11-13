@@ -26,13 +26,8 @@ def load(path: str) -> dict:
 
 
 def models_of(panel: dict) -> Dict[str, dict]:
-    out: Dict[str, dict] = {}
-    for tag, models in (panel.get("panels") or {}).items():
-        for name, m in (models or {}).items():
-            out[name] = m
-    for name, m in (panel.get("models") or {}).items():
-        out[name] = m
-    return out
+    """面板里 ``models`` 是**列表**（每项带 ``name``），与 accept_gap_panel 同一口径。"""
+    return {m.get("name"): m for m in (panel.get("models") or []) if isinstance(m, dict)}
 
 
 def ranks(model: dict) -> Dict[str, float]:
