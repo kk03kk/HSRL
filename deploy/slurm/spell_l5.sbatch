@@ -58,6 +58,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "ckpt=$ckpt"
   echo "spell_bootstrap_coef=$spell_coef per_game=$spell_k"
   echo "shaping_coef=$shaping_coef (log_strength, w_tier=0)"
+  echo "terminal_strength_coef=$term_coef"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
