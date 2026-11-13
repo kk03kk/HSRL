@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Compact per-turn comparison across ``hsai.human_gap_panel/v1`` panels.
 
 Why this exists
@@ -84,6 +84,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--action-mix", action="store_true",
                     help="打印逐回合的动作构成均值（买/卖/刷新/出牌…）——用来判断"
                          "禁卖起始战团（K1/K2）这种规则会命中哪些回合")
+    ap.add_argument("--economy", action="store_true",
+                    help="打印逐回合金币 p50（区分『没钱升本』与『有钱不升』）")
     args = ap.parse_args(argv)
 
     panels: Dict[str, Dict[str, Any]] = {}
@@ -164,6 +166,18 @@ def main(argv: Optional[List[str]] = None) -> int:
                   f"{fmt(sa, 0, 10)} {fmt(sb, 0, 10)} {fmt(rel, 1, 8)} "
                   f"{fmt((ta - tb) if (ta is not None and tb is not None) else None, 2, 7)} "
                   f"{fmt((ga - gb) if (ga is not None and gb is not None) else None, 2, 7)}")
+
+    # ---- 金币存量：判断"没钱升本"还是"有钱不升" ----
+    if args.economy:
+        print()
+        print("GOLD p50（回合结束时的金币余额；升本 5 级要 9、6 级要 10）")
+        print(f"{'turn':>4}" + "".join(f" {t + ':' + n:>16}" for t, n, _ in rows))
+        for t in turns:
+            line = f"{t:>4}"
+            for tag, name, model in rows:
+                c = curve(model, t) or {}
+                line += f" {fmt(c.get('gold_p50'), 1, 16)}"
+            print(line)
 
     # ---- 训练内 tier 曲线原始字段（反推 tier-target 目标表，避免拍脑袋）----
     if args.human_tier:
