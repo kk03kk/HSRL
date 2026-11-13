@@ -36,6 +36,12 @@
 第一个"改变奖励**形状**而非力度"的臂（望远镜增量、每局上界 0.35），必须按三条硬约束读：
 与 champion 累计 `anchor_kl` ≤0.3、768 局验收、同时报 `approx_kl`/`entropy`。
 
+**待办（小，但别忘）**：运行手册脚本目前放在 `artifacts/state/`（**被 .gitignore 忽略**），
+所以 `pin_when_complete.sh` / `eval_pin.sh` / `at_arm_boundary.sh` / `wait_jobs_report.sh` /
+各 `smoke_*`、`launch_*` **没有进过 git、没异地备份**。等两张卡的边界链跑完后，
+把这一批搬进 `ops/runbooks/`（`ops/` 是受版本控制的），同步改掉定时任务里的路径，然后提交推送。
+—— 这些脚本承载的是"怎么安全地 pin、怎么按 768 局验收"这类**不可丢**的流程知识。
+
 ---
 
 ## 0.1 上一版（2026-11-14 03:40，已有可交付定论）
