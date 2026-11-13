@@ -84,6 +84,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--action-mix", action="store_true",
                     help="打印逐回合的动作构成均值（买/卖/刷新/出牌…）——用来判断"
                          "禁卖起始战团（K1/K2）这种规则会命中哪些回合")
+    ap.add_argument("--mechanics", action="store_true",
+                    help="打印逐回合金卡/每格攻血（专家 C1；需新面板的 mechanics_by_turn）")
     ap.add_argument("--combat", action="store_true",
                     help="打印逐回合实际战斗胜负（需要面板开 collect_exposure）")
     ap.add_argument("--economy", action="store_true",
@@ -197,6 +199,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if not d:
                     continue
                 print(f"    T{t:<3} " + " ".join(f"{float(d.get(k, 0) or 0):>11.2f}"
+                                                for k in keys))
+
+    # ---- 机制密度：金卡 / 每格攻血（专家 C1；真人对照见 tools/report_board_mechanics.py）----
+    if args.mechanics:
+        print()
+        print("MECHANICS（每局金卡数 / 有金卡的局占比 / 每格攻血）")
+        keys = ("golden_per_game", "with_golden", "atk_per_minion", "hp_per_minion")
+        for tag, name, model in rows:
+            mb = model.get("mechanics_by_turn") or {}
+            if not mb:
+                print(f"  [{tag}:{name}] 没有 mechanics_by_turn（旧面板）")
+                continue
+            print(f"  [{tag}:{name}]  " + " ".join(f"{k[:14]:>15}" for k in keys))
+            for t in turns:
+                d = mb.get(t)
+                if not d:
+                    continue
+                print(f"    T{t:<3} " + " ".join(f"{float(d.get(k, 0) or 0):>15.2f}"
                                                 for k in keys))
 
     # ---- 训练内 tier 曲线原始字段（反推 tier-target 目标表，避免拍脑袋）----

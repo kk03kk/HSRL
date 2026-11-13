@@ -262,6 +262,57 @@ def final_boards(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def mechanics_by_turn(rows: List[Dict[str, Any]], min_turn: int = 6) -> Dict[str, Any]:
+    """逐回合**机制密度**：金卡数 / 每格攻血。
+
+    为什么需要（专家先验 C1）：后期每格强度差 4–14 倍，靠的是乘法机制（三连金卡、宝石、
+    磁力、成长引擎），不是"买更多随从"。真人库同名口径：
+    `tools/report_board_mechanics.py`（T12 约 **2.55 张金卡/局、90% 的局有金卡**、
+    每格 atk 598 / hp 529）。模型侧用同一张表对照。
+
+    ``describe_board`` 的 ``card_id`` 对金卡带 ``_G`` 后缀（``final_boards`` 会剥掉，
+    这里**必须保留**才能数金卡）。
+    """
+    per_turn: Dict[int, Dict[str, int]] = collections.defaultdict(
+        lambda: {"boards": 0, "minions": 0, "golden": 0, "with_golden": 0,
+                 "atk": 0, "hp": 0})
+    for r in rows:
+        t = int(r["turn"])
+        if t < int(min_turn):
+            continue
+        board = r.get("eot_board") or r.get("board") or []
+        if not board:
+            continue
+        d = per_turn[t]
+        d["boards"] += 1
+        g = 0
+        for m in board:
+            if not isinstance(m, dict):
+                continue
+            d["minions"] += 1
+            d["atk"] += int(m.get("atk") or 0)
+            d["hp"] += int(m.get("hp") or 0)
+            cid = m.get("card_id")
+            if isinstance(cid, str) and cid.endswith("_G"):
+                g += 1
+        d["golden"] += g
+        if g:
+            d["with_golden"] += 1
+    out: Dict[str, Any] = {}
+    for t in sorted(per_turn):
+        d = per_turn[t]
+        n = max(d["boards"], 1)
+        mn = max(d["minions"], 1)
+        out[str(t)] = {
+            "boards": d["boards"],
+            "golden_per_game": _r(d["golden"] / n, 2),
+            "with_golden": _r(d["with_golden"] / n, 3),
+            "atk_per_minion": _r(d["atk"] / mn, 1),
+            "hp_per_minion": _r(d["hp"] / mn, 1),
+        }
+    return out
+
+
 def boards_by_turn(rows: List[Dict[str, Any]],
                    min_turn: int = 6) -> Dict[str, Dict[str, List[str]]]:
     """``seed -> turn -> [card_id]``（只留 ``turn >= min_turn``）。
@@ -343,6 +394,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "curves": economy_curves(rows),
         "action_mix_by_turn": action_mix_by_turn(rows),
         "combat_by_turn": combat_by_turn(result.get("combat_exposure") or []),
+        "mechanics_by_turn": mechanics_by_turn(rows),
         "final_boards": final_boards(rows),
         "boards_by_turn": boards_by_turn(rows),
     }
