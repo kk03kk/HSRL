@@ -172,7 +172,8 @@ class HumanBoardPool:
                  max_minion_stat: int = MAX_MINION_STAT,
                  max_board_strength: int = MAX_BOARD_STRENGTH,
                  check_cards: bool = True,
-                 min_tier: Optional[int] = None):
+                 min_tier: Optional[int] = None,
+                 require_any_cards: Optional[Any] = None):
         self.path = str(path) if path else ""
         #: ``turn -> [HumanBoard]``（载入顺序，采样时按 strength 排序）
         self.index: Dict[int, List[HumanBoard]] = {}
@@ -188,6 +189,17 @@ class HumanBoardPool:
         #: 让模型第一次经历「五本位置怎么运营」。等级缺失（``tier=None``，即没有 payload
         #: 的 board-only 行）**一律丢弃**——宁可小池子，也不假装知道等级。
         self.min_tier = int(min_tier) if min_tier else None
+        #: 只保留**战团里至少含 1 张**这些 card_id 的帧（``None``/空 = 不过滤）。
+        #: 用于"引擎入场课程"：真人 T12 有 64% 的战团含引擎卡（铜须/巴琳达/罗杰斯…），
+        #: 而模型只有 9%（见 `docs/analysis/RUNS_20261113.md` §5.35）——
+        #: 让它从"已经装好引擎"的位置开始，才谈得上学会把资源变成属性。
+        if require_any_cards is None:
+            self.require_cards: frozenset = frozenset()
+        elif isinstance(require_any_cards, str):
+            parts = [x.strip() for x in require_any_cards.replace(";", ",").split(",")]
+            self.require_cards = frozenset(p for p in parts if p)
+        else:
+            self.require_cards = frozenset(str(x) for x in require_any_cards)
         self.rows = 0
         self.kept = 0
         #: 带准完整 payload（``board_detail``）的行数；hand/full 档必须 > 0。
@@ -230,6 +242,19 @@ class HumanBoardPool:
                         continue
                     if int(hb.tier) < int(self.min_tier):
                         self._drop("tier_below_min")
+                        continue
+                if self.require_cards:
+                    cards = set()
+                    detail = row.get("board_detail")
+                    if isinstance(detail, list):
+                        for m in detail:
+                            if not isinstance(m, dict):
+                                continue
+                            cid = m.get("card_id")
+                            if isinstance(cid, str):
+                                cards.add(cid[:-2] if cid.endswith("_G") else cid)
+                    if not (cards & self.require_cards):
+                        self._drop("no_engine_card")
                         continue
                 self.index.setdefault(int(hb.turn), []).append(hb)
                 self._sorted.pop(int(hb.turn), None)   # 桶内容变了，缓存失效

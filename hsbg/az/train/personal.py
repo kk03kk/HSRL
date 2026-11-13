@@ -60,6 +60,8 @@ OPTIONS = {
     "entry-sample", "entry-fidelity", "entry-fast-inject", "entry-set-health",
     # 入场帧的最低观测等级（0=不过滤）：专家先验「T8 左右到五本」，用它造五本运营样本。
     "entry-min-tier",
+    # 入场帧必须含的引擎卡 id（逗号分隔；空=不过滤），用于引擎入场课程。
+    "entry-require-cards",
     # 镜像对手的回合上界（0=不限）：中后期课程用它把镜像关在入场回合之前。
     "mirror-max-turn",
     # 专家相对过程奖励（默认 board-target-coef=0 = 关闭；见 board_target.py）。

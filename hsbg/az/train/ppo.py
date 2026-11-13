@@ -428,6 +428,9 @@ class CollectConfig:
     #: 只使用**观测等级** >= 本值的入场帧（0=不过滤）。等级未知的帧会被丢弃。
     #: 用途：专家先验「T8 左右到五本」——入场课程只在五本以上开，造"五本运营"样本。
     entry_min_tier: int = 0
+    #: 只使用**战团里至少含 1 张**这些 card_id 的入场帧（逗号/分号分隔，空=不过滤）。
+    #: 用途：引擎入场课程——真人 T12 有 64% 战团含引擎卡，模型只有 9%。
+    entry_require_cards: str = ""
     #: 入场注入保真度（board/hand/full；full 需要准完整库）。
     entry_fidelity: str = "full"
     #: 入场注入快速路径（与 human_board_fast_inject 同语义）。
