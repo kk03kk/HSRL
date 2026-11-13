@@ -759,3 +759,22 @@ evidence: `docs/analysis/EXPERT_PRIORS_20261113.md`、`docs/analysis/COMP_SHARED
 4. `keep-start-board`（K1/K2）按专家意见降级：V1 不再作候选主线，V2 只作可选临时约束；
    代码与 4 条单测留在侧分支。
 5. 本项目此后**凡"游戏正解"类问题先问用户**，凡"模型是否做到 / RL 会不会学歪"类问题才做实验。
+## D-044 · 2026-11-13 · local · 评测前必须 pin 快照；多模型面板的 `--export` 用 `\;`
+
+status: accepted
+evidence: 作业 `1131577`（FAILED: `checkpoint not found: .../step_015001/model.pt`）、`1131581`（COMPLETED，两模型面板 + `accept_gap_panel` 全链路通过）
+
+**事故**：想用 `entry-h10` 的 `step_015001` 做面板，但 `keep-snapshots 3` 已经把它轮转删除
+（当时最新是 `step_015031`）。`eval_human_gap.sbatch` 在加载阶段就 `checkpoint not found` 退出——
+失败很快、没有浪费 GPU，但白占一次排队。
+
+**规则（硬性）**
+
+1. **面板/评测引用快照前先 `ls` 该 run 的 `train/snapshots`**，并把要评的快照
+   `cp -r` 到 `artifacts/runs/pin-<arm>-<step>/`（已有的 `pin-*` 目录就是这个用途）。
+   直接引用 `train/snapshots/step_XXXXX` 会在作业排队期间被轮转掉。
+2. 多模型面板（`HSAI_GAP_MODELS=a=...;b=...`）必须让 sbatch 收到**字面分号**：
+   在 PowerShell 里把整条命令放进**双引号字符串**、分号写成 `\;`
+   （`"...HSAI_GAP_MODELS=base=x/model.pt\;h10=pin-y/model.pt,..."`）。
+   裸写会被 PowerShell 当语句分隔符；单引号会被 `hsai_ops.py sh` 丢掉。
+3. 提交后**先看 `run.env` 与 `panel.log` 头**再等结果（D-038 的同一条纪律）。
