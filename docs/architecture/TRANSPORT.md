@@ -33,7 +33,8 @@ GitHub 更快、更可靠，而且可以在配置层面**强制**拒绝覆盖。
 - **Windows OpenSSH 的 ControlMaster 不可用。** 报 `getsockname failed: Not a socket`，
   连接复用无法开启。因此不能"一次登录、多路复用"，只能用端口转发。
 
-**结论：一条持久端口转发隧道。**
+**结论：一条持久端口转发隧道。**（下面这条是**原理示意**，不是操作步骤——操作一律走
+`python ops/hsai_ops.py tunnel`，见 §1.1 与 [`../OPERATIONS.md`](../OPERATIONS.md) §1.3）
 
 ```powershell
 ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 `
@@ -58,6 +59,15 @@ ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 `
 隧道断了的表现：`ops/hsai_ops.py probe` 返回 `ok: false`，错误是
 `Connection refused`（2222 端口没人监听）。
 
+**恢复只有一条命令，Agent 自己执行（凭据已登记时无人值守，实测 6–10 秒）：**
+
+```powershell
+python ops/hsai_ops.py tunnel      # 唯一正确入口；输出写 artifacts/state/tunnel-selfheal.log
+python ops/hsai_ops.py state       # 独立确认：tunnel : OK  xlogin2
+```
+
+等价的人肉操作是与它同一套封装：
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 ```
@@ -65,10 +75,15 @@ powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 这个脚本会先探测、已通就什么都不做，否则建立隧道并验证；已存在陈旧转发时用
 `-Force` 精确清理（只杀 `-L 2222:xlogin2...:22` 那一条，不碰其它 ssh 会话）。
 
-只想看命令而不执行：`python ops/hsai_ops.py tunnel`。
+> **两条禁令（2026-11-13 各卡死一次，详见 OPERATIONS §1.3）：**
+> ① 不要把建隧道脚本的输出接成管道/`subprocess.PIPE`——常驻 ssh 会继承管道写端
+> 永不关闭，调用者永远等不到 EOF，"卡住 4 分钟而隧道其实已建好"；
+> ② 不要手工跑上面的 `ssh -N -f -L`（尤其配 `| cat`），同理会挂死。
 
-**由用户在本地 PowerShell 里执行一次**（需要输密码），然后 `python ops/hsai_ops.py doctor`。
-这是单 Agent 架构里**唯一**需要人介入的时刻。
+只想看命令而不执行：`python ops/hsai_ops.py tunnel --print`。
+
+尚未登记密码时才需要人：`ops\tunnel.ps1 -Setup`（一次性，密码走 DPAPI，不进对话/日志）。
+登记之后，隧道自愈是 Agent 完全自主的动作，**不需要问用户**。
 
 #### 建一次要多久
 
@@ -84,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 
 **VPN 重连后必须重建隧道**，这是必然的，不是配置问题。
 
-#### 两个曾经让恢复"卡 5 分钟"的坑（2026-11-12 修复）
+#### 三个曾经让恢复"卡 5 分钟"的坑（2026-11-12 / 11-13 修复）
 
 1. **`ssh` 的 `ConnectTimeout` 只管 TCP 连接**。当端口上有监听者、但后面的会话已经死了时，
    卡住的是 **banner 交换**，这一步不受 `ConnectTimeout` 约束（可长达 2 分钟），
@@ -94,6 +109,14 @@ powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
    `WaitForExit()` 之后仍是空。据此判成败会让探测**永远返回"断开"**，
    于是脚本会去杀掉一条其实健康的隧道、然后再"重建失败"。
    现在判据只用 **stdout 里有没有 `TUNNEL_OK`**——那本来就是"远端回没回话"的权威信号。
+3. **常驻 ssh 继承了调用者的 stdout 管道（2026-11-13，把用户惹火两次）。**
+   包装命令 `python ops/hsai_ops.py tunnel` 原来用 `subprocess.run(stdout=PIPE)` 收集
+   `tunnel.ps1` 的输出；而 `tunnel.ps1` 用 `Start-Process` 拉起的**常驻** ssh（`-N`）
+   继承了父进程的管道写端并一直不关，Python 端永远等不到 EOF（`run()` 超时后还会再
+   `communicate()` 一次继续死等）→ 表现为"命令卡 4 分钟毫无输出，而隧道其实早就建好了"。
+   现在：包装层把脚本输出写 `artifacts/state/tunnel-selfheal.log` 只读文件尾；
+   `tunnel.ps1` 把 ssh 的 stdin/stdout/stderr **全部**重定向到文件。
+   `tests/test_ops_guard.py` 用 AST/文本守卫钉死这两点。
 
 **为什么不让 Agent 自己输密码：** 密码进对话就进了会话记录；进命令行就进了进程列表。
 两条都不可接受。见 §5 的替代方案。
@@ -385,7 +408,9 @@ PowerShell 永远等不到 EOF，命令挂死（实测挂满 120 s）。因此 `
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `Connection refused` on 2222 | 隧道断了 | `python ops/hsai_ops.py tunnel`，用户执行一次 |
+| `Connection refused` on 2222 | 隧道断了 | Agent 自己跑 `python ops/hsai_ops.py tunnel`（禁接管道） |
+| `tunnel` 命令卡住没输出 | 把常驻 ssh 挂到了管道上 | 已修：输出写 `artifacts/state/tunnel-selfheal.log`；别改回 `stdout=PIPE` |
+| `tunnel.ps1` 报"意外的标记 }" | 编辑器把 `.ps1` 的 UTF-8 BOM 弄丢了 | 补 BOM（OPERATIONS §1.3 有现成片段），`test_ops_guard.py` 会拦住 |
 | `Permission denied (password)` on sjump | 跳板机只收密码，公钥无效 | 正常，输密码即可 |
 | `Host key verification failed` | `~/.ssh/config` 缺 `HostKeyAlias` | 恢复 `hsai-nus` 段的 `HostKeyAlias xlogin2.comp.nus.edu.sg` |
 | `getsockname failed: Not a socket` | 试图用 ControlMaster | Windows OpenSSH 不支持，改用端口转发 |

@@ -181,3 +181,50 @@ def test_ps1_files_exist_and_parse_as_utf8() -> None:
     for path in files:
         text = path.read_bytes().decode("utf-8-sig")  # strips the BOM when present
         assert text.strip(), f"{path} is empty"
+
+
+# ─────────────────── 隧道自愈：不许把常驻 ssh 挂到管道上 ───────────────────
+
+def test_tunnel_selfheal_writes_a_log_file_instead_of_piping() -> None:
+    """`hsai_ops.py tunnel` 不能用 ``stdout=PIPE`` 收集 ``tunnel.ps1`` 的输出。
+
+    隧道是一条**常驻** ssh 进程，由 tunnel.ps1 用 ``Start-Process`` 拉起。父进程
+    stdout 若是管道，这条常驻 ssh 会继承写端并且永不关闭，Python 端于是永远等不到
+    EOF；更糟的是 ``subprocess.run`` 超时后还会再 ``communicate()`` 一次继续死等。
+    症状就是"命令卡几分钟毫无输出，而隧道其实早就建好了"（2026-11-13 连续两次，
+    把用户惹火）。所以自愈输出必须写日志文件，只读文件尾部。
+    """
+    import ast
+
+    src = (ROOT / "ops" / "hsai_ops.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    fn = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "cmd_tunnel"
+    )
+    piping = [
+        node.lineno
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Call)
+        for kw in node.keywords
+        if kw.arg == "stdout"
+        and isinstance(kw.value, ast.Attribute)
+        and kw.value.attr == "PIPE"
+    ]
+    assert not piping, (
+        "cmd_tunnel must not pipe the self-heal child's stdout (it would hang on "
+        f"the detached ssh): ops/hsai_ops.py lines {piping}"
+    )
+    assert "tunnel-selfheal.log" in ast.get_source_segment(src, fn)
+
+
+def test_tunnel_ps1_detaches_the_resident_ssh_from_caller_handles() -> None:
+    """tunnel.ps1 必须把常驻 ssh 的 stdin/stdout/stderr 全部重定向到文件。
+
+    少重定向任何一路，调用者（终端或 Agent 的管道）就会攥着那个句柄；隧道本身
+    不退出，于是调用者的读取永远不结束——"建好了但命令不返回"。
+    """
+    text = (ROOT / "ops" / "tunnel.ps1").read_bytes().decode("utf-8-sig")
+    for flag in ("-RedirectStandardInput", "-RedirectStandardOutput", "-RedirectStandardError"):
+        assert flag in text, f"tunnel.ps1 no longer detaches ssh via {flag}"

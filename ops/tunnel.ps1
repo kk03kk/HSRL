@@ -153,9 +153,13 @@ function New-Tunnel {
     $logDir = 'C:\ProgramData\HSAI'
     if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
     $log = Join-Path $logDir ("tunnel-{0}.log" -f $p)
+    # 空 stdin：隧道是常驻进程，绝不能让它的 stdin 还挂在调用者（终端/Agent 管道）上。
+    $nulIn = Join-Path $logDir 'tunnel-stdin.nul'
+    if (-not (Test-Path $nulIn)) { New-Item -ItemType File -Force -Path $nulIn | Out-Null }
 
     $sshArgs = @('-N',
                  '-L', "${p}:${target}:22",
+                 '-o', 'ConnectTimeout=20',
                  '-o', 'ServerAliveInterval=30',
                  '-o', 'ServerAliveCountMax=10',
                  '-o', 'ExitOnForwardFailure=yes')
@@ -177,6 +181,7 @@ function New-Tunnel {
     try {
         $proc = Start-Process -FilePath 'ssh' -ArgumentList $sshArgs `
                               -WindowStyle Hidden -PassThru `
+                              -RedirectStandardInput $nulIn `
                               -RedirectStandardOutput ($log + '.out') `
                               -RedirectStandardError $log
     }
@@ -348,14 +353,15 @@ $r = New-Tunnel -p $Port -Auto:$auto
 
 if (Wait-Tunnel -p $Port -Proc $r.Process) {
     Write-Host ("Tunnel on port {0} is up." -f $Port) -ForegroundColor Green
-    Write-Host 'Verify with:  python ops/hsai_ops.py doctor' -ForegroundColor DarkGray
+    Write-Host ("  ssh pid {0}   log {1}" -f $r.Process.Id, $r.Log) -ForegroundColor DarkGray
+    Write-Host 'Verify with:  python ops/hsai_ops.py state' -ForegroundColor DarkGray
     exit 0
 }
 
 Write-Host ("Tunnel on port {0} did NOT come up." -f $Port) -ForegroundColor Red
 Show-TunnelLog -LogPath $r.Log
-Write-Host 'Checks:' -ForegroundColor Yellow
-Write-Host '  * wrong or rotated sjump password   -> re-run -Setup'
-Write-Host ("  * port {0} already in use          -> try -Force" -f $Port)
-Write-Host '  * no route to sjump.comp.nus.edu.sg'
+Write-Host 'Checks (in this order):' -ForegroundColor Yellow
+Write-Host '  1. NUS VPN connected?                 -> sjump.comp.nus.edu.sg:22 must answer'
+Write-Host '  2. wrong or rotated sjump password    -> re-run -Setup'
+Write-Host ("  3. port {0} already in use           -> try -Force" -f $Port)
 exit 1

@@ -52,10 +52,139 @@ HSAI dual-end state  2026-11-12T13:33:21+08:00
 | `dirty > 0` 任一端 | 有未提交改动 | **先读 diff 决定提交还是丢弃，不写新代码** |
 | `heads_equal=False` | 两端分叉 | `pull` 合并，再决定 |
 | 有 RUNNING 作业 | 有活在跑 | 先确认它是否该被我动 |
-| `tunnel: DOWN` | 隧道断 | 让用户执行 `hsai_ops.py tunnel`，等重连再继续 |
+| `tunnel: DOWN` | 隧道断 | **Agent 自己跑** `python ops/hsai_ops.py tunnel`（流程见 §1.3），不要等用户 |
 
 `python ops/hsai_ops.py doctor` 是更严格的七点自检（ssh 配置、隧道、两端仓库、
 `updateInstead`、作业、远端配置），结构性改动前后各跑一次。
+
+---
+
+### 1.3 隧道断了怎么办（唯一正确流程）
+
+**本节是权威流程。** 实测数字、日志指纹、历史事故只记在
+[`nus/TUNNEL_FAST_PATH.md`](nus/TUNNEL_FAST_PATH.md)，那里**不再**是独立流程。
+每一步都有硬上界：任何一步超过 ~30 s 没结果就掐掉看现场，禁止盲等。
+
+断了会表现成：`state` 里 `tunnel: DOWN`；`sh/push/pull/jobs/models` 报
+`Connection refused`（2222 没人监听）或 `远端命令超时`。
+
+#### A. 预检 VPN（0–6 s，不碰隧道）
+
+```powershell
+ssh -o ConnectTimeout=5 -o BatchMode=yes -o PubkeyAuthentication=no `
+    -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no `
+    -o ConnectionAttempts=1 hengzhi@sjump.comp.nus.edu.sg true
+```
+
+| 输出 | 含义 | 动作 |
+|---|---|---|
+| `Permission denied` | 路已通（故意不给任何认证方式） | 进 B |
+| `Connection timed out during banner exchange` / `port 22 timed out` | **VPN 还没生效**（此时 `Test-NetConnection` 仍返回 True，是假通） | **停**，只回报"需要用户连 VPN"，不重建、不重试 |
+
+#### B. 重建（两个等价入口，都能在一次工具调用里安全跑完）
+
+**B1 默认（推荐）**
+
+```powershell
+python ops/hsai_ops.py tunnel
+```
+
+凭据已登记时完全无人值守，实测 **6–10 s 返回**（2026-11-13 23:08，VPN 刚重连）：
+
+```
+隧道已断，尝试自愈……（脚本输出写 D:\HSAI\artifacts\state\tunnel-selfheal.log）
+  自愈脚本 rc=0 用时 6.3s
+  --- 自愈日志尾部 ---
+  | Port 2222 does not answer; clearing any stale forward first.
+  | Creating tunnel on port 2222 using the stored credential (unattended)...
+  | Tunnel on port 2222 is up.
+  |   ssh pid 8788   log C:\ProgramData\HSAI\tunnel-2222.log
+自愈成功，隧道已通（xlogin2）。
+```
+
+它之所以可以"直接等"，是因为 2026-11-13 起它把脚本输出**写日志文件**而不是接管道
+（原因见下面的禁令 1），并且对子进程设了有界超时。
+
+**B2 脱离式（脚本本身可疑、或要强制重建）**
+
+```powershell
+Start-Process -FilePath powershell -WorkingDirectory 'D:\HSAI' -ArgumentList `
+  '-NoProfile','-ExecutionPolicy','Bypass','-File','ops\tunnel.ps1','-Force' -WindowStyle Hidden
+```
+
+**0.07 s 返回**，包装进程完全脱离本次调用（同时避开"等包装进程"和"工具超时连带杀掉"）。
+随后每 1.5 s 轮询一次、最多 25 s：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status   # 只读，安全
+```
+
+看到 `tunnel 2222: UP` 立刻进 C。**不要**去等 B2 那个进程、不要查它的退出码，
+更**不要 kill 它**——`ssh -N` 是它的子进程，杀包装进程隧道会一起消失。
+
+#### C. 独立探活（3–5 s，证明不只是端口通了）
+
+```powershell
+python ops/hsai_ops.py probe        # 期望 host=xlogin2
+python ops/hsai_ops.py state        # 首行 tunnel : OK  xlogin2；顺带看同步与作业（推荐）
+```
+
+#### D. 25–30 s 仍 DOWN：读日志分类，不要盲等
+
+```powershell
+Get-Content C:\ProgramData\HSAI\tunnel-2222.log -Tail 5
+```
+
+| 日志特征 | 原因 | 处理 |
+|---|---|---|
+| `banner exchange` / `Connection timed out` | VPN/校园侧未生效 | 停，请用户确认 VPN |
+| `Permission denied (password)` | 跳板机密码轮换或输错 | 用户跑一次 `ops\tunnel.ps1 -Setup` |
+| `No stored credential` / rc=3 | 从没登记过密码 | 同上 |
+| `bind: Address already in use` | 有陈旧监听 | 再跑一次 `-Force`（脚本会先精确清理） |
+| 端口 UP 但 `probe` 失败 | ssh key / `HostKeyAlias` 问题 | `python ops/hsai_ops.py doctor` |
+
+#### 禁令（每条都是实测事故换来的）
+
+1. **不要给建隧道脚本接管道**：`stdout=PIPE` / `| Tee-Object` / `*> 文件` / `$(...)` 都算。
+   隧道是**常驻** ssh，它继承调用者的 stdout 写端且永不关闭，调用者永远等不到 EOF。
+   2026-11-13 两次实测：① `python ops/hsai_ops.py tunnel` 内部用管道 → 卡 4 分钟被用户打断；
+   ② `powershell -File ops\tunnel.ps1` 被工具管道接住 → 不返回，**直到人手动杀掉那条 ssh**
+   才返回（53.8 s，正好是杀它的时刻）。`hsai_ops.py tunnel` 因此改成写
+   `artifacts/state/tunnel-selfheal.log` 再读文件尾；`tunnel.ps1` 把 ssh 的
+   stdin/stdout/stderr 三路全部重定向到文件。`tests/test_ops_guard.py` 有两条测试钉死。
+2. **不要手工执行 `ssh -N -f -L 2222:...`**：`-f` 只是把 ssh 丢到后台，输出仍挂在你那条
+   管子上，同样挂死。它只作为**原理**记在 [`architecture/TRANSPORT.md`](architecture/TRANSPORT.md)。
+3. **不要 kill 隧道相关进程**，也不要对后台起的隧道作业 `job_kill`。
+
+封装脚本的其余开关：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1            # 无人值守（凭据已登记）
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Force     # 强制重建（只杀 2222 那条转发）
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status    # 只报告，不动手
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify    # 临时端口演练，不碰 2222
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Setup     # 登记/更新密码（唯一需要人的一步）
+```
+
+#### 改 `ops\*.ps1` 的人注意（编码，会静默毁掉脚本）
+
+`ops/` 与 `client/` 下含中文的 `.ps1` **必须带 UTF-8 BOM**：Windows PowerShell 5.1 读无 BOM
+脚本时用系统 ANSI 代码页，中文被错解并**吞掉换行**，整段结构失效。2026-11-13 真实发生过：
+用编辑器改写 `ops\tunnel.ps1` 后 BOM 丢了，注释行 `# …refused。` 把下一行的
+`if (-not $Force) {` 吞进注释，PowerShell 5.1 报"意外的标记 }"，
+于是自愈脚本变成必定失败而没人察觉。
+`tests/test_ops_guard.py::test_ps1_files_with_non_ascii_must_be_utf8_with_bom` 钉住了这条；
+丢了就补回来（不改内容，只补三个字节，本机实测可用）：
+
+```powershell
+$p='ops\tunnel.ps1'; $b=[IO.File]::ReadAllBytes($p)
+if (-not ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF)) {
+  $out = New-Object byte[] ($b.Length + 3)
+  [Array]::Copy([byte[]](0xEF,0xBB,0xBF),0,$out,0,3)
+  [Array]::Copy($b,0,$out,3,$b.Length)
+  [IO.File]::WriteAllBytes($p,$out)
+}
+```
 
 ---
 
@@ -232,9 +361,8 @@ python client/tools/live_status.py               # 一行状态
 如果隧道长期不可用、又有紧急动作必须做，用户可以直接 SSH 到服务器：
 
 ```powershell
-# 1. 建隧道（输一次密码）
-ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 -o ServerAliveInterval=30 `
-    -o ServerAliveCountMax=10 -o ExitOnForwardFailure=yes hengzhi@sjump.comp.nus.edu.sg
+# 1. 建隧道（输一次密码；不要自己拼 ssh -N -f -L，理由见 §1.3）
+powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1
 # 2. 进服务器
 ssh -p 2222 -o HostKeyAlias=xlogin2.comp.nus.edu.sg hengzhi@127.0.0.1
 ```
@@ -305,9 +433,9 @@ python ops/hsai_ops.py model-pull <name>
 .venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 .venv\Scripts\python.exe tools\verify_workspace.py --skip-rust
 
-# 隧道断了（凭据已登记时 Agent 自己就能做，不需要问你）
-python ops/hsai_ops.py tunnel                              # Agent 自动尝试自愈
-powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1     # 手动等价操作
+# 隧道断了（凭据已登记时 Agent 自己就能做，不需要问用户；详见 §1.3）
+python ops/hsai_ops.py tunnel                               # 唯一正确入口，6–10s，禁止接管道
+python ops/hsai_ops.py state                                # 独立确认：tunnel : OK  xlogin2
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify   # 临时端口演练
 ```

@@ -836,3 +836,52 @@ evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h1
 
 **本轮复跑**：M3 由加速版 `N1`（引擎入场 + `games 256`）接手，M2 由 `M2b`
 （均匀 p50 + `games 256`）接手，19:20 起在 h100-47 上跑，5 段 × 20 min。
+
+## D-047 · 2026-11-13 · local · 隧道重建第二次翻车：常驻 ssh 继承了调用者的 stdout 管道；流程文档二源冲突一并消除
+
+**事故**：用户重连 VPN 后要求"严格按流程重建隧道"。我执行 `python ops/hsai_ops.py tunnel`，
+**卡住 4 分钟无输出被用户打断**，用户明确要求"深度确认清楚再搞，并写进文档"。本次没有
+损失 GPU 时间，但这是 D-042 之后**同一件事第二次**翻车。
+
+**两个独立根因（都对上了实测）**
+
+1. **代码根因：常驻 ssh 继承了调用者的 stdout 管道。**
+   `cmd_tunnel` 用 `subprocess.run(..., stdout=PIPE)` 收集 `tunnel.ps1` 的输出；而
+   `tunnel.ps1` 用 `Start-Process` 拉起的是**常驻** `ssh -N`（隧道本身，永不退出）。
+   Windows 的句柄继承把这个管道写端交给了 ssh，Python 永远等不到 EOF；
+   `subprocess.run` 超时后还会再 `communicate()` 一次，继续死等。
+   **直接测证**（23:12，一次性 2233 端口演练，不碰 2222）：
+   `powershell -File ops\tunnel.ps1 -Port 2233` 的 stdout 被工具管道接住时，
+   命令**不返回**，直到我手动 `Stop-Process` 掉那条 ssh 才返回，
+   elapsed=**53.8 s，正好等于我杀它的时刻** → 写端确实被 ssh 持有。
+2. **文档根因：两份"怎么建隧道"互相矛盾。**
+   `AGENTS.md` §1 与 `OPERATIONS.md` §7/§10 说"跑 `hsai_ops.py tunnel`"（暗示可以在一次调用里等），
+   而 `docs/nus/TUNNEL_FAST_PATH.md` + D-042 的结论是"绝不等待、必须脱离式启动 + 轮询"。
+   我照做了前者、违反了后者。**"知道规则"不等于"有权重的单一流程"**，这是比 bug 更要紧的问题。
+3. **附带发现（会静默毁脚本）：`ops/tunnel.ps1` 的 UTF-8 BOM 被编辑器改写时丢掉。**
+   Windows PowerShell 5.1 读无 BOM 的中文脚本会按 ANSI 解码并**吞掉换行**：本次注释行
+   `# …refused。` 把下一行 `if (-not $Force) {` 吞进注释，5.1 报"意外的标记 }"——
+   自愈脚本变成**必定失败**，而 pwsh 7 解析同一文件却报 0 错，极易漏掉。
+   仓库已有守卫测试 `test_ps1_files_with_non_ascii_must_be_utf8_with_bom`，是它证明了这次是我改坏的；
+   BOM 已按字节补回（`<#` 前三个字节），5.1 下重新可解析。
+
+**决定**
+
+1. **代码**：`cmd_tunnel` 改为把子进程输出重定向到**日志文件**
+   `artifacts/state/tunnel-selfheal.log`（`stdin=DEVNULL`，有界 `--timeout`），跑完只读文件尾；
+   `tunnel.ps1` 的 `New-Tunnel` 给 ssh 补 `-RedirectStandardInput`（空文件）与 `-ConnectTimeout=20`，
+   并在成功时打印 `ssh pid` 与日志路径。新增 `--port` 供演练（不碰 2222）。
+   **实测**：杀掉 2222 转发后 `python ops/hsai_ops.py tunnel` **10.2 s 返回**、rc=0、
+   `probe` 独立确认 `host=xlogin2`；随后 `state` 报 `tunnel : OK`。
+2. **测试**：`tests/test_ops_guard.py` 增加两条守卫——
+   `cmd_tunnel` 不得对子进程用 `stdout=PIPE`（AST 级检查）、
+   `tunnel.ps1` 必须同时重定向 ssh 的 stdin/stdout/stderr。
+3. **文档单一化**：`OPERATIONS.md` §1.3 成为**唯一权威流程**，写成四步
+   （A 预检 VPN → B 重建〔B1 `hsai_ops.py tunnel` 6–10 s；B2 脱离式 `Start-Process` + 1.5 s 轮询 ≤25 s〕
+   → C 独立探活 → D 仍 DOWN 才读日志分类），每条禁令都附实测证据；
+   `docs/nus/TUNNEL_FAST_PATH.md` **降级为证据附录**（实测数字/日志指纹），
+   `AGENTS.md` §1、`TRANSPORT.md` §1.1/§7、`OPERATIONS.md` §7/§10 全部改为指向 §1.3。
+
+**判据（以后照这个验收隧道流程）**：重建全程 **≤10 s** 且**单次工具调用内返回**；
+返回后必须能用 `probe`/`state` 独立证明 `host=xlogin2`；任何一次超过 30 s 无结果，
+就掐掉读 `C:\ProgramData\HSAI\tunnel-2222.log` 尾部，而不是继续等。

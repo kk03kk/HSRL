@@ -20,8 +20,12 @@
 - **用户只提目标**，不当中转站。Agent 自主规划、执行、验证、归档。
 - **每次开工先跑** `python ops/hsai_ops.py state`，看到 `IN SYNC` 才动手（见 OPERATIONS §1）。
 - **代码走 git over SSH，大文件走 `ssh cat`，GitHub 只做里程碑异地备份。**
-- **隧道自愈**：用户已登记跳板机密码时，`python ops/hsai_ops.py tunnel` 可无人值守重建，
-  Agent **应当自己调用它**而不是让用户手动重连。未登记时再请用户跑 `ops\tunnel.ps1 -Setup`。
+- **隧道自愈**：用户已登记跳板机密码时，Agent **自己**重建，不要等用户、也不要问。
+  固定四步（预检 VPN → 重建 → 独立探活 → 仍 DOWN 才读日志），实测 6–10 s，
+  **权威步骤见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md) §1.3**。
+  两条硬禁令：不要自己拼 `ssh -N -f -L`；**不要给建隧道脚本接管道**
+  （常驻 ssh 会继承管道写端永不关闭，命令卡死而隧道其实已建好）。
+  尚未登记密码时才需要用户跑 `ops\tunnel.ps1 -Setup`。
 - 禁止用 scp 覆盖源码；禁止让服务器留未提交改动过夜。
 
 ## 2. 东西放哪

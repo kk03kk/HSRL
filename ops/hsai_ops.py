@@ -266,11 +266,12 @@ def probe_tunnel(timeout: float = 12.0) -> Dict[str, Any]:
 
 
 TUNNEL_FIX = (
-    "隧道已断。请在 **本地 PowerShell** 里重跑这一条（只需输一次跳板机密码）：\n"
-    "  ssh -N -f -L 2222:xlogin2.comp.nus.edu.sg:22 "
-    "-o ServerAliveInterval=30 -o ServerAliveCountMax=10 "
-    "-o ExitOnForwardFailure=yes hengzhi@sjump.comp.nus.edu.sg\n"
-    "或者用本仓库的快捷方式：python ops/hsai_ops.py tunnel"
+    "隧道已断。修复只走封装脚本，**不要**自己拼 ssh 一行命令：\n"
+    "  1) Agent 无人值守自愈： python ops/hsai_ops.py tunnel\n"
+    "  2) 人肉等价操作（会提示输一次密码）：\n"
+    "     powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1\n"
+    "  （只用过手动 `ssh -N -f -L ...` 的时候容易把输出接成管道，常驻 ssh 会继承\n"
+    "   那个管道写端，命令看起来像卡住、隧道其实已经建好。详见 docs/OPERATIONS.md §1.3）"
 )
 
 
@@ -732,8 +733,28 @@ def cmd_probe(args: argparse.Namespace) -> int:
     return 0 if info["ok"] else 2
 
 
+def _log_tail(path: Path, lines: int = 14) -> str:
+    """读日志文件尾部（非空行）。用于把子进程输出转成人能看的一段。"""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    keep = [ln.rstrip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(keep[-lines:])
+
+
 def cmd_tunnel(args: argparse.Namespace) -> int:
-    """确保隧道在跑。有登记凭据就无人值守重建，否则打印手动命令。"""
+    """确保隧道在跑。有登记凭据就无人值守重建，否则打印手动命令。
+
+    **绝对不要**把 ``ops/tunnel.ps1`` 的输出接成管道（``stdout=PIPE``）。
+
+    原因（2026-11-13 连续踩了两次，别再改回去）：隧道是一条**常驻**的 ssh 进程，
+    由 tunnel.ps1 用 ``Start-Process`` 拉起。父进程的 stdout 若是管道，这条常驻 ssh
+    会**继承那个写端并且永远不关闭**，于是 Python 端永远等不到 EOF；更糟的是
+    ``subprocess.run`` 在超时后还会再 ``communicate()`` 一次，依旧死等 —— 表现为
+    "命令卡了几分钟毫无输出，而隧道其实早就建好了"。
+    所以：脚本输出一律重定向到**文件**，本函数只读文件尾部。
+    """
     info = probe_tunnel()
     if info["ok"]:
         print(f"隧道已在运行（{info.get('host')}），无需重建")
@@ -747,26 +768,57 @@ def cmd_tunnel(args: argparse.Namespace) -> int:
         print("  powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1 -Setup")
         return 2
 
-    print("隧道已断，尝试自愈……")
-    proc = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-         "-File", str(script)],
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=args.timeout,
-    )
-    print(proc.stdout.decode("utf-8", "replace").strip())
-    audit({"label": "tunnel-selfheal", "rc": proc.returncode})
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    log = STATE_DIR / "tunnel-selfheal.log"
+    cmd = [
+        "powershell",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+    ]
+    port = getattr(args, "port", None)
+    if port:
+        cmd += ["-Port", str(port)]
 
-    if proc.returncode == 0 and probe_tunnel()["ok"]:
-        print("自愈成功。")
+    print(f"隧道已断，尝试自愈……（脚本输出写 {log}）")
+    started = time.time()
+    rc: Optional[int] = None
+    timed_out = False
+    try:
+        with open(log, "wb") as fh:  # 必须是文件句柄，不能是 PIPE：见函数文档字符串
+            rc = subprocess.run(
+                cmd,
+                cwd=str(REPO_ROOT),
+                stdin=subprocess.DEVNULL,
+                stdout=fh,
+                stderr=subprocess.STDOUT,
+                timeout=args.timeout,
+            ).returncode
+    except subprocess.TimeoutExpired:
+        timed_out = True
+    secs = round(time.time() - started, 1)
+    audit({"label": "tunnel-selfheal", "rc": rc, "secs": secs, "timeout": timed_out or None})
+    print(f"  自愈脚本 rc={rc} 用时 {secs}s" + ("（超时）" if timed_out else ""))
+    tail = _log_tail(log)
+    if tail:
+        print("  --- 自愈日志尾部 ---")
+        for line in tail.splitlines():
+            print("  | " + line)
+
+    info = probe_tunnel()
+    if info["ok"]:
+        print(f"自愈成功，隧道已通（{info.get('host')}）。")
         return 0
 
-    print()
-    print("自愈未成功。若尚未登记凭据，请在你的 PowerShell 里跑一次：")
-    print("  powershell -ExecutionPolicy Bypass -File ops\\tunnel.ps1 -Setup")
-    return proc.returncode or 2
+    print("自愈未成功。按下面顺序查：")
+    print("  * 没登记过跳板机密码 -> 在你自己的 PowerShell 里跑一次 ops\\tunnel.ps1 -Setup")
+    print("  * 密码已轮换         -> 重新跑一次 -Setup")
+    print("  * 没连 NUS VPN       -> 先连 VPN（sjump 必须可达）再重试")
+    print(f"  * 端口 {port or 2222} 被占        -> powershell -File ops\\tunnel.ps1 -Force")
+    return rc if rc else 2
 
 
 def cmd_state(args: argparse.Namespace) -> int:
@@ -888,6 +940,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = sub.add_parser("tunnel", help="确保隧道在跑（有凭据则无人值守自愈）")
     p.add_argument("--print", dest="print_only", action="store_true",
                    help="只打印手动命令，不尝试自愈")
+    p.add_argument("--port", type=int, default=None,
+                   help="演练用本地端口（默认 2222；换端口不会碰现有隧道）")
     p.add_argument("--timeout", type=float, default=120.0)
     p.set_defaults(func=cmd_tunnel)
 
