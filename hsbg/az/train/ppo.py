@@ -477,6 +477,28 @@ class CollectConfig:
     shaping_mode: str = "sigma"
     #: 逗号分隔的 tier 奖励表，**按 tier 直接索引**（索引 0 为占位；越界按 0）。
     shaping_tier_bonus: str = "0,0,20,60,150,400,900"
+    #: ── 法术自举补贴（spell bootstrap，默认关闭；见 docs/analysis/NEXT_INTERVENTIONS_20261114.md）──
+    #: 系数：**0 = 关闭**（不读动作、不写 record、不新增 meta 键，旧路径逐位一致）。
+    #: 为什么需要它：champion 整局**买 0 次法术**，而每回合商店里都有一个合法法术槽
+    #: （``A_BUY+7``，见 ``engine/.../actions.rs`` 与 ``recruit.rs``），真人每回合买 0.46–1.51 个。
+    #: 终局名次是稀疏信号，单次法术被 150+ 个决策稀释 ⇒ 梯度≈0，策略永远不探索这一类动作。
+    #: 这是**动作条件**奖励（不是势函数），**不满足策略不变性**：只注入前 K 次、仅买法术，
+    #: 用来把这类动作「点亮」，之后再靠名次奖励接管。验收必须同时看名次与板面。
+    spell_bootstrap_coef: float = 0.0
+    #: 每局最多补贴几次（配额上限，防止"刷廉价法术骗分"）。
+    spell_bootstrap_per_game: int = 3
+
+    def __post_init__(self) -> None:
+        """构造期校验（只在显式开了法术自举补贴时才检查，默认路径零成本）。"""
+        _sbc = float(self.spell_bootstrap_coef or 0.0)
+        if not math.isfinite(_sbc) or _sbc < 0.0:
+            raise ValueError(f"spell_bootstrap_coef 必须 >= 0，得到 {_sbc!r}")
+        _sbk = int(self.spell_bootstrap_per_game or 0)
+        if _sbk < 0:
+            raise ValueError(f"spell_bootstrap_per_game 必须 >= 0，得到 {_sbk!r}")
+        if _sbc != 0.0 and _sbk == 0:
+            raise ValueError("spell_bootstrap_coef>0 但 spell_bootstrap_per_game=0："
+                             "配额为 0 等于永远不发钱，请显式设 >= 1 或把 coef 设回 0")
     #: ── 等级进度奖励（tier-target，默认关闭；见 docs/TIER_TARGET.md）──
     #: 系数：**0 = 关闭**（不读状态、不写 record、不新增 meta 键，旧路径逐位一致）。
     #: 非 0 时在 learner 每个新回合起点按 ``tier_target_table`` 检查 tier：

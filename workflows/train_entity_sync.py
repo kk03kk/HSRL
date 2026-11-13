@@ -46,8 +46,11 @@ sys.path.insert(0, ROOT)
 from hsbg.az.train.common import engine_available, engine_info, to_jsonable  # noqa: E402
 from hsbg.az.train.mirror_snapshots import parse_turn_bands, ramp_p  # noqa: E402
 from hsbg.az.train.checkpoint_io import publish_checkpoint  # noqa: E402
-from hsbg.az.train.reward_shaping import (parse_tier_bonus,  # noqa: E402
-                                          shaping_gamma_warning)
+from hsbg.az.train.reward_shaping import (  # noqa: E402
+    SPELL_BUY_ACTION,
+    parse_tier_bonus,
+    shaping_gamma_warning,
+)
 from hsbg.az.train.tier_target import parse_tier_target_table  # noqa: E402
 from hsbg.az.train.forced_tier import (  # noqa: E402
     parse_forced_tier_plan,
@@ -672,6 +675,12 @@ def main() -> int:
                          "0.7 = 0.7·强度 + 0.3·名次")
     ap.add_argument("--shaping-tier-bonus", default="0,0,20,60,150,400,900",
                     help="按 tier 直接索引的奖励表（逗号分隔；索引 0=占位，越界按 0）")
+    # ---- 法术自举补贴（动作条件奖励，默认关闭；见 docs/analysis/NEXT_INTERVENTIONS_20261114.md）----
+    ap.add_argument("--spell-bootstrap-coef", type=float, default=0.0,
+                    help="「买法术」动作的前 K 次小额补贴系数；0=关闭（默认，逐位等价旧路径）。"
+                         "注意这是**动作条件**奖励，不满足策略不变性")
+    ap.add_argument("--spell-bootstrap-per-game", type=int, default=3,
+                    help="每局最多补贴几次买法术（配额上限，防止刷廉价法术骗分）")
     # ---- 等级进度奖励（tier-target，默认关闭，见 docs/TIER_TARGET.md）----
     ap.add_argument("--tier-target-coef", type=float, default=0.0,
                     help="等级进度奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）")
@@ -1253,6 +1262,22 @@ def main() -> int:
         if not int(args.lockstep):
             print("[info] 非 lockstep 路径：塑形在逐局采集（collect_ppo_records_parallel）"
                   "内生效", flush=True)
+
+    # ---- 法术自举补贴（动作条件奖励，默认关闭）----
+    if float(getattr(args, "spell_bootstrap_coef", 0.0) or 0.0) != 0.0:
+        if str(args.opponent) == "self":
+            print("[error] 法术自举补贴只支持 --opponent bot|weak（单 learner seat）",
+                  file=sys.stderr)
+            return 2
+        if float(getattr(args, "spell_bootstrap_coef", 0.0)) < 0.0:
+            print("[error] --spell-bootstrap-coef 必须 >= 0", file=sys.stderr)
+            return 2
+        if int(getattr(args, "spell_bootstrap_per_game", 0) or 0) <= 0:
+            print("[error] --spell-bootstrap-per-game 必须 >= 1", file=sys.stderr)
+            return 2
+        print(f"[spell-bootstrap] 开启：coef={float(args.spell_bootstrap_coef):g} "
+              f"每局上限={int(args.spell_bootstrap_per_game)} 动作={SPELL_BUY_ACTION}"
+              "（商店法术槽；动作条件奖励，非策略不变）", flush=True)
 
     # ---- records 数据通路（默认 auto/fp16；`--ipc-mode disk --records-dtype fp32` = 历史路径。
     #      见 docs/TRAIN_THROUGHPUT.md：shm 省掉 335-438 MB/iter 写盘+读盘，fp16 再减半字节）----
@@ -2486,6 +2511,8 @@ def main() -> int:
             seq_aux=bool(seq_enabled),
             # 势函数奖励塑形（默认 coef=0 -> 零影响）
             shaping_coef=float(args.shaping_coef),
+            spell_bootstrap_coef=float(getattr(args, "spell_bootstrap_coef", 0.0) or 0.0),
+            spell_bootstrap_per_game=int(getattr(args, "spell_bootstrap_per_game", 0) or 0),
             shaping_gamma=args.shaping_gamma,
             shaping_w_str=float(args.shaping_w_str),
             shaping_w_tier=float(args.shaping_w_tier),
