@@ -28,7 +28,7 @@ def main() -> int:
     lo, hi = int(lo), int(hi or lo)
 
     per_turn = collections.defaultdict(lambda: {
-        "boards": 0, "golden": 0, "minions": 0, "boards_with_golden": 0,
+        "boards": 0, "golden": 0, "minions": 0, "boards_with_golden": 0, "top1": 0.0,
         "atk": 0, "hp": 0, "kw": 0,
     })
     for line in open(args.bank, encoding="utf-8"):
@@ -63,6 +63,10 @@ def main() -> int:
             d["kw"] += int(m.get("kw") or 0) + int(m.get("bonus_kw") or 0)
             if m.get("golden"):
                 g += 1
+        sums = [int(m.get("atk") or 0) + int(m.get("hp") or 0)
+                for m in detail if isinstance(m, dict)]
+        if sums and sum(sums) > 0:
+            d["top1"] += max(sums) / sum(sums)
         d["golden"] += g
         if g:
             d["boards_with_golden"] += 1
