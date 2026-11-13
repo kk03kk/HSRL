@@ -885,3 +885,39 @@ evidence: `artifacts/runs/gap-h10l1-humfield-20261113/`、`artifacts/runs/gap-h1
 **判据（以后照这个验收隧道流程）**：重建全程 **≤10 s** 且**单次工具调用内返回**；
 返回后必须能用 `probe`/`state` 独立证明 `host=xlogin2`；任何一次超过 30 s 无结果，
 就掐掉读 `C:\ProgramData\HSAI\tunnel-2222.log` 尾部，而不是继续等。
+## D-048 · 2026-11-14 · local · 续训路径上**配置的 `lr` 会被 trainer state 覆盖**：L3 因此是空跑，已改 L4（fresh-Adam 分叉）
+
+**事故**：我以为 L3（`config/league-long-l3.json`，`lr 4e-6` + `anchor 0.02`）是"lr ×2 + anchor 放松"的
+解冻臂，实际它只改了 anchor。证据是 L3 日志第一行：
+
+```
+[lr] base=[2e-06] last_epoch=14858 lr_min_ratio=0.833333 max_updates=10000
+     -> effective=1.666666667e-06 (config lr=4e-06 ratio=0.833333 max_updates=25000)
+[lr][warn] 续训沿用 trainer state 的 lr_min_ratio/max_updates，命令行值被忽略
+```
+
+**根因（代码事实，不是猜测）**：`late_entry.sbatch` 走 `personal.py`，而它**总是**带 `--trainer-state`；
+`workflows/train_entity_sync.py:1920` 于是走 `PPOTrainer.load(...)`，由
+`ppo_trainer.py:427-434` 用 trainer state 里的 `scheduler.base_lrs` / `lr_min_ratio` / `max_updates`
+覆盖配置。只有**不带 `--trainer-state`** 的 fresh 分支（`:1949`
+`PPOTrainer(model, p_cfg, lr_min_ratio=..., max_updates=...)`）才会用配置的 lr。
+仓库里那条 `[lr][warn]` 早就写了这件事，我在配 L3 时只读了配置语义、没读这条警告。
+
+**代价**：L3 白跑 13 轮（约 6 min 一张卡）后被 `scancel`；更大的代价是**今天所有课程臂
+（N1/M2b/M2c/S1b/S1c/L1/L3）的实际 lr 都是 1.667e-6**，所以 §5.56 的"配对差恰好 0.0"
+可能根本不是"配方无效"，而是"策略几乎没动"。
+
+**决定**
+
+1. **新增 `deploy/slurm/lr_fork.sbatch`**：直接调 `train_entity_sync.py`，**不带 `--trainer-state`**
+   （fresh Adam 分叉，从 champion 权重起跑），`HSAI_LR` 控制 lr，`HSAI_LR_RESUME=1` 支持链式续训。
+   provenance/`run.env` 里显式写 `mode=fresh-adam-fork (NO --trainer-state)`，与"续训"区分开。
+2. **L4 = `1135112→1135113→1135114`**（`artifacts/runs/entry-l4-20261114`）：
+   `fresh-adam-fork` + **lr 3e-6** + anchor 全程 0.02，其余与 L1 完全相同。
+   **已核实生效**：L1 迭代行 `lr=1.67e-06`，L4 迭代行 `lr=3e-06`。
+3. **规矩**：以后凡是"改 lr"的实验，必须二选一——
+   ①用 `lr_fork.sbatch`（fresh Adam）；②先做 trainer fork 工具显式改 `base_lrs`。
+   **不许**再靠配置 `lr` 猜测续训行为。凡是"改配方"的实验，落配置后必须回到日志里
+   **看到那一行为准**（`[lr]` / `[anchor]` / `[keep-start-board]` 之类），配了没中一律按失败处理。
+4. 顺带记录：`l3` 保留为"anchor-only"证据（13 轮，不作结论）；`config/league-long-l3.json` 不删，
+   但标注为"lr 未生效，勿复用作解冻臂"。
