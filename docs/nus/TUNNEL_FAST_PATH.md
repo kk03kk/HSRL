@@ -7,11 +7,11 @@
 | 动作 | 实测耗时 | 说明 |
 |---|---|---|
 | `-Status` | 0.4–0.8 s | 只读本地：凭据、helper、2222 是否有人听 |
-| **banner 探测（预检）** | **5.0 s** | 决定"VPN 好了没"，**不碰隧道** |
-| VPN 正常时的重建 | 2–12 s 到 UP | 之后 `state` 3–5 s |
+| **banner 探测（预检）** | **0.34 s**（VPN 好）/ **5.0 s**（VPN 坏） | 决定"VPN 好了没"，**不碰隧道** |
+| VPN 正常时的完整重建 | **≈6 s 到 UP**（实测 poll #2） | 之后 `state` 3–5 s |
 
 **VPN 未生效时的完整代价**：`tunnel.ps1 -Force` 的失败路径 = 初始探测 + `Wait-Tunnel`
-8 次 ×（0.7 s sleep + ≤8 s 硬杀探测）≈ **50 s**（本次用组件实测反推：单次 ssh 探测 5.0 s，
+8 次 ×（0.7 s sleep + ≤8 s 硬杀探测）≈ **50 s**（用组件实测反推：单次 ssh 探测 5.0 s，
 `Get-NetTCPConnection` 0.16–0.52 s，`Get-CimInstance` 0.08 s）。
 所以"卡很久"通常是**在等这 50 s**，不是脚本有问题。
 
@@ -92,6 +92,20 @@ Get-Content C:\ProgramData\HSAI\tunnel-2222.log -Tail 5
 | `bind: Address already in use` | 有陈旧监听 | 再跑一次 `-Force`（脚本会先清） |
 | 本地 2222 `Connection refused` | 转发没建起来 | 再跑一次 `-Force` |
 
+## 3.5 端到端实测时间线（2026-11-13 12:55，用户重连 VPN 后第一次跑）
+
+```
+A  预检 banner      0.34 s   stderr = "Permission denied (password)"   → 路已通
+B  Start-Process    0.07 s   立即返回，包装进程脱离
+C  轮询 -Status     6.0 s    poll #2 报 tunnel 2222: UP
+D  probe + state    3–5 s    host=xlogin2，drift: IN SYNC
+                                    ─────────────
+                        合计 ≈ 7 s
+```
+
+**对比过去**：同一件事以前要 5 分钟以上，且一半时间在"等一个其实已经成功的调用返回"。
+现在**没有一步是盲等**：每步都有硬上界，失败也会在 6 s 内被预检拦住。
+
 ## 4. 禁止清单
 
 - ✗ 在同一个调用里等 `tunnel.ps1 -Force` 返回（坑 1）
@@ -101,9 +115,19 @@ Get-Content C:\ProgramData\HSAI\tunnel-2222.log -Tail 5
 - ✗ 任何一步超过 ~25–30 s 没有结果还继续等——掐掉看现场
 
 ## 5. 拓扑备忘（为什么必须端口转发）
-
 - 跳板机 `sjump.comp.nus.edu.sg` 只接受**密码**认证；`xlogin2` 在校园网内不可直连；
   NUS VPN 不路由 `192.168.5x`。
 - 所以本机 `2222` → `xlogin2:22`；`~/.ssh/config` 里 `hsai-nus` = `127.0.0.1:2222`（`BatchMode`）。
 - 密码只以 DPAPI 加密形式存于 `%LOCALAPPDATA%\HSAI\tunnel.cred`，由
   `C:\ProgramData\HSAI\hsai-askpass.exe` 读取；**永不进对话/命令行/日志**。
+
+## 6. 顺手记一条：`state` 报 `DRIFT` 时先看是不是"本地领先"
+
+2026-11-13 12:55 实测：隧道刚建好，`state` 报
+`drift: DRIFT (heads_equal=False, local_dirty=0, server_dirty=0)`
+—— 两端**都干净**，只是**本地比服务器多一个还没 push 的提交**
+（`git log --oneline -4` 一看就知道：服务器的 HEAD 是本地 HEAD 的父提交）。
+push 之后立刻 `IN SYNC`。
+
+**判据**：`DRIFT` + 两端 `dirty=0` ≈ 本地领先（未推送）；`DRIFT` + 任一端 `dirty>0`
+才是真的有未提交改动。**不要**看到 DRIFT 就去做 `reset`/`checkout` 之类的危险动作。

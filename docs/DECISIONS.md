@@ -698,3 +698,30 @@ trainer.config.anchor_coef = (args.anchor_beta if i < args.anchor_iterations
 2. 每棒结束后**先看 `sacct` 的 State**：`TIMEOUT`/`FAILED` 都要在下一棒里 `--resume` 续上，
    而不是当成"跑完了"——快照还在，续跑是合法的。
 3. 段数与时限的对应关系写进提交命令的注释里，避免下次再撞。
+
+## D-042 · 2026-11-13 · local · 隧道重建固定为「5 秒预检 + 脱离式启动 + 有界轮询」，禁止盲等
+
+**背景**：用户指出"每次重连 VPN 后 Agent 都会卡很久"。复盘查出**三个独立原因**，
+此前被我混为一谈（详见 `docs/nus/TUNNEL_FAST_PATH.md`）：
+
+1. `tunnel.ps1` **成功之后包装进程不退出**（日志已打印 `up`），前台等它 → 工具超时；
+2. `ssh -N` 是包装进程的**子进程**，`job_kill` 包装进程会**连隧道一起杀掉**（实测两次）；
+3. **VPN 没生效时 TCP 假通**（`sjump:22` 返回 True 但 banner 永不到），
+   脚本失败路径要跑满 `Wait-Tunnel` 8 次 ≈ **50 s**，这段时间全是空等。
+
+**固定流程（每步都有硬上界）**
+
+| 步 | 命令 | 上界 | 判据 |
+|---|---|---|---|
+| A 预检 | `ssh -o ConnectTimeout=5 -o BatchMode=yes -o PubkeyAuthentication=no -o PasswordAuthentication=no hengzhi@sjump.comp.nus.edu.sg true` | 6 s | `Permission denied` = 路通；`timed out during banner exchange` = VPN 没好，**停** |
+| B 起隧道 | `Start-Process powershell -WorkingDirectory 'D:\HSAI' -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','ops\tunnel.ps1','-Force' -WindowStyle Hidden` | 0.07 s 返回 | 不等待、不杀 |
+| C 轮询 | `powershell -NoProfile -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status`（每 1.5 s，≤16 次） | 25 s | 见 `UP` 立刻进 D |
+| D 探活 | `python ops/hsai_ops.py probe` / `state` | 5 s | `host=xlogin2` 且 `IN SYNC` |
+
+**2026-11-13 12:55 实测**：A 0.34 s → B 0.07 s → C **6.0 s 报 UP** → D 通过，**合计 ≈7 s**。
+
+**硬性禁令**：不对隧道做 `job_kill`/`Stop-Process`；不给 `tunnel.ps1` 接管道或 `*> 文件`；
+不在同一个调用里等 `-Force` 返回；VPN 未确认前不重建；任何一步超过 25–30 s 无结果就掐掉看现场。
+
+**附带澄清**：`state` 报 `DRIFT` 且两端 `dirty=0` 通常是**本地有未推送提交**，
+不要据此做 `reset`/`checkout`。
