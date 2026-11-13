@@ -210,6 +210,18 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"    T{t:<3} "
                       + " ".join(f"{float(mean.get(g, 0) or 0):>7.2f}" for g in groups)
                       + f"   ({d.get('games', '?')})")
+            # used_rate：当回合"做过这件事"的局占比（旧面板没有这个字段，跳过）
+            rate = {t: (am.get(t) or {}).get("used_rate") or {} for t in turns}
+            if any(rate.values()):
+                keys = ("sell", "upgrade", "dark_gift")
+                print(f"  [{tag}:{name}] USED RATE  "
+                      + " ".join(f"{g[:8]:>8}" for g in keys))
+                for t in turns:
+                    r = rate.get(t) or {}
+                    if not r:
+                        continue
+                    print(f"    T{t:<3} "
+                          + " ".join(f"{float(r.get(g, 0) or 0):>8.2f}" for g in keys))
 
     # ---- 结局 / 存活 ----
     print()

@@ -146,33 +146,53 @@ def survival(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def action_mix_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Per-turn action-group counts, averaged per game.
+    """Per-turn action-group counts, averaged over **all** games alive that turn.
 
     This is the sensitive instrument for the churn hypothesis: human PMS gives
     ``minionsSoldOverTurn`` / ``rerollsOverTurn`` per turn, so the model side has to
     be in the same shape to be comparable. Board strength moves too slowly to
     resolve a short run; sell/reroll rate does not.
+
+    ⚠️ 2026-11-13 修：早先版本只在**该组键存在**时把计数收进分母，所以 ``mean`` 其实是
+    "用过它的局里的均值"（旧读数里 ``sell T3 = 1.33`` 被误读成"每局都卖 1.33 个"）。
+    现在同时给三个口径：
+
+    - ``mean``：以**当回合全部存活局**为分母（没用过就是 0）——判断"每局平均几次"用它；
+    - ``used_rate``：当回合用过该动作的局占比——判断"有多少局会做这件事"用它；
+    - ``mean_used``：只在用过它的局里平均——判断"做的话做几次"用它。
     """
-    by_turn: Dict[int, Dict[str, List[float]]] = collections.defaultdict(
-        lambda: collections.defaultdict(list))
-    games_seen: Dict[int, set] = collections.defaultdict(set)
+    per_turn: Dict[int, Dict[Any, Dict[str, float]]] = collections.defaultdict(dict)
     for r in rows:
         t = int(r["turn"])
         counts = r.get("action_counts") or {}
         if not isinstance(counts, dict):
             continue
-        games_seen[t].add(r.get("seed"))
+        seed = r.get("seed")
+        cur = per_turn[t].get(seed)
+        if cur is None:
+            cur = per_turn[t][seed] = {}
         for group, n in counts.items():
             if isinstance(n, int):
-                by_turn[t][group].append(float(n))
+                cur[group] = cur.get(group, 0.0) + float(n)
     out: Dict[str, Any] = {}
-    for t in sorted(by_turn):
-        n_games = max(len(games_seen[t]), 1)
+    for t in sorted(per_turn):
+        games = per_turn[t]
+        n_games = len(games)
         if n_games < 5:
             continue
+        groups = sorted({g for counts in games.values() for g in counts})
+        mean, used_rate, mean_used = {}, {}, {}
+        for g in groups:
+            vals = [c.get(g, 0.0) for c in games.values()]
+            used = [v for v in vals if v > 0]
+            mean[g] = _r(sum(vals) / n_games, 2)
+            used_rate[g] = _r(len(used) / n_games, 3)
+            mean_used[g] = _r(sum(used) / len(used), 2) if used else 0.0
         out[str(t)] = {
             "games": n_games,
-            "mean": {g: _r(sum(v) / len(v), 2) for g, v in sorted(by_turn[t].items())},
+            "mean": mean,
+            "used_rate": used_rate,
+            "mean_used": mean_used,
         }
     return out
 
