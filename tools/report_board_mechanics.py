@@ -73,7 +73,7 @@ def main() -> int:
 
     print(f"bank={args.bank} turns={lo}..{hi} min_tier={args.min_tier}")
     print(f"{'turn':>5} {'boards':>7} {'minion':>7} {'golden':>7} {'gold/game':>10} "
-          f"{'有金卡局':>9} {'atk':>7} {'hp':>7} {'kw/grid':>8}")
+          f"{'有金卡局':>9} {'atk':>7} {'hp':>7} {'kw/grid':>8} {'top1':>7}")
     for t in range(lo, hi + 1):
         d = per_turn.get(t)
         if not d or not d["boards"]:
@@ -82,7 +82,7 @@ def main() -> int:
         print(f"{t:>5} {n:>7} {d['minions']:>7} {d['golden']:>7} "
               f"{d['golden'] / n:>10.2f} {d['boards_with_golden'] / n:>9.2f} "
               f"{d['atk'] / d['minions']:>7.1f} {d['hp'] / d['minions']:>7.1f} "
-              f"{d['kw'] / d['minions']:>8.2f}")
+              f"{d['kw'] / d['minions']:>8.2f} {d['top1'] / n:>7.3f}")
     return 0
 
 
