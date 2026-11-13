@@ -72,6 +72,8 @@ PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   --forbid-unfreeze 1 \
   --forced-tier-plan "$tier_plan" \
   --human-baseline "$baseline" \
+  --human-opponents "${HSAI_GAP_HUMAN_OPP:-}" \
+  --human-opponent-sample "${HSAI_GAP_HUMAN_SAMPLE:-auto}" \
   --out "$out/panel.json" 2>&1 | tee "$out/panel.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
