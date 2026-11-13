@@ -15,7 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ops"))
 
-from hsai_ops import check_heavy  # noqa: E402
+from hsai_ops import check_heavy, non_ascii_warning  # noqa: E402
 
 
 # ─────────────────── 守卫：必须放行 ───────────────────
@@ -181,6 +181,30 @@ def test_ps1_files_exist_and_parse_as_utf8() -> None:
     for path in files:
         text = path.read_bytes().decode("utf-8-sig")  # strips the BOM when present
         assert text.strip(), f"{path} is empty"
+
+
+# ─────────────────── 远端脚本编码：非 ASCII 必须告警 ───────────────────
+
+def test_non_ascii_warning_is_silent_for_pure_ascii() -> None:
+    assert non_ascii_warning("#!/bin/bash\necho hello\n") is None
+
+
+def test_non_ascii_warning_fires_on_chinese() -> None:
+    """`sh -f` 的传输是字节透明的，坏在本地生成脚本那一段（D-050）。
+
+    PowerShell 5.1 的 `Get-Content` 默认按 ACP=936 解码 BOM-less UTF-8，中文变乱码；
+    多字节字符被吃成 `?` 时可能连带吃掉行尾引号，远端报
+    `syntax error near unexpected token '('` 而报错行号指向无辜的一行。
+    这条测试钉住"出现非 ASCII 就必须提示"。
+    """
+    warn = non_ascii_warning('echo "@@ABORT: 仍是 RUNNING"\n')
+    assert warn is not None
+    assert "D-050" in warn
+    assert "ASCII" in warn
+
+
+def test_non_ascii_warning_counts_every_non_ascii_char() -> None:
+    assert "2 " in (non_ascii_warning("echo 仍是\n") or "")
 
 
 # ─────────────────── 隧道自愈：不许把常驻 ssh 挂到管道上 ───────────────────

@@ -838,6 +838,26 @@ def cmd_state(args: argparse.Namespace) -> int:
     return 0 if state["tunnel"]["ok"] else 2
 
 
+def non_ascii_warning(script: str) -> Optional[str]:
+    """远端脚本里非 ASCII 字符的告警（D-050）。
+
+    传输本身是字节透明的（``remote_run`` 用 ``input=script.encode("utf-8")``），
+    危险在**本地生成脚本的那一段**：Windows PowerShell 5.1 的
+    ``Get-Content`` / ``Set-Content`` 默认按 ANSI 代码页（本机 ACP=936）解码，
+    BOM-less UTF-8 中文会先被当成 GBK 解成乱码再存回去；多字节字符被吃成 ``?``
+    时可能**连带吃掉行尾引号**，远端于是报 ``syntax error near unexpected token '('``，
+    且报错行号指向无辜的一行（2026-11-14 凌晨踩过）。
+    """
+    odd = sum(1 for ch in script if ord(ch) > 126)
+    if not odd:
+        return None
+    return (
+        f"警告：脚本含 {odd} 个非 ASCII 字符。远端脚本请一律纯 ASCII（注释/echo 写英文）；"
+        "文件内容只用 write/edit 工具读写，不要经 PowerShell Get-Content/Set-Content 中转"
+        "（ACP=936 会毁 UTF-8 并可能吃掉引号，见 docs/DECISIONS.md D-050）。"
+    )
+
+
 def cmd_sh(args: argparse.Namespace) -> int:
     if args.file:
         script = Path(args.file).read_text(encoding="utf-8")
@@ -845,6 +865,9 @@ def cmd_sh(args: argparse.Namespace) -> int:
         script = " ".join(args.script)
     if not script.strip():
         raise OpsError("没有给出命令")
+    warn = non_ascii_warning(script)
+    if warn:
+        print(warn, file=sys.stderr)
     rc, out, err = remote_run(
         script, timeout=args.timeout, allow_heavy=args.allow_heavy, label="sh"
     )
