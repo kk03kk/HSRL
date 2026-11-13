@@ -39,6 +39,7 @@ ckpt="${HSAI_LR_CKPT:-artifacts/models/league-final-20261111-step014858/model.pt
 spell_coef="${HSAI_SPELL_COEF:-0.05}"
 spell_k="${HSAI_SPELL_PER_GAME:-3}"
 shaping_coef="${HSAI_SHAPING_COEF:-0.0}"
+term_coef="${HSAI_TERM_COEF:-0.0}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -111,6 +112,7 @@ python workflows/train_entity_sync.py \
   --comp-target-tier-w S:1.0,A:0.6,B:0.3 --comp-target-cap 1.0 --comp-target-min-hits 2 \
   --tier-target-coef 0.0 --tier-target-table 2:2,5:3,8:5 --tier-gate-k 0.75 \
   --shaping-coef "$shaping_coef" --shaping-mode log_strength --shaping-gamma 1.0 \
+  --terminal-strength-coef "$term_coef" \
   --shaping-w-str 1.0 --shaping-w-tier 0.0 \
   --eval-panel bot --eval-every-decisions 0 \
   ${SPELL_ARGS[@]+"${SPELL_ARGS[@]}"} \
