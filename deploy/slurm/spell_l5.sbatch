@@ -40,6 +40,10 @@ spell_coef="${HSAI_SPELL_COEF:-0.05}"
 spell_k="${HSAI_SPELL_PER_GAME:-3}"
 shaping_coef="${HSAI_SHAPING_COEF:-0.0}"
 term_coef="${HSAI_TERM_COEF:-0.0}"
+# anchor-beta 是"允许偏离 champion 多远"的旋钮：0.02 实测把策略钉在 KL≈0.25 平衡点
+# （RUNS §5.73），继续同配方训练 100 轮名次不动（§5.78）。做成 env 以便做单参数扫描；
+# 默认值不变 => 旧配方逐位一致。
+anchor_beta="${HSAI_ANCHOR_BETA:-0.02}"
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
@@ -59,6 +63,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "spell_bootstrap_coef=$spell_coef per_game=$spell_k"
   echo "shaping_coef=$shaping_coef (log_strength, w_tier=0)"
   echo "terminal_strength_coef=$term_coef"
+  echo "anchor_beta=$anchor_beta"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
   # 动作条件补贴（非策略不变，每局前 K 次买法术）。两者可同时开，但一次实验只开一个更干净。
   if [[ "$resume" == "1" ]]; then
@@ -94,7 +99,7 @@ python workflows/train_entity_sync.py \
   --epochs 2 --minibatch 1024 --grad-accum 1 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 25000 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
-  --anchor-beta 0.02 --anchor-iterations 0 --anchor-beta-tail 0.02 \
+  --anchor-beta "$anchor_beta" --anchor-iterations 0 --anchor-beta-tail "$anchor_beta" \
   --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
   --mirror-sample p50 --mirror-seats 7 --mirror-p 1 --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
