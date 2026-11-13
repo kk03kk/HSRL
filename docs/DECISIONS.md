@@ -661,3 +661,26 @@ D1 名次只从 1.333 回到 1.177、H2 覆盖虽然翻倍但板面只掉 12%…
 2. 今后任何"fork 后没有变化"的实验，**先核对 anchor 日程**再归因给奖励。
 3. 记录口径：`history.jsonl` 里若只有 `anchor_kl` 递增而无策略位移，
    第一嫌疑就是 anchor 没衰减；报告实验时必须写明 `anchor-beta/-iterations/-tail` 三元组。
+
+## D-040 · 2026-11-13 · local · 修正 D-039：`anchor-iterations=250` 在本轮跑不到，等于没改
+
+**D-039 的修法无效**：`train_entity_sync.py` 里判断用的是**本轮运行的迭代序号** `i`：
+
+```python
+trainer.config.anchor_coef = (args.anchor_beta if i < args.anchor_iterations
+                              else args.anchor_beta_tail)
+```
+
+而这一夜的每个臂只跑 **120–200 轮**，所以把 `anchor_iterations` 从 15108 改成 250
+**仍然到不了阈值** —— `H6/H7/H8` 实际还是全程 `anchor_beta=0.1`。
+（实测：H6 收在 `step_015016`，即 158 轮 < 250。）
+
+**正确的做法**是把阈值压到本轮必然越过的位置：`anchor-beta 0.02` +
+`anchor-iterations 1` + `anchor-beta-tail 0.02` —— 即**恒定 0.02**，
+也就是 champion 在 5,316 轮里绝大部分时间所处的稳态。
+
+已按此重开两个臂：
+- `1128610 H10` = H2 配方（comp-target 1.0，min_hits 2）+ anchor 0.02；
+- `1128615 H11` = H7 配方（+board-target 0.30）+ anchor 0.02。
+
+**教训**：改日程类参数时必须核对"阈值是否在本轮会被越过"，不要只看配置文件里的数字。
