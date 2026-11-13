@@ -31,6 +31,10 @@ OPTIONS = {
     # 可以被实验，而不必改代码。
     "terminal-strength-coef", "shaping-coef", "shaping-gamma", "shaping-w-str",
     "shaping-w-tier", "shaping-mode",
+    # 法术自举补贴（动作条件奖励；默认 0 = 关闭，逐位等价旧路径）。
+    # 2026-11-14：champion 整局买 0 次法术，而每回合商店里都有一个合法法术槽（A_BUY+7）；
+    # 真人每回合买 0.46–1.51 个。终局名次是稀疏信号，这一类动作从未被探索过。
+    "spell-bootstrap-coef", "spell-bootstrap-per-game",
     # 专家教学项（默认全关 = 与历史配方逐位一致）。
     # 2026-11-12：data/firestone_bc/bc_samples.jsonl.gz 现在真的有内容了（282,717 条），
     # 所以这些开关第一次是"可用的"而不只是"存在"。注意 --bc-samples 的默认路径

@@ -124,6 +124,10 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
                         illegal += 1
                         action = int(np.flatnonzero(mask)[0]) if mask.any() else 0
                     game.step(int(p), action)
+                    if shaper.spell_enabled:
+                        # 法术自举补贴（动作条件；默认关闭）：本决策 record 是最后一条。
+                        shaper.attach_spell(policy.records, len(policy.records) - 1,
+                                            policy.game_id, action)
                     if shaper.enabled:
                         rec_prev = len(policy.records) - 1
                         phi_prev = phi_now
@@ -991,6 +995,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             if not (0 <= a < N_ACTIONS and bool(mask[a])):
                 st["illegal"] += 1
                 a = int(np.flatnonzero(mask)[0]) if mask.any() else 0
+            if shaper.spell_enabled:
+                # 法术自举补贴（动作条件；默认关闭）：只补贴本局前 K 次「买法术」。
+                shaper.attach_spell(policy.records, int(st["rec_start"]), st["gid"], a)
             g.step(seat, a)
             if strict_library is not None:
                 st["strict_mirror"].after_learner_step(g)
