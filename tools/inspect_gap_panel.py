@@ -84,6 +84,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--action-mix", action="store_true",
                     help="打印逐回合的动作构成均值（买/卖/刷新/出牌…）——用来判断"
                          "禁卖起始战团（K1/K2）这种规则会命中哪些回合")
+    ap.add_argument("--combat", action="store_true",
+                    help="打印逐回合实际战斗胜负（需要面板开 collect_exposure）")
     ap.add_argument("--economy", action="store_true",
                     help="打印逐回合金币 p50（区分『没钱升本』与『有钱不升』）")
     args = ap.parse_args(argv)
@@ -178,6 +180,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                 c = curve(model, t) or {}
                 line += f" {fmt(c.get('gold_p50'), 1, 16)}"
             print(line)
+
+    # ---- 实际战斗胜率（专家先验 G1：Σ 不代表战力）----
+    if args.combat:
+        print()
+        print("COMBAT（逐回合实际对阵；win/tie/dmg/ghost/mirror 均为有战斗记录的局）")
+        keys = ("combats", "win", "tie", "damage_taken_mean", "ghost", "mirror_applied")
+        for tag, name, model in rows:
+            cb = model.get("combat_by_turn") or {}
+            if not cb:
+                print(f"  [{tag}:{name}] 没有 combat_by_turn（旧面板或未开 collect_exposure）")
+                continue
+            print(f"  [{tag}:{name}]  " + " ".join(f"{k[:10]:>11}" for k in keys))
+            for t in turns:
+                d = cb.get(t)
+                if not d:
+                    continue
+                print(f"    T{t:<3} " + " ".join(f"{float(d.get(k, 0) or 0):>11.2f}"
+                                                for k in keys))
 
     # ---- 训练内 tier 曲线原始字段（反推 tier-target 目标表，避免拍脑袋）----
     if args.human_tier:

@@ -197,6 +197,40 @@ def action_mix_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
+def combat_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """逐回合**实际战斗结果**（专家先验 G1：Σ(atk+hp) 不能代表战力，要看真打赢没赢）。
+
+    每局每回合未必有战斗记录（还没打就被淘汰、或该回合没有对阵），所以分母是
+    **该回合有战斗记录的局数**，而不是存活局数；同时给出 `games_alive` 便于判读。
+    """
+    by_turn: Dict[int, List[Dict[str, Any]]] = collections.defaultdict(list)
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        try:
+            t = int(r.get("turn"))
+        except (TypeError, ValueError):
+            continue
+        by_turn[t].append(r)
+    out: Dict[str, Any] = {}
+    for t in sorted(by_turn):
+        rs = by_turn[t]
+        if len(rs) < 5:
+            continue
+        wins = sum(1 for r in rs if r.get("win"))
+        ties = sum(1 for r in rs if r.get("tie"))
+        dmg = [float(r.get("damage_taken") or 0) for r in rs]
+        out[str(t)] = {
+            "combats": len(rs),
+            "win": _r(wins / len(rs), 3),
+            "tie": _r(ties / len(rs), 3),
+            "damage_taken_mean": _r(sum(dmg) / max(len(dmg), 1), 2),
+            "ghost": _r(sum(1 for r in rs if r.get("ghost")) / len(rs), 3),
+            "mirror_applied": _r(sum(1 for r in rs if r.get("mirror_applied")) / len(rs), 3),
+        }
+    return out
+
+
 def final_boards(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Each game's last recorded board, as card ids. Feeds composition coverage.
 
@@ -279,6 +313,8 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         max_steps=int(args.max_steps),
         collect_economy=True,
         collect_action_hist=True,
+        # 专家先验 G1：Σ(atk+hp) 不是战力，必须同时看**实际战斗胜负**。
+        collect_exposure=True,
         forced_tier_plan=str(args.forced_tier_plan or ""),
         human_board_pool=pool,
         human_board_set_tier=True,
@@ -306,6 +342,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "survival": survival(rows),
         "curves": economy_curves(rows),
         "action_mix_by_turn": action_mix_by_turn(rows),
+        "combat_by_turn": combat_by_turn(result.get("combat_exposure") or []),
         "final_boards": final_boards(rows),
         "boards_by_turn": boards_by_turn(rows),
     }
