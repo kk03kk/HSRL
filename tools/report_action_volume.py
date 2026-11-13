@@ -30,8 +30,8 @@ from typing import Dict, List
 
 BANK_TO_MODEL = {
     "buy_minion": "buy",
-    "play_minion": "play",
-    "play_spell": "play",
+    "play_minion": "play_minion",
+    "play_spell": "play_spell",
     "reroll": "refresh",
     "refresh": "refresh",
     "upgrade": "upgrade",
@@ -108,8 +108,8 @@ def main() -> int:
     lo, _, hi = args.turns.partition("-")
     lo, hi = int(lo), int(hi or lo)
 
-    groups = ("buy", "buy_spell", "play", "refresh", "sell", "triple",
-              "upgrade", "hero_power")
+    groups = ("buy", "buy_spell", "play_minion", "play_spell", "play",
+              "refresh", "sell", "triple", "upgrade", "hero_power")
     if args.dump_game and args.bank:
         seen: List[str] = []
         rows = []
