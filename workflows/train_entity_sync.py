@@ -558,6 +558,12 @@ def main() -> int:
                     help="每个候选座位每回合注入人类战团的概率（默认 0=关闭，零影响）")
     ap.add_argument("--human-board-seats", type=int, default=2,
                     help="每回合从全部非 learner 座位里随机抽几个座位注入（默认 2）")
+    ap.add_argument("--arena-config", default="",
+                    help="动态难度课程配置 JSON（enabled/curve/init_q/spec）；空=关闭。"
+                         "见 docs/DECISIONS.md D-054")
+    ap.add_argument("--arena-state", default="",
+                    help="难度档位持久化路径（默认 <out>/arena_state.json）。"
+                         "续训必须指向同一个文件，否则每段都会从头降难度")
     ap.add_argument("--human-board-sample", default="auto",
                     choices=["auto", "p10", "p20", "p25", "p33", "p40", "p50",
                              "p60", "p67", "p75", "p80", "p90", "max"],
@@ -1116,6 +1122,72 @@ def main() -> int:
         if float(_desc["start_decisions"]) > 0.0:
             print(f"[ramp] 起始 decisions 偏移 = {_desc['start_decisions']}"
                   "（续训请传上一次的累计值）", flush=True)
+    # ---- 动态难度（闭环）：难度跟着**实测战力**走，不按时间表 ---------------------
+    # D-054：先降难度让模型活到中后期，再把对手顶在"略高于自身"的能力边界。
+    # 档位只由实测到达率/战斗胜率驱动（hsbg.az.train.opponent_arena），不按 iteration 排期。
+    arena = None
+    arena_curve = None
+    _arena_cfg_path = str(getattr(args, "arena_config", "") or "").strip()
+    if _arena_cfg_path:
+        from hsbg.az.train.human_curve import HumanCurve, band_center_turn
+        from hsbg.az.train.opponent_arena import ArenaController, parse_spec
+        if not os.path.isfile(_arena_cfg_path):
+            print(f"[error] --arena-config 不存在: {_arena_cfg_path}", file=sys.stderr)
+            return 2
+        with open(_arena_cfg_path, "r", encoding="utf-8") as _f:
+            _acfg = json.load(_f)
+        arena_curve = HumanCurve.load(str(_acfg.get("curve", "") or ""))
+        if not arena_curve.ok:
+            print(f"[error] 难度课程需要真人强度曲线（{_acfg.get('curve')!r} 读不到/为空）；"
+                  "先跑 tools/pool_strength_curve.py", file=sys.stderr)
+            return 2
+        _notes: List[str] = []
+        _spec = parse_spec(str(_acfg.get("spec", "") or ""), note=_notes)
+        _spec.enabled = bool(int(_acfg.get("enabled", 1)))
+        _bounds = {}
+        _init = {}
+        _init_q = dict(_acfg.get("init_q") or {})
+        for _b in ("early", "mid", "late"):
+            _bb = arena_curve.band_bounds(_b)
+            if _bb is None:
+                print(f"[error] 强度曲线缺少 {_b} 段的可用分位", file=sys.stderr)
+                return 2
+            _bounds[_b] = _bb
+            _q0 = float(_init_q.get(_b, 0.30))
+            _init[_b] = float(arena_curve.strength(band_center_turn(_b), _q0) or _bb[0])
+        _spec.bounds = _bounds
+        _state_path = str(getattr(args, "arena_state", "") or "").strip() or \
+            os.path.join(str(args.out), "arena_state.json")
+        arena = ArenaController(_spec, _init, path=_state_path, note=_notes)
+        for _n in getattr(arena, "notes", []) or []:
+            print(f"[arena] note: {_n}", flush=True)
+        print(f"[arena] 动态难度开启 curve={_acfg.get('curve')} state={_state_path} "
+              f"init_q={ {k: round(float(v), 3) for k, v in _init_q.items()} } "
+              f"init_strength={ {k: int(v) for k, v in _init.items()} } "
+              f"bounds={ {k: (int(v[0]), int(v[1])) for k, v in _bounds.items()} } "
+              f"reach_target={float(_spec.reach_target):g}", flush=True)
+
+    def _arena_stats_from_meta(m: Any) -> Dict[str, Any]:
+        """采集 meta 的扁平 ``arena_*`` 计数 -> 控制器吃的结构（缺键当 0，绝不抛）。"""
+        if not isinstance(m, dict):
+            return {"episodes": 0, "reach": {}, "bands": {}}
+        out: Dict[str, Any] = {
+            "episodes": int(m.get("arena_episodes", 0) or 0),
+            "reach": {"9": int(m.get("arena_reach9_n", 0) or 0),
+                      "12": int(m.get("arena_reach12_n", 0) or 0)},
+            "bands": {},
+        }
+        for _b in ("early", "mid", "late"):
+            _own = m.get(f"arena_own_{_b}")
+            _opp = m.get(f"arena_opp_{_b}")
+            out["bands"][_b] = {
+                "combats": int(m.get(f"arena_combats_{_b}", 0) or 0),
+                "losses": int(m.get(f"arena_losses_{_b}", 0) or 0),
+                "own_str_sum": int(_own or 0), "own_str_n": 1 if _own else 0,
+                "opp_str_sum": int(_opp or 0), "opp_str_n": 1 if _opp else 0,
+            }
+        return out
+
     # 人类战团（board-only）注入（默认关闭；p 全 0 时完全零影响）
     if board_ramp.max_p() > 0.0:
         if int(args.human_board_seats) <= 0 and not board_ramp.enabled:
@@ -2489,6 +2561,14 @@ def main() -> int:
         _ft_prob = prob_at(_ft_schedule, cum_decisions) if _ft_plan else 0.0
         _ft_teacher = bool(_ft_plan and _ft_teacher_until > 0
                            and float(cum_decisions) < _ft_teacher_until)
+        # 动态难度：控制器当前强度档位 -> "该回合对手应处于真人分布的第几分位"。
+        # 采集侧只认分位（战团库在 worker 里），所以这一步换算在训练侧做（曲线是固定文件）。
+        _aq: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        if arena is not None and arena_curve is not None:
+            _aq = tuple(                      # type: ignore[assignment]
+                float(arena_curve.quantile(
+                    band_center_turn(_b), float(arena.state.strength.get(_b, 0.0))) or 0.0)
+                for _b in ("early", "mid", "late"))
         c_cfg = CollectConfig(
             games=int(args.games), seed=int(args.seed) + idx * 1000,
             opponent=str(args.opponent), behavior=str(args.behavior),
@@ -2588,6 +2668,12 @@ def main() -> int:
             # 在线缩放教师 / 过程价值标签（默认 False -> 不查教师、不读日志）
             teacher_bc=bool(float(args.teacher_bc_coef) > 0.0),
             process_value=bool(float(args.process_value_coef) > 0.0),
+            # 逐回合遥测（默认开：D-052 之后这是中后期能力的唯一直接刻度）
+            turn_telemetry=True,
+            # 动态难度（默认关：arena 恒 None -> arena_on=0，采集侧走原分位路径）
+            arena_on=bool(arena is not None),
+            arena_q_early=float(_aq[0]), arena_q_mid=float(_aq[1]),
+            arena_q_late=float(_aq[2]),
             # 搜索作为行为策略（默认 eps=0 -> 不构造 mixer、零开销）
             behavior_mix_eps=float(args.behavior_mix_eps),
             behavior_mix_when=str(args.behavior_mix_when),
@@ -2665,6 +2751,18 @@ def main() -> int:
                 credit_timebase=str(args.credit_timebase),
                 rank_utility_coef=float(args.rank_utility_coef),
                 terminal_strength_coef=float(args.terminal_strength_coef))
+        # 动态难度闭环：用本轮**实测**的到达率 / 战斗胜率更新下一轮的难度档位并落盘。
+        # 放在 collect 之后、update 之前：下一轮采集才会用到新档位（与 ramp 同相位）。
+        if arena is not None:
+            try:
+                collect_meta.update(arena.update(_arena_stats_from_meta(collect_meta)))
+                print(f"[arena] it={arena.state.iters} strength="
+                      f"{ {k: int(v) for k, v in arena.state.strength.items()} } "
+                      f"q={ {k: round(float(v), 3) for k, v in zip(('early','mid','late'), _aq)} } "
+                      f"reach_target={float(arena.state.reach_target):g} "
+                      f"ratchet={int(arena.state.ratchet_level)}", flush=True)
+            except BaseException as _exc:  # noqa: BLE001 - 控制器问题绝不能打断训练
+                print(f"[warn] arena update failed: {_exc!r}", flush=True)
         return batch, collect_meta, c_cfg, time.time() - t_c, _hb_state
 
     def _pre_ratio(batch: Any, n: int = 2048) -> float:

@@ -1,0 +1,11 @@
+{
+  "_comment": "动态难度课程 v1（D-054）。curve = 真人战团强度分位表（tools/pool_strength_curve.py 产出）；init_q = 各段起始分位（0.20 = 只看得到约 20% 的真人战团比它弱）；spec = opponent_arena 的闭环参数（档位只由实测到达率/胜率驱动，不按 iteration 排期）。",
+  "enabled": 1,
+  "curve": "artifacts/state/human_curve.json",
+  "init_q": {
+    "early": 0.50,
+    "mid": 0.30,
+    "late": 0.20
+  },
+  "spec": "enabled=1,eta=0.4,max_step=0.06,min_combats=12,reach_target=0.90,reach_floor=0.70,ratchet_k=3"
+}

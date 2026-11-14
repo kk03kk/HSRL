@@ -81,6 +81,29 @@ human_q_ramp="${HSAI_HUMAN_QUANTILE_RAMP:-}"
 human_sample="${HSAI_HUMAN_SAMPLE:-p50}"
 # 从第几回合起换成真人强度的对手（默认 9 = 旧行为；调低到 5 会让前期也变强，别乱动）。
 human_min_turn="${HSAI_HUMAN_MIN_TURN:-9}"
+# 动态难度课程（D-054）：config JSON 里是"强度曲线 + 各段起始分位 + 闭环参数"。
+# 开启后采集侧不再用固定分位，而是在真人库里按**绝对强度目标**就近选战团；
+# 目标强度由上一轮的实测到达率/胜率决定（opponent_arena.ArenaController）。
+arena_cfg="${HSAI_ARENA_CONFIG:-}"
+arena_state="${HSAI_ARENA_STATE:-}"
+# 中后期入场课程：entry_p=0 时**不传任何 entry 参数**（只传 --entry-turn-min 会触发
+# "入场课程需要同时给 --entry-p>0" 的显式失败——2026-11-14 冒烟 1139313 就死在这）。
+entry_p="${HSAI_ENTRY_P:-0.5}"
+ENTRY_ARGS=()
+if [[ "$entry_p" != "0" ]]; then
+  ENTRY_ARGS=(--entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
+    --entry-p "$entry_p" --entry-turn-min "${HSAI_ENTRY_TURN_MIN:-8}" \
+    --entry-turn-max "${HSAI_ENTRY_TURN_MAX:-8}" \
+    --entry-sample "${HSAI_ENTRY_SAMPLE:-p75}" --entry-min-tier 5 \
+    --entry-fidelity full --entry-fast-inject 1 --entry-set-health 0)
+fi
+ARENA_ARGS=()
+if [[ -n "$arena_cfg" ]]; then
+  ARENA_ARGS=(--arena-config "$arena_cfg")
+fi
+if [[ -n "$arena_state" ]]; then
+  ARENA_ARGS+=(--arena-state "$arena_state")
+fi
 # 课程 spec 里必然带逗号，而 `sbatch --export=` **用逗号分隔变量** ——直接传会被截断
 # （2026-11-14 实测：`0@1.0,100@0.7,...` 只活到第一个逗号）。所以约定：这三个变量
 # 若给的是**存在的文件路径**，就读文件内容。传路径不含逗号，稳。
@@ -118,6 +141,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
   echo "human_board_sample=$human_sample min_turn=$human_min_turn"
+  echo "arena_config=${arena_cfg:-<off>} arena_state=${arena_state:-<default>}"
   echo "entry_p=${HSAI_ENTRY_P:-0.5} turns=${HSAI_ENTRY_TURN_MIN:-8}..${HSAI_ENTRY_TURN_MAX:-8} sample=${HSAI_ENTRY_SAMPLE:-p75}"
   echo "mirror_p=$mirror_p mirror_ramp=$mirror_ramp human_ramp=$human_ramp quantile_ramp=$human_q_ramp"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
@@ -175,9 +199,7 @@ python workflows/train_entity_sync.py \
   --human-board-p "$human_p" --human-board-seats 7 --human-board-sample "$human_sample" --human-board-set-tier 1 \
   --human-board-ramp "$human_ramp" --human-board-quantile-ramp "$human_q_ramp" \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn "$human_min_turn" \
-  --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
-  --entry-p "${HSAI_ENTRY_P:-0.5}" --entry-turn-min "${HSAI_ENTRY_TURN_MIN:-8}" --entry-turn-max "${HSAI_ENTRY_TURN_MAX:-8}" --entry-sample "${HSAI_ENTRY_SAMPLE:-p75}" --entry-min-tier 5 \
-  --entry-fidelity full --entry-fast-inject 1 --entry-set-health 0 \
+  ${ENTRY_ARGS[@]+"${ENTRY_ARGS[@]}"} \
   --max-actions-per-turn 80 --snapshot-every 25 --keep-snapshots 2 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --pipeline 1 --amp bf16 \
@@ -194,6 +216,7 @@ python workflows/train_entity_sync.py \
   ${SPELL_ARGS[@]+"${SPELL_ARGS[@]}"} \
   ${FORCED_SPELL_ARGS[@]+"${FORCED_SPELL_ARGS[@]}"} \
   ${RET_ARGS[@]+"${RET_ARGS[@]}"} \
+  ${ARENA_ARGS[@]+"${ARENA_ARGS[@]}"} \
   2>&1 | tee "$out/train.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"

@@ -24,7 +24,7 @@ history 由多代训练栈写出，行内结构不稳定：同一个键可能在
     python tools/transition_dashboard.py <run>/history.jsonl --last 80 --every 4
     python tools/transition_dashboard.py <run> --human-curve curve.json --json
 
-表格宽约 110 列（中文按 2 列算）：终端窄就重定向到文件再看。
+表格宽 114 / 100 列（中文按 2 列算）：终端窄就重定向到文件再看。
 """
 
 from __future__ import annotations
