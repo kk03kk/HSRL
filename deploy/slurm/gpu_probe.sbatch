@@ -12,32 +12,40 @@
 #SBATCH --output=artifacts/runs/slurm/%x-%j.out
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
-# 30-second diagnostic: what GPU visibility does this site actually hand out for
-# --gres=gpu:h100-47:2 ? Prints Slurm + CUDA + torch views. No training.
+# 30-second diagnostic. Reports what this site hands out for the GRES on the
+# command line (override with: sbatch --gres=gpu:<type>:2 gpu_probe.sbatch).
+# Also lists the node's FULL physical GPU inventory by unsetting
+# CUDA_VISIBLE_DEVICES for the diagnostic only (never done for training).
 set -uo pipefail
 cd "${HSRL_ROOT:-$SLURM_SUBMIT_DIR}"
 source .venv/bin/activate
 echo "host=$(hostname) job=${SLURM_JOB_ID:-}"
 echo "SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-<unset>}"
-echo "SLURM_GPUS=${SLURM_GPUS:-<unset>}"
 echo "SLURM_GPUS_ON_NODE=${SLURM_GPUS_ON_NODE:-<unset>}"
-echo "SLURM_JOB_NODELIST=${SLURM_JOB_NODELIST:-<unset>}"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-<unset>}"
 echo "NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-<unset>}"
-echo "--- nvidia-smi -L ---"
+echo "--- scontrol alloc ---"
+scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | tr ' ' '\n' | grep -E 'ReqTRES|AllocTRES' | head -4
+echo "--- nvidia-smi -L (as allocated) ---"
 nvidia-smi -L
-echo "count=$(nvidia-smi -L | wc -l)"
-echo "--- torch ---"
+echo "--- nvidia-smi -L (FULL node inventory, CVD unset) ---"
+env -u CUDA_VISIBLE_DEVICES nvidia-smi -L
+echo "--- torch (as allocated) ---"
 python - <<'PY'
 import os
 import torch
-print("torch", torch.__version__, "cuda", torch.version.cuda)
-print("is_available", torch.cuda.is_available())
 print("device_count", torch.cuda.device_count())
 for i in range(torch.cuda.device_count()):
-    print("  dev", i, torch.cuda.get_device_name(i))
-print("CVD(os.environ)", os.environ.get("CUDA_VISIBLE_DEVICES"))
+    print("  dev", i, torch.cuda.get_device_name(i),
+          round(torch.cuda.get_device_properties(i).total_memory / 2**30, 1), "GiB")
+print("CVD", os.environ.get("CUDA_VISIBLE_DEVICES"))
 PY
-echo "--- scontrol ---"
-scontrol show job "${SLURM_JOB_ID:-0}" 2>/dev/null | tr ' ' '\n' | grep -E 'AllocTRES|ReqTRES' | head -4
+echo "--- torch (FULL node inventory, CVD unset) ---"
+env -u CUDA_VISIBLE_DEVICES python - <<'PY'
+import torch
+print("device_count_all", torch.cuda.device_count())
+for i in range(torch.cuda.device_count()):
+    print("  all dev", i, torch.cuda.get_device_name(i),
+          round(torch.cuda.get_device_properties(i).total_memory / 2**30, 1), "GiB")
+PY
 echo "=== done ==="
