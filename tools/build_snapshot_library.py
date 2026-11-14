@@ -66,7 +66,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             bad += 1
             continue
         try:
-            payload = parse_observation(row)
+            parsed = parse_observation(row, eot_only=False)
+            payload = parsed[0] if isinstance(parsed, tuple) else parsed
+            if payload is None:
+                bad += 1
+                if bad <= 5:
+                    reasons = parsed[1] if isinstance(parsed, tuple) and len(parsed) > 1 else []
+                    print(f"  [warn] row turn={t} rejected by parser: {reasons}"[:220])
+                continue
             rep = inject_quasi_state(tpl_game, 1, payload, str(a.fidelity),
                                      reset_ended=False, dry_run=True)
         except BaseException as exc:             # noqa: BLE001
