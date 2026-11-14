@@ -539,27 +539,34 @@ class HumanBoardPool:
         return out
 
     # ---- 绝对强度刻度（动态难度课程） --------------------------------------
-    def _bucket_quiet(self, turn: int) -> Optional[Tuple[int, List[HumanBoard]]]:
-        """同 :meth:`_bucket`，但**不**累加 ``nearest_fallbacks``（统计查询不该污染采样计数）。"""
+    def _bucket_quiet(self, turn: int, min_n: int = 0) -> Optional[Tuple[int, List[HumanBoard]]]:
+        """同 :meth:`_bucket`，但**不**累加 ``nearest_fallbacks``（统计查询不该污染采样计数）。
+
+        ``min_n>0``：回流桶样本太小时退回**样本足够多的最近回合**。高回合的真人样本极稀
+        （实测 T16 只有 76 条、T18 只有 4 条），拿 n=4 的分位当"这一回合的对手强度"
+        等于用噪声定难度——所以宁可借用相邻回合的分布。
+        """
         t = int(turn)
         cands = self.index.get(t)
-        if cands:
+        if cands and len(cands) >= int(min_n):
             return t, cands
-        turns = self.turns()
+        turns = [x for x in self.turns()
+                 if min_n <= 0 or len(self.index.get(x) or []) >= int(min_n)]
         if not turns:
-            return None
+            return (t, cands) if cands else None
         near = (turns[0] if t < turns[0]
                 else turns[-1] if t > turns[-1]
                 else min(turns, key=lambda x: (abs(x - t), x)))
         return near, self.index.get(near) or []
 
-    def strength_quantile(self, turn: int, q: float) -> Optional[float]:
+    def strength_quantile(self, turn: int, q: float,
+                          min_n: int = 30) -> Optional[float]:
         """``turn`` 桶内（缺该回合则最近桶）的 ``q`` 分位战团强度 Σ(atk+hp)。
 
         这是**绝对刻度**：分位是真人战团分布的固有属性，与我们训到哪一步无关，
         所以「能打赢 p40」→「能打赢 p60」是真实进步，不是环境变松。
         """
-        hit = self._bucket_quiet(turn)
+        hit = self._bucket_quiet(turn, min_n=int(min_n))
         if hit is None or not hit[1]:
             return None
         _, cands = hit
@@ -618,7 +625,10 @@ class HumanBoardPool:
             return self._pick(turn, rng, None)
         strengths, items = lad
         t = int(turn)
-        lo_t, hi_t = t - max(0, int(window)), t + 1
+        # 高回合桶很稀（T16 只有 76 条、T18 只有 4 条），窗口按回合数扩张，
+        # 让目标强度的候选池始终有足够多的真实战团（弱玩家也会活到高回合）。
+        win = max(0, int(window)) + max(0, t - 12)
+        lo_t, hi_t = t - win, t + 1
         i = bisect.bisect_left(strengths, float(target))
         accept = max(1.0, abs(float(target)) * max(0.0, float(band)))
         cands: List[HumanBoard] = []
