@@ -75,6 +75,12 @@ mirror_p="${HSAI_MIRROR_P:-1.0}"
 mirror_ramp="${HSAI_MIRROR_P_RAMP:-}"
 human_ramp="${HSAI_HUMAN_BOARD_RAMP:-}"
 human_q_ramp="${HSAI_HUMAN_QUANTILE_RAMP:-}"
+# 对手**强度档**（2026-11-14 新方向）：直接选真人战团库的分位。
+# p10/p20/p25/p33/p40/p50/p60/p67/p75/p80/p90 均可（见 human_board_pool.SAMPLE_PERCENTILES）。
+# 分位越低 = 对手越弱 = 更容易活到中后期：这是"降低生存压力"最直接的旋钮。
+human_sample="${HSAI_HUMAN_SAMPLE:-p50}"
+# 从第几回合起换成真人强度的对手（默认 9 = 旧行为；调低到 5 会让前期也变强，别乱动）。
+human_min_turn="${HSAI_HUMAN_MIN_TURN:-9}"
 # 课程 spec 里必然带逗号，而 `sbatch --export=` **用逗号分隔变量** ——直接传会被截断
 # （2026-11-14 实测：`0@1.0,100@0.7,...` 只活到第一个逗号）。所以约定：这三个变量
 # 若给的是**存在的文件路径**，就读文件内容。传路径不含逗号，稳。
@@ -111,6 +117,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "retained_growth coef=$ret_coef min_turn=$ret_min_turn norm=$ret_norm cap=$ret_cap"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
+  echo "human_board_sample=$human_sample min_turn=$human_min_turn"
   echo "entry_p=${HSAI_ENTRY_P:-0.5} turns=${HSAI_ENTRY_TURN_MIN:-8}..${HSAI_ENTRY_TURN_MAX:-8} sample=${HSAI_ENTRY_SAMPLE:-p75}"
   echo "mirror_p=$mirror_p mirror_ramp=$mirror_ramp human_ramp=$human_ramp quantile_ramp=$human_q_ramp"
   # 说明：shaping_coef>0 时是势函数塑形（gamma 与训练一致 => 策略不变）；spell_coef>0 时是
@@ -165,9 +172,9 @@ python workflows/train_entity_sync.py \
   --seed "${HSAI_LR_SEED:-398000601}" --sims 0 --processes "${HSAI_LR_PROCS:-12}" --workers 1 \
   --mirror-sample p50 --mirror-seats 7 --mirror-p "$mirror_p" --mirror-p-ramp "$mirror_ramp" --mirror-strict 0 --mirror-max-turn 4 \
   --human-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
-  --human-board-p "$human_p" --human-board-seats 7 --human-board-sample p50 --human-board-set-tier 1 \
+  --human-board-p "$human_p" --human-board-seats 7 --human-board-sample "$human_sample" --human-board-set-tier 1 \
   --human-board-ramp "$human_ramp" --human-board-quantile-ramp "$human_q_ramp" \
-  --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn 9 \
+  --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn "$human_min_turn" \
   --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --entry-p "${HSAI_ENTRY_P:-0.5}" --entry-turn-min "${HSAI_ENTRY_TURN_MIN:-8}" --entry-turn-max "${HSAI_ENTRY_TURN_MAX:-8}" --entry-sample "${HSAI_ENTRY_SAMPLE:-p75}" --entry-min-tier 5 \
   --entry-fidelity full --entry-fast-inject 1 --entry-set-health 0 \

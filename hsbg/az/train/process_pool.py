@@ -699,6 +699,20 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                             print(f"[warn] 人类战团库为空/不存在: {hpath}", flush=True)
                     else:
                         hpool = cached[1]
+                # 动态难度课程：把"目标分位"换算成本回合的**绝对目标强度**。
+                # 只在这里换算的理由：战团库在 worker 里，训练侧不该为了一个分位查询
+                # 再加载一份几十万条的战团（内存/启动都浪费）。返回 None = 该回合无数据。
+                _arena_fn = None
+                if bool(getattr(cfg, "arena_on", False)) and hpool is not None:
+                    _qa = (float(getattr(cfg, "arena_q_early", 0.0) or 0.0),
+                           float(getattr(cfg, "arena_q_mid", 0.0) or 0.0),
+                           float(getattr(cfg, "arena_q_late", 0.0) or 0.0))
+
+                    def _arena_fn(turn: int, _pool: Any = hpool,
+                                  _q: Any = _qa) -> Any:
+                        _t = int(turn)
+                        _q_band = _q[0] if _t <= 7 else (_q[1] if _t <= 11 else _q[2])
+                        return _pool.strength_quantile(_t, float(_q_band))
                 # 中后期入场课程库（--entry-boards/--entry-p；默认关闭）。
                 epool = None
                 if str(getattr(cfg, "entry_boards", "")) and \
@@ -770,6 +784,10 @@ def _worker_main(payload: Dict[str, Any], task_q: Any, result_q: Any) -> None:
                         getattr(cfg, "human_board_fast_inject", False)),
                     human_board_min_turn=int(
                         getattr(cfg, "human_board_min_turn", 1) or 1),
+                    # 动态难度：worker 手里才有战团库，所以"分位 -> 绝对强度"在这里换算；
+                    # 训练侧只传 q（无需加载库），目标强度随回合段不同而不同。
+                    arena_targets=_arena_fn,
+                    turn_telemetry=bool(getattr(cfg, "turn_telemetry", True)),
                     entry_pool=epool,
                     entry_p=float(getattr(cfg, "entry_p", 0.0)),
                     entry_turn_min=int(getattr(cfg, "entry_turn_min", 0) or 0),

@@ -52,6 +52,15 @@ from hsbg.env import obs_std as _OBS
 #: 中后期入场注入的最大尝试次数（引擎 ``pending_choice`` / 该席已淘汰时留机会下回合再试）。
 ENTRY_MAX_TRIES = 3
 
+#: 逐回合遥测的每条轨迹（键 -> 逐回合累加量）。见 ``_sample_turn``。
+#: ``own_str`` 自建战团强度、``tier`` 酒馆等级、``dmg`` 本回合掉血、``cum_dmg`` 累计掉血、
+#: ``opp_str``/``opp_n`` 注入对手强度、``combats``/``losses`` 战斗与败北次数、``turn_n`` 到达局数。
+_TEL_KEYS = ("own_str", "tier", "dmg", "cum_dmg", "opp_str", "opp_n",
+             "combats", "losses", "turn_n")
+
+#: 难度控制器的分段（与 ``hsbg.az.train.opponent_arena.BANDS`` 一致）。
+_ARENA_BANDS = (("early", 1, 7), ("mid", 8, 11), ("late", 12, 99))
+
 
 def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
               search_config: Any, eval_fn: Any, engine_backend: str, device: str,
@@ -348,6 +357,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                          human_board_fidelity: str = "board",
                          human_board_fast_inject: bool = False,
                          human_board_min_turn: int = 1,
+                         arena_targets: Any = None,
+                         turn_telemetry: bool = True,
                          entry_pool: Any = None,
                          entry_p: float = 0.0,
                          entry_turn_min: int = 0,
@@ -386,6 +397,16 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
 
     ``human_board_min_turn``（默认 1 = 与旧行为一致）：只在 ``turn >= min_turn`` 时注入
     人类战团。中后期课程用它把「真人强度的压力」限制在后期，前期仍按原对手分布跑。
+
+    **动态难度课程**（``arena_targets`` 非空时）：可调用对象 ``turn -> Optional[float]``，
+    返回该回合**目标对手强度**（Σ(atk+hp) 的绝对刻度）。给了它就覆盖分位采样：
+    注入的是真人库里强度最接近目标的**真实**战团（形状真实、不缩放身材），
+    目标由训练侧的闭环控制器按实测胜率升降。
+
+    **逐回合遥测**（``turn_telemetry``，默认开）：每个新回合开始读一次 learner 的
+    ``player_json``，记下酒馆等级 / 自建战团强度 / 血量 / 本回合掉血 / 对手注入强度。
+    这是「中后期有没有真的变强」的唯一直接刻度（D-052：名次在固定死亡回合下对板面
+    完全不敏感），也是难度控制器的反馈信号。
 
     **中后期入场课程**（``entry_pool`` 非空且 ``entry_p>0`` 且 ``entry_turn_min>0``；
     默认全关 = 零影响）：每局在 ``[entry_turn_min, entry_turn_max]`` 里抽一个入场回合
@@ -439,6 +460,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     _teacher_on = bool(getattr(cfg, "teacher_bc", False))
     _process_on = bool(getattr(cfg, "process_value", False))
     _teacher = ScalingTeacher() if _teacher_on else None
+    #: 逐回合遥测开关（每回合一次 learner ``player_json``；关了就没有中后期曲线）。
+    _tel_on = bool(turn_telemetry)
 
     # ── 中后期入场课程：先算好开关与区间（states 构造时就要用它们抽 T0）────────
     entry_on = (entry_pool is not None and float(entry_p) > 0.0
@@ -512,6 +535,10 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             # 缩放教师 / 过程价值标签计数
             "teacher_labels": 0,
             "process_labels": 0,
+            # 逐回合遥测（D-052 的直接刻度）：新回合读一次 learner，掉血按血量差推断
+            "tel_turn": int(g0.turn),
+            "tel_hp": None,
+            "tel": {k: {} for k in _TEL_KEYS},
             # 过程价值：consume 日志增量缓存 / 每回合首个决策的目标
             "consume_seen": 0,
             "consume_turn": -1,
@@ -674,12 +701,77 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         if t == int(st.get("human_turn", t)):
             return
         st["human_turn"] = t
+        # 动态难度：同一回合所有对手席位共用一个目标强度（=「这一回合的对手有多强」），
+        # 由闭环控制器按实测胜率给出；None 表示本次不走绝对强度、仍按分位采样。
+        _tgt: Any = None
+        if arena_targets is not None:
+            try:
+                _tgt = arena_targets(t)
+            except BaseException:  # noqa: BLE001 - 控制器问题绝不打断采集
+                _tgt = None
+        _hs = st["human_stats"]
+        _n0, _s0 = int(_hs.injected_str_n), int(_hs.injected_str_sum)
         inject_human_boards(
             g, human_board_pool, t, seats_count=human_targets, p=human_p,
             rng=st["human_rng"], learner_seat=seat, stats=st["human_stats"],
             mirror_seats=st.get("mirror_applied_seats") or (),
             num_players=N_PLAYERS, set_tier=human_set_tier,
-            fidelity=human_fidelity, fast_inject=human_fast_inject)
+            fidelity=human_fidelity, fast_inject=human_fast_inject,
+            target_strength=(None if _tgt is None else float(_tgt)))
+        _dn, _ds = int(_hs.injected_str_n) - _n0, int(_hs.injected_str_sum) - _s0
+        if _dn > 0:
+            tel = st["tel"]
+            tel["opp_str"][t] = int(tel["opp_str"].get(t, 0)) + int(_ds)
+            tel["opp_n"][t] = int(tel["opp_n"].get(t, 0)) + int(_dn)
+
+    def _sample_turn(st: Dict[str, Any]) -> None:
+        """每个新回合读一次 learner 的 ``player_json``，把「中后期能力曲线」记下来。
+
+        D-052 的结论：名次在固定死亡回合下对板面完全不敏感（R²≈0），所以唯一能
+        反映「会不会运营」的是**逐回合的绝对刻度**——酒馆等级、自建战团强度、
+        掉血速度、活到第几回合。这里一次 ``player_json`` 就够（每回合每局一次）。
+        任何异常都不许打断采集（遥测失败必须静默）。
+        """
+        if not _tel_on or bool(st.get("done")):
+            return
+        g = st["game"]
+        try:
+            if g.is_over():
+                return
+        except BaseException:  # noqa: BLE001
+            return
+        t = int(g.turn)
+        if t <= 0 or t == int(st.get("tel_turn", -1)):
+            return
+        st["tel_turn"] = t
+        try:
+            pj = json.loads(g.player_json(seat))
+        except BaseException:  # noqa: BLE001 - 遥测绝不打断采集
+            return
+        if not isinstance(pj, dict):
+            return
+        tel = st["tel"]
+        try:
+            hp = int(pj.get("health") or 0)
+            tier = int(pj.get("tier") or 0)
+            bd = pj.get("board") or []
+            s = int(sum(int(m.get("atk") or 0) + int(m.get("hp") or 0) for m in bd))
+        except BaseException:  # noqa: BLE001
+            return
+        tel["own_str"][t] = int(tel["own_str"].get(t, 0)) + s
+        tel["tier"][t] = int(tel["tier"].get(t, 0)) + tier
+        tel["turn_n"][t] = int(tel["turn_n"].get(t, 0)) + 1
+        prev = st.get("tel_hp")
+        if prev is not None:
+            # 血量差 = 上一回合被打掉的血（战斗败北才掉血）→ 败北计数 + 累计掉血。
+            dmg = int(prev) - int(hp)
+            tel["combats"][t] = int(tel["combats"].get(t, 0)) + 1
+            if dmg > 0:
+                tel["dmg"][t] = int(tel["dmg"].get(t, 0)) + int(dmg)
+                tel["losses"][t] = int(tel["losses"].get(t, 0)) + 1
+                st["tel_cum"] = int(st.get("tel_cum", 0)) + int(dmg)
+        st["tel_hp"] = int(hp)
+        tel["cum_dmg"][t] = int(tel["cum_dmg"].get(t, 0)) + int(st.get("tel_cum", 0))
 
     def _maybe_learner_entry(st: Dict[str, Any]) -> None:
         """中后期入场：到 ``T0`` 回合把真人完整状态注入 **learner** 席（每局一次）。
@@ -802,6 +894,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         for st in states:
             if st["done"]:
                 continue
+            # 新回合遥测：必须在任何座位行动前读（血量/等级/自建板面都是回合起点口径）。
+            _sample_turn(st)
             # 新回合（上一轮 learner 的 EndTurn 可能已推进）：任何座位行动前注入
             # （镜像快照 → 人类战团）。
             _maybe_inject(st)
@@ -1127,6 +1221,51 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                 max(0, int(round(float(q) * (len(_final_str_all) - 1)))))
         return int(_final_str_all[i])
 
+    # ── 逐回合遥测聚合（D-052 的直接刻度 + 难度控制器的反馈信号）──────────────
+    # 逐回合是唯一不会被名次饱和淹没的口径：同在固定死亡回合下，别人 1434 我们 2000
+    # 都是"被清场"，只有"活到第几回合 + 回合起点板面/等级/掉血"能分辨真进步。
+    _tel_sum: Dict[str, Dict[int, float]] = {k: {} for k in _TEL_KEYS}
+    for st in states:
+        src = st.get("tel") or {}
+        for k in _TEL_KEYS:
+            for tk, tv in (src.get(k) or {}).items():
+                _tel_sum[k][int(tk)] = _tel_sum[k].get(int(tk), 0.0) + float(tv)
+
+    def _tel_n(t: int) -> int:
+        return int(_tel_sum["turn_n"].get(int(t), 0))
+
+    def _tel_mean(key: str, t: int, denom: str = "turn_n") -> float:
+        dn = int(_tel_sum[denom].get(int(t), 0))
+        if dn <= 0:
+            return 0.0
+        return float(_tel_sum[key].get(int(t), 0.0)) / float(dn)
+
+    tel_flat: Dict[str, Any] = {"tel_on": bool(_tel_on)}
+    for _t in (6, 8, 10, 12, 13):
+        tel_flat[f"tel_n_{_t}"] = _tel_n(_t)
+        tel_flat[f"tel_tier_{_t}"] = round(_tel_mean("tier", _t), 3)
+        tel_flat[f"tel_own_str_{_t}"] = int(round(_tel_mean("own_str", _t)))
+        tel_flat[f"tel_cum_dmg_{_t}"] = round(_tel_mean("cum_dmg", _t), 2)
+        tel_flat[f"tel_opp_str_{_t}"] = int(round(_tel_mean("opp_str", _t, "opp_n")))
+    for _t in (9, 12):
+        tel_flat[f"tel_reach{_t}"] = round(float(_tel_n(_t)) / float(max(1, n)), 4)
+    arena_flat: Dict[str, Any] = {"arena_episodes": int(n),
+                                  "arena_reach9_n": _tel_n(9),
+                                  "arena_reach12_n": _tel_n(12)}
+    for _name, _lo, _hi in _ARENA_BANDS:
+        _tr = range(int(_lo), int(_hi) + 1)
+        _c = int(sum(_tel_sum["combats"].get(t, 0) for t in _tr))
+        _lf = int(sum(_tel_sum["losses"].get(t, 0) for t in _tr))
+        _tn = int(sum(_tel_sum["turn_n"].get(t, 0) for t in _tr))
+        _os = int(sum(_tel_sum["own_str"].get(t, 0) for t in _tr))
+        _ps = int(sum(_tel_sum["opp_str"].get(t, 0) for t in _tr))
+        _pn = int(sum(_tel_sum["opp_n"].get(t, 0) for t in _tr))
+        arena_flat[f"arena_combats_{_name}"] = _c
+        arena_flat[f"arena_losses_{_name}"] = _lf
+        arena_flat[f"arena_own_{_name}"] = int(round(_os / _tn)) if _tn else 0
+        arena_flat[f"arena_opp_{_name}"] = int(round(_ps / _pn)) if _pn else 0
+        arena_flat[f"arena_win_{_name}"] = round(1.0 - _lf / _c, 4) if _c else -1.0
+
     meta = {"mode": "lockstep", "games": n, "pool_games": n,
             "learner_final_str_sum_by_turn": dict(sorted(_final_str_sum.items())),
             "learner_final_str_n_by_turn": dict(sorted(_final_str_n.items())),
@@ -1192,6 +1331,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         mstats.add(st.get("mirror_stats") or MirrorStats())
     meta.update(mstats.to_meta())
     meta['engine_quality_checked_games'] = n
+    # 逐回合遥测 + 难度控制器反馈（键名是下游约定，见 runlog.INJECTION_KEYS）。
+    meta.update(tel_flat)
+    meta.update(arena_flat)
     from .engine_quality import KEYS
     meta.update({k:sum(m['engine_diagnostics'][k] for m in metas) for k in KEYS})
     if strict_library is not None:

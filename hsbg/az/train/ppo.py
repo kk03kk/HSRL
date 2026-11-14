@@ -419,6 +419,16 @@ class CollectConfig:
     #: 人类战团注入的最小回合（默认 1 = 与旧行为一致）。中后期课程用它把真人强度
     #: 的压力限制在后期，前期仍按原对手分布跑。
     human_board_min_turn: int = 1
+    #: 逐回合遥测（每个新回合读一次 learner ``player_json``：等级/自建板面/掉血）。
+    #: 默认开：D-052 之后这是"会不会运营"的唯一直接刻度，关掉就没有中后期曲线。
+    turn_telemetry: bool = True
+    #: ── 动态难度课程（默认全关 = 零影响；见 docs/DECISIONS.md D-054）──
+    #: 开关；开启后改走"按绝对强度选真人战团"，由 ``arena_q_*`` 决定各段难度。
+    arena_on: bool = False
+    #: 三段（early/mid/late）在该回合真人战团分布里的目标分位（0..1）。
+    arena_q_early: float = 0.0
+    arena_q_mid: float = 0.0
+    arena_q_late: float = 0.0
     #: ── 中后期入场课程（默认全关 = 零影响；见 docs/LATE_GAME_ENTRY.md）──
     #: learner 席的入场注入库（与 ``human_boards`` 同格式，通常是同一个准完整库）。
     entry_boards: str = ""

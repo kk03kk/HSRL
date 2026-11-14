@@ -83,6 +83,31 @@ INJECTION_KEYS = (
     "retained_growth_reward_sum", "retained_growth_applied",
     "retained_growth_dropped", "retained_growth_errors",
     "retained_growth_games",
+    # 动态难度课程（hsbg/az/train/opponent_arena.py + 按绝对强度选板）：
+    # 注入侧实际做到的强度，和控制器下发的目标，**两边都要**进 history，
+    # 否则"控制器在动但注入没生效"会静默跑一整段（D-053 规则 2 的同类坑）。
+    "human_board_arena_applied", "human_board_injected_str_sum",
+    "human_board_injected_str_n", "human_board_arena_near_miss",
+    "arena_on", "arena_it", "arena_reach_target", "arena_ratchet",
+    "arena_q_early", "arena_q_mid", "arena_q_late",
+    "arena_str_early", "arena_str_mid", "arena_str_late",
+    "arena_win_early", "arena_win_mid", "arena_win_late",
+    "arena_own_early", "arena_own_mid", "arena_own_late",
+    "arena_opp_early", "arena_opp_mid", "arena_opp_late",
+    "arena_combats_early", "arena_combats_mid", "arena_combats_late",
+    "arena_losses_early", "arena_losses_mid", "arena_losses_late",
+    "arena_episodes", "arena_reach9_n", "arena_reach12_n",
+    # 逐回合遥测（D-052 的直接刻度）：酒馆等级 / 自建板面 / 累计掉血 / 到达率。
+    # 名次在固定死亡回合下对板面不敏感（R²≈0），这组键才是"会不会运营"的证据。
+    "tel_on", "tel_n_6", "tel_n_8", "tel_n_10", "tel_n_12", "tel_n_13",
+    "tel_tier_6", "tel_tier_8", "tel_tier_10", "tel_tier_12", "tel_tier_13",
+    "tel_own_str_6", "tel_own_str_8", "tel_own_str_10", "tel_own_str_12",
+    "tel_own_str_13",
+    "tel_opp_str_6", "tel_opp_str_8", "tel_opp_str_10", "tel_opp_str_12",
+    "tel_opp_str_13",
+    "tel_cum_dmg_6", "tel_cum_dmg_8", "tel_cum_dmg_10", "tel_cum_dmg_12",
+    "tel_cum_dmg_13",
+    "tel_reach9", "tel_reach12",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -108,17 +133,40 @@ INJECTION_SUM_KEYS = frozenset({
     "retained_growth_turns", "retained_growth_reward_sum",
     "retained_growth_applied", "retained_growth_dropped",
     "retained_growth_errors", "retained_growth_games",
+    "human_board_arena_applied", "human_board_injected_str_sum",
+    "human_board_injected_str_n", "human_board_arena_near_miss",
+    "arena_combats_early", "arena_combats_mid", "arena_combats_late",
+    "arena_losses_early", "arena_losses_mid", "arena_losses_late",
+    "arena_episodes", "arena_reach9_n", "arena_reach12_n",
+    "tel_n_6", "tel_n_8", "tel_n_10", "tel_n_12", "tel_n_13",
 })
 #: 逐字段可得性计数：跨 worker 逐键求和（dict 合并）。
 INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist", "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn"})
-INJECTION_ANY_KEYS = frozenset({"mirror_on", "human_board_on", "entry_on"})
+INJECTION_ANY_KEYS = frozenset({"mirror_on", "human_board_on", "entry_on",
+                                "arena_on", "tel_on"})
 INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p",
                                  "learner_final_str_mean", "learner_final_str_p50",
                                  "learner_final_str_p90",
                                  "board_target_str_delta_mean",
                                  "board_target_card_recall_mean",
                                  "tier_hit_rate",
-                                 "comp_target_best_mean"})
+                                 "comp_target_best_mean",
+                                 # 难度控制器：强度与胜率都是"均值"语义（跨 worker 平均）。
+                                 "arena_str_early", "arena_str_mid", "arena_str_late",
+                                 "arena_win_early", "arena_win_mid", "arena_win_late",
+                                 "arena_own_early", "arena_own_mid", "arena_own_late",
+                                 "arena_opp_early", "arena_opp_mid", "arena_opp_late",
+                                 "arena_q_early", "arena_q_mid", "arena_q_late",
+                                 # 逐回合遥测：都是"每回合平均值"，取均值聚合。
+                                 "tel_tier_6", "tel_tier_8", "tel_tier_10",
+                                 "tel_tier_12", "tel_tier_13",
+                                 "tel_own_str_6", "tel_own_str_8", "tel_own_str_10",
+                                 "tel_own_str_12", "tel_own_str_13",
+                                 "tel_opp_str_6", "tel_opp_str_8", "tel_opp_str_10",
+                                 "tel_opp_str_12", "tel_opp_str_13",
+                                 "tel_cum_dmg_6", "tel_cum_dmg_8", "tel_cum_dmg_10",
+                                 "tel_cum_dmg_12", "tel_cum_dmg_13",
+                                 "tel_reach9", "tel_reach12"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
     "mirror_max_turn",
@@ -135,6 +183,8 @@ INJECTION_FIRST_KEYS = frozenset({
     "comp_target_cards", "comp_target_min_hits",
     "retained_growth_coef", "retained_growth_min_turn",
     "retained_growth_normalizer", "retained_growth_cap",
+    # 难度控制器：迭代计数与棘轮状态取首值（同一轮所有 worker 看到的是同一个值）。
+    "arena_it", "arena_reach_target", "arena_ratchet",
 })
 
 

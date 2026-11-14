@@ -49,10 +49,16 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 #: 注入来源标记：写进采集 meta / 文档，明确「这不是忠实对手状态」。
 SOURCE = "human_board_approx"
 
-#: 桶内分位（与 ``mirror_snapshots.SAMPLE_PERCENTILES`` 一致）。
-SAMPLE_PERCENTILES = {"p50": 0.50, "p75": 0.75, "p90": 0.90}
-#: ``auto`` = 按回合走难度曲线；其余为固定分位。
-SAMPLE_MODES = ("auto", "p50", "p75", "p90", "max")
+#: 桶内分位（与 ``mirror_snapshots.SAMPLE_PERCENTILES`` 一致，另加细分位）。
+#: 细分位是**动态难度课程**的离散档：固定分位跑课程时按"模型当前能打赢到哪一档"挑选。
+SAMPLE_PERCENTILES = {
+    "p10": 0.10, "p20": 0.20, "p25": 0.25, "p33": 0.33, "p40": 0.40,
+    "p50": 0.50, "p60": 0.60, "p67": 0.67, "p75": 0.75, "p80": 0.80, "p90": 0.90,
+}
+#: ``auto`` = 按回合走难度曲线；``p*`` = 固定分位；``max`` = 该回合最强；``target`` =
+#: 按**绝对强度**就近选（由 :meth:`HumanBoardPool.sample_at_strength` 驱动，
+#: 强度目标来自 :mod:`hsbg.az.train.opponent_arena` 的闭环控制器）。
+SAMPLE_MODES = ("auto", "target", *SAMPLE_PERCENTILES, "max")
 
 #: 难度曲线（turn 上界 -> 分位）：t<=8 p50、9..12 p75、t>=13 p90。
 TURN_SCHEDULE: Tuple[Tuple[Optional[int], str], ...] = ((8, "p50"), (12, "p75"), (None, "p90"))
@@ -215,6 +221,10 @@ class HumanBoardPool:
         #: 每个 turn 桶按 strength 升序的缓存（采样热路径：每回合每座位一次调用，
         #: 桶有几百条时不能每次重排）。
         self._sorted: Dict[int, List[HumanBoard]] = {}
+        #: 全库按 strength 升序的"强度梯子"（懒构建）：``target`` 模式要在
+        #: **[t-窗口, t]** 的相邻回合里找最接近目标强度的真实战团，跨桶二分需要它。
+        #: 只存引用，不复制战团数据（几十万条时仍是 O(N) 指针）。
+        self._ladder: Optional[Tuple[List[int], List[Tuple[int, int, HumanBoard]]]] = None
         if self.path:
             self.load(self.path)
 
@@ -265,6 +275,7 @@ class HumanBoardPool:
                         continue
                 self.index.setdefault(int(hb.turn), []).append(hb)
                 self._sorted.pop(int(hb.turn), None)   # 桶内容变了，缓存失效
+                self._ladder = None                    # 强度梯子同样失效
                 if isinstance(hb.payload, dict):
                     self.payload_kept += 1
                 added += 1
@@ -519,6 +530,117 @@ class HumanBoardPool:
         out["availability"] = dict(pick.payload.get("availability") or {})
         return out
 
+    # ---- 绝对强度刻度（动态难度课程） --------------------------------------
+    def _bucket_quiet(self, turn: int) -> Optional[Tuple[int, List[HumanBoard]]]:
+        """同 :meth:`_bucket`，但**不**累加 ``nearest_fallbacks``（统计查询不该污染采样计数）。"""
+        t = int(turn)
+        cands = self.index.get(t)
+        if cands:
+            return t, cands
+        turns = self.turns()
+        if not turns:
+            return None
+        near = (turns[0] if t < turns[0]
+                else turns[-1] if t > turns[-1]
+                else min(turns, key=lambda x: (abs(x - t), x)))
+        return near, self.index.get(near) or []
+
+    def strength_quantile(self, turn: int, q: float) -> Optional[float]:
+        """``turn`` 桶内（缺该回合则最近桶）的 ``q`` 分位战团强度 Σ(atk+hp)。
+
+        这是**绝对刻度**：分位是真人战团分布的固有属性，与我们训到哪一步无关，
+        所以「能打赢 p40」→「能打赢 p60」是真实进步，不是环境变松。
+        """
+        hit = self._bucket_quiet(turn)
+        if hit is None or not hit[1]:
+            return None
+        _, cands = hit
+        _, strengths = self._sorted_bucket(hit[0], cands)
+        return float(strengths[_percentile_index(float(q), len(strengths))])
+
+    def strength_bounds(self, turn: int, lo_q: float = 0.02,
+                        hi_q: float = 0.98) -> Optional[Tuple[float, float]]:
+        """``turn`` 桶的强度可选区间（控制器上下限用；低端取下界避免"真空对手"）。"""
+        lo = self.strength_quantile(turn, lo_q)
+        hi = self.strength_quantile(turn, hi_q)
+        if lo is None or hi is None:
+            return None
+        return (float(lo), float(max(hi, lo + 1.0)))
+
+    def effective_quantile(self, turn: int, strength: float) -> Optional[float]:
+        """反查：给定强度在 ``turn`` 桶分布里处于第几分位（评级口径，0..1）。"""
+        hit = self._bucket_quiet(turn)
+        if hit is None or not hit[1]:
+            return None
+        _, cands = hit
+        _, strengths = self._sorted_bucket(hit[0], cands)
+        if len(strengths) <= 1:
+            return 0.5
+        i = bisect.bisect_right(strengths, float(strength))
+        return float(i) / float(len(strengths))
+
+    def _ladder_index(self) -> Optional[Tuple[List[int], List[Tuple[int, int, HumanBoard]]]]:
+        """全库按强度升序的 ``(strengths, [(strength, turn, board), ...])``（懒构建一次）。"""
+        if self._ladder is not None:
+            return self._ladder
+        items: List[Tuple[int, int, HumanBoard]] = []
+        for t, cands in self.index.items():
+            for b in cands:
+                items.append((int(b.strength), int(t), b))
+        if not items:
+            self._ladder = ([], [])
+            return self._ladder
+        items.sort(key=lambda x: x[0])
+        self._ladder = ([it[0] for it in items], items)
+        return self._ladder
+
+    def sample_at_strength_pick(self, turn: int, target: float,
+                                rng: Optional[random.Random] = None,
+                                window: int = 2, max_probe: int = 64,
+                                band: float = 0.08) -> Optional[HumanBoard]:
+        """在 **[turn-window, turn+1]** 的真实战团里，挑强度最接近 ``target`` 的一条。
+
+        为什么跨度只往前看：弱玩家的 T12 战团看起来像强玩家的 T10 战团，所以
+        「目标强度低于本回合下界」时用**相邻较早上回合**的真实战团兜底（形状仍真实），
+        而不是把身材乘一个系数伪造出牌库里不存在的怪东西。
+        ``band`` 是接受带（相对目标）：同带内随机抽，避免每回合都吃同一条战团。
+        """
+        lad = self._ladder_index()
+        if lad is None or not lad[0]:
+            return self._pick(turn, rng, None)
+        strengths, items = lad
+        t = int(turn)
+        lo_t, hi_t = t - max(0, int(window)), t + 1
+        i = bisect.bisect_left(strengths, float(target))
+        accept = max(1.0, abs(float(target)) * max(0.0, float(band)))
+        cands: List[HumanBoard] = []
+        exact: List[HumanBoard] = []
+        for d in range(0, max(1, int(max_probe)) + 1):
+            for j in (i - d, i + d):
+                if not (0 <= j < len(strengths)):
+                    continue
+                s, tj, b = items[j]
+                if not (lo_t <= tj <= hi_t):
+                    continue
+                if abs(float(s) - float(target)) <= accept:
+                    cands.append(b)
+                elif not exact:
+                    exact.append(b)      # 最近但不带内：兜底候选
+            if len(cands) >= 12:
+                break
+        pool = cands or exact
+        if not pool:
+            return self._pick(turn, rng, None)
+        r = rng or random
+        return pool[r.randrange(len(pool))]
+
+    def sample_at_strength(self, turn: int, target: float,
+                           rng: Optional[random.Random] = None,
+                           window: int = 2) -> Optional[List[List[int]]]:
+        """:meth:`sample_at_strength_pick` 的 board 视图（``[[card, atk, hp], ...]``）。"""
+        pick = self.sample_at_strength_pick(turn, target, rng=rng, window=window)
+        return None if pick is None else [list(x) for x in pick.board]
+
     # ---- 统计 ----
     def stats(self) -> Dict[str, Any]:
         """池的结构化摘要（日志 / meta / 文档数字核对用）。"""
@@ -592,6 +714,12 @@ class HumanBoardStats:
     unavailable_fields: Dict[str, int] = field(default_factory=dict)
     last_rejected: List[List[Any]] = field(default_factory=list)
     rejected_by_reason: Dict[str, int] = field(default_factory=dict)
+    #: 动态难度课程：按绝对强度选板的座位数，以及实际注入战团的强度累加（核对"目标 vs 实际"）。
+    arena_applied: int = 0
+    injected_str_sum: int = 0
+    injected_str_n: int = 0
+    #: 目标带内未命中、退化到"最近可用真实战团"的次数（说明梯子在该回合不够密）。
+    arena_near_miss: int = 0
 
     def add(self, other: "HumanBoardStats") -> None:
         self.attempt += other.attempt
@@ -615,6 +743,10 @@ class HumanBoardStats:
             self.unavailable_fields[str(k)] = int(self.unavailable_fields.get(str(k), 0)) + int(v)
         for k, v in other.rejected_by_reason.items():
             self.rejected_by_reason[k] = self.rejected_by_reason.get(k, 0) + int(v)
+        self.arena_applied += int(other.arena_applied)
+        self.injected_str_sum += int(other.injected_str_sum)
+        self.injected_str_n += int(other.injected_str_n)
+        self.arena_near_miss += int(other.arena_near_miss)
         for r in other.last_rejected[:4]:
             if len(self.last_rejected) < 16:
                 self.last_rejected.append(list(r))
@@ -644,6 +776,10 @@ class HumanBoardStats:
             "human_board_last_rejected": [list(x) for x in self.last_rejected],
             "human_board_rejected_by_reason": {
                 str(k): int(v) for k, v in sorted(self.rejected_by_reason.items())},
+            "human_board_arena_applied": int(self.arena_applied),
+            "human_board_injected_str_sum": int(self.injected_str_sum),
+            "human_board_injected_str_n": int(self.injected_str_n),
+            "human_board_arena_near_miss": int(self.arena_near_miss),
         }
 
 
@@ -681,7 +817,8 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
                 tier_fn: Optional[Any] = None,
                 seats: Optional[Sequence[int]] = None,
                 fidelity: str = "board",
-                fast_inject: bool = False) -> HumanBoardStats:
+                fast_inject: bool = False,
+                target_strength: Optional[float] = None) -> HumanBoardStats:
     """新回合开始（任何座位行动前）给随机 N 个非 learner 座位注入人类战团。
 
     - 座位：``seats`` 给定时用它（固定座位，便于复现）；否则用 :func:`random_seats`
@@ -697,6 +834,10 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
       一起注入；库行没有 payload 时退化 board-only 并记 ``payload_missing``；
     - ``fast_inject``：把注入切到快速路径（payload 注入视图缓存 + orjson + ended 位字符串
       替换）。**语义与默认路径逐位等价**（同 seed 动作序列/状态 JSON 相同），默认 False。
+    - ``target_strength``：**动态难度课程**。给定时不走分位采样，而是在
+      ``[turn-window, turn+1]`` 的真实战团里挑强度最接近该**绝对目标**的一条
+      （见 :meth:`HumanBoardPool.sample_at_strength_pick`）。目标来自训练侧的闭环
+      控制器，因此对手强度随模型实测战力自动升降；注入的战团始终是真人库里的真数据。
     - 拒绝只记 ``rejected``，该座位保持原状态；
     - ``set_tier``：是否同时写入 :func:`turn_tier` 派生 tier（默认 True；full 档优先用
       观测到的 tavern tier）；``tier_fn`` 可覆盖派生函数。
@@ -726,7 +867,26 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
         st.attempt += 1
         before_fallback = int(getattr(pool, "nearest_fallbacks", 0))
         payload: Optional[Dict[str, Any]] = None
-        if fid == "board":
+        if fid == "board" and target_strength is not None:
+            # 动态难度：按绝对强度选真实战团（不分位、不缩放身材）。
+            try:
+                _pick_t = pool.sample_at_strength_pick(int(turn), float(target_strength), rng=r)
+            except BaseException:  # noqa: BLE001
+                st.errors += 1
+                st.last_rejected.append([-1, "arena_sample_error"])
+                continue
+            if _pick_t is None:
+                st.missing += 1
+                continue
+            board = [list(x) for x in _pick_t.board]
+            st.arena_applied += 1
+            _s = int(sum(int(m[1]) + int(m[2]) for m in board if len(m) >= 3))
+            if _s > 0:
+                st.injected_str_sum += _s
+                st.injected_str_n += 1
+            if abs(float(_s) - float(target_strength)) > max(1.0, float(target_strength) * 0.10):
+                st.arena_near_miss += 1
+        elif fid == "board":
             try:
                 board = pool.sample(int(turn), rng=r)
             except BaseException:  # noqa: BLE001 - 数据问题 -> 该座位保持 bot
