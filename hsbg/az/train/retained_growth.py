@@ -35,7 +35,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 #: 每只留存随从每回合增重的归一化基准（真人赢家 T10→11 实测 +690）
 DEFAULT_NORMALIZER = 690.0
@@ -249,11 +249,41 @@ class RetainedGrowthTracker:
         }
 
 
+def aggregate_retained_growth(games_meta: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    """把逐局 ``retained_growth_*`` 行汇总成采集级统计（默认关闭 -> ``{}``）。
+
+    与 ``aggregate_comp_target`` 同构：吃**逐局 meta**，键名带 ``retained_growth_`` 前缀。
+    """
+    rows = [m for m in games_meta
+            if isinstance(m, dict) and "retained_growth_coef" in m]
+    if not rows:
+        return {}
+    keys = ("retained_growth_turns", "retained_growth_applied",
+            "retained_growth_dropped", "retained_growth_errors")
+    out: Dict[str, Any] = {k: int(sum(int(r.get(k) or 0) for r in rows)) for k in keys}
+    for k in ("retained_growth_reward_sum",):
+        out[k] = round(sum(float(r.get(k) or 0.0) for r in rows), 4)
+    first = rows[0]
+    for k in ("retained_growth_coef", "retained_growth_min_turn",
+              "retained_growth_normalizer", "retained_growth_cap"):
+        out[k] = first.get(k)
+    out["retained_growth_games"] = len(rows)
+    # 每回合平均增重（跨局加权）：直接与真人 +690 对照
+    turns = out["retained_growth_turns"]
+    if turns:
+        gains = [float(r.get("retained_growth_gain_mean") or 0.0) for r in rows
+                 if r.get("retained_growth_gain_mean") is not None]
+        out["retained_growth_gain_mean"] = (round(sum(gains) / len(gains), 1)
+                                            if gains else None)
+    return out
+
+
 __all__ = [
     "DEFAULT_CAP",
     "DEFAULT_MIN_TURN",
     "DEFAULT_NORMALIZER",
     "RetainedGrowthTracker",
+    "aggregate_retained_growth",
     "board_strength_by_card",
     "kept_gain",
 ]

@@ -525,6 +525,19 @@ class CollectConfig:
     #: 系数：**0 = 关闭**（不构造对象、不读状态、不新增 meta 键，旧路径逐位一致）。
     #: 非 0 时按 ``comp_target_cards``（33 个流派的核心卡）计算"历史最高阵容完成度"
     #: 的增量：每局上界 = coef，与名次奖励同量级。
+    #: ── 留存随从滚雪球奖励（retained-growth，默认关闭；见 hsbg/az/train/retained_growth.py）──
+    #: 系数：**0 = 关闭**（不构造对象、不读 board、不新增 meta 键，旧路径逐位一致）。
+    #: 为什么需要它（D-052）：名次在板面比值 ~0.3 的区间对棋力不敏感（控制死亡回合后
+    #: R²=0.000–0.004），而真人中后期增长 ≈90% 来自"养留存随从"（T10→11 每只 +690），
+    #: 我们只有 +40。这个量不依赖赢，所以在不可赢的场里仍然可学。
+    #: 每局上界 = retained_growth_cap（默认 0.5，约为名次全距 2.0 的 25%）。
+    retained_growth_coef: float = 0.0
+    #: 从第几回合开始计分（更早的回合留存随从未成形）。
+    retained_growth_min_turn: int = 9
+    #: 归一化基准：每只留存随从每回合增重达到该值即拿满该回合的分（真人实测 690）。
+    retained_growth_normalizer: float = 690.0
+    #: 每局总奖励上界。
+    retained_growth_cap: float = 0.5
     comp_target_coef: float = 0.0
     #: 从第几回合开始打分（更早的回合阵容还没成形）。
     comp_target_min_turn: int = 8

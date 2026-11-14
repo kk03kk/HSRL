@@ -48,6 +48,11 @@ anchor_beta="${HSAI_ANCHOR_BETA:-0.02}"
 # 形状是"历史最高完成度的增量"（望远镜求和、有界、不鼓励短视贪心）。
 # L4 把 S 级核心卡命中从 0.139 练到 0.089（RUNS §5.80），这杆枪正对它。
 comp_coef="${HSAI_COMP_TARGET_COEF:-0.0}"
+# 留存随从滚雪球奖励（D-052：名次对板面不敏感时的替代信号；默认 0 = 关闭且不传 flag）
+ret_coef="${HSAI_RETAINED_COEF:-0.0}"
+ret_min_turn="${HSAI_RETAINED_MIN_TURN:-9}"
+ret_norm="${HSAI_RETAINED_NORM:-690}"
+ret_cap="${HSAI_RETAINED_CAP:-0.5}"
 # 强制买法术（探索课程）：零频动作只能靠强制注入打开（动作条件奖励对它无效，§5.79）。
 # per_game=0（默认）⇒ 不传这两个 flag，旧路径逐位一致。
 fs_per_game="${HSAI_FORCED_SPELL_PER_GAME:-0}"
@@ -103,6 +108,7 @@ export HSRL_POOL_EVIDENCE_DIR="$(realpath -m "$out")/pool-evidence"
   echo "terminal_strength_coef=$term_coef"
   echo "anchor_beta=$anchor_beta"
   echo "comp_target_coef=$comp_coef"
+  echo "retained_growth coef=$ret_coef min_turn=$ret_min_turn norm=$ret_norm cap=$ret_cap"
   echo "forced_spell per_game=$fs_per_game turn_min=$fs_turn_min prob=$fs_prob teacher=$fs_teacher"
   echo "human_board_p=$human_p"
   echo "entry_p=${HSAI_ENTRY_P:-0.5} turns=${HSAI_ENTRY_TURN_MIN:-8}..${HSAI_ENTRY_TURN_MAX:-8} sample=${HSAI_ENTRY_SAMPLE:-p75}"
@@ -133,6 +139,11 @@ if [[ "${fs_per_game}" != "0" && -n "${fs_per_game}" ]]; then
     --forced-spell-turn-min "$fs_turn_min" \
     --forced-spell-prob "$fs_prob" \
     --forced-spell-teacher "$fs_teacher")
+fi
+RET_ARGS=()
+if [[ "${ret_coef}" != "0" && -n "${ret_coef}" ]]; then
+  RET_ARGS=(--retained-growth-coef "$ret_coef" --retained-growth-min-turn "$ret_min_turn" \
+    --retained-growth-normalizer "$ret_norm" --retained-growth-cap "$ret_cap")
 fi
 if [[ "${HSAI_DRY:-0}" == "1" ]]; then
   echo "[dry-run] ckpt=$ckpt lr=$lr shaping=$shaping_coef spell=$spell_coef/$spell_k resume=$resume"
@@ -175,6 +186,7 @@ python workflows/train_entity_sync.py \
   --eval-panel bot --eval-every-decisions 0 \
   ${SPELL_ARGS[@]+"${SPELL_ARGS[@]}"} \
   ${FORCED_SPELL_ARGS[@]+"${FORCED_SPELL_ARGS[@]}"} \
+  ${RET_ARGS[@]+"${RET_ARGS[@]}"} \
   2>&1 | tee "$out/train.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"

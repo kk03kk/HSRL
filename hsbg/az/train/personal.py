@@ -37,6 +37,9 @@ OPTIONS = {
     "spell-bootstrap-coef", "spell-bootstrap-per-game",
     # 强制买法术探索课程（默认 0 = 关闭，逐位等价旧路径）。
     # 2026-11-14：动作条件奖励对零频动作无效（RUNS §5.79），必须改为强制注入。
+    # 留存随从滚雪球奖励（默认 0 = 关闭，逐位等价旧路径）。D-052：名次对板面不敏感时的替代信号。
+    "retained-growth-coef", "retained-growth-min-turn",
+    "retained-growth-normalizer", "retained-growth-cap",
     "forced-spell-per-game", "forced-spell-turn-min", "forced-spell-prob",
     "forced-spell-teacher",
     # 专家教学项（默认全关 = 与历史配方逐位一致）。

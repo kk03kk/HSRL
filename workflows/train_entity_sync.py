@@ -695,6 +695,16 @@ def main() -> int:
                          "无门控的等级奖励会被「只升本不买人」打穿（2026-11-13 实测）")
     ap.add_argument("--tier-gate-ref", default="",
                     help="门控参考曲线 turn:strength；空=用 champion 面板 p50 默认曲线")
+    # ---- 留存随从滚雪球奖励（retained-growth，默认关闭；见 hsbg/az/train/retained_growth.py）----
+    ap.add_argument("--retained-growth-coef", type=float, default=0.0,
+                    help="留存随从增重奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）。"
+                         "按'每只留存随从每回合涨多少'发钱，每局上界 = --retained-growth-cap")
+    ap.add_argument("--retained-growth-min-turn", type=int, default=9,
+                    help="从第几回合开始计分（默认 9）")
+    ap.add_argument("--retained-growth-normalizer", type=float, default=690.0,
+                    help="归一化基准：每只留存随从每回合增重达该值即拿满该回合（真人实测 690）")
+    ap.add_argument("--retained-growth-cap", type=float, default=0.5,
+                    help="每局总奖励上界（默认 0.5 ≈ 名次全距 2.0 的 25%）")
     # ---- 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）----
     ap.add_argument("--comp-target-coef", type=float, default=0.0,
                     help="阵容覆盖奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）。"
@@ -1381,6 +1391,15 @@ def main() -> int:
               f"min_turn={int(args.comp_target_min_turn)} comps={len(_comps)}（S={_s}）"
               f" cards={_cards} tier_w={args.comp_target_tier_w} cap="
               f"{float(args.comp_target_cap):g}", flush=True)
+    # ---- 留存随从滚雪球奖励（默认关闭）----
+    if float(args.retained_growth_coef) != 0.0:
+        print(f"[retained-growth] 开启: coef={float(args.retained_growth_coef):g} "
+              f"min_turn={int(args.retained_growth_min_turn)} "
+              f"normalizer={float(args.retained_growth_normalizer):g}(human=690) "
+              f"cap={float(args.retained_growth_cap):g}", flush=True)
+        if float(args.retained_growth_normalizer) <= 0.0:
+            print("[error] --retained-growth-normalizer 必须 > 0", file=sys.stderr)
+            return 2
 
     # ---- 强制升本课程（默认关闭；见 docs/FORCED_TIER.md）----
     _ft_plan = parse_forced_tier_plan(str(args.forced_tier_plan))
@@ -2552,7 +2571,11 @@ def main() -> int:
             tier_gate_k=float(args.tier_gate_k),
             tier_gate_ref=str(args.tier_gate_ref),
             # 阵容覆盖奖励（默认 coef=0 -> 采集侧不构造对象、不新增 meta 键）
-            comp_target_coef=float(args.comp_target_coef),
+            retained_growth_coef=float(args.retained_growth_coef),
+        retained_growth_min_turn=int(args.retained_growth_min_turn),
+        retained_growth_normalizer=float(args.retained_growth_normalizer),
+        retained_growth_cap=float(args.retained_growth_cap),
+        comp_target_coef=float(args.comp_target_coef),
             comp_target_min_turn=int(args.comp_target_min_turn),
             comp_target_cards=str(args.comp_target_cards),
             comp_target_tier_w=str(args.comp_target_tier_w),

@@ -41,6 +41,7 @@ from .reward_shaping import RewardShaper, aggregate_shaping
 from .tier_target import TierTargetTracker, aggregate_tier_target
 from .board_target import BoardTargetTracker, aggregate_board_target
 from .comp_target import CompTargetTracker, aggregate_comp_target
+from .retained_growth import RetainedGrowthTracker, aggregate_retained_growth
 from .forced_tier import aggregate_forced_tier
 from .forced_spell import aggregate_forced_spell
 from .curriculum import apply_turn_gold
@@ -501,6 +502,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "board_target": BoardTargetTracker(cfg),
             # 阵容覆盖奖励（33 个流派核心卡；默认 coef=0 = 零开销）
             "comp_target": CompTargetTracker(cfg),
+            # 留存随从滚雪球（D-052：名次对板面不敏感时的替代信号；默认 coef=0 = 零开销）
+            "retained_growth": RetainedGrowthTracker(cfg),
             # 经济课程：当前已应用金币倍数的回合 / 上一回合结束时的金币结余
             "curr_turn": -1,
             "curr_carry": 0,
@@ -526,6 +529,11 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     tier_on = any(bool(st["tier_target"].enabled) for st in states)
     bt_on = any(bool(st["board_target"].enabled) for st in states)
     ct_on = any(bool(st["comp_target"].enabled) for st in states)
+    rg_on = any(bool(st["retained_growth"].enabled) for st in states)
+    if not rg_on and float(getattr(cfg, "retained_growth_coef", 0.0) or 0.0) != 0.0:
+        raise ValueError(
+            "retained_growth_coef != 0 但 RetainedGrowthTracker 未启用："
+            f"cfg.retained_growth_coef={getattr(cfg, 'retained_growth_coef', 'MISSING')!r}")
     # 显式失败：配置要了专家相对奖励却没生效时必须立刻报错，而不是静默跑一整段。
     if not bt_on and float(getattr(cfg, "board_target_coef", 0.0) or 0.0) != 0.0:
         raise RuntimeError(
@@ -750,6 +758,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         if ct_on:
             # 注入的那一帧战团是真人库里的，不是自己拼的：只设水位、不发奖励。
             st["comp_target"].set_floor(int(t))
+            st["retained_growth"].set_floor(int(t))
         if entry_set_health:
             hp = payload.get("hero_hp")
             if hp is not None:
@@ -947,6 +956,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                      if bt_on else [])
         ct_deltas = ([st["comp_target"].observe(st["game"], seat) for st in pending]
                      if ct_on else [])
+        rg_deltas = ([st["retained_growth"].observe(st["game"], seat) for st in pending]
+                     if rg_on else [])
         decisions = policy.decide_batch([(st["game"], seat, st["gid"]) for st in pending])
         for k, (st, dec) in enumerate(zip(pending, decisions)):
             g = st["game"]
@@ -999,6 +1010,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             if ct_on and ct_deltas[k]:
                 st["comp_target"].queue(int(st["rec_start"]), int(st["gid"]),
                                         ct_deltas[k])
+            if rg_on and rg_deltas[k]:
+                st["retained_growth"].queue(int(st["rec_start"]), int(st["gid"]),
+                                            rg_deltas[k])
             mask = mask_from_bytes(g.legal_mask(seat))
             a = int(dec.action)
             if not (0 <= a < N_ACTIONS and bool(mask[a])):
@@ -1036,6 +1050,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     if ct_on:
         for st in states:
             st["comp_target"].flush(policy.records)
+        st["retained_growth"].flush(policy.records)
 
     records: List[Dict[str, Any]] = []
     metas = []
@@ -1072,6 +1087,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             metas[-1].update(st["board_target"].stats())
         if ct_on:
             metas[-1].update(st["comp_target"].stats())
+        metas[-1].update(st["retained_growth"].stats())
         # 强制升本：逐局统计必须进 meta（历史上只有 _one_game 汇总，lockstep 漏了，
         # 导致 --lockstep 1 的生产路径 history 里 forced_actions 恒为 0，
         # 2026-11-07 GPU 验收 1091647 就是这样空转的）。
@@ -1205,6 +1221,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     meta.update(aggregate_board_target(metas))    # 换位去抖守卫统计（默认关闭 -> 空 dict，不新增键；policy 服务全部 N 局）。
     # 阵容覆盖奖励统计（默认关闭 -> 空 dict，不新增键）。
     meta.update(aggregate_comp_target(metas))
+    _rg_agg = aggregate_retained_growth(metas)
+    if _rg_agg:
+        meta['retained_growth'] = _rg_agg
     meta.update(policy.move_guard_meta())
     # 流派软偏置统计（默认关闭 -> 空 dict，不新增键）。
     meta.update(policy.archetype_bias_meta())
