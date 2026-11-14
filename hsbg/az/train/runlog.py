@@ -98,6 +98,7 @@ INJECTION_KEYS = (
     "arena_own_early", "arena_own_mid", "arena_own_late",
     "arena_opp_early", "arena_opp_mid", "arena_opp_late",
     "arena_combats_early", "arena_combats_mid", "arena_combats_late",
+    "arena_ties_early", "arena_ties_mid", "arena_ties_late",
     "arena_losses_early", "arena_losses_mid", "arena_losses_late",
     "arena_episodes", "arena_reach9_n", "arena_reach12_n",
     # 逐回合遥测（D-052 的直接刻度）：酒馆等级 / 自建板面 / 累计掉血 / 到达率。
@@ -139,6 +140,7 @@ INJECTION_SUM_KEYS = frozenset({
     "human_board_arena_applied", "human_board_injected_str_sum",
     "human_board_injected_str_n", "human_board_arena_near_miss",
     "human_board_arena_dead",
+    "arena_ties_early", "arena_ties_mid", "arena_ties_late",
     "arena_combats_early", "arena_combats_mid", "arena_combats_late",
     "arena_losses_early", "arena_losses_mid", "arena_losses_late",
     "arena_episodes", "arena_reach9_n", "arena_reach12_n",

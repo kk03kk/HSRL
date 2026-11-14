@@ -56,7 +56,7 @@ ENTRY_MAX_TRIES = 3
 #: ``own_str`` 自建战团强度、``tier`` 酒馆等级、``dmg`` 本回合掉血、``cum_dmg`` 累计掉血、
 #: ``opp_str``/``opp_n`` 注入对手强度、``combats``/``losses`` 战斗与败北次数、``turn_n`` 到达局数。
 _TEL_KEYS = ("own_str", "tier", "dmg", "cum_dmg", "opp_str", "opp_n",
-             "combats", "losses", "turn_n")
+             "combats", "losses", "turn_n", "ties")
 
 #: 难度控制器的分段（与 ``hsbg.az.train.opponent_arena.BANDS`` 一致）。
 _ARENA_BANDS = (("early", 1, 7), ("mid", 8, 11), ("late", 12, 99))
@@ -763,13 +763,27 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         tel["turn_n"][t] = int(tel["turn_n"].get(t, 0)) + 1
         prev = st.get("tel_hp")
         if prev is not None:
-            # 血量差 = 上一回合被打掉的血（战斗败北才掉血）→ 败北计数 + 累计掉血。
+            # 战斗归因：优先用引擎的 ``stats.won_last/lost_last/tied_last``。
+            # **不能**把"掉血=输"当唯一口径：平局与无战斗回合都不掉血，用血量差会把它们
+            # 全算成胜利 ⇒ 胜率系统性高估 ⇒ 难度控制器一路加码到"每场必输"（2026-11-14
+            # 实测: arena late 目标 45 分钟内从 2026 涨到 3323 = 我方板面 2.7 倍）。
+            # 现在 ``combats`` 只统计**有胜负**的战斗（平局不计入分母），``losses`` 只统计输。
+            stt = pj.get("stats") if isinstance(pj.get("stats"), dict) else {}
+            has_flags = any(k in stt for k in ("won_last", "lost_last", "tied_last"))
+            won = bool(stt.get("won_last"))
+            lost = bool(stt.get("lost_last"))
+            tied = bool(stt.get("tied_last"))
             dmg = int(prev) - int(hp)
-            tel["combats"][t] = int(tel["combats"].get(t, 0)) + 1
+            decisive = (won or lost) if has_flags else True
+            if decisive:
+                tel["combats"][t] = int(tel["combats"].get(t, 0)) + 1
+                if lost or (not has_flags and dmg > 0):
+                    tel["losses"][t] = int(tel["losses"].get(t, 0)) + 1
             if dmg > 0:
                 tel["dmg"][t] = int(tel["dmg"].get(t, 0)) + int(dmg)
-                tel["losses"][t] = int(tel["losses"].get(t, 0)) + 1
                 st["tel_cum"] = int(st.get("tel_cum", 0)) + int(dmg)
+            if has_flags and tied:
+                tel["ties"][t] = int(tel["ties"].get(t, 0)) + 1
         st["tel_hp"] = int(hp)
         tel["cum_dmg"][t] = int(tel["cum_dmg"].get(t, 0)) + int(st.get("tel_cum", 0))
 
@@ -1262,6 +1276,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         _pn = int(sum(_tel_sum["opp_n"].get(t, 0) for t in _tr))
         arena_flat[f"arena_combats_{_name}"] = _c
         arena_flat[f"arena_losses_{_name}"] = _lf
+        arena_flat[f"arena_ties_{_name}"] = int(sum(_tel_sum["ties"].get(t, 0) for t in _tr))
         arena_flat[f"arena_own_{_name}"] = int(round(_os / _tn)) if _tn else 0
         arena_flat[f"arena_opp_{_name}"] = int(round(_ps / _pn)) if _pn else 0
         arena_flat[f"arena_win_{_name}"] = round(1.0 - _lf / _c, 4) if _c else -1.0
