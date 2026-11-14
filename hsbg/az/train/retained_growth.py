@@ -45,7 +45,10 @@ DEFAULT_MIN_TURN = 9
 DEFAULT_CAP = 0.5
 
 #: player_json 里 minion 的字段名在不同版本可能不同，按顺序取第一个存在的
-_CARD_KEYS = ("card", "card_id", "cardId")
+# 引擎 `minion_json` 的实际字段是 ``"id"``（卡 id 字符串）+ ``"cid"``（数字下标）+ ``"eid"``（实体 id）。
+# **2026-11-14 踩过**：只认 ``"card"`` 会让取不到卡 id ⇒ 强度恒 0 ⇒ 奖励**永远付不出去**
+# 而日志里只看到 reward_sum=0（与 §5.71 的"配了但量级为 0"同一类错误）。
+_CARD_KEYS = ("id", "card", "card_id", "cardId", "cid")
 _ATK_KEYS = ("atk", "attack", "Attack")
 _HP_KEYS = ("hp", "health", "Health")
 

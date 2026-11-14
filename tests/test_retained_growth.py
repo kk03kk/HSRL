@@ -43,6 +43,28 @@ def test_board_strength_sums_atk_plus_hp_and_strips_golden():
     assert b == {"BGS_034": 7.0, "BG26_817": 20.0}
 
 
+def test_accepts_the_engines_real_minion_schema():
+    """引擎 `minion_json` 用 ``"id"``（字符串卡 id），不是 ``"card"``。
+
+    2026-11-14 的教训：只认 ``"card"`` 会取不到卡 id ⇒ 强度恒 0 ⇒ 奖励永远付不出去，
+    而日志里只看到 reward_sum=0。这条测试把真实 schema 钉死。
+    """
+    b = board_strength_by_card([
+        {"id": "BG26_817", "cid": 123, "eid": 9, "atk": 5, "hp": 6, "golden": False},
+        {"id": "BGS_034_G", "cid": 7, "eid": 10, "atk": 1, "hp": 1, "golden": True},
+    ])
+    assert b == {"BG26_817": 11.0, "BGS_034": 2.0}
+
+
+def test_real_schema_growth_is_paid():
+    """用真实 schema 的两帧，验证"养大"真的会发钱（而不是静默 0）。"""
+    t = RetainedGrowthTracker(coef=0.5, min_turn=9, cap=10.0)
+    t.observe(_Game(9, [{"id": "A", "atk": 10, "hp": 10}]))
+    d = t.observe(_Game(10, [{"id": "A", "atk": 355, "hp": 345}]))
+    assert d > 0.0
+    assert t.stats()["retained_growth_reward_sum"] > 0.0
+
+
 def test_duplicates_are_aggregated_as_one_stack():
     b = board_strength_by_card([_m("A", 1, 1), _m("A", 2, 2)])
     assert b == {"A": 6.0}
