@@ -61,11 +61,25 @@ _PPO_KEYS = frozenset({"approx_kl", "entropy", "anchor_kl", "loss", "adv_std"})
 
 
 def _get(row: Mapping[str, Any], key: str) -> Any:
-    """依次在本层 / collect / stat / stats / meta / ppo / profile 里找键。"""
+    """依次在本层 / collect / stat / stats / meta / ppo / profile 里找键。
+
+    ``ppo`` 段的逐 epoch 指标（``approx_kl`` / ``entropy`` / ``anchor_kl``）实际写在
+    ``ppo.epochs[-1]`` 里，``loss`` 对应那一项的 ``total``；这里一并兜住，
+    否则健康表永远是空的（2026-11-14 实测踩过）。
+    """
     for where in (row, row.get("collect"), row.get("stat"), row.get("stats"),
                   row.get("meta"), row.get("ppo"), row.get("profile")):
         if isinstance(where, Mapping) and key in where:
             return where[key]
+    ppo = row.get("ppo")
+    if isinstance(ppo, Mapping):
+        epochs = ppo.get("epochs")
+        if isinstance(epochs, Sequence) and epochs and isinstance(epochs[-1], Mapping):
+            last = epochs[-1]
+            if key in last:
+                return last[key]
+            if key == "loss" and "total" in last:
+                return last["total"]
     return None
 
 
@@ -139,7 +153,7 @@ def render(names: Sequence[str], sums: Sequence[Dict[str, Any]]) -> List[str]:
     """等宽表：每个指标一行，每条臂两列（窗口均值 / 首→末），外加 A→B 的差。"""
     lines: List[str] = []
     label_w = max(len(m[1]) for m in METRICS) + 2
-    arm_w = 18
+    arm_w = 28
     head = f"{'指标':<{label_w}}" + "".join(f"{n:>{arm_w}}" for n in names)
     if len(sums) >= 2:
         head += f"{'末臂-首臂':>14}"
