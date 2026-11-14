@@ -55,13 +55,24 @@ def read_json(path: Path) -> Dict[str, Any]:
 
 
 def parse_run_env(path: Path) -> Dict[str, str]:
+    """run.env 是多行 key=value，但有的行塞了多个键（``job=1140935 node=xgpi13``）。
+
+    返回扁平字典；同时把每一行原文放进 ``__lines__``（列表），供卡片原样展示。
+    """
     out: Dict[str, str] = {}
+    lines: list = []
     if not path.is_file():
         return out
     for line in path.read_text(encoding="utf-8").splitlines():
-        if "=" in line and not line.startswith("#"):
-            k, _, v = line.partition("=")
-            out[k.strip()] = v.strip()
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        lines.append(s)
+        for tok in s.split():
+            if "=" in tok:
+                k, _, v = tok.partition("=")
+                out.setdefault(k.strip(), v.strip())
+    out["__lines__"] = "\n".join(lines)  # type: ignore[assignment]
     return out
 
 
@@ -107,13 +118,10 @@ def model_card(name: str, man: Dict[str, Any], chk: Dict[str, Any],
     L.append(f"- 引擎锚点：`{eng.get('game_version')}` / 指纹 `{eng.get('source_hash')}` / "
              f"卡 {eng.get('cards')} / 动作 {eng.get('n_actions')} / 观测 {eng.get('obs_floats')}+{eng.get('obs_cards')}")
     L.append("")
-    L.append("## 训练配方（来自该 run 的 run.env）")
+    L.append("## 训练配方（该 run 的 run.env 原文）")
     L.append("")
     L.append("```")
-    for k in ("ckpt", "seed", "lr", "games", "procs", "epochs", "minutes",
-              "anchor", "field", "reward", "all other shaping"):
-        if k in recipe:
-            L.append(f"{k} = {recipe[k]}")
+    L.append(recipe.get("__lines__", "(没有 run.env)"))
     L.append("```")
     L.append("")
     L.append("## 文件")
