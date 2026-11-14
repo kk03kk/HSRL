@@ -2,13 +2,13 @@
 #SBATCH --job-name=hsai-arena
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu-long
 #SBATCH --gres=gpu:h100-47:2
 #SBATCH --exclude=xgpi15,xgpi17
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --propagate=NONE
-#SBATCH --time=03:00:00
+#SBATCH --time=37:00:00
 #SBATCH --output=artifacts/runs/slurm/%x-%j.out
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
@@ -17,9 +17,22 @@
 # anchor beta 0.1 for the first 250 iters then 0.02), plus exactly one reward addition
 # (tier tempo) and the calibrated opponent library converted to a snapshot library.
 #
+# 与冠军的一处**已知偏差**：学习率 3e-06。冠军那条 personal.py 作业带 --trainer-state，
+# PPOTrainer.load() 会用 state 里的 scheduler.base_lrs 覆盖配置，实际生效是 1.667e-06
+# （见 deploy/slurm/lr_fork.sbatch 头部实测）。本作业走 --checkpoint 分叉（新 Adam），
+# --lr 才真正生效，取 1.8x 冠军值以让新奖励项能推动策略；要完全对齐冠军就传
+# HSAI_ARENA_LR=1.667e-06。
+#
 #   HSAI_ARENA_OUT      new run dir (must not exist)
 #   HSAI_ARENA_MINUTES  training minutes for THIS segment (default 150)
+#   HSAI_ARENA_SEGMENTS segments in this job (default 1)
 #   HSAI_ARENA_RESUME   0=fresh fork from --checkpoint, 1=continue this run dir
+#
+# **长训请用单段**（SEGMENTS=1，MINUTES=2100，作业 --time=37:00:00）：anchor 的
+# ``anchor_iterations`` 比的是 ``i = start_i + 轮数``，而 ``start_i = trainer.updates``
+# 是**优化步数**（每轮约 124 步）。所以一旦分段续训，第二段的 i 会直接跳到 30k+，
+# β=0.1 的保护期（前 250 轮）就只剩第一段那几轮。单段则 β=0.1 准时跑满 250 轮≈8h，
+# 之后 0.02。崩溃保护靠 --snapshot-every 5（约每 10 分钟一份，留 3 份）。
 #
 # 双卡布局 = 冠军那条作业的原样：learner 独占 cuda(0 号卡)，8 个采集进程都用 1 号卡
 # （``--gpus 1`` 是**索引列表**，不是"几张卡"；见 config/league-36h.json 的 "gpus": "1"）。
@@ -95,7 +108,7 @@ python workflows/train_entity_sync.py \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
   --seed "$seed" --sims 0 --processes "$procs" --workers 1 \
-  --snapshot-every 25 --keep-snapshots 2 \
+  --snapshot-every 5 --keep-snapshots 3 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --amp bf16 \
   --gpus 1 --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
