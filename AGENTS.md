@@ -8,16 +8,21 @@
 ## 0. 阅读顺序
 
 1. 本文件（规则与红线）
-2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)（双环境职责与三层结构）
-3. [`docs/OPERATIONS.md`](docs/OPERATIONS.md)（日常工作流，含开工固定开场）
-4. [`docs/architecture/TRANSPORT.md`](docs/architecture/TRANSPORT.md)（SSH / git / GitHub / 大文件）
-5. [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)（当前作业与结论）
-6. 按任务读专题文档；历史文档在 `records/archive/`，**不是启动命令**。
+2. [`docs/CHARTER.md`](docs/CHARTER.md)（**目标 / 研发模式 / 一轮迭代怎么走**）
+3. [`docs/TRAINING_RECIPE.md`](docs/TRAINING_RECIPE.md)（**训练配方，已冻结**）
+4. [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md)（**评测标准与判胜规则**）
+5. [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)（当前冠军、正在跑什么、下一步）
+6. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)（双环境职责与三层结构）
+7. [`docs/OPERATIONS.md`](docs/OPERATIONS.md)（日常工作流，含开工固定开场）
+8. [`docs/architecture/TRANSPORT.md`](docs/architecture/TRANSPORT.md)（SSH / git / GitHub / 大文件）
+9. 按任务读专题文档；历史文档在 `records/archive/` 与 `docs/analysis/`，**不是启动命令**。
 
 ## 1. 基本模式
 
 - **一个决策者，两个执行环境。** 服务器上没有自主进程；它是被 `ssh` 驱动的执行端。
-- **用户只提目标**，不当中转站。Agent 自主规划、执行、验证、归档。
+- **用户定方向，Agent 执行、分析、验证。** 方向、目标、任何 GPU 作业的提交、以及训练配方/评测
+  标准的变更，都由用户决定；Agent 负责把方向落成可验证的结果，发现问题时**提建议**而不是自己改道。
+  （2026-11-14 变更：不再有"Agent 自主规划多天研发路线"的模式，详见 [`docs/CHARTER.md`](docs/CHARTER.md)。）
 - **每次开工先跑** `python ops/hsai_ops.py state`，看到 `IN SYNC` 才动手（见 OPERATIONS §1）。
 - **代码走 git over SSH，大文件走 `ssh cat`，GitHub 只做里程碑异地备份。**
 - **隧道自愈**：用户已登记跳板机密码时，Agent **自己**重建，不要等用户、也不要问。
@@ -76,8 +81,10 @@
 - 训练栈：`hsbg/az`；一个学习席 + 七个严格 EOT 快照席；`sims=0`。
 - **冻结训练契约**：`max-actions-per-turn=80`、`move-guard=1`（cap 5 / repeat 2）、
   `forbid-cancel=1`。改它需要用户明确授权。
-- 续训起点：**7357 完整 Trainer**（累计 `558,873,732`、Adam `545,990`）；
-  完整 Trainer 含 Adam/调度器/RNG/anchor，**权重文件不能代替**。
+- 续训/分叉：完整 Trainer（`trainer.pt`，含 Adam/调度器/RNG/anchor）才等于"精确续训"，
+  **权重文件不能代替**；但**带 `--trainer-state` 会用 state 里的 `base_lrs` 覆盖 `--lr`**。
+  当前配方故意只继承权重、重建 Adam（为了拿到论文的 6e-06），详见 `docs/TRAINING_RECIPE.md` §2.2。
+  该训练器**没有 `--resume`**，续训参数是 `--trainer-state`。
 - 版本锚点：`config/engine-upstream-lock.json`、`config/live/model.json`（模型 SHA）、
   模型目录 `manifest.json`、评测 `protocol_sha256`。**任何记录必须写清这四个。**
 
@@ -95,23 +102,25 @@
 
 ## 6. 自主权边界
 
-**自主可做**：读、分析、审计、改代码、写测试、跑测试、建目录、短程 smoke（≤ 2 h）、
-提交/取消**自己**的作业、拉权重、写文档、整理归档、向 GitHub 推送里程碑。
+**自主可做**（不占 GPU）：读、分析、审计、改代码、写测试、跑测试（CPU）、建目录、
+拉权重、写文档、整理归档、向 GitHub 推送里程碑。
 
 **必须先问**：
 
 | 项 | 理由 |
 |---|---|
+| **任何消耗 GPU 的作业**（训练、评测、建库、smoke、探针） | 用户 2026-11-14 定的硬规则：占卡；须先给配置、用户点头 |
 | 删除资产 / 数据 / 证据 | 不可逆 |
 | force-push、重写他人分支历史 | 不可逆，且会毁掉异地备份的意义 |
 | 正式长训（> 6 h） | 占卡、改模型走向 |
 | 大规模评测（> 1000 局） | 占卡 |
+| 改训练配方 / 评测标准的任何参数 | 配方已冻结（`docs/TRAINING_RECIPE.md`）；变更由用户决定 |
 | 改游戏目录 | 破坏用户资产 |
 | 改 `config/live/` 的模型 pin | 直接影响线上实机行为 |
 
-- 不因正常棋力波动反复请示；目标明确就继续推进。
+- **不自主规划多天研发路线**；发现方向性问题时写建议、等用户决策（见 `docs/CHARTER.md`）。
 - 工程错误（非法动作、截断、引擎异常、注入失败、非有限损失、状态损坏）严格停止并保留现场；
-  正常棋力波动只记录，不自动止损。
+  正常棋力波动只记录，不自动止损，也不因此改配方。
 - **没有用户明确要求时：不创建 PR。**
 
 ## 7. 安全红线
@@ -136,18 +145,19 @@
 - 文档里不把旧路径当"当前路径"；历史路径只作证据。
 - 归档目录不更新、不参与流程。
 
-## 9. 当前阶段（2026-11-12）
+## 9. 当前阶段（2026-11-14）
 
-- 架构：单 Agent 双环境管理已上线；`docs/sync/` 散文协议已归档，GitHub 降级为异地归档。
-- 传输：**隧道自愈已实施**（DPAPI 凭据 + SSH_ASKPASS）。用户登记一次密码后，
-  `hsai_ops.py tunnel` 可无人值守重建，Agent 应自己调用。凭据状态用
-  `ops\tunnel.ps1 -Status` 查，不要试图读取凭据文件。
-- 训练：无正式作业在跑（队列里只有一条 `no-shell` 分配）。`stage2` 配置已含 `turnband`
-  采样与 `forbid-unfreeze` 选项，但**没有任何运行在使用它，48h 启动需用户批准**。
-- 模型：E1 正式榜第一是 `league-final-14858`（点估计；对 13806 不显著）。
-  实机 pin 同为 `league-final-14858`，`real_game_accepted: false`。
-- 实机：`league-final-14858` 两局终局有效（第 6 名 / 第 5 名），无可比优势；
-  与 D-026（实机观测是 `public-approx-v1` 有损投影）一致，待取证。
+- **研发模式**：用户定方向、Agent 执行/分析/验证；不自主规划多天路线（`docs/CHARTER.md`）。
+  训练配方已冻结（`docs/TRAINING_RECIPE.md`），评测标准见 `docs/EVAL_PROTOCOL.md`。
+- **训练**：在**校准战团场**（快照镜像注入）上按 AutoTavern 论文 Table 7 配方做分阶段训练。
+  入口 `deploy/slurm/stage_arena.sbatch`（3 小时 / 双卡 MIG / 双卡硬门禁）。
+- **冠军**：`league-final-20261111-step014858`（赢家场 768 局 `mean_rank` 5.299；
+  校准场 512 局 `mean_rank` 2.650 / 前四 83.2%）。
+- **战团库**：当前 `artifacts/libraries/arena-cal-v3-snap`（1,498 帧，turn 1–18）。
+- **迭代**：每轮训练 → 同协议评测 → 与冠军对比 → 有进步换库继续 / 没进步归因。
+- **实机**：`real_game_accepted: false`，两局终局有效但无可比优势，待 D-026 取证。
+- 架构与传输：单 Agent 双环境；隧道自愈已实施（DPAPI 凭据 + SSH_ASKPASS），
+  Agent 自己调用 `hsai_ops.py tunnel`，凭据状态用 `ops\tunnel.ps1 -Status` 查，不读凭据文件。
 - 服务器侧动态事实以 `python ops/hsai_ops.py state` 的实测输出为准，不抄文档。
 
 ## 10. 两端差异速查

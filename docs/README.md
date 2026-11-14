@@ -1,17 +1,25 @@
 # HSAI 文档索引
 
-状态：**当前生效**（2026-11-12 重写）。本目录只放**当前有效**的文档。
+状态：**当前生效**（2026-11-14 重排）。本目录只放**当前有效**的文档。
 历史文档在 `records/archive/<topic>-<YYYYMMDD>/`，**不是启动命令**。
 
-## 从哪开始
+## 新人从这 5 份读起（顺序照抄）
 
-| 顺序 | 文档 | 内容 |
-|---:|---|---|
-| 1 | [`../AGENTS.md`](../AGENTS.md) | 唯一权威约定：放哪、红线、自主权边界、技术口径 |
-| 2 | [ARCHITECTURE.md](ARCHITECTURE.md) | 单 Agent 双环境：职责、三层结构、与旧架构的对应 |
-| 3 | [OPERATIONS.md](OPERATIONS.md) | 日常运作：开工固定开场、改代码、训练、拉模型、实机、应急 |
-| 4 | [architecture/TRANSPORT.md](architecture/TRANSPORT.md) | SSH 隧道、git over SSH、GitHub 定位、大文件传输（含实测吞吐） |
-| 5 | [PROJECT_STATE.md](PROJECT_STATE.md) | 当前作业、模型结论、下一步 |
+| 顺序 | 文档 | 内容 | 读完你能回答 |
+|---:|---|---|---|
+| 1 | [`CHARTER.md`](CHARTER.md) | **项目目标 / 研发模式 / 一轮迭代怎么走** | 我们在做什么？谁做决定？一轮怎么推进？ |
+| 2 | [`TRAINING_RECIPE.md`](TRAINING_RECIPE.md) | **训练配方（冻结版）**：每个参数的值、出处、为什么 | 训练怎么跑？为什么是这个数？ |
+| 3 | [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md) | **评测标准与判胜规则**：M1/M2 + 名次面板 + 比协议 | 怎么证明"变强了"？ |
+| 4 | [`PROJECT_STATE.md`](PROJECT_STATE.md) | **当前状态**：冠军是谁、正在跑什么、下一步 | 现在到哪一步了？ |
+| 5 | [`../AGENTS.md`](../AGENTS.md) | **操作权威约定**：放哪、红线、自主权边界、技术口径 | 怎么动手？什么不能做？ |
+
+## 运作与架构
+
+| 文档 | 内容 |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 单 Agent 双环境：职责、三层结构、与旧架构的对应 |
+| [OPERATIONS.md](OPERATIONS.md) | 日常运作：开工固定开场、改代码、训练、拉模型、实机、应急 |
+| [architecture/TRANSPORT.md](architecture/TRANSPORT.md) | SSH 隧道、git over SSH、GitHub 定位、大文件传输（含实测吞吐） |
 
 ## 专题
 
@@ -21,11 +29,11 @@
 | [LEADERBOARD.md](LEADERBOARD.md) | 当前排行榜规则与分数 |
 | [EVAL_DUEL.md](EVAL_DUEL.md) | 2 model + 6 bot 对局协议、口径、门禁 |
 | [nus/ENVIRONMENT.md](nus/ENVIRONMENT.md) | NUS 环境限制、Slurm、GPU、恢复 |
-| [nus/GPU_SELECTION.md](nus/GPU_SELECTION.md) | **GPU 选型实测基准与调度约束** |
+| [nus/GPU_SELECTION.md](nus/GPU_SELECTION.md) | **GPU 选型实测基准与调度约束**（含 MIG 切片陷阱） |
 | [nus/INCIDENTS.md](nus/INCIDENTS.md) | 历史故障与防复发规则 |
 | [nus/EVAL_DEPLOYMENT.md](nus/EVAL_DEPLOYMENT.md) | NUS 评测提交与监控 |
 | [nus/ENGINE_RELEASES.md](nus/ENGINE_RELEASES.md) | 引擎发版记录 |
-| [analysis/](analysis/) | 代码级审计：引擎规则、sim×live 差异、trace、观测/动作、RL 模块 |
+| [analysis/](analysis/) | 代码级审计与逐日实验记录（**历史证据，不是启动命令**） |
 
 ## 实机专题
 
