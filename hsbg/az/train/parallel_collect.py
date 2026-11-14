@@ -59,7 +59,7 @@ HUMAN_INJECT_TRIES = 3
 #: ``own_str`` 自建战团强度、``tier`` 酒馆等级、``dmg`` 本回合掉血、``cum_dmg`` 累计掉血、
 #: ``opp_str``/``opp_n`` 注入对手强度、``combats``/``losses`` 战斗与败北次数、``turn_n`` 到达局数。
 _TEL_KEYS = ("own_str", "tier", "dmg", "cum_dmg", "opp_str", "opp_n",
-             "combats", "losses", "turn_n", "ties")
+             "combats", "losses", "turn_n", "ties", "gold", "nmin")
 
 #: 难度控制器的分段（与 ``hsbg.az.train.opponent_arena.BANDS`` 一致）。
 _ARENA_BANDS = (("early", 1, 7), ("mid", 8, 11), ("late", 12, 99))
@@ -776,10 +776,17 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             tier = int(pj.get("tier") or 0)
             bd = pj.get("board") or []
             s = int(sum(int(m.get("atk") or 0) + int(m.get("hp") or 0) for m in bd))
+            gold = int(pj.get("gold") or 0)
+            nmin = int(len(bd))
         except BaseException:  # noqa: BLE001
             return
         tel["own_str"][t] = int(tel["own_str"].get(t, 0)) + s
         tel["tier"][t] = int(tel["tier"].get(t, 0)) + tier
+        # 回合起点剩余金币 = 上一回合没花掉的钱；随从数 = 场上站了几个。
+        # 真人 T12 每回合 play 22 / sell 10，我们只有 8 / 1.2（RUNS §5.35）——
+        # 若金币在囤积（T10 起 > 6）或随从数 < 6，那就找到了"板面长不大"的直接漏点。
+        tel["gold"][t] = int(tel["gold"].get(t, 0)) + gold
+        tel["nmin"][t] = int(tel["nmin"].get(t, 0)) + nmin
         tel["turn_n"][t] = int(tel["turn_n"].get(t, 0)) + 1
         prev = st.get("tel_hp")
         if prev is not None:
@@ -1281,6 +1288,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         tel_flat[f"tel_own_str_{_t}"] = int(round(_tel_mean("own_str", _t)))
         tel_flat[f"tel_cum_dmg_{_t}"] = round(_tel_mean("cum_dmg", _t), 2)
         tel_flat[f"tel_opp_str_{_t}"] = int(round(_tel_mean("opp_str", _t, "opp_n")))
+        tel_flat[f"tel_gold_{_t}"] = round(_tel_mean("gold", _t), 2)
+        tel_flat[f"tel_nmin_{_t}"] = round(_tel_mean("nmin", _t), 2)
     for _t in (9, 12):
         tel_flat[f"tel_reach{_t}"] = round(float(_tel_n(_t)) / float(max(1, n)), 4)
     arena_flat: Dict[str, Any] = {"arena_episodes": int(n),

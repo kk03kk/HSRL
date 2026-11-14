@@ -112,6 +112,9 @@ INJECTION_KEYS = (
     "tel_cum_dmg_6", "tel_cum_dmg_8", "tel_cum_dmg_10", "tel_cum_dmg_12",
     "tel_cum_dmg_13",
     "tel_reach9", "tel_reach12",
+    # 回合起点剩余金币 / 场上随从数：直接检验"是不是在囤钱、是不是只买不换"。
+    "tel_gold_6", "tel_gold_8", "tel_gold_10", "tel_gold_12", "tel_gold_13",
+    "tel_nmin_6", "tel_nmin_8", "tel_nmin_10", "tel_nmin_12", "tel_nmin_13",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -173,7 +176,11 @@ INJECTION_MEAN_KEYS = frozenset({"mirror_p", "human_board_p",
                                  "tel_opp_str_12", "tel_opp_str_13",
                                  "tel_cum_dmg_6", "tel_cum_dmg_8", "tel_cum_dmg_10",
                                  "tel_cum_dmg_12", "tel_cum_dmg_13",
-                                 "tel_reach9", "tel_reach12"})
+                                 "tel_reach9", "tel_reach12",
+                                 "tel_gold_6", "tel_gold_8", "tel_gold_10",
+                                 "tel_gold_12", "tel_gold_13",
+                                 "tel_nmin_6", "tel_nmin_8", "tel_nmin_10",
+                                 "tel_nmin_12", "tel_nmin_13"})
 INJECTION_FIRST_KEYS = frozenset({
     "mirror_sample", "mirror_p_ramp", "mirror_seats", "mirror_frames",
     "mirror_max_turn",
