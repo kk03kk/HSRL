@@ -192,14 +192,48 @@ def _ratio(own: Optional[float], point: Optional[Mapping[str, float]]) -> Option
     return own / base
 
 
+#: 反查分位用的分位点（键 -> 分位值），与 tools/pool_strength_curve.py 输出一致。
+_PCT_POINTS: Tuple[Tuple[str, float], ...] = (
+    ("p10", 0.10), ("p25", 0.25), ("p33", 0.33), ("p50", 0.50),
+    ("p67", 0.67), ("p75", 0.75), ("p90", 0.90))
+
+
+def _percentile(own: Optional[float], point: Optional[Mapping[str, float]]) -> Optional[float]:
+    """自建板面在**真人分布**里的分位（0..1）；点不够就 ``None``。
+
+    这是比"÷p50"更硬的刻度：0.14 就是"只赢过 14% 的真人战团"，它不需要排名次、
+    也不受训练场难度影响，所以可以跨运行直接比较（D-054）。
+    """
+    if own is None or not point:
+        return None
+    pts = [(q, point[name]) for name, q in _PCT_POINTS
+           if isinstance(point.get(name), (int, float))]
+    if len(pts) < 2:
+        return None
+    s = float(own)
+    if s <= pts[0][1]:
+        return float(pts[0][0])
+    if s >= pts[-1][1]:
+        return float(pts[-1][0])
+    for (q0, s0), (q1, s1) in zip(pts, pts[1:]):
+        if s0 <= s <= s1:
+            if s1 <= s0:
+                return float(q1)
+            return float(q0 + (q1 - q0) * (s - s0) / (s1 - s0))
+    return None
+
+
 def build_record(row: Mapping[str, Any], line_no: int,
                  curve: Mapping[int, Mapping[str, float]]) -> Dict[str, Any]:
-    """把一行 history 压成一条记录：缺失即 ``None``，比值按人曲线现算。"""
+    """把一行 history 压成一条记录：缺失即 ``None``，比值/分位按人曲线现算。"""
     record: Dict[str, Any] = {"line": line_no}
     for field, keys in _FIELDS.items():
         record[field] = _first_num(row, keys)
     for turn in _CURVE_TURNS:
-        record[f"ratio_{turn}"] = _ratio(record.get(f"tel_own_str_{turn}"), curve.get(turn))
+        own = record.get(f"tel_own_str_{turn}")
+        point = curve.get(turn)
+        record[f"ratio_{turn}"] = _ratio(own, point)
+        record[f"pct_{turn}"] = _percentile(own, point)
     return record
 
 
@@ -220,6 +254,9 @@ def load_human_curve(path: Path) -> Tuple[Dict[int, Dict[str, float]], Optional[
         return {}, f"{path} 不是合法 JSON（{exc}）"
     if not isinstance(data, dict):
         return {}, f"{path} 顶层不是对象"
+    # 允许直接喂 tools/pool_strength_curve.py 的原始产物（回合表在 "curve" 下面）。
+    if isinstance(data.get("curve"), dict):
+        data = data["curve"]
     curve: Dict[int, Dict[str, float]] = {}
     for key, point in data.items():
         try:
@@ -229,7 +266,7 @@ def load_human_curve(path: Path) -> Tuple[Dict[int, Dict[str, float]], Optional[
         if not isinstance(point, Mapping):
             continue
         clean: Dict[str, float] = {}
-        for name in ("p50", "p75", "p90", "mean"):
+        for name in ("p10", "p25", "p33", "p50", "p67", "p75", "p90", "mean"):
             value = _num(point.get(name))
             if value is not None:
                 clean[name] = value
@@ -463,6 +500,19 @@ def render_verdict(shown: Sequence[Mapping[str, Any]],
     target = last_row.get("arena_reach_target")
     lines.append(f"  当前值：到达 12 回合占比 {_fmt_value(reach12, 3)}"
                  f" ｜ arena 目标胜率 {_fmt_value(target, 3)}")
+    # 绝对棋力刻度：自建板面在真人分布里的分位（与对手强度无关，D-054 的核心读数）。
+    pcts = []
+    for turn in _CURVE_TURNS:
+        p0, p1 = first_row.get(f"pct_{turn}"), last_row.get(f"pct_{turn}")
+        if p1 is None:
+            continue
+        head = f"  真人分位 T{turn}: "
+        if p0 is None:
+            pcts.append(f"{head}{p1 * 100:.0f}")
+        else:
+            pcts.append(f"{head}{p0 * 100:.0f} → {p1 * 100:.0f} ({_dir_of(p1 - p0)})")
+    if pcts:
+        lines.append("  ".join(pcts))
     trend = ratchet_state(window_records)
     state_text = {"up": "上升中（↑）", "flat": "未上升", "insufficient": "数据不足"}[trend["state"]]
     lines.append(f"  难度棘轮：{state_text}  "
