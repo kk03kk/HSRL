@@ -735,6 +735,8 @@ class HumanBoardStats:
     injected_str_n: int = 0
     #: 目标带内未命中、退化到"最近可用真实战团"的次数（说明梯子在该回合不够密）。
     arena_near_miss: int = 0
+    #: 目标座位已淘汰而注入不了的次数（**不算**难度没落地；覆盖率的分母要减掉它）。
+    arena_dead: int = 0
 
     def add(self, other: "HumanBoardStats") -> None:
         self.attempt += other.attempt
@@ -762,6 +764,7 @@ class HumanBoardStats:
         self.injected_str_sum += int(other.injected_str_sum)
         self.injected_str_n += int(other.injected_str_n)
         self.arena_near_miss += int(other.arena_near_miss)
+        self.arena_dead += int(other.arena_dead)
         for r in other.last_rejected[:4]:
             if len(self.last_rejected) < 16:
                 self.last_rejected.append(list(r))
@@ -795,6 +798,7 @@ class HumanBoardStats:
             "human_board_injected_str_sum": int(self.injected_str_sum),
             "human_board_injected_str_n": int(self.injected_str_n),
             "human_board_arena_near_miss": int(self.arena_near_miss),
+            "human_board_arena_dead": int(self.arena_dead),
         }
 
 
@@ -978,6 +982,10 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
                 st.rejected += 1
                 cls = _reject_class(rep.get("reason"))
                 st.rejected_by_reason[cls] = st.rejected_by_reason.get(cls, 0) + 1
+                # 淘汰席位本来就注入不了：单独计数，否则"注入覆盖率"会被死座拉低，
+                # 看起来像"难度没落地"（D-053 同一类：配置量级 ≠ 实到量级）。
+                if cls == "not_alive":
+                    st.arena_dead += 1
                 if len(st.last_rejected) < 16:
                     st.last_rejected.append([seat, str(rep.get("reason"))[:200]])
             continue

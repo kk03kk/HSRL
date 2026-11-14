@@ -88,6 +88,7 @@ INJECTION_KEYS = (
     # 否则"控制器在动但注入没生效"会静默跑一整段（D-053 规则 2 的同类坑）。
     "human_board_arena_applied", "human_board_injected_str_sum",
     "human_board_injected_str_n", "human_board_arena_near_miss",
+    "human_board_arena_dead",
     "arena_on", "arena_it", "arena_reach_target", "arena_ratchet",
     "arena_q_early", "arena_q_mid", "arena_q_late",
     # 控制器摘要键名以 hsbg/az/train/opponent_arena.py 为准（arena_<band>_str / _win）。
@@ -137,6 +138,7 @@ INJECTION_SUM_KEYS = frozenset({
     "retained_growth_errors", "retained_growth_games",
     "human_board_arena_applied", "human_board_injected_str_sum",
     "human_board_injected_str_n", "human_board_arena_near_miss",
+    "human_board_arena_dead",
     "arena_combats_early", "arena_combats_mid", "arena_combats_late",
     "arena_losses_early", "arena_losses_mid", "arena_losses_late",
     "arena_episodes", "arena_reach9_n", "arena_reach12_n",
