@@ -625,7 +625,11 @@ class CollectConfig:
 #: ``linear``=段内线性插值（seats 四舍五入、p 连续），用于平滑过渡实验。
 BOARD_RAMP_MODES: Tuple[str, ...] = ("step", "linear")
 #: 分位课程允许的取值（与 ``CollectConfig.human_board_sample`` 同口径）。
-BOARD_RAMP_QUANTILES: Tuple[str, ...] = ("auto", "p50", "p75", "p90", "max")
+#: 2026-11-14：加细 p10/p20/p25/p33/p40/p60/p67/p80 —— 动态难度课程要能"往下降难度"，
+#: 只有 p50/p75/p90 三档时最软一档仍然明显强于我们（见 D-054）。
+BOARD_RAMP_QUANTILES: Tuple[str, ...] = (
+    "auto", "p10", "p20", "p25", "p33", "p40", "p50", "p60", "p67", "p75", "p80",
+    "p90", "max")
 #: 「存活到 t12」的回合阈值（回合号，与 ``records["turn"]`` 同口径）。
 BOARD_RAMP_SURVIVE_TURN = 12
 #: ``tier>=4`` 的**代理**回合阈值：tier_target 曲线是 ``7:4,9:5,12:6``，

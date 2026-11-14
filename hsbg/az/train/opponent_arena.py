@@ -91,6 +91,18 @@ def _count(x: Any) -> Optional[int]:
     return i if float(i) == v else None
 
 
+def _number(x: Any) -> Optional[float]:
+    """**严格**数值：只接受 int/float（bool 除外）。
+
+    读取持久化文件时用它：文件是我们自己写的，出现字符串/布尔只可能是被写坏或被人改过，
+    这时该按「字段非法」处理（回退 init_strength），而不是替它做容错转换。
+    采集侧 stats 走 :func:`_finite`（宽松，数字字符串也认），两处口径不同是有意的。
+    """
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return None
+    return _finite(x)
+
+
 def _clamp01(v: float) -> float:
     """夹到 [0, 1]（胜率/占比都该在这个范围；越界只可能是统计口径写错）。"""
     return 0.0 if v < 0.0 else (1.0 if v > 1.0 else v)
@@ -530,13 +542,13 @@ class ArenaController:
             _add_note(self.notes, f"{path} 的 strength 非法（需每个 band 有限正数），保留 init_strength")
             return
         self.state.strength = strength
-        rt = _finite(raw.get("reach_target"))
+        rt = _number(raw.get("reach_target"))
         if rt is None or not (0.0 < rt <= 1.0):
             _add_note(self.notes, f"{path} 的 reach_target={raw.get('reach_target')!r} 非法，用 spec 默认值")
         else:
             self.state.reach_target = float(rt)
         for name in ("iters", "streak", "ratchet_level"):
-            v = _count(raw.get(name))
+            v = _count(_number(raw.get(name)))
             if v is None:
                 _add_note(self.notes, f"{path} 的 {name}={raw.get(name)!r} 非法，重置为 0")
                 continue
@@ -591,7 +603,7 @@ def _valid_strength(raw: Any) -> Optional[Dict[str, float]]:
         return None
     out: Dict[str, float] = {}
     for name in BAND_NAMES:
-        v = _finite(raw.get(name))
+        v = _number(raw.get(name))  # 严格：字符串/布尔算写坏，不做容错转换
         if v is None or v <= 0.0:
             return None
         out[name] = float(v)

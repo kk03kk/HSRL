@@ -559,9 +559,10 @@ def main() -> int:
     ap.add_argument("--human-board-seats", type=int, default=2,
                     help="每回合从全部非 learner 座位里随机抽几个座位注入（默认 2）")
     ap.add_argument("--human-board-sample", default="auto",
-                    choices=["auto", "p50", "p75", "p90", "max"],
+                    choices=["auto", "p10", "p20", "p25", "p33", "p40", "p50",
+                             "p60", "p67", "p75", "p80", "p90", "max"],
                     help="人类战团桶内分位：auto=按 turn 走难度曲线（t<=8 p50 / 9..12 p75 "
-                         "/ t>=13 p90，默认）")
+                         "/ t>=13 p90，默认）；pXX=固定分位（越低对手越弱，动态难度课程用）")
     ap.add_argument("--human-board-set-tier", type=int, default=1,
                     help="1=同时写入按 turn 派生的酒馆等级（人类数据没有 tier 字段；默认 1）")
     ap.add_argument("--human-board-fidelity", default="board",
