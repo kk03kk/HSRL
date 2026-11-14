@@ -34,7 +34,14 @@ def require_valid_mirror_collect(meta: Dict[str, Any], out: str, *,
                   if k not in EXPECTED_REJECT_REASONS and v}
     if unexpected:
         issues["unexpected_mirror_rejections"] = sum(unexpected.values())
-    if not meta.get("mirror_applied", 0):
+    # 只有当本 iteration **本该**有镜像时才要求 mirror_applied>0。
+    # 2026-11-14：退火课程把 mirror_p 按 ramp 降到 0.0，旧写法把它判成"采集质量失败"
+    # 并 abort（l9anneal2 恰好在 iter 300 被误杀）。config["mirror_p"] 是 ramp 之后的**有效值**。
+    try:
+        _eff_p = float(config.get("mirror_p", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        _eff_p = 0.0
+    if not meta.get("mirror_applied", 0) and _eff_p > 0.0:
         issues["mirror_applied"] = 0
     if config.get("mirror_strict"):
         counts = meta.get("mirror_strict_counts") or {}
