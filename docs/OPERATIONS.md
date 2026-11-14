@@ -519,17 +519,24 @@ mean_rank 没变好                → 归因（工程/场地/奖励/容量/样�
 
 ### 10.4 换冠军 + 重建战团库（有进步才做）
 
+**每轮要重建两份库**：训练用（厚，96 帧/回合）+ 考试用（held-out，换数据源或换 split）。
+只用一次评测时，考试场就是 main 判据，绝不能和训练场共用同一批战团。
+
 ```bash
 # ① 建模型目录：model.pt + manifest.json + checkpoint.json + MODEL_CARD.md
-# ② 用新模型的战力曲线重新校准战团库（这是本项目唯一被验证有效的杠杆）
-python tools/build_arena_library.py \
-  --pool data/real_library/firestone-bank-6k/train-m6k.jsonl \
-  --panel artifacts/runs/gap-v<N>-vs-champion-<日期>/panel.json \
-  --panel-model <新模型名> \
-  --out-dir artifacts/libraries/arena-cal-v<N+1> --per-turn 96
-sbatch deploy/slurm/build_arena_snap.sbatch     # 生成 arena-cal-v<N+1>-snap
-# ③ 更新 docs/PROJECT_STATE.md §3/§5 与 docs/TRAINING_RECIPE.md 的库路径
-# ④ 在 docs/DECISIONS.md 追加一条 D-###，然后回到 10.1
+python tools/publish_model_dir.py --run artifacts/runs/<run> --name <新模型名> \
+  --panel artifacts/runs/gap-<tag>/panel.json --panel-model <面板里的名字>
+# ② 训练库：用新模型的战力曲线重新校准（这是本项目唯一被验证有效的杠杆）
+export HSAI_LIB_POOL=data/real_library/firestone-bank-6k/train-m6k.jsonl
+export HSAI_LIB_PANEL=artifacts/runs/gap-<tag>/panel.json
+export HSAI_LIB_OUT=artifacts/libraries/arena-cal-v<N+1>
+sbatch --export=ALL deploy/slurm/build_arena_snap.sbatch
+# ③ 考试库（held-out，与训练库不同源）
+export HSAI_LIB_POOL=data/real_library/firestone-bank-6k/eval-m6k.jsonl
+export HSAI_LIB_OUT=artifacts/libraries/arena-cal-v<N+1>hold
+sbatch --export=ALL deploy/slurm/build_arena_snap.sbatch
+# ④ 更新 docs/PROJECT_STATE.md §3/§5 与 docs/TRAINING_RECIPE.md 的库路径
+# ⑤ 在 docs/DECISIONS.md 追加一条 D-###，然后回到 10.1
 ```
 
 ### 10.5 不要做的事
