@@ -813,6 +813,11 @@ def inject_quasi_state(game: Any, seat: int, payload: Dict[str, Any],
     if with_counters and gold is not None:
         frame["gold"] = int(gold)
         unavailable = [f for f in unavailable if f != "gold"]
+    if dry_run:
+        # 慢路径同样支持 dry_run（fast=False 时走这里）。只构造、不写入。
+        return {"applied": True, "dry_run": True, "frame": frame, "mode": fid,
+                "hand_applied": hand_applied, "counters_applied": bool(with_counters),
+                "unavailable_fields": unavailable, "pool_balance_ok": True}
     try:
         rep = game.apply_turn_snapshots([[seat, json.dumps(frame)]], None)
     except BaseException as exc:  # noqa: BLE001
