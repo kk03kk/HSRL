@@ -2,13 +2,13 @@
 #SBATCH --job-name=hsai-arena
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=gpu-long
+#SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:2
 #SBATCH --exclude=xgpi15,xgpi17
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --propagate=NONE
-#SBATCH --time=37:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=artifacts/runs/slurm/%x-%j.out
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
@@ -28,11 +28,10 @@
 #   HSAI_ARENA_SEGMENTS segments in this job (default 1)
 #   HSAI_ARENA_RESUME   0=fresh fork from --checkpoint, 1=continue this run dir
 #
-# **长训请用单段**（SEGMENTS=1，MINUTES=2100，作业 --time=37:00:00）：anchor 的
-# ``anchor_iterations`` 比的是 ``i = start_i + 轮数``，而 ``start_i = trainer.updates``
-# 是**优化步数**（每轮约 124 步）。所以一旦分段续训，第二段的 i 会直接跳到 30k+，
-# β=0.1 的保护期（前 250 轮）就只剩第一段那几轮。单段则 β=0.1 准时跑满 250 轮≈8h，
-# 之后 0.02。崩溃保护靠 --snapshot-every 5（约每 10 分钟一份，留 3 份）。
+# 分段提醒：anchor 的 ``anchor_iterations`` 比的是 ``i = start_i + 轮数``，而
+# ``start_i = trainer.updates`` 是**优化步数**（每轮约 124 步）。所以一旦用
+# HSAI_ARENA_RESUME=1 续训，第二段的 i 会直接跳到几万，β=0.1 的保护期（前 250 轮）
+# 不会在第二段重现。要保留保护期就得让它落在一段之内。
 #
 # 双卡布局 = 冠军那条作业的原样：learner 独占 cuda(0 号卡)，8 个采集进程都用 1 号卡
 # （``--gpus 1`` 是**索引列表**，不是"几张卡"；见 config/league-36h.json 的 "gpus": "1"）。
