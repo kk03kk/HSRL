@@ -50,6 +50,14 @@ def collect(root: str) -> List[Dict[str, Any]]:
         except Exception:
             continue
         models = {m.get("name"): m for m in d.get("models") or []}
+        # 只收"真人赢家场"面板：bot 场的 mean_rank≈1.2 / top4=1.0，混进来会毁掉可比性。
+        def _is_human_field(mm: Dict[str, Any]) -> bool:
+            for r in (mm.get("vs_human") or {}).get("per_turn") or []:
+                if r.get("human_strength_p50"):
+                    return True
+            return False
+        if not any(_is_human_field(mm) for mm in models.values()):
+            continue
         base = models.get("base")
         if not base or not base.get("rank_sequence"):
             continue
