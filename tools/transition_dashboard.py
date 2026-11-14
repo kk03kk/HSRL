@@ -40,7 +40,9 @@ from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Seq
 
 # ── 取值：同一个指标可能落在本层或子字典里 ──────────────────────────────────
 # 查找顺序就是优先级：本层是"最新写盘格式"，子字典是历史格式兜底。
-_NESTED_KEYS: Tuple[str, ...] = ("stat", "stats", "meta")
+# ``collect`` 必须在列：`train_entity_sync.py` 把采集 meta（tel_*/arena_*/注入计数）
+# 整块写在 ``row["collect"]`` 里，不看这一层的话面板会显示成"全部无数据"。
+_NESTED_KEYS: Tuple[str, ...] = ("stat", "stats", "meta", "collect", "ppo", "profile")
 
 # 每个字段的候选键（有的 run 写 it、有的写 iteration/iter；rank 也可能叫 rank_mean）。
 _FIELDS: Dict[str, Tuple[str, ...]] = {

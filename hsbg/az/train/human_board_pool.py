@@ -504,7 +504,15 @@ class HumanBoardPool:
     def sample_payload(self, turn: int, rng: Optional[random.Random] = None,
                        mode: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """同 :meth:`sample` 的分位选择，但返回**准完整 payload**（旧库返回 ``None``）。"""
-        pick = self._pick(turn, rng, mode)
+        return self.payload_from_pick(self._pick(turn, rng, mode), turn)
+
+    def payload_from_pick(self, pick: Optional[HumanBoard],
+                          turn: int) -> Optional[Dict[str, Any]]:
+        """把一条已选中的 :class:`HumanBoard` 变成准完整 payload。
+
+        抽出来是为了让 `hand`/`full` 保真度也能走**按绝对强度选板**（动态难度课程）：
+        选板策略与载荷组装解耦之后，两条路径共用同一份 payload 语义。
+        """
         if pick is None:
             return None
         if not isinstance(pick.payload, dict):
@@ -640,6 +648,13 @@ class HumanBoardPool:
         """:meth:`sample_at_strength_pick` 的 board 视图（``[[card, atk, hp], ...]``）。"""
         pick = self.sample_at_strength_pick(turn, target, rng=rng, window=window)
         return None if pick is None else [list(x) for x in pick.board]
+
+    def sample_at_strength_payload(self, turn: int, target: float,
+                                   rng: Optional[random.Random] = None,
+                                   window: int = 2) -> Optional[Dict[str, Any]]:
+        """:meth:`sample_at_strength_pick` 的准完整 payload 视图（hand/full 保真度用）。"""
+        pick = self.sample_at_strength_pick(turn, target, rng=rng, window=window)
+        return self.payload_from_pick(pick, turn)
 
     # ---- 统计 ----
     def stats(self) -> Dict[str, Any]:
@@ -867,8 +882,11 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
         st.attempt += 1
         before_fallback = int(getattr(pool, "nearest_fallbacks", 0))
         payload: Optional[Dict[str, Any]] = None
-        if fid == "board" and target_strength is not None:
-            # 动态难度：按绝对强度选真实战团（不分位、不缩放身材）。
+        if target_strength is not None:
+            # 动态难度：按绝对强度选**真实**战团（不分位、不缩放身材）。
+            # 注意 board / hand / full **三档都要走这里**——第一版只在 board 档生效，
+            # 生产配置用的是 full 档，结果难度控制器在动、注入却仍按分位走
+            # （2026-11-14 冒烟 1139325：arena_applied=0，正是 D-053 那类"配了没生效"）。
             try:
                 _pick_t = pool.sample_at_strength_pick(int(turn), float(target_strength), rng=r)
             except BaseException:  # noqa: BLE001
@@ -878,14 +896,24 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
             if _pick_t is None:
                 st.missing += 1
                 continue
-            board = [list(x) for x in _pick_t.board]
-            st.arena_applied += 1
-            _s = int(sum(int(m[1]) + int(m[2]) for m in board if len(m) >= 3))
+            _s = int(getattr(_pick_t, "strength", 0) or 0)
             if _s > 0:
+                st.arena_applied += 1
                 st.injected_str_sum += _s
                 st.injected_str_n += 1
-            if abs(float(_s) - float(target_strength)) > max(1.0, float(target_strength) * 0.10):
-                st.arena_near_miss += 1
+                if abs(float(_s) - float(target_strength)) > max(
+                        1.0, abs(float(target_strength)) * 0.10):
+                    st.arena_near_miss += 1
+            if fid == "board":
+                board = [list(x) for x in _pick_t.board]
+            else:
+                payload = pool.payload_from_pick(_pick_t, int(turn))
+                if payload is None:
+                    st.missing += 1
+                    continue
+                board = payload.get("board_flat") or []
+                if not payload.get("has_detail", False):
+                    st.payload_missing += 1
         elif fid == "board":
             try:
                 board = pool.sample(int(turn), rng=r)

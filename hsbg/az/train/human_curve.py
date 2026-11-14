@@ -159,11 +159,25 @@ class HumanCurve:
                 return float(q0 + (q1 - q0) * w)
         return float(pts[-1][0])
 
-    def band_bounds(self, band: str) -> Optional[Tuple[float, float]]:
-        """分段强度上下限 ``(p10, p90)``（控制器在该区间内移动）。"""
+    def band_bounds(self, band: str, span: int = 2) -> Optional[Tuple[float, float]]:
+        """分段强度上下限：取代表回合 ±``span`` 内所有回合的 ``min(p10) .. max(p90)``。
+
+        为什么不只用代表回合那一张表：采集侧选板子的候选窗口是 ``[t-2, t+1]``，所以
+        13 回合真正可用的强度下界其实是 11 回合的 p10（弱玩家也能活到 13 回合），
+        上界是 14 回合的 p90。用窗口内的极值，控制器才不会被"单回合分位"卡住。
+        """
         t = band_center_turn(band)
-        lo = self.strength(t, 0.10)
-        hi = self.strength(t, 0.90)
+        lo: Optional[float] = None
+        hi: Optional[float] = None
+        for tt in self.turns():
+            if abs(float(tt) - float(t)) > float(span):
+                continue
+            a = self.strength(tt, 0.10)
+            b = self.strength(tt, 0.90)
+            if a is None or b is None:
+                continue
+            lo = float(a) if lo is None else min(lo, float(a))
+            hi = float(b) if hi is None else max(hi, float(b))
         if lo is None or hi is None:
             return None
         return (float(lo), float(max(hi, lo + 1.0)))
