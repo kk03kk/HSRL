@@ -153,7 +153,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--mult", default="", help="override e.g. 2:0.85,9:1.0,12:1.1")
     ap.add_argument("--targets", default="",
                     help="直接给**绝对**目标强度（覆盖 mult）：e.g. 1:3,7:50,12:1800。"
-                         "用于"前期压到几乎必赢、后期只抬一点"这种不按比例的场景")
+                         "用于前期压到几乎必赢、后期只抬一点这种不按比例的场景")
     a = ap.parse_args(argv)
 
     mult = dict(DEFAULT_MULT)
