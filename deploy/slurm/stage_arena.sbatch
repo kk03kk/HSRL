@@ -79,10 +79,17 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 # 语义（见 hsbg/az/train/forced_tier.py）：只在 Upgrade **真正合法**时强制（掩码 mask[3]
 # 已编码"金币够 + 未满级 + 不在待选"）；不补金币、不改引擎状态；被强制的决策标 forced、
 # logprob=0、**不进策略梯度**（只保留价值链），因此不伪造 on-policy ratio。
-# 教师标签本轮**关闭**（--forced-tier-teacher 0）：本轮目标是"让它真的体验 6 本局面"。
+# 本轮改为**一半强制 + 教师全程开**（2026-11-15 用户决定）：强制保证它真的到 6 本，
+# 教师标签保证策略自己学会按升级 —— 否则强制决策不进策略梯度，评测时它不会自己冲本。
 forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,9:6}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
-forced_tier_teacher="${HSAI_ARENA_FORCED_TIER_TEACHER:-0}"
+# 一半强制、一半交给模型 —— 未被强制但目标未达成时写 DAgger 教师标签，让策略自己学会按升级。
+# 注意：教师不是 --forced-tier-teacher（**该 flag 不存在**），而是下面两个：
+#   --forced-teacher-until  在这段累计 decisions 之前写标签（40M ≈ 全程，本次运行约 38M）
+#   --forced-teacher-coef   标签的 CE 系数（>0 才真的产生梯度；历史配方用 0.05）
+forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-0.5}"
+forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-40M}"
+forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.05}"
 # 升本奖励本轮**关闭**：强制到 6 本后，任何"到 5 本/6 本"的软目标都必然白送分，等于常数额赏。
 tier_coef="${HSAI_ARENA_TIER_COEF:-0.0}"
 tier_bonus="${HSAI_ARENA_TIER_BONUS:-0.20}"
@@ -122,7 +129,8 @@ mkdir -p "$out"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
   echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=1"
-  echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry teacher=$forced_tier_teacher"
+  echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry prob=$forced_tier_prob"
+  echo "teacher until=$forced_teacher_until coef=$forced_teacher_coef"
   echo "KPI = T12 median board strength (M1). tier soft-reward coef=$tier_coef (0=off, forced tier replaces it)"
   echo "reward: terminal placement utility ONLY + tier_target coef=$tier_coef penalty=$tier_penalty bonus=0.15 table=$tier_table gate_k=$tier_gate_k gate_ref=$tier_gate_ref"
   echo "all other shaping = 0 (spell/comp/retained/shaping/terminal_strength)"
@@ -151,7 +159,9 @@ python workflows/train_entity_sync.py \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
   --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
-  --forced-tier-teacher "$forced_tier_teacher" \
+  --forced-tier-prob "$forced_tier_prob" \
+  --forced-teacher-until "$forced_teacher_until" \
+  --forced-teacher-coef "$forced_teacher_coef" \
   --seed "$seed" --sims 0 --processes "$procs" --workers 1 \
   --snapshot-every 5 --keep-snapshots 3 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
