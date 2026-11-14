@@ -89,6 +89,7 @@ INJECTION_KEYS = (
     "human_board_arena_applied", "human_board_injected_str_sum",
     "human_board_injected_str_n", "human_board_arena_near_miss",
     "human_board_arena_dead",
+    "human_board_turn_ended",
     "arena_on", "arena_it", "arena_reach_target", "arena_ratchet",
     "arena_q_early", "arena_q_mid", "arena_q_late",
     # 控制器摘要键名以 hsbg/az/train/opponent_arena.py 为准（arena_<band>_str / _win）。
@@ -143,6 +144,7 @@ INJECTION_SUM_KEYS = frozenset({
     "human_board_arena_applied", "human_board_injected_str_sum",
     "human_board_injected_str_n", "human_board_arena_near_miss",
     "human_board_arena_dead",
+    "human_board_turn_ended",
     "arena_ties_early", "arena_ties_mid", "arena_ties_late",
     "arena_combats_early", "arena_combats_mid", "arena_combats_late",
     "arena_losses_early", "arena_losses_mid", "arena_losses_late",

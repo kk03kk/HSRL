@@ -747,6 +747,8 @@ class HumanBoardStats:
     arena_near_miss: int = 0
     #: 目标座位已淘汰而注入不了的次数（**不算**难度没落地；覆盖率的分母要减掉它）。
     arena_dead: int = 0
+    #: 注入后成功把席位标记为"本回合已结束"的次数（``end_turn=True`` 时应有 applied 那么多）。
+    turn_ended: int = 0
 
     def add(self, other: "HumanBoardStats") -> None:
         self.attempt += other.attempt
@@ -775,6 +777,7 @@ class HumanBoardStats:
         self.injected_str_n += int(other.injected_str_n)
         self.arena_near_miss += int(other.arena_near_miss)
         self.arena_dead += int(other.arena_dead)
+        self.turn_ended += int(other.turn_ended)
         for r in other.last_rejected[:4]:
             if len(self.last_rejected) < 16:
                 self.last_rejected.append(list(r))
@@ -809,6 +812,7 @@ class HumanBoardStats:
             "human_board_injected_str_n": int(self.injected_str_n),
             "human_board_arena_near_miss": int(self.arena_near_miss),
             "human_board_arena_dead": int(self.arena_dead),
+            "human_board_turn_ended": int(self.turn_ended),
         }
 
 
@@ -847,7 +851,8 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
                 seats: Optional[Sequence[int]] = None,
                 fidelity: str = "board",
                 fast_inject: bool = False,
-                target_strength: Optional[float] = None) -> HumanBoardStats:
+                target_strength: Optional[float] = None,
+                end_turn: bool = True) -> HumanBoardStats:
     """新回合开始（任何座位行动前）给随机 N 个非 learner 座位注入人类战团。
 
     - 座位：``seats`` 给定时用它（固定座位，便于复现）；否则用 :func:`random_seats`
@@ -867,6 +872,13 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
       ``[turn-window, turn+1]`` 的真实战团里挑强度最接近该**绝对目标**的一条
       （见 :meth:`HumanBoardPool.sample_at_strength_pick`）。目标来自训练侧的闭环
       控制器，因此对手强度随模型实测战力自动升降；注入的战团始终是真人库里的真数据。
+    - ``end_turn``（**默认 True**）：注入成功后把该席位置为**本回合已结束**，它就只带
+      注入的这块板子进战斗、**不再由 bot 接着买人**。
+      为什么必须是 True：本库每行的 ``stage`` 是 ``combat_start``（人家这一回合已经
+      买完的板子）。若注入后让 bot 再打一回合，等于把对手的回合做了两遍 ⇒ 实战场
+      系统性高于库里标称的强度（2026-11-14 查实：这正是 11-12 之后所有真人场读数偏高、
+      难度闭环被顶穿的原因）。镜像快照那条路本来就是 ``ended_turn=true``
+      （引擎 ``snapshot.rs:20``），这里改成一致；``end_turn=False`` 保留旧行为。
     - 拒绝只记 ``rejected``，该座位保持原状态；
     - ``set_tier``：是否同时写入 :func:`turn_tier` 派生 tier（默认 True；full 档优先用
       观测到的 tavern tier）；``tier_fn`` 可覆盖派生函数。
@@ -963,7 +975,7 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
                 payload["tier"] = None
             try:
                 rep = inject_quasi_state(
-                    game, seat, payload, fid, reset_ended=True,
+                    game, seat, payload, fid, reset_ended=not bool(end_turn),
                     tier_fn=(tier_of if set_tier else None),
                     fast=bool(fast_inject))
             except BaseException as exc:  # noqa: BLE001 - 引擎异常 -> 该座位保持 bot
@@ -1012,6 +1024,17 @@ def inject_turn(game: Any, pool: HumanBoardPool, turn: int, *,
                 st.tier_set += 1
             if not bool(rep.get("pool_balance_ok", True)):
                 st.pool_unbalanced += 1
+            # 明确置"本回合已结束"：inject_board 本身**不**设置 ended_turn（引擎
+            # snapshot.rs:542），而本库每行是 combat_start 语义的板子，必须直接进战斗。
+            # 用一次"整席位快照"（内容就是刚注入完的状态）来落 ended_turn=true。
+            if end_turn:
+                try:
+                    game.apply_turn_snapshots(
+                        [[int(seat), game.player_json(int(seat))]], None)
+                    st.turn_ended += 1
+                except BaseException as exc:  # noqa: BLE001 - 置 ended 失败则退回旧行为
+                    st.errors += 1
+                    st.last_rejected.append([seat, repr(exc)[:200]])
         else:
             st.rejected += 1
             cls = _reject_class(rep.get("reason"))
