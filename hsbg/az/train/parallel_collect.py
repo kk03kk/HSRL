@@ -52,6 +52,9 @@ from hsbg.env import obs_std as _OBS
 #: 中后期入场注入的最大尝试次数（引擎 ``pending_choice`` / 该席已淘汰时留机会下回合再试）。
 ENTRY_MAX_TRIES = 3
 
+#: 同一回合内人类战团注入的最多尝试次数（引擎 ``pending_choice`` 会拒绝，见 D-056）。
+HUMAN_INJECT_TRIES = 3
+
 #: 逐回合遥测的每条轨迹（键 -> 逐回合累加量）。见 ``_sample_turn``。
 #: ``own_str`` 自建战团强度、``tier`` 酒馆等级、``dmg`` 本回合掉血、``cum_dmg`` 累计掉血、
 #: ``opp_str``/``opp_n`` 注入对手强度、``combats``/``losses`` 战斗与败北次数、``turn_n`` 到达局数。
@@ -687,10 +690,15 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                     applied_out=st["mirror_applied_seats"])
 
     def _maybe_human_board(st: Dict[str, Any]) -> None:
-        """新回合开始、任何座位行动前注入人类战团（每 turn 只尝试一次）。
+        """新回合注入人类战团（默认每 turn 只试一次；被拒则同回合重试，最多 ``HUMAN_INJECT_TRIES`` 次）。
 
         必须在 :func:`_maybe_mirror` **之后**调用：镜像快照占用过的座位（本回合已
         ``ended_turn``）一律让路，并记 ``skipped_by_mirror``。
+
+        为什么要重试：引擎在座位有 ``pending_choice`` 时会拒绝注入（实测占全部尝试的
+        ~30%），而**难度课程的精度直接取决于注入落地率**——没注入到的座位还是 bot 的
+        弱板子，控制器会把"混了弱对手的胜率"当成真实反馈。重试时座位是重新随机抽的，
+        等于把机会让给还没行动的座位。
         """
         if not human_on:
             return
@@ -700,7 +708,13 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             return
         if t == int(st.get("human_turn", t)):
             return
-        st["human_turn"] = t
+        _tries = (int(st.get("human_retry", 0))
+                  if t == int(st.get("human_try_turn", -1)) else 0)
+        if _tries >= HUMAN_INJECT_TRIES:
+            st["human_turn"] = t
+            st["human_retry"] = 0
+            return
+        st["human_try_turn"] = t
         # 动态难度：同一回合所有对手席位共用一个目标强度（=「这一回合的对手有多强」），
         # 由闭环控制器按实测胜率给出；None 表示本次不走绝对强度、仍按分位采样。
         _tgt: Any = None
@@ -711,6 +725,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                 _tgt = None
         _hs = st["human_stats"]
         _n0, _s0 = int(_hs.injected_str_n), int(_hs.injected_str_sum)
+        _a0 = int(_hs.applied)
         inject_human_boards(
             g, human_board_pool, t, seats_count=human_targets, p=human_p,
             rng=st["human_rng"], learner_seat=seat, stats=st["human_stats"],
@@ -718,6 +733,11 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             num_players=N_PLAYERS, set_tier=human_set_tier,
             fidelity=human_fidelity, fast_inject=human_fast_inject,
             target_strength=(None if _tgt is None else float(_tgt)))
+        if int(_hs.applied) > _a0:
+            st["human_turn"] = t          # 至少落地一个座位：本回合结束（不再重试）
+            st["human_retry"] = 0
+        else:
+            st["human_retry"] = _tries + 1  # 全被拒（多半 pending_choice）：同回合稍后再试
         _dn, _ds = int(_hs.injected_str_n) - _n0, int(_hs.injected_str_sum) - _s0
         if _dn > 0:
             tel = st["tel"]
