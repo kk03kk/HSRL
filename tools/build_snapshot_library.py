@@ -43,60 +43,53 @@ def main(argv: Optional[List[str]] = None) -> int:
     a = ap.parse_args(argv)
 
     import hsbg_engine as E                      # noqa: PLC0415 - 需要引擎（服务器上跑）
-    from hsbg.az.train.human_obs_full import inject_quasi_state, parse_observation
+    from hsbg.az.train.human_board_pool import HumanBoardPool
+    from hsbg.az.train.human_obs_full import inject_quasi_state
 
-    rows: List[Dict[str, Any]] = []
-    with open(a.rows, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    if not rows:
-        print(f"[error] no rows in {a.rows}", file=sys.stderr)
+    # 用**生产那条路**解析：HumanBoardPool 载入时就把每行转成准完整 payload，
+    # 训练侧的 `--human-board-fidelity full` 用的就是它。不要另写解析器。
+    pool = HumanBoardPool(a.rows, sample="p50")
+    if not pool.kept:
+        print(f"[error] pool empty: {a.rows}", file=sys.stderr)
         return 2
-    print(f"rows = {len(rows)}")
+    print(f"boards = {pool.kept}  payload = {pool.payload_kept}  "
+          f"turns = {pool.turns()[0]}..{pool.turns()[-1]}")
 
     tpl_game = E.Game(seed=12345)                # 只当"帧模板"用（读 player_json）
     frames: List[Dict[str, Any]] = []
     bad = 0
     per_turn: Dict[int, int] = {}
-    for row in rows:
-        t = int(row.get("turn") or 0)
-        if t <= 0:
-            bad += 1
-            continue
-        try:
-            parsed = parse_observation(row, eot_only=False)
-            payload = parsed[0] if isinstance(parsed, tuple) else parsed
-            if payload is None:
+    for t in pool.turns():
+        for hb in pool.index.get(t) or []:
+            payload = pool.payload_from_pick(hb, int(t))
+            if not isinstance(payload, dict):
+                bad += 1
+                continue
+            try:
+                rep = inject_quasi_state(tpl_game, 1, payload, str(a.fidelity),
+                                         reset_ended=False, dry_run=True)
+            except BaseException as exc:         # noqa: BLE001
                 bad += 1
                 if bad <= 5:
-                    reasons = parsed[1] if isinstance(parsed, tuple) and len(parsed) > 1 else []
-                    print(f"  [warn] row turn={t} rejected by parser: {reasons}"[:220])
+                    print(f"  [warn] turn={t} failed: {exc!r}"[:200])
                 continue
-            rep = inject_quasi_state(tpl_game, 1, payload, str(a.fidelity),
-                                     reset_ended=False, dry_run=True)
-        except BaseException as exc:             # noqa: BLE001
-            bad += 1
-            if bad <= 5:
-                print(f"  [warn] row turn={t} failed: {exc!r}"[:200])
-            continue
-        frame = rep.get("frame")
-        if not isinstance(frame, dict) or "board" not in frame:
-            bad += 1
-            continue
-        frames.append({
-            "turn": int(t),
-            "seat": int(a.seat),
-            "player": frame,
-            "stage": STAGE_EOT,
-            "source_turn": int(row.get("_src_turn") or t),
-            "source": "arena_cal_v1",
-            "frame_sha256": hashlib.sha256(
-                json.dumps(frame, sort_keys=True, ensure_ascii=False).encode("utf-8")
-            ).hexdigest(),
-        })
-        per_turn[int(t)] = int(per_turn.get(int(t), 0)) + 1
+            frame = rep.get("frame")
+            if not isinstance(frame, dict) or "board" not in frame:
+                bad += 1
+                continue
+            src_turn = int(getattr(hb, "turn", t) or t)
+            frames.append({
+                "turn": int(t),
+                "seat": int(a.seat),
+                "player": frame,
+                "stage": STAGE_EOT,
+                "source_turn": src_turn,
+                "source": "arena_cal_v1",
+                "frame_sha256": hashlib.sha256(
+                    json.dumps(frame, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                ).hexdigest(),
+            })
+            per_turn[int(t)] = int(per_turn.get(int(t), 0)) + 1
 
     os.makedirs(a.out_dir, exist_ok=True)
     path = os.path.join(a.out_dir, "snap_cal.json.gz")
