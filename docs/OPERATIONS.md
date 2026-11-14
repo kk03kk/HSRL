@@ -482,21 +482,31 @@ deploy/slurm/stage_arena.sbatch
 
 ### 10.2 评测（训练结束后，**两个模型同一作业**）
 
-**关键：新模型与冠军必须在同一场地（同一快照库）、同一 seed 集下一起测**，
-否则场地差异会混进"进步"里。`eval_human_gap.py` 的 `--checkpoint` 可以重复传。
+**关键两条：**
+1. 新模型与冠军必须在**同一场地（同一快照库）、同一 seed 集**下一起测，否则场地差异会混进"进步"里；
+   同一 `--seed` 下各模型打的是同一批种子，所以面板里才存了 `rank_sequence` 可以**逐局配对**。
+2. `--checkpoint` 的格式是 **`名字=路径`**（裸路径会直接退出）。脚本里用 `;` 分隔多个模型。
 
 ```bash
+# 模型清单：名字=路径，用 ; 分隔多个
+export HSAI_GAP_MODELS="champion14858=artifacts/models/league-final-20261111-step014858/model.pt;arena_v3=artifacts/runs/nus-arena-v3-tier-20261114-1/train/model.pt"
+
 sbatch --export=ALL,\
 HSAI_GAP_MIRROR_SNAPS=artifacts/libraries/arena-cal-v3-snap,\
-HSAI_GAP_OUT=artifacts/runs/gap-v<N>-vs-champion-<日期>,\
+HSAI_GAP_OUT=artifacts/runs/gap-vN-vs-champion-<日期>,\
 HSAI_GAP_GAMES=512 \
-deploy/slurm/eval_human_gap_snap.sbatch      # 需要按需在脚本里传两个 --checkpoint
+deploy/slurm/eval_human_gap_snap.sbatch
 ```
 
-产出 `panel.json`：
+产出 `panel.json` → 接着出判胜表（**不需要 GPU**）：
 
-- `models[i].outcome` → `mean_rank` / `top4_rate` / `win_rate` / `illegal_actions`（**判胜尺子**）
-- `models[i].curves[turn]` → `strength_p50`（= M1）/ `tier_mean`（= M2）（**过程刻度**）
+```bash
+python tools/compare_panels.py artifacts/runs/gap-vN-vs-champion-<日期>/panel.json \
+  --champion champion14858 --candidate arena_v3
+```
+
+它会打印：判胜结论（IMPROVED / IMPROVED_WEAK / SUSPICIOUS / NO_IMPROVEMENT / WORSE / INVALID）、
+配对 bootstrap 95% 区间、逐局胜负、结果刻度表、以及**逐回合 M1/M2 对比表**。
 
 ### 10.3 判胜与下一步
 
