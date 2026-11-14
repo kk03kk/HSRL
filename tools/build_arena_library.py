@@ -151,6 +151,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--jitter", type=float, default=0.10)
     ap.add_argument("--seed", type=int, default=20261114)
     ap.add_argument("--mult", default="", help="override e.g. 2:0.85,9:1.0,12:1.1")
+    ap.add_argument("--targets", default="",
+                    help="直接给**绝对**目标强度（覆盖 mult）：e.g. 1:3,7:50,12:1800。"
+                         "用于"前期压到几乎必赢、后期只抬一点"这种不按比例的场景")
     a = ap.parse_args(argv)
 
     mult = dict(DEFAULT_MULT)
@@ -160,6 +163,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             if k.strip().isdigit() and v.strip():
                 mult[int(k)] = float(v)
 
+    targets: Dict[int, float] = {}
+    if str(a.targets).strip():
+        for part in str(a.targets).split(","):
+            k, _, v = part.partition(":")
+            if not (k.strip().isdigit() and v.strip()):
+                raise SystemExit(f"非法 --targets 片段: {part!r}（应为 turn:strength）")
+            targets[int(k)] = float(v)
+
     curve = load_model_curve(a.panel, a.panel_model)
     rows = load_pool(a.pool)
     print(f"pool rows={len(rows)}  baseline model={a.panel_model}  turns in curve={len(curve)}")
@@ -168,12 +179,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.makedirs(a.out_dir, exist_ok=True)
     out_rows: List[Dict[str, Any]] = []
     summary: List[Dict[str, Any]] = []
-    for t in sorted(mult):
+    for t in sorted(set(mult) | set(targets)):
         base = curve.get(t)
-        if base is None:
+        if t in targets:
+            target = float(targets[t])          # 绝对目标优先
+        elif base is not None:
+            target = base * float(mult[t])
+        else:
             summary.append({"turn": t, "target": None, "n": 0, "note": "no model baseline"})
             continue
-        target = base * float(mult[t])
         got, info = pick_boards(rows, t, target, float(a.jitter), int(a.per_turn), rng)
         out_rows.extend(got)
         summary.append(info)
@@ -186,6 +200,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "source_pool": a.pool, "baseline_panel": a.panel,
             "baseline_model": a.panel_model, "jitter": float(a.jitter),
             "per_turn_cap": int(a.per_turn), "mult": {str(k): v for k, v in sorted(mult.items())},
+            "abs_targets": ({str(k): v for k, v in sorted(targets.items())} if targets else None),
             "boards": len(out_rows), "per_turn": {str(s["turn"]): s for s in summary}}
     with open(os.path.join(a.out_dir, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=1, sort_keys=True)
