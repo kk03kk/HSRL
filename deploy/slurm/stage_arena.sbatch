@@ -69,6 +69,20 @@ tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-2:1,5:30,7:100,8:150}"
 tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.10}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
+# --- 双卡硬门禁 ---------------------------------------------------------------
+# 本站 h100-47 是 MIG 3g.47gb 切片（每片 46.4 GiB）。同一节点上两张切片可能落在
+# **同一张物理卡**（此时 torch 只看到 1 张，--gpus 1 会越界崩）、也可能分属两张
+# 物理卡（此时就是从 CUDA_VISIBLE_DEVICES=0,1 拿到 2 张真卡，实测 2x46.4 GiB）。
+# 所以启动先问 device_count：<2 就在**建目录前**退出（exit 3），由外部重投换节点。
+if [[ "${HSAI_ARENA_REQUIRE_DUAL:-1}" == "1" ]]; then
+  nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
+  echo "dual-gate: node=$(hostname) visible_gpus=$nvis SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
+  if [[ "$nvis" -lt 2 ]]; then
+    echo "NEED_DUAL_GPU: visible=$nvis (<2) on $(hostname) job=${SLURM_JOB_ID:-}; abort for resubmit" >&2
+    exit 3
+  fi
+fi
+
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
   echo "resume 需要已有的 $out/train/trainer.pt" >&2; exit 2
