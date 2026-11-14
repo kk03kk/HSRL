@@ -41,6 +41,7 @@ from typing import Any, Dict, List, Optional, Tuple
 DEFAULT_MULT: Dict[int, float] = {
     1: 0.85, 2: 0.85, 3: 0.85, 4: 0.85, 5: 0.85, 6: 0.85, 7: 0.85, 8: 0.90,
     9: 1.00, 10: 1.05, 11: 1.08, 12: 1.10, 13: 1.12, 14: 1.12, 15: 1.15, 16: 1.15,
+    17: 1.15, 18: 1.15,
 }
 
 
@@ -64,6 +65,13 @@ def load_model_curve(panel_path: str, model_name: str) -> Dict[int, float]:
         for r in rows:
             t, v = _num(r.get("turn")), _num(r.get("model_strength_p50"))
             if t is not None and v is not None:
+                out[int(t)] = float(v)
+        # ``vs_human.per_turn`` 只到**人类基线覆盖的回合**（T17+ 人类样本只有 22/4 条，
+        # 被最小样本量筛掉，所以它停在 16）。模型自己的 ``curves`` 每个回合都有，用它补齐，
+        # 否则校准曲线永远伸不到 17/18（2026-11-14 用户要求）。
+        for k, r in (m.get("curves") or {}).items():
+            t, v = _num(k), _num((r or {}).get("strength_p50"))
+            if t is not None and v is not None and int(t) not in out:
                 out[int(t)] = float(v)
         return out
     raise SystemExit(f"model {model_name!r} not found in {panel_path}")
