@@ -70,6 +70,18 @@ mirror_p="${HSAI_MIRROR_P:-1.0}"
 mirror_ramp="${HSAI_MIRROR_P_RAMP:-}"
 human_ramp="${HSAI_HUMAN_BOARD_RAMP:-}"
 human_q_ramp="${HSAI_HUMAN_QUANTILE_RAMP:-}"
+# 课程 spec 里必然带逗号，而 `sbatch --export=` **用逗号分隔变量** ——直接传会被截断
+# （2026-11-14 实测：`0@1.0,100@0.7,...` 只活到第一个逗号）。所以约定：这三个变量
+# 若给的是**存在的文件路径**，就读文件内容。传路径不含逗号，稳。
+if [[ -n "$mirror_ramp" && -f "$mirror_ramp" ]]; then
+  mirror_ramp="$(tr -d '\n' < "$mirror_ramp")"
+fi
+if [[ -n "$human_ramp" && -f "$human_ramp" ]]; then
+  human_ramp="$(tr -d '\n' < "$human_ramp")"
+fi
+if [[ -n "$human_q_ramp" && -f "$human_q_ramp" ]]; then
+  human_q_ramp="$(tr -d '\n' < "$human_q_ramp")"
+fi
 [[ -f "$ckpt" ]] || { echo "missing checkpoint: $ckpt" >&2; exit 2; }
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
