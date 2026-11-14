@@ -69,6 +69,7 @@
 | 当前冠军、正在跑什么、下一步 | [`PROJECT_STATE.md`](PROJECT_STATE.md) |
 | 操作红线、自主权边界、放哪、传输 | [`../AGENTS.md`](../AGENTS.md) |
 | 决策为什么这么定 | [`DECISIONS.md`](DECISIONS.md)（只追加） |
+| **哪些方向已经否证、不要重跑** | [`NEGATIVE_RESULTS.md`](NEGATIVE_RESULTS.md) |
 | 引擎版本 / 指纹 / 卡表 | [`nus/ENGINE_RELEASES.md`](nus/ENGINE_RELEASES.md) |
 | 登录节点规格 / GPU 容量 / QOS 上限 | [`nus/ENVIRONMENT.md`](nus/ENVIRONMENT.md) |
 | 服务器实时状态（作业/GPU/HEAD） | 不写文档，用 `python ops/hsai_ops.py state` |

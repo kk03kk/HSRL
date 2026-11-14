@@ -455,6 +455,79 @@ python ops/hsai_ops.py model-pull <name>
 # 隧道断了（凭据已登记时 Agent 自己就能做，不需要问用户；详见 §1.3）
 python ops/hsai_ops.py tunnel                               # 唯一正确入口，6–10s，禁止接管道
 python ops/hsai_ops.py state                                # 独立确认：tunnel : OK  xlogin2
+
+---
+
+## 10. 一轮迭代的操作清单（照抄即可）
+
+流程定义见 [`CHARTER.md`](CHARTER.md) §2.2，配方见 [`TRAINING_RECIPE.md`](TRAINING_RECIPE.md)，
+判胜见 [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md)。**每一步都要用户批准才能提交作业。**
+
+### 10.1 训练
+
+```bash
+# ① 开工自检
+python ops/hsai_ops.py state                     # 必须 IN SYNC
+# ② 提交（新目录；minutes 165 = 作业上限 180 留 15 分钟收尾）
+sbatch --export=ALL,\
+HSAI_ARENA_OUT=artifacts/runs/nus-arena-v<N>-tier-<日期>-1,\
+HSAI_ARENA_MINUTES=165 \
+deploy/slurm/stage_arena.sbatch
+# ③ 开局确认（10 分钟内）——重点看 4 个数
+#    dual-gate: visible_gpus=2      ← 拿不到 2 张就 exit 3，直接重投
+#    illegal_actions = 0
+#    ppo.updates 每轮 15–16        ← 不是 ~124（说明 grad-accum 没生效）
+#    decisions_per_s ≈ 8,400–9,100
+```
+
+### 10.2 评测（训练结束后，**两个模型同一作业**）
+
+**关键：新模型与冠军必须在同一场地（同一快照库）、同一 seed 集下一起测**，
+否则场地差异会混进"进步"里。`eval_human_gap.py` 的 `--checkpoint` 可以重复传。
+
+```bash
+sbatch --export=ALL,\
+HSAI_GAP_MIRROR_SNAPS=artifacts/libraries/arena-cal-v3-snap,\
+HSAI_GAP_OUT=artifacts/runs/gap-v<N>-vs-champion-<日期>,\
+HSAI_GAP_GAMES=512 \
+deploy/slurm/eval_human_gap_snap.sbatch      # 需要按需在脚本里传两个 --checkpoint
+```
+
+产出 `panel.json`：
+
+- `models[i].outcome` → `mean_rank` / `top4_rate` / `win_rate` / `illegal_actions`（**判胜尺子**）
+- `models[i].curves[turn]` → `strength_p50`（= M1）/ `tier_mean`（= M2）（**过程刻度**）
+
+### 10.3 判胜与下一步
+
+```text
+illegal>0 或 truncated>0        → 整轮作废，先修工程
+mean_rank 变好 且 M1 没退化      → 新模型成为候选冠军 → 见 10.4
+mean_rank 变好 但 M1 明显退化    → "可疑进步"，先归因，不换冠军
+mean_rank 没变好                → 归因（工程/场地/奖励/容量/样本量）→ 提建议给用户
+```
+
+### 10.4 换冠军 + 重建战团库（有进步才做）
+
+```bash
+# ① 建模型目录：model.pt + manifest.json + checkpoint.json + MODEL_CARD.md
+# ② 用新模型的战力曲线重新校准战团库（这是本项目唯一被验证有效的杠杆）
+python tools/build_arena_library.py \
+  --pool data/real_library/firestone-bank-6k/train-m6k.jsonl \
+  --panel artifacts/runs/gap-v<N>-vs-champion-<日期>/panel.json \
+  --panel-model <新模型名> \
+  --out-dir artifacts/libraries/arena-cal-v<N+1> --per-turn 96
+sbatch deploy/slurm/build_arena_snap.sbatch     # 生成 arena-cal-v<N+1>-snap
+# ③ 更新 docs/PROJECT_STATE.md §3/§5 与 docs/TRAINING_RECIPE.md 的库路径
+# ④ 在 docs/DECISIONS.md 追加一条 D-###，然后回到 10.1
+```
+
+### 10.5 不要做的事
+
+- 不要每轮改配方（见 `TRAINING_RECIPE.md` 冻结规则）；
+- 不要在不同场地上比 M1/M2；
+- 不要把训练内遥测（`tel_*`，只有 T6/8/10/12/13 且是均值）当评测的 M1/M2；
+- 不要因为一轮不好就重跑同一配置（那是噪声，不是复现）。
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Status
 powershell -ExecutionPolicy Bypass -File ops\tunnel.ps1 -Verify   # 临时端口演练
 ```
