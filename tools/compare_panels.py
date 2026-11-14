@@ -27,6 +27,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 #: 判"M1 明显退化"的相对阈值（默认 5%）；只在 T>=这个回合开始看
 DEFAULT_M1_TOL = 0.05
 DEFAULT_M1_FROM_TURN = 8
+#: M1 退化判定要求的最小样本量：n 小于它的回合不参与判定（20 局的回合波动就是噪声）
+DEFAULT_M1_MIN_N = 100
 #: mean_rank 差小于这个值视为"没变好"（噪声级）
 DEFAULT_RANK_EPS = 0.05
 BOOTSTRAP_ROUNDS = 10000
@@ -101,7 +103,8 @@ def per_turn(models: Dict[str, Dict[str, Any]], turns: Sequence[int]
 
 
 def verdict(models: Dict[str, Dict[str, Any]], champ: str, cand: str,
-            m1_tol: float, m1_from: int, rank_eps: float) -> Dict[str, Any]:
+            m1_tol: float, m1_from: int, rank_eps: float,
+            m1_min_n: int = DEFAULT_M1_MIN_N) -> Dict[str, Any]:
     ac = models[champ].get("outcome") or {}
     bc = models[cand].get("outcome") or {}
     reasons: List[str] = []
@@ -138,6 +141,7 @@ def verdict(models: Dict[str, Dict[str, Any]], champ: str, cand: str,
 
     # M1 退化检查
     regress = []
+    skipped_thin = []
     cm = models[champ].get("curves") or {}
     dm = models[cand].get("curves") or {}
     for k in sorted(cm, key=lambda x: int(x)):
@@ -146,15 +150,26 @@ def verdict(models: Dict[str, Dict[str, Any]], champ: str, cand: str,
             continue
         a = _f((cm.get(k) or {}).get("strength_p50"))
         b = _f((dm.get(k) or {}).get("strength_p50"))
+        na = int((cm.get(k) or {}).get("n") or 0)
+        nb = int((dm.get(k) or {}).get("n") or 0)
+        # 样本太薄的回合不参与判退化：n=20 的回合上 5% 波动就是噪声
+        if min(na, nb) < m1_min_n:
+            if a and b and a > 0 and (b - a) / a <= -m1_tol:
+                skipped_thin.append((t, a, b, (b - a) / a, min(na, nb)))
+            continue
         if a and b and a > 0:
             rel = (b - a) / a
             if rel <= -m1_tol:
                 regress.append((t, a, b, rel))
 
     if ber := regress:
-        reasons.append("M1 明显退化（阈值 -%.0f%%）：" % (m1_tol * 100) +
+        reasons.append("M1 明显退化（阈值 -%.0f%%，仅统计 n≥%d 的回合）：" % (m1_tol * 100, m1_min_n) +
                        "、".join(f"T{t} {a:.0f}→{b:.0f}（{r * 100:+.1f}%）"
                                  for t, a, b, r in ber))
+    if skipped_thin:
+        reasons.append("（样本太薄、未计入判定的退化回合：%s）" %
+                       "、".join(f"T{t} n={n}（{(b - a) / a * 100:+.1f}%）"
+                                 for t, a, b, _r, n in skipped_thin))
 
     if better and not ber:
         v = "IMPROVED" if significant else "IMPROVED_WEAK"
@@ -201,16 +216,16 @@ def render(models: Dict[str, Dict[str, Any]], champ: str, cand: str,
     out.append("")
     out.append("## 过程刻度（M1 中位战力 / M2 平均 tier）")
     out.append("")
-    out.append("| 回合 | n | M1 冠军 | M1 候选 | M1 Δ | M2 冠军 | M2 候选 | M2 Δ |")
-    out.append("|---:|---:|---:|---:|---:|---:|---:|---:|")
+    out.append("| 回合 | n冠 | n候 | M1 冠军 | M1 候选 | M1 Δ | M2 冠军 | M2 候选 | M2 Δ |")
+    out.append("|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in rows:
         a, b = row[champ], row[cand]
         if a["m1"] is None or b["m1"] is None:
             continue
         d1 = (b["m1"] - a["m1"]) / a["m1"] if a["m1"] else 0.0
         d2 = (b["m2"] - a["m2"]) if (a["m2"] is not None and b["m2"] is not None) else None
-        out.append("| %d | %s | %.0f | %.0f | %+.1f%% | %s | %s | %s |" % (
-            row["turn"], a["n"], a["m1"], b["m1"], d1 * 100,
+        out.append("| %d | %s | %s | %.0f | %.0f | %+.1f%% | %s | %s | %s |" % (
+            row["turn"], a["n"], b["n"], a["m1"], b["m1"], d1 * 100,
             f"{a['m2']:.2f}" if a["m2"] is not None else "-",
             f"{b['m2']:.2f}" if b["m2"] is not None else "-",
             f"{d2:+.2f}" if d2 is not None else "-"))
@@ -228,6 +243,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--m1-from-turn", type=int, default=DEFAULT_M1_FROM_TURN)
     ap.add_argument("--rank-eps", type=float, default=DEFAULT_RANK_EPS,
                     help="mean_rank 差小于它算没变（默认 0.05）")
+    ap.add_argument("--m1-min-n", type=int, default=DEFAULT_M1_MIN_N,
+                    help="M1 退化判定要求的最小样本量（默认 100）")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
 
@@ -243,7 +260,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rows = per_turn({a.champion: models[a.champion], a.candidate: models[a.candidate]},
                     turns)
     res = verdict(models, a.champion, a.candidate,
-                  float(a.m1_tol), int(a.m1_from_turn), float(a.rank_eps))
+                  float(a.m1_tol), int(a.m1_from_turn), float(a.rank_eps),
+                  int(a.m1_min_n))
     if a.json:
         print(json.dumps({"verdict": res["verdict"],
                           "reasons": res["reasons"],
