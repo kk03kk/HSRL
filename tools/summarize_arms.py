@@ -59,6 +59,11 @@ def collect(root: str) -> List[Dict[str, Any]]:
         if not any(_is_human_field(mm) for mm in models.values()):
             continue
         base = models.get("base")
+        # 只用"赢家场"面板：`base` 在所有面板里都是同一个 champion，它自己的 mean_rank
+        # 就是这把场有多硬的度量（赢家场 ≈5.3；退化库/弱库场 ≈1.2，不可比）。
+        _bmr = ((base or {}).get("outcome") or {}).get("mean_rank")
+        if _bmr is None or float(_bmr) < 4.0:
+            continue
         if not base or not base.get("rank_sequence"):
             continue
         bseq = [int(x) for x in base["rank_sequence"]]
