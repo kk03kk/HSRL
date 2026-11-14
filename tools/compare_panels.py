@@ -58,7 +58,11 @@ def _f(v: Any) -> Optional[float]:
 def paired_rank_diff(a: Sequence[float], b: Sequence[float],
                      rounds: int = BOOTSTRAP_ROUNDS,
                      seed: int = BOOTSTRAP_SEED) -> Dict[str, Any]:
-    """mean(a) - mean(b) 的配对 bootstrap 95% 区间（负值 = a 名次更小 = a 更好）。"""
+    """a、b 同为冠军/候选的逐局名次序列；返回 ``mean(a) - mean(b)`` 的配对 bootstrap 区间。
+
+    **符号约定**：``diff < 0`` 表示 a 的名次数字更小 = **a 更好**。
+    本脚本里 a = 冠军、b = 候选，所以 ``diff < 0`` 是"冠军更好"。
+    """
     n = min(len(a), len(b))
     if n <= 0:
         return {"n": 0}
@@ -74,12 +78,12 @@ def paired_rank_diff(a: Sequence[float], b: Sequence[float],
     means.sort()
     lo = means[int(0.025 * (len(means) - 1))]
     hi = means[int(0.975 * (len(means) - 1))]
-    # 配对 win/lose：a 名次更靠前的局数
-    wins = sum(1 for d in diffs if d < 0)
-    losses = sum(1 for d in diffs if d > 0)
-    ties = n - wins - losses
+    # 逐局胜负：diff<0 = 冠军名次更靠前
+    champ_better = sum(1 for d in diffs if d < 0)
+    cand_better = sum(1 for d in diffs if d > 0)
+    ties = n - champ_better - cand_better
     return {"n": n, "diff": point, "ci95": [lo, hi],
-            "wins": wins, "losses": losses, "ties": ties}
+            "champ_better": champ_better, "cand_better": cand_better, "ties": ties}
 
 
 def per_turn(models: Dict[str, Dict[str, Any]], turns: Sequence[int]
@@ -120,9 +124,10 @@ def verdict(models: Dict[str, Dict[str, Any]], champ: str, cand: str,
                        f"(Δ={rb - ra:+.3f}，负=候选更好)")
     if stat.get("n"):
         lo, hi = stat["ci95"]
-        reasons.append(f"配对 bootstrap（{stat['n']} 局）Δ 的 95% 区间 "
-                       f"[{lo:+.3f}, {hi:+.3f}]；逐局 候选胜 {stat['wins']} / "
-                       f"负 {stat['losses']} / 平 {stat['ties']}")
+        reasons.append(
+            f"配对 bootstrap（{stat['n']} 局）：Δ=mean_rank(冠军)−mean_rank(候选) 的 "
+            f"95% 区间 [{lo:+.3f}, {hi:+.3f}]（负=冠军更好）；逐局 "
+            f"冠军更好 {stat['champ_better']} / 候选更好 {stat['cand_better']} / 平 {stat['ties']}")
         significant = (hi < 0) or (lo > 0)
     else:
         significant = False
