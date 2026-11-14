@@ -57,10 +57,33 @@
 另一台机器上没有；退休原因与恢复方法见那里的 `README.md`）。
 **不要再向已退休的 `docs/sync/` 写东西。**
 
+## 事实的唯一来源（有冲突时以这一列文档为准）
+
+同一件事经常在多份文档里出现，**以下面的为准**，其他位置的一律视为摘要或历史：
+
+| 事实 | 唯一来源 |
+|---|---|
+| 项目目标 / 研发模式 / 一轮怎么走 | [`CHARTER.md`](CHARTER.md) |
+| 训练配方（超参、对手场、奖励、健康红线） | [`TRAINING_RECIPE.md`](TRAINING_RECIPE.md) |
+| 评测指标定义、样本量、判胜规则、协议对齐 | [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md) |
+| 当前冠军、正在跑什么、下一步 | [`PROJECT_STATE.md`](PROJECT_STATE.md) |
+| 操作红线、自主权边界、放哪、传输 | [`../AGENTS.md`](../AGENTS.md) |
+| 决策为什么这么定 | [`DECISIONS.md`](DECISIONS.md)（只追加） |
+| 引擎版本 / 指纹 / 卡表 | [`nus/ENGINE_RELEASES.md`](nus/ENGINE_RELEASES.md) |
+| 登录节点规格 / GPU 容量 / QOS 上限 | [`nus/ENVIRONMENT.md`](nus/ENVIRONMENT.md) |
+| 服务器实时状态（作业/GPU/HEAD） | 不写文档，用 `python ops/hsai_ops.py state` |
+
+**已退休（不要再当现状引用）**：`LEADERBOARD.md`（E1 bot 场 Elo）、`nus/EVAL_DEPLOYMENT.md` §4
+（"正式入口 = E1"）、`EVAL_DUEL.md`（旧 128 局配对协议）。它们保留为历史记录。
+
 ## 文档规则
 
-- `docs/` 不存放一次性运行日志、旧排行榜、旧部署命令或已完成复盘。
+- `docs/` 根目录只放**当前有效**的规范与入口；`docs/analysis/` 放**日期化的一次性分析与复盘**（历史证据）、
+  `docs/nus/` 放服务器侧事实、`docs/architecture/` 放架构。**已完成的一次性复盘不再进 `docs/` 根目录。**
+- 被取代的文档：在文首加"⚠️ 已退休（日期）+ 现在该看哪份"，**不删除**；整批下线时移进
+  `records/archive/<topic>-<YYYYMMDD>/`（该目录被 `.gitignore` 忽略，只在本地磁盘）。
 - 运行产物放 `artifacts/`；原始证据放 `records/`；大文件不进 Git。
-- 每份文档标注状态（当前 / 计划 / 归档）、协议与入口；新实验用新目录，旧协议不覆盖、不混榜。
+- 每份文档标注状态（当前 / 计划 / 历史）与入口；新实验用新目录，旧协议不覆盖、不混榜。
 - 一次性分析写 `docs/analysis/<TOPIC>_<YYYYMMDD>.md`。
 - 服务器侧实时状态不写进文档，用 `python ops/hsai_ops.py state` 取。
+- **同一事实只允许有一个"唯一来源"**；其他文档只能引用，不能各自维护一份副本。
