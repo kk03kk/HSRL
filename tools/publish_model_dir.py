@@ -143,8 +143,13 @@ def model_card(name: str, man: Dict[str, Any], chk: Dict[str, Any],
             o = m.get("outcome") or {}
             L.append("| mean_rank | 前四率 | 吃鸡率 | 非法动作 | 截断 | 决策/局 |")
             L.append("|---|---|---|---|---|---|")
+            mr = o.get("mean_rank")
+            t4 = o.get("top4_rate")
+            wr = o.get("win_rate")
             L.append("| %s | %s | %s | %s | %s | %s |" % (
-                o.get("mean_rank"), o.get("top4_rate"), o.get("win_rate"),
+                f"{mr:.3f}" if isinstance(mr, (int, float)) else mr,
+                f"{t4:.1%}" if isinstance(t4, (int, float)) else t4,
+                f"{wr:.1%}" if isinstance(wr, (int, float)) else wr,
                 o.get("illegal_actions"), o.get("truncated_games"),
                 round(o.get("decisions_per_game") or 0, 1)))
             L.append("")
