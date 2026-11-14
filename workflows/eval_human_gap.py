@@ -411,6 +411,16 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         print(f"[{name}] 对手换成真人战团：{args.human_opponents} "
               f"sample={getattr(args, 'human_opponent_sample', 'auto')} "
               f"turns={sorted(pool.turns())[:3]}...", flush=True)
+    mirror_pool = None
+    if str(getattr(args, "mirror_snaps", "") or "").strip():
+        from hsbg.az.train.mirror_snapshots import MirrorSnapshotPool
+        mirror_pool = MirrorSnapshotPool(
+            str(args.mirror_snaps), sample=str(getattr(args, "mirror_sample", "p50band")))
+        if int(getattr(mirror_pool, "frames", 0) or 0) <= 0:
+            raise SystemExit(f"快照库为空/读不了: {args.mirror_snaps}")
+        print(f"[{name}] 对手换成快照库（36h 同款注入）：{args.mirror_snaps} "
+              f"frames={mirror_pool.frames} sample={args.mirror_sample} "
+              f"strict={int(getattr(args, 'mirror_strict', 0) or 0)}", flush=True)
     cfg = EvalConfig(
         games=int(args.games),
         seed=int(args.seed),
@@ -423,6 +433,8 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         forced_tier_plan=str(args.forced_tier_plan or ""),
         human_board_pool=pool,
         human_board_set_tier=True,
+        mirror_pool=mirror_pool,
+        mirror_strict=bool(int(getattr(args, "mirror_strict", 0) or 0)),
     )
     started = time.time()
     result = evaluate_policy(policy, cfg)
@@ -501,6 +513,15 @@ def main(argv=None) -> int:
     ap.add_argument("--human-opponent-sample", default="auto",
                     choices=["auto", "p50", "p75", "p90", "max"],
                     help="真人对手强度档（auto = turn<=8 p50 / 9..12 p75 / >=13 p90）")
+    #: 用**快照库**（`--mirror-snaps`）当对手：这正是 36h 冠军用的注入方式
+    #: （整席位快照 → ended_turn=true → 只带这块板子进战斗，回合开始引擎复位）。
+    #: 与 `--human-opponents` 互斥；把真人库用 tools/build_snapshot_library.py 转换后即可喂进来。
+    ap.add_argument("--mirror-snaps", default="",
+                    help="快照库目录（含 snap_*.json.gz）；给空=不用快照对手")
+    ap.add_argument("--mirror-sample", default="p50band",
+                    help="桶内抽样：p50band/p75band/p90band 为带宽采样（默认）")
+    ap.add_argument("--mirror-strict", type=int, default=0, choices=[0, 1],
+                    help="1=活席必须使用库，禁止 bot 回退")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
