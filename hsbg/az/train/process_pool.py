@@ -52,6 +52,7 @@ from .runlog import aggregate_injection
 from .reward_shaping import aggregate_shaping
 from .tier_target import aggregate_tier_target
 from .comp_target import aggregate_comp_target
+from .retained_growth import aggregate_retained_growth
 from .move_guard import aggregate_move_guard
 from .forced_tier import aggregate_forced_tier
 from .forced_spell import aggregate_forced_spell
@@ -1421,6 +1422,12 @@ class ProcessActorPool:
         # 等级进度奖励统计：同样逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_tier_target(metas))
         meta.update(aggregate_comp_target(metas))
+        # 留存随从滚雪球（默认关闭 -> 不新增键）：逐局 meta 在 worker 里算，必须在这里汇总，
+        # 否则 history 里只剩 args.* echo，看不到实际付出的量级（D-053 要求看得到）。
+        _rg_agg = aggregate_retained_growth(metas)
+        if _rg_agg:
+            meta["retained_growth"] = _rg_agg
+            meta.update(_rg_agg)
         # 换位去抖守卫：逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_move_guard(metas))
         meta.update(aggregate_archetype_bias(metas))
