@@ -13,15 +13,18 @@
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
 # Formal training on the CALIBRATED snapshot field.
-# Recipe = the 36h champion's own numbers (512 games / 8 procs / 1 epoch /
-# anchor beta 0.1 for the first 250 iters then 0.02), plus exactly one reward addition
-# (tier tempo) and the calibrated opponent library converted to a snapshot library.
+# 超参 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6）：lr 6e-06→5e-06、
+# 有效 minibatch 8192（minibatch 1024 x grad-accum 8）、clip 0.2、target-KL 0.05、
+# lambda 0.995、entropy 0.002、grad-clip 1.0、KL anchor beta=0.1 仅前 100 轮、sims 0；
+# max-updates 4650 ≈ 论文一个 stage（300 轮 x 每轮约 15.5 步）的学习率退火长度。
 #
-# 与冠军的一处**已知偏差**：学习率 3e-06。冠军那条 personal.py 作业带 --trainer-state，
-# PPOTrainer.load() 会用 state 里的 scheduler.base_lrs 覆盖配置，实际生效是 1.667e-06
-# （见 deploy/slurm/lr_fork.sbatch 头部实测）。本作业走 --checkpoint 分叉（新 Adam），
-# --lr 才真正生效，取 1.8x 冠军值以让新奖励项能推动策略；要完全对齐冠军就传
-# HSAI_ARENA_LR=1.667e-06。
+# 与论文的两处**已知差异**（用户 2026-11-14 已确认）：
+#   1) 起点是冠军权重（--checkpoint，新 Adam），不是从零；论文每 stage 从上一 stage 继续。
+#      （不能带 --trainer-state：PPOTrainer.load 会用 state 的 base_lrs 覆盖 --lr，
+#       那样学习率会被强制回 1.667e-06，论文的 6e-06 就失效。）
+#   2) 奖励除终局名次效用外，多挂一个**升本节奏项**（论文没有），参数见下面 tier_*。
+# 规模口径：512 局/轮 ≈ 12.7 万决策 = 论文"一轮约 100 万决策"的 1/8；
+# 所以一次 3 小时作业约等于论文一个 stage 的 1/8 训练量。
 #
 #   HSAI_ARENA_OUT      new run dir (must not exist)
 #   HSAI_ARENA_MINUTES  training minutes for THIS segment (default 150)
@@ -50,12 +53,12 @@ resume="${HSAI_ARENA_RESUME:-0}"
 ckpt="${HSAI_ARENA_CKPT:-artifacts/models/league-final-20261111-step014858/model.pt}"
 snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v3-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
-lr="${HSAI_ARENA_LR:-3e-06}"
+lr="${HSAI_ARENA_LR:-6e-06}"
 games="${HSAI_ARENA_GAMES:-512}"
 procs="${HSAI_ARENA_PROCS:-8}"
 epochs="${HSAI_ARENA_EPOCHS:-1}"
 anchor_beta="${HSAI_ARENA_ANCHOR:-0.1}"
-anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-250}"
+anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-100}"
 anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 # 升本节奏奖励（唯一新增奖励）。量级: 4 档 x 0.15 x 0.25 = 0.15 = 名次全距 2.0 的 7.5%
 tier_coef="${HSAI_ARENA_TIER_COEF:-0.25}"
@@ -101,8 +104,8 @@ python workflows/train_entity_sync.py \
   --human-board-p 0 --human-boards "" \
   --entry-p 0 \
   --games "$games" --iterations 0 --minutes "$minutes" \
-  --epochs "$epochs" --minibatch 1024 --grad-accum 1 --lr "$lr" --lr-min-ratio 0.8333333333 \
-  --max-updates 25000 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
+  --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
+  --max-updates 4650 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
