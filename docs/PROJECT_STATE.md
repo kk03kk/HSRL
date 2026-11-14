@@ -22,28 +22,43 @@
 
 ---
 
-## 3. 当前冠军
+## 3. 当前冠军 / 候选冠军
+
+### 3.1 现任冠军（上一轮基准，仍是最稳的一版）
 
 | 项 | 值 |
 |---|---|
 | 版本 | `artifacts/models/league-final-20261111-step014858/`（`model.pt` 67.8 MB + `trainer.pt` 254 MB） |
 | 来源 | 36h 联赛作业 `artifacts/runs/league-v1.1-36h-20261109/`（`personal.py` + `config/league-36h.json`，7.63 亿决策 / 5,315 轮） |
-| 网关成绩 | 赢家场 768 局 `mean_rank` **5.299**，区间 [5.19, 5.40] |
-| 校准场成绩（512 局） | `mean_rank` **2.650**，前四 83.2%，吃鸡 38.3%，非法动作 0 |
-| 逐回合 M1/M2 | 见 [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md) §7 |
+| 赢家场成绩 | 768 局 `mean_rank` **5.299**，区间 [5.19, 5.40] |
+| 校准场成绩（512 局） | v2 场 2.650 / v3 场 **2.615** / v3hold 场 **2.918** |
 | 实机 | `real_game_accepted: false`；两局终局有效（第 6 / 第 5 名），无可比优势 |
+
+### 3.2 候选冠军（2026-11-14 第一轮，**双场验证通过，等用户确认换位**）
+
+| 项 | 值 |
+|---|---|
+| 版本 | `artifacts/models/arena-v3-tier-20261114/`（硬链接到 run，不占双份磁盘） |
+| 来源 | `artifacts/runs/nus-arena-v3-tier-20261114-1/`（作业 1140935，303 轮 / 3,900 万决策 / 164.6 分钟） |
+| 与冠军的差异 | 对手场换成 `arena-cal-v3-snap` + 超参按论文 Table 7 + 新增升本奖励（三处一起变，**不是单变量 A/B**） |
+| **训练场评测**（512 局） | `mean_rank` 2.615 → **2.352**；吃鸡 41.6% → **48.6%**；配对 CI [+0.064, +0.463] 排除 0 |
+| **held-out 评测**（512 局） | `mean_rank` 2.918 → **2.637**；吃鸡 41.0% → **44.3%**；配对 CI [+0.061, +0.512] 排除 0 |
+| 判胜 | **IMPROVED**（`tools/compare_panels.py`，两个场地一致，效果量 −0.26 / −0.28） |
+| 注意 | 模型**主动降级换板面**：T8–T18 中位板面 +1%~+16%，但平均 tier **−0.47~−0.74**；升本奖励没有把 tier 拉上去，而名次反而更好 |
 
 ---
 
 ## 4. 正在运行
 
-| 项 | 值 |
-|---|---|
-| 作业 | **1140935**（`deploy/slurm/stage_arena.sbatch`），节点 xgpi13，双卡 MIG 分属两张物理卡 |
-| 输出 | `artifacts/runs/nus-arena-v3-tier-20261114-1/` |
-| 配方 | 论文 Table 7 + 升本奖励 + 冠军权重分叉，见 [`TRAINING_RECIPE.md`](TRAINING_RECIPE.md) |
-| 规模 | 165 分钟训练，预计约 **300 轮 / 3,700 万决策** / 22:28 结束（按实测 ~32 s/轮；第 15 轮后流水线被打回串行，见 `TRAINING_RECIPE.md` §3） |
-| 实测健康 | 8,400–9,100 决策/秒，每轮 ~16 s，PPO 15–16 步/轮，非法动作 0，注入 3.6 万/轮，升本奖励净 −25/轮 |
+**没有作业在跑**（2026-11-14 23:25 起）。第一轮训练与两个场地的评测都已完成，队列为空。
+
+上一次运行的记录（保留作对照）：作业 1140935，节点 xgpi13，双卡 MIG 分属两张物理卡，
+输出 `artifacts/runs/nus-arena-v3-tier-20261114-1/`，303 轮 / 302 次更新 / 164.6 分钟，
+`illegal_actions=0 / invalid_games=0 / truncated_games=0` 全程零。
+
+评测产物：
+- `artifacts/runs/gap-v3-vs-champion-20261114/panel.json`（训练场 v3-snap，1,498 帧）
+- `artifacts/runs/gap-v3hold-vs-champion-20261114/panel.json`（held-out v3hold-snap，455 帧）
 
 ---
 
@@ -56,9 +71,12 @@
 | 训练入口 | `deploy/slurm/stage_arena.sbatch` | 含双卡硬门禁 |
 | 建库入口 | `deploy/slurm/build_arena_snap.sbatch` | 校准库 + 快照库同源生成（纯 CPU） |
 | 评测入口 | `deploy/slurm/eval_human_gap_snap.sbatch` + `workflows/eval_human_gap.py` | 产出 M1/M2 与名次面板 |
-| 战团库（当前） | `artifacts/libraries/arena-cal-v3-snap/` | 1,498 帧，turn 1–18，基于冠军 `gap-calsnap2` 面板校准 |
+| 战团库（训练用） | `artifacts/libraries/arena-cal-v3-snap/` | 1,498 帧，turn 1–18，基于冠军 `gap-calsnap2` 面板校准 |
+| 战团库（**held-out 考试用**） | `artifacts/libraries/arena-cal-v3hold-snap/` | 455 帧，turn 1–18，源自 `eval-m6k.jsonl`（与训练池不同的 1,349 局），**只用于判胜，不用于训练** |
 | 战团库（历史） | `arena-cal-v1{,-snap}`、`arena-cal-v2{,-snap}` | 保留可复现，不再用于训练 |
-| 真人库 | `data/real_library/firestone-bank-6k/train-m6k.jsonl` | 12,689 条战团，覆盖 turn 1–18（99% 是第一名战团） |
+| 判胜工具 | `tools/compare_panels.py` | 逐回合 M1/M2 对比 + 配对 bootstrap；`--m1-min-n` 默认 100 |
+| 发布工具 | `tools/publish_model_dir.py` | run → 规范模型目录（硬链接，不占双份磁盘） |
+| 真人库 | `data/real_library/firestone-bank-6k/train-m6k.jsonl`（研究用）/ `eval-m6k.jsonl`（held-out） | 12,689 / 1,349 条战团（99% 是第一名战团） |
 | 人类战力曲线 | `config/human_curve_m6k_20261114.json` | 逐回合分位 |
 
 ---
@@ -77,13 +95,17 @@
 
 ---
 
-## 7. 下一步（本轮训练结束后）
+## 7. 下一步（等用户决定）
 
-1. **评测**（需用户批准，1 卡约 11 分钟）：`arena-cal-v3-snap` 场上 512 局，得 M1/M2 + 名次面板。
-2. **同场重测冠军**：v3 场是新场地，冠军基线必须在同一场地重测，否则不可比。
-3. **判胜**（见 [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md) §5）：
-   - 有进步 → 新模型成为候选冠军 → **基于它的战力曲线重建战团库**（`build_arena_library.py`）→ 下一轮训练。
-   - 无进步 → 归因（工程 / 场地 / 奖励 / 容量 / 样本量），提出建议 → 用户决定。
+第一轮已经走完「训练 → 双场评测 → 判胜」全流程，结论是 **IMPROVED**。下一步按 CHARTER §2.2 是：
+
+1. **确认换位**：把 `arena-v3-tier-20261114` 定为下一轮的起点与比较基准（候选已双场验证）。
+2. **重建战团库**：用新模型的战力曲线重新校准（`tools/build_arena_library.py --panel <新panel> --panel-model arena_v3`）→ `arena-cal-v4-snap`，
+   同时**新建一份 held-out 考试场**（换 split 或换数据源），保证下一轮还能做交叉验证。
+3. **下一轮只改一个变量**（本轮同时改了对手场 + 超参 + 奖励，无法归因）：优先候选
+   - (a) `--max-updates 300` 修退火口径（K4，纯参数、零风险）
+   - (b) 升本奖励去留（本轮实测它没把 tier 拉上去，而名次反而变好，见 `NEGATIVE_RESULTS.md`）
+   - (c) 流水线永久转串行（K1，影响吞吐不影响质量）
 4. **实机**：仍未通过（`real_game_accepted: false`），需 D-026 取证后再谈。
 
 ---
