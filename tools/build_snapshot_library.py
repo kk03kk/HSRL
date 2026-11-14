@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+"""把"真人战团库"转换成 **快照库**（``hsbg.mirror_snapshots`` v1），以复用 36h 冠军那套注入。
+
+为什么这么做
+------------
+36h 冠军用的是 `mirror_snapshots`：整席位快照注入 → 引擎置 ``ended_turn=true`` →
+该席位**只带这块板子进战斗**，且回合开始时引擎会给所有活着的席位复位（``flow.rs:381``），
+所以每回合都能重新注入。真人库那条 `inject_board` 路径没有这个复位语义，实测只能注入一次
+（31%–40% 落地率），场里大半是对手的旧板子/bot —— 这也是"平均名次 1.068"的原因。
+
+本工具只做**格式转换**：不缩放身材、不改强度，用的是 ``inject_quasi_state`` 同一套帧构造
+（``dry_run=True``），所以转出来的帧与生产注入逐位同构。
+
+用法::
+
+    python tools/build_snapshot_library.py \
+        --rows artifacts/libraries/arena-cal-v1/boards.jsonl \
+        --out-dir artifacts/libraries/arena-cal-v1-snap
+"""
+
+from __future__ import annotations
+
+import argparse
+import gzip
+import hashlib
+import json
+import os
+import sys
+from typing import Any, Dict, List, Optional
+
+SCHEMA = "hsbg.mirror_snapshots"
+SCHEMA_VERSION = 1
+STAGE_EOT = "recruitment_end_before_combat"
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description="human board rows -> mirror snapshot library")
+    ap.add_argument("--rows", default="artifacts/libraries/arena-cal-v1/boards.jsonl")
+    ap.add_argument("--out-dir", default="artifacts/libraries/arena-cal-v1-snap")
+    ap.add_argument("--fidelity", default="full")
+    ap.add_argument("--seat", type=int, default=0,
+                    help="写进帧的 seat（只用一个值时快照池允许跨座位回落）")
+    a = ap.parse_args(argv)
+
+    import hsbg_engine as E                      # noqa: PLC0415 - 需要引擎（服务器上跑）
+    from hsbg.az.train.human_obs_full import inject_quasi_state, parse_observation
+
+    rows: List[Dict[str, Any]] = []
+    with open(a.rows, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    if not rows:
+        print(f"[error] no rows in {a.rows}", file=sys.stderr)
+        return 2
+    print(f"rows = {len(rows)}")
+
+    tpl_game = E.Game(seed=12345)                # 只当"帧模板"用（读 player_json）
+    frames: List[Dict[str, Any]] = []
+    bad = 0
+    per_turn: Dict[int, int] = {}
+    for row in rows:
+        t = int(row.get("turn") or 0)
+        if t <= 0:
+            bad += 1
+            continue
+        try:
+            payload = parse_observation(row)
+            rep = inject_quasi_state(tpl_game, 1, payload, str(a.fidelity),
+                                     reset_ended=False, dry_run=True)
+        except BaseException as exc:             # noqa: BLE001
+            bad += 1
+            if bad <= 5:
+                print(f"  [warn] row turn={t} failed: {exc!r}"[:200])
+            continue
+        frame = rep.get("frame")
+        if not isinstance(frame, dict) or "board" not in frame:
+            bad += 1
+            continue
+        frames.append({
+            "turn": int(t),
+            "seat": int(a.seat),
+            "player": frame,
+            "stage": STAGE_EOT,
+            "source_turn": int(row.get("_src_turn") or t),
+            "source": "arena_cal_v1",
+            "frame_sha256": hashlib.sha256(
+                json.dumps(frame, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest(),
+        })
+        per_turn[int(t)] = int(per_turn.get(int(t), 0)) + 1
+
+    os.makedirs(a.out_dir, exist_ok=True)
+    path = os.path.join(a.out_dir, "snap_cal.json.gz")
+    payload = {
+        "schema": SCHEMA,
+        "schema_version": SCHEMA_VERSION,
+        "meta": {"source_rows": a.rows, "fidelity": str(a.fidelity),
+                 "frames_total": len(frames), "bad_rows": bad,
+                 "note": "converted from human board library; no stat scaling"},
+        "frames": frames,
+    }
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    with open(os.path.join(a.out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump({"schema": SCHEMA, "schema_version": SCHEMA_VERSION,
+                   "file": os.path.basename(path), "frames": len(frames),
+                   "per_turn": {str(k): v for k, v in sorted(per_turn.items())},
+                   "bad_rows": bad}, f, ensure_ascii=False, indent=1, sort_keys=True)
+        f.write("\n")
+
+    print(f"\nwrote {path}  frames={len(frames)}  bad={bad}")
+    print(f"{'turn':>4} {'frames':>7}")
+    for t in sorted(per_turn):
+        print(f"{t:>4} {per_turn[t]:>7}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

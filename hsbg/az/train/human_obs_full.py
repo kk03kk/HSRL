@@ -663,6 +663,11 @@ def _fast_inject_quasi_state(game: Any, seat: int, payload: Dict[str, Any],
     if with_counters and gold is not None:
         frame["gold"] = int(gold)
         unavailable = [f for f in unavailable if f != "gold"]
+    if dry_run:
+        # 只构造、不写入：给"库转换"复用同一套帧构造逻辑（与生产注入逐位同构）。
+        return {"applied": True, "dry_run": True, "frame": frame, "mode": fid,
+                "hand_applied": hand_applied, "counters_applied": bool(with_counters),
+                "unavailable_fields": unavailable, "pool_balance_ok": True}
     try:
         rep = game.apply_turn_snapshots([[seat, _fast_dumps(frame)]], None)
     except BaseException as exc:  # noqa: BLE001
@@ -726,7 +731,8 @@ def inject_quasi_state(game: Any, seat: int, payload: Dict[str, Any],
                        reset_ended: bool = True,
                        tier_fn: Optional[Any] = None,
                        player_overlay: str = "combat",
-                       fast: bool = False) -> Dict[str, Any]:
+                       fast: bool = False,
+                       dry_run: bool = False) -> Dict[str, Any]:
     """把一个准完整 payload 注入 ``game`` 的 ``seat``。
 
     - ``fidelity="board"``：完全走 ``Game.inject_board``（**与现状逐位等价**）；
