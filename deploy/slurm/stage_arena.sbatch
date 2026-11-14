@@ -55,7 +55,7 @@ minutes="${HSAI_ARENA_MINUTES:-150}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
 ckpt="${HSAI_ARENA_CKPT:-artifacts/models/league-final-20261111-step014858/model.pt}"
-snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v4-snap}"
+snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v5-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
 lr="${HSAI_ARENA_LR:-6e-06}"
 games="${HSAI_ARENA_GAMES:-512}"
@@ -73,7 +73,18 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #       coef 1.0、命中 +0.20、落空 −0.15
 #       → 每局期望 −0.177（名次全距 2.0 的 8.9%），旧版是 −0.048（2.4%）⇒ 压力约 3.7 倍
 #       → 最坏情形（三档全错）−0.45 = 22.5%，仍明显小于名次信号 ±1.0
-tier_coef="${HSAI_ARENA_TIER_COEF:-1.0}"
+# ── 强制升本（v5，2026-11-15 用户定：放弃前期，先冲到 6 本）────────────────────
+# 计划 = 第 2 回合 2 本 / 第 4 回合 3 本 / 第 5 回合 4 本 / 第 7 回合 5 本 / 第 9 回合 6 本。
+# 前四档是垫脚石（不垫的话到 T7/T9 金币不够，强制会被 blocked）。
+# 语义（见 hsbg/az/train/forced_tier.py）：只在 Upgrade **真正合法**时强制（掩码 mask[3]
+# 已编码"金币够 + 未满级 + 不在待选"）；不补金币、不改引擎状态；被强制的决策标 forced、
+# logprob=0、**不进策略梯度**（只保留价值链），因此不伪造 on-policy ratio。
+# 教师标签本轮**关闭**（--forced-tier-teacher 0）：本轮目标是"让它真的体验 6 本局面"。
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,9:6}"
+forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
+forced_tier_teacher="${HSAI_ARENA_FORCED_TIER_TEACHER:-0}"
+# 升本奖励本轮**关闭**：强制到 6 本后，任何"到 5 本/6 本"的软目标都必然白送分，等于常数额赏。
+tier_coef="${HSAI_ARENA_TIER_COEF:-0.0}"
 tier_bonus="${HSAI_ARENA_TIER_BONUS:-0.20}"
 tier_table="${HSAI_ARENA_TIER_TABLE:-8:5,11:5,14:6}"
 tier_gate_k="${HSAI_ARENA_TIER_GATE_K:-0.75}"
@@ -111,6 +122,8 @@ mkdir -p "$out"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
   echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=1"
+  echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry teacher=$forced_tier_teacher"
+  echo "KPI = T12 median board strength (M1). tier soft-reward coef=$tier_coef (0=off, forced tier replaces it)"
   echo "reward: terminal placement utility ONLY + tier_target coef=$tier_coef penalty=$tier_penalty bonus=0.15 table=$tier_table gate_k=$tier_gate_k gate_ref=$tier_gate_ref"
   echo "all other shaping = 0 (spell/comp/retained/shaping/terminal_strength)"
 } | tee "$out/run.env"
@@ -137,6 +150,8 @@ python workflows/train_entity_sync.py \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
+  --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
+  --forced-tier-teacher "$forced_tier_teacher" \
   --seed "$seed" --sims 0 --processes "$procs" --workers 1 \
   --snapshot-every 5 --keep-snapshots 3 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \

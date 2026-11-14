@@ -34,6 +34,15 @@ specs=()
 IFS=';' read -ra pairs <<< "${HSAI_GAP_MODELS:?需要 HSAI_GAP_MODELS}"
 for pair in "${pairs[@]}"; do specs+=(--checkpoint "$pair"); done
 
+# 可选：评测时也施加与训练相同的强制升本计划（v5 起用；不设则不强制）。
+# 为什么要成对施加：被强制的决策不进策略梯度，所以策略本身不会自己学会按升级键；
+# 只有在**同一套强制计划**下评测，"T12 中位战力"才是可比的 KPI。
+ft_args=()
+if [[ -n "${HSAI_GAP_FORCED_TIER:-}" ]]; then
+  ft_args+=(--forced-tier-plan "${HSAI_GAP_FORCED_TIER}")
+  echo "forced_tier=${HSAI_GAP_FORCED_TIER}"
+fi
+
 mkdir -p "$out"
 {
   echo "start=$(date -Is)"
@@ -54,6 +63,7 @@ PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   --mirror-snaps "$snaps" \
   --mirror-sample "${HSAI_GAP_MIRROR_SAMPLE:-p50band}" \
   --mirror-strict "${HSAI_GAP_MIRROR_STRICT:-0}" \
+  "${ft_args[@]}" \
   --out "$out/panel.json" 2>&1 | tee "$out/panel.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
