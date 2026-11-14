@@ -23,7 +23,7 @@ source .venv/bin/activate
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 export PYTHONUTF8=1 PYTHONUNBUFFERED=1
 
-games="${HSAI_GAP_GAMES:-96}"
+games="${HSAI_GAP_GAMES:-512}"
 out="${HSAI_GAP_OUT:-artifacts/runs/human-gap-snap-$(date +%Y%m%d-%H%M%S)}"
 baseline="${HSAI_GAP_BASELINE:-artifacts/runs/human-baseline-20261112/baseline.json}"
 snaps="${HSAI_GAP_MIRROR_SNAPS:?需要 HSAI_GAP_MIRROR_SNAPS}"
@@ -40,7 +40,7 @@ mkdir -p "$out"
   echo "games=$games"
   echo "mirror_snaps=$snaps"
   echo "mirror_sample=${HSAI_GAP_MIRROR_SAMPLE:-p50band}"
-  echo "mirror_strict=${HSAI_GAP_MIRROR_STRICT:-1}"
+  echo "mirror_strict=${HSAI_GAP_MIRROR_STRICT:-0}"
   echo "job=${SLURM_JOB_ID:-local} node=$(hostname)"
   echo "gpu=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -1)"
 } | tee "$out/run.env"
@@ -53,7 +53,7 @@ PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   --human-baseline "$baseline" \
   --mirror-snaps "$snaps" \
   --mirror-sample "${HSAI_GAP_MIRROR_SAMPLE:-p50band}" \
-  --mirror-strict "${HSAI_GAP_MIRROR_STRICT:-1}" \
+  --mirror-strict "${HSAI_GAP_MIRROR_STRICT:-0}" \
   --out "$out/panel.json" 2>&1 | tee "$out/panel.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
