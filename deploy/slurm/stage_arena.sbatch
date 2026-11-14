@@ -55,7 +55,7 @@ minutes="${HSAI_ARENA_MINUTES:-150}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
 ckpt="${HSAI_ARENA_CKPT:-artifacts/models/league-final-20261111-step014858/model.pt}"
-snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v3-snap}"
+snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v4-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
 lr="${HSAI_ARENA_LR:-6e-06}"
 games="${HSAI_ARENA_GAMES:-512}"
@@ -64,13 +64,23 @@ epochs="${HSAI_ARENA_EPOCHS:-1}"
 anchor_beta="${HSAI_ARENA_ANCHOR:-0.1}"
 anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-100}"
 anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
-# 升本节奏奖励（唯一新增奖励）。量级: 4 档 x 0.15 x 0.25 = 0.15 = 名次全距 2.0 的 7.5%
-tier_coef="${HSAI_ARENA_TIER_COEF:-0.25}"
-tier_table="${HSAI_ARENA_TIER_TABLE:-2:2,5:3,7:4,8:5}"
+# 升本节奏奖励（唯一新增奖励）。
+# v4 调整（2026-11-14 第二轮，用户要求"在不妨碍名次奖励的前提下尽量加"）：
+#   旧：2:2,5:3,7:4,8:5，coef 0.25 / bonus 0.15 / penalty 0.10
+#       → 实测 302 轮后候选 tier 反而比冠军低 0.5~0.7，且第 9 回合后**没有任何检查点**
+#       → 早期三档在 90% 的局里都命中（等于白送分），唯一有约束的 T8 也只有 30% 命中
+#   新：只留**有约束力**的三档（命中率按候选实测直方图算：T8 30% / T11 36% / T14 12%）
+#       coef 1.0、命中 +0.20、落空 −0.15
+#       → 每局期望 −0.177（名次全距 2.0 的 8.9%），旧版是 −0.048（2.4%）⇒ 压力约 3.7 倍
+#       → 最坏情形（三档全错）−0.45 = 22.5%，仍明显小于名次信号 ±1.0
+tier_coef="${HSAI_ARENA_TIER_COEF:-1.0}"
+tier_bonus="${HSAI_ARENA_TIER_BONUS:-0.20}"
+tier_table="${HSAI_ARENA_TIER_TABLE:-8:5,11:5,14:6}"
 tier_gate_k="${HSAI_ARENA_TIER_GATE_K:-0.75}"
-tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-2:1,5:30,7:100,8:150}"
-# 惩罚从 0.02 提到 0.10：错一档 = 0.25x0.10 = 2.5% 名次全距，四档全错 = 10%
-tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.10}"
+# 门控参考 = 该回合**起点**板面 Σ攻+血（候选实测：T8≈157、T11≈900、T14≈1600）。
+# 表里每个 turn 都必须有 ref，否则该档会被无条件挡掉（代码里 ref 缺失即 blocked）。
+tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-8:150,11:850,14:1400}"
+tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.15}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
 # --- 双卡硬门禁 ---------------------------------------------------------------
@@ -135,6 +145,7 @@ python workflows/train_entity_sync.py \
   --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
+  --tier-bonus "$tier_bonus" \
   --tier-target-table "$tier_table" \
   --tier-gate-k "$tier_gate_k" --tier-gate-ref "$tier_gate_ref" \
   --comp-target-coef 0.0 --shaping-coef 0.0 --terminal-strength-coef 0.0 \
