@@ -56,6 +56,23 @@ def main(argv: Optional[List[str]] = None) -> int:
           f"turns = {pool.turns()[0]}..{pool.turns()[-1]}")
 
     tpl_game = E.Game(seed=12345)                # 只当"帧模板"用（读 player_json）
+    # 模板必须走过"选英雄/第 1 回合"：turn 0 时席位有 pending_choice，注入会被引擎拒绝
+    # （2026-11-14 实测：所有帧 applied=False，reason=pending_choice）。
+    _steps = 0
+    while int(tpl_game.turn) < 2 and not tpl_game.is_over() and _steps < 4000:
+        _acted = False
+        for _s in range(8):
+            if tpl_game.is_over() or int(tpl_game.turn) >= 2:
+                break
+            if tpl_game.needs_action(_s):
+                _m = tpl_game.legal_mask(_s)
+                _a = next((i for i, b in enumerate(_m) if b), 0)
+                tpl_game.step(_s, int(_a))
+                _acted = True
+                _steps += 1
+        if not _acted:
+            break
+    print(f"template game advanced to turn {int(tpl_game.turn)}")
     frames: List[Dict[str, Any]] = []
     bad = 0
     per_turn: Dict[int, int] = {}
@@ -76,6 +93,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             frame = rep.get("frame")
             if not isinstance(frame, dict) or "board" not in frame:
                 bad += 1
+                if bad <= 5:
+                    print(f"  [warn] turn={t} no frame: applied={rep.get('applied')} "
+                          f"reason={rep.get('reason')}"[:220])
                 continue
             src_turn = int(getattr(hb, "turn", t) or t)
             frames.append({
