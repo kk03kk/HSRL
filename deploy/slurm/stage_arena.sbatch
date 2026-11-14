@@ -16,7 +16,9 @@
 # 超参 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6）：lr 6e-06→5e-06、
 # 有效 minibatch 8192（minibatch 1024 x grad-accum 8）、clip 0.2、target-KL 0.05、
 # lambda 0.995、entropy 0.002、grad-clip 1.0、KL anchor beta=0.1 仅前 100 轮、sims 0；
-# max-updates 4650 ≈ 论文一个 stage（300 轮 x 每轮约 15.5 步）的学习率退火长度。
+# max-updates 300 = 论文一个 stage 的**轮数**。注意 --max-updates 的单位是「训练轮」
+# （PPOTrainer.update() 每轮调用一次才 scheduler.step()），不是优化步数 —— 2026-11-14
+# 曾按 15.5 步/轮错算成 4650，导致 302 轮只退火 6.5%、lr 全程 5.94e-06（见 TRAINING_RECIPE §8 K4）。
 #
 # 与论文的两处**已知差异**（用户 2026-11-14 已确认）：
 #   1) 起点是冠军权重（--checkpoint，新 Adam），不是从零；论文每 stage 从上一 stage 继续。
@@ -31,10 +33,12 @@
 #   HSAI_ARENA_SEGMENTS segments in this job (default 1)
 #   HSAI_ARENA_RESUME   0=fresh fork from --checkpoint, 1=continue this run dir
 #
-# 分段提醒：anchor 的 ``anchor_iterations`` 比的是 ``i = start_i + 轮数``，而
-# ``start_i = trainer.updates`` 是**优化步数**（每轮约 124 步）。所以一旦用
-# HSAI_ARENA_RESUME=1 续训，第二段的 i 会直接跳到几万，β=0.1 的保护期（前 250 轮）
-# 不会在第二段重现。要保留保护期就得让它落在一段之内。
+# 分段续训**安全**（2026-11-14 核实并更正）：anchor 比的是 ``i = start_i + 本段轮数``，
+# 而 ``start_i = trainer.updates`` 在 ppo_trainer.py:381 里是**每轮 update() 加 1**，
+# 即**累计训练轮数**（证据：正式作业末行 `[iter 302] ... updates=302`）。所以续训时
+# 第二段的 i 从上一段结束的轮数继续，β=0.1 的保护期照常按累计轮数走，不会被跳过。
+# 之前这里写的"i 是优化步数、续训会跳几万"是**错的**（把 ppo 内部的 micro-step 计数
+# 当成了 trainer.updates）。
 #
 # 双卡布局 = 冠军那条作业的原样：learner 独占 cuda(0 号卡)，8 个采集进程都用 1 号卡
 # （``--gpus 1`` 是**索引列表**，不是"几张卡"；见 config/league-36h.json 的 "gpus": "1"）。
@@ -119,7 +123,7 @@ python workflows/train_entity_sync.py \
   --entry-p 0 \
   --games "$games" --iterations 0 --minutes "$minutes" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
-  --max-updates 4650 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
+  --max-updates 300 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
   --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \

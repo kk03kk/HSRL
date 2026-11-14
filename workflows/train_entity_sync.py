@@ -2849,6 +2849,17 @@ def main() -> int:
                 batch, collect_meta, c_cfg, _collect_s, _hb_state = _collect_for(i)
             _tl["t_collect_done"] = time.monotonic()
 
+            # 零更新回退只允许影响**一轮**：上一次 after_update 把执行器关掉后（它已经
+            # wait 完那一批并留给本轮消费），这里在 pending 已消费完（lag 仍 ≤1）时重新武装。
+            # 2026-11-14 实测：不回武装会永久串行，每轮从 19.5s 变 31.9s（吞吐 −39%）。
+            if (executor is None and int(args.pipeline) and pool is not None
+                    and (end_i <= 0 or i + 1 < end_i)
+                    and (deadline - time.time()) > 60.0):
+                executor = ThreadPoolExecutor(max_workers=1)
+                pipeline_on = True
+                iteration_pipeline_on = True
+                print("[pipeline] 重新启用重叠采集（上次零更新只影响一轮）", flush=True)
+
             errs = batch.validate()
             if errs:
                 print(f"[error] batch invalid: {errs}", file=sys.stderr)
