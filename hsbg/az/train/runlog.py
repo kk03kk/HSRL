@@ -73,6 +73,16 @@ INJECTION_KEYS = (
     "comp_target_cards", "comp_target_turns", "comp_target_best_mean",
     "comp_target_s_turns", "comp_target_reward_sum", "comp_target_applied",
     "comp_target_dropped", "comp_target_errors", "comp_target_min_hits",
+    # 留存随从滚雪球奖励（hsbg/az/train/retained_growth.py）：默认 coef=0 = 关闭。
+    # 2026-11-14 踩过：奖励算出并已作用到 records，但漏加白名单 ⇒ history 里只剩
+    # `args.retained_growth_coef` 的 echo，看不到实际量级（D-053 规则 2）。
+    "retained_growth_coef", "retained_growth_min_turn",
+    "retained_growth_normalizer", "retained_growth_cap",
+    "retained_growth_turns", "retained_growth_kept_mean",
+    "retained_growth_gain_mean", "retained_growth_score_mean",
+    "retained_growth_reward_sum", "retained_growth_applied",
+    "retained_growth_dropped", "retained_growth_errors",
+    "retained_growth_games",
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
@@ -95,6 +105,9 @@ INJECTION_SUM_KEYS = frozenset({
     "tier_target_dropped", "tier_gate_blocked",
     "comp_target_turns", "comp_target_s_turns", "comp_target_reward_sum",
     "comp_target_applied", "comp_target_dropped", "comp_target_errors",
+    "retained_growth_turns", "retained_growth_reward_sum",
+    "retained_growth_applied", "retained_growth_dropped",
+    "retained_growth_errors", "retained_growth_games",
 })
 #: 逐字段可得性计数：跨 worker 逐键求和（dict 合并）。
 INJECTION_DICT_KEYS = frozenset({"human_board_unavailable_fields", "mirror_rejected_by_reason", "mirror_strict_counts", "entry_rejected_by_reason", "entry_turns_hist", "learner_final_str_sum_by_turn", "learner_final_str_n_by_turn"})
@@ -120,6 +133,8 @@ INJECTION_FIRST_KEYS = frozenset({
     "tier_gate_k",
     "comp_target_coef", "comp_target_min_turn", "comp_target_tier_w",
     "comp_target_cards", "comp_target_min_hits",
+    "retained_growth_coef", "retained_growth_min_turn",
+    "retained_growth_normalizer", "retained_growth_cap",
 })
 
 
