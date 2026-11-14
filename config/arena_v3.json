@@ -1,0 +1,11 @@
+{
+  "_comment": "动态难度课程 v3（D-054，阶段二用）。相对 v2 只改一件事：关掉'前期压力棘轮'（ratchet_k=999）。理由：棘轮在 v2 里会因'mid/late 胜率达标'就收紧前期压力，而那时模型还没学会后期——这与用户明确给的顺序相反（先学会中后期，再恢复前期压力）。阶段二的前期难度就停在 0.50 分位、活到 T9 目标 0.92；等 arena_late_str 顶到真人 p50 量级再开棘轮。",
+  "enabled": 1,
+  "curve": "artifacts/state/human_curve.json",
+  "init_q": {
+    "early": 0.50,
+    "mid": 0.30,
+    "late": 0.12
+  },
+  "spec": "enabled=1,eta=0.5,max_step=0.05,min_combats=20,reach_target=0.92,reach_floor=0.92,ratchet_k=999"
+}
