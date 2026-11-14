@@ -1,6 +1,8 @@
 # 阵容覆盖奖励（comp-target）：把「33 个流派的核心卡」写进 reward
 
-状态：**已实现并单测（2026-11-12），首个实验 H1 待启动**
+状态：**已判负（2026-11-14），实现保留但默认关闭**（`--comp-target-coef 0`）
+判负理由与"何时可以重试"见 [`NEGATIVE_RESULTS.md`](NEGATIVE_RESULTS.md) A 区第 1 条：
+模型"买完核心卡就不玩了"。本文只作实现说明与历史设计记录。
 入口：`hsbg/az/train/comp_target.py`、`tests/test_comp_target.py`、
 `config/league-entry-h1.json`
 
