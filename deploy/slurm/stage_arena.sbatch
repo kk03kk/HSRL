@@ -187,7 +187,7 @@ python workflows/train_entity_sync.py \
   --entry-p 0 \
   --games "$games" --iterations 0 --minutes "$minutes" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
-  --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.10}" --gamma 1.0 --lam 0.995 \
+  --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.15}" --gamma 1.0 --lam 0.995 \
   --entropy-coef "${HSAI_ARENA_ENTROPY:-0.008}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
