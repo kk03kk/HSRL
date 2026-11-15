@@ -85,7 +85,7 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 # 目标是让它在 6 本攒尽可能多的运营经验。代价：prob=1.0 时"按升级"永远不由策略采样
 # ⇒ 本轮**不产出"自己会升"的能力**，教师标签会归零（教师只写在"没被强制"的那一半），
 # 下一轮必须补课。
-forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,8:6}"
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,8:6,10:6,12:6,14:6,16:6,18:6}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
 # 教师本轮关闭（until 空 → 不写标签；coef 0 → 无梯度）。要开时两个都得给：
 #   --forced-teacher-until 40M  --forced-teacher-coef 0.05
