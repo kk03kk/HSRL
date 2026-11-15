@@ -1,64 +1,49 @@
 # HSAI 当前状态
 
-状态：**当前生效**（2026-11-14 19:50 +0800 重写）。
-只写"现在是什么"，**不写历史沿革**；历史在 [`analysis/`](analysis/) 与 [`DECISIONS.md`](DECISIONS.md)。
-
-> 服务器侧实时状态（作业、GPU、HEAD）一律用 `python ops/hsai_ops.py state` 取，**不抄本文件**。
+状态：**当前生效**（2026-11-15 14:20 重写）。
+只写"现在是什么"，**不写历史沿革**；历史在 [`DECISIONS.md`](DECISIONS.md)。
+服务器实时状态用 `python ops/hsai_ops.py state` 取，**不抄本文件**。
 
 ---
 
 ## 1. 一句话
 
-在**校准战团场**上按**论文 Table 7 配方**做分阶段 PPO 训练，每一轮用统一协议评测新模型，胜过当前冠军就换库继续，不胜就归因。当前冠军 `league-final-20261111-step014858`，第一轮新配方训练正在跑（作业 1140935）。
+在**校准战团场**上做 PPO 训练，用**强制升本**把模型保送到 6 本；每轮 3 小时，跑完用**同一强制计划**评测，看**逐回合中位战力**。当前模型 `arena-v6`，正在准备 v7（**学习率 2× + 后期加压**）。
 
 ---
 
 ## 2. 目标与研发模式
 
 见 [`CHARTER.md`](CHARTER.md)。要点：
-- 用户定方向，Agent 执行/分析/验证；**不自主规划多天路线**；**任何 GPU 作业需用户批准**。
-- 一轮 = 训练 → 评测 → 与冠军对比 → 有进步换库继续 / 没进步归因。
-- 配方已冻结，不每轮改动。
+- **用户定方向，Agent 执行/分析/验证**；不自主规划多天路线；**任何 GPU 作业需用户批准**。
+- 一轮 = 训练 → 评测 → 与上一轮对比 → 归因 → 用户定下一轮。
+- 配方见 [`TRAINING_RECIPE.md`](TRAINING_RECIPE.md)，判胜见 [`EVAL_PROTOCOL.md`](EVAL_PROTOCOL.md)。
 
 ---
 
-## 3. 当前冠军 / 候选冠军
+## 3. 模型谱系与成绩（都在 **held-out 场 + 同一强制计划** 下测，512 局）
 
-### 3.1 现任冠军（上一轮基准，仍是最稳的一版）
+| 模型 | 日期 | tier（T12） | **T12 中位战力** | T16 中位战力 | 6 本回合/局 | 吃鸡率 | 说明 |
+|---|---|---:|---:|---:|---:|---:|---|
+| `league-final-step014858` | 11-11 | 5.15 | 1,434 * | 3,170 * | — | 38.3% | 36h 冠军，**不会自己升 6 本**（T12 tier 4.5 时代之前） |
+| **`arena-v3-tier-20261114`** | 11-14 | 4.50 | 1,434 | 3,170 | ~0 | 41.0% | 论文配方首轮；**板面强但停在 4 本** |
+| `arena-v5-force6-20261115` | 11-15 | 6.00 | 1,222 | 3,554 | ~5.2 | 41.0% | 强制 9:6 + 教师 0.05/50% 强制 |
+| **`arena-v6-early6-20261115`（当前最强）** | 11-15 | **5.95** | **1,344** | **3,675** | **7.36** | **45.9%** | 强制 `8:6` + **prob 1.0 + 教师关** |
 
-| 项 | 值 |
-|---|---|
-| 版本 | `artifacts/models/league-final-20261111-step014858/`（`model.pt` 67.8 MB + `trainer.pt` 254 MB） |
-| 来源 | 36h 联赛作业 `artifacts/runs/league-v1.1-36h-20261109/`（`personal.py` + `config/league-36h.json`，7.63 亿决策 / 5,315 轮） |
-| 赢家场成绩 | 768 局 `mean_rank` **5.299**，区间 [5.19, 5.40] |
-| 校准场成绩（512 局） | v2 场 2.650 / v3 场 **2.615** / v3hold 场 **2.918** |
-| 实机 | `real_game_accepted: false`；两局终局有效（第 6 / 第 5 名），无可比优势 |
+\* 该行数字取自 v3 场；其余为 v5hold/v6hold，只能**同列横向比**，不要跨列比绝对值。
 
-### 3.2 候选冠军（2026-11-14 第一轮，**双场验证通过，等用户确认换位**）
-
-| 项 | 值 |
-|---|---|
-| 版本 | `artifacts/models/arena-v3-tier-20261114/`（硬链接到 run，不占双份磁盘） |
-| 来源 | `artifacts/runs/nus-arena-v3-tier-20261114-1/`（作业 1140935，303 轮 / 3,900 万决策 / 164.6 分钟） |
-| 与冠军的差异 | 对手场换成 `arena-cal-v3-snap` + 超参按论文 Table 7 + 新增升本奖励（三处一起变，**不是单变量 A/B**） |
-| **训练场评测**（512 局） | `mean_rank` 2.615 → **2.352**；吃鸡 41.6% → **48.6%**；配对 CI [+0.064, +0.463] 排除 0 |
-| **held-out 评测**（512 局） | `mean_rank` 2.918 → **2.637**；吃鸡 41.0% → **44.3%**；配对 CI [+0.061, +0.512] 排除 0 |
-| 判胜 | **IMPROVED**（`tools/compare_panels.py`，两个场地一致，效果量 −0.26 / −0.28） |
-| 注意 | 模型**主动降级换板面**：T8–T18 中位板面 +1%~+16%，但平均 tier **−0.47~−0.74**；升本奖励没有把 tier 拉上去，而名次反而更好 |
+**v6 的关键结论**：更早到 6 本（T8 就有 85% 在 6 本）、停留更久（7.36 回合）、存活到 T14 从 61% 升到 **80%**、吃鸡率 45.9%。代价是 T8 板面掉 27%（179→130），但名次与存活都变好 ⇒ **这笔交易划算**。
 
 ---
 
 ## 4. 正在运行
 
-**没有作业在跑**（2026-11-14 23:25 起）。第一轮训练与两个场地的评测都已完成，队列为空。
+**没有作业在跑**（2026-11-15 13:51 起）。v7 已定稿配置、**等用户审核后提交**。
 
-上一次运行的记录（保留作对照）：作业 1140935，节点 xgpi13，双卡 MIG 分属两张物理卡，
-输出 `artifacts/runs/nus-arena-v3-tier-20261114-1/`，303 轮 / 302 次更新 / 164.6 分钟，
-`illegal_actions=0 / invalid_games=0 / truncated_games=0` 全程零。
-
-评测产物：
-- `artifacts/runs/gap-v3-vs-champion-20261114/panel.json`（训练场 v3-snap，1,498 帧）
-- `artifacts/runs/gap-v3hold-vs-champion-20261114/panel.json`（held-out v3hold-snap，455 帧）
+上一轮产物：
+- 训练 `artifacts/runs/nus-arena-v6-early6-20261115-1/`（作业 1143756，599 轮 / 164 分钟 / 约 7,800 万决策）
+- 评测 `artifacts/runs/gap-v6-early6-20261115/panel.json`（作业 1144366）
+- 模型 `artifacts/models/arena-v5-force6-20261115/`（v6 尚未发布成模型目录）
 
 ---
 
@@ -66,50 +51,45 @@
 
 | 类别 | 路径 | 说明 |
 |---|---|---|
-| 引擎 | `engine/`（`hsbg_engine` 37.0.2.256589，指纹 `c4c71014e3d41760`） | 245 原生动作；观测 3227 floats + 124 cards |
-| 训练器 | `workflows/train_entity_sync.py` | entity 16.4M；`--trainer-state` 才是真续训（没有 `--resume`） |
-| 训练入口 | `deploy/slurm/stage_arena.sbatch` | 含双卡硬门禁 |
-| 建库入口 | `deploy/slurm/build_arena_snap.sbatch` | 校准库 + 快照库同源生成（纯 CPU） |
-| 评测入口 | `deploy/slurm/eval_human_gap_snap.sbatch` + `workflows/eval_human_gap.py` | 产出 M1/M2 与名次面板 |
-| 战团库（训练用） | `artifacts/libraries/arena-cal-v3-snap/` | 1,498 帧，turn 1–18，基于冠军 `gap-calsnap2` 面板校准 |
-| 战团库（**held-out 考试用**） | `artifacts/libraries/arena-cal-v3hold-snap/` | 455 帧，turn 1–18，源自 `eval-m6k.jsonl`（与训练池不同的 1,349 局），**只用于判胜，不用于训练** |
-| 战团库（历史） | `arena-cal-v1{,-snap}`、`arena-cal-v2{,-snap}` | 保留可复现，不再用于训练 |
-| 判胜工具 | `tools/compare_panels.py` | 逐回合 M1/M2 对比 + 配对 bootstrap；`--m1-min-n` 默认 100 |
-| 发布工具 | `tools/publish_model_dir.py` | run → 规范模型目录（硬链接，不占双份磁盘） |
-| 真人库 | `data/real_library/firestone-bank-6k/train-m6k.jsonl`（研究用）/ `eval-m6k.jsonl`（held-out） | 12,689 / 1,349 条战团（99% 是第一名战团） |
-| 人类战力曲线 | `config/human_curve_m6k_20261114.json` | 逐回合分位 |
+| 引擎 | `engine/`（`hsbg_engine` 37.0.2.256589，指纹 `c4c71014e3d41760`） | 245 动作；观测 3227 floats + 124 cards |
+| 训练器 | `workflows/train_entity_sync.py` | entity 16.4M；续训用 `--trainer-state`（**没有 `--resume`**） |
+| 训练入口 | `deploy/slurm/stage_arena.sbatch` | 含 MIG UUID 重定向 + 自动降级 |
+| 建库入口 | `deploy/slurm/build_arena_snap.sbatch` | 纯 CPU；校准库 + 快照库同源 |
+| 评测入口 | `deploy/slurm/eval_human_gap_snap.sbatch` | 支持 `HSAI_GAP_FORCED_TIER` 施加同一强制计划 |
+| 判胜工具 | `tools/compare_panels.py` | 逐回合 M1/M2 + 配对 bootstrap |
+| 发布工具 | `tools/publish_model_dir.py` | run → 规范模型目录（硬链接） |
+| 战团库（训练） | `artifacts/libraries/arena-cal-v6-snap/`（v7 待建） | 1,537 帧，turn 1–18 |
+| 战团库（考试） | `artifacts/libraries/arena-cal-v6hold-snap/`（v7hold 待建） | eval-split，只判胜 |
+| 真人库 | `data/real_library/firestone-bank-6k/{train,eval}-m6k.jsonl` | 12,689 / 1,349 条（99% 是第一名战团） |
 
 ---
 
-## 6. 已经确认的事实（不要重复试验）
+## 6. 已确认的事实（不要重复验证）
 
-1. **对手场是唯一被证实有效的难度杠杆**（D-052 / D-054）。奖励家族的多轮实验没有超过对手场的作用。
-2. **名次奖励在模型所处板面区间不敏感**（D-052）—— 所以训练前必须先测信号，不能只看配置系数。
-3. **"配置的 reward coef" ≠ "实际付出的量级"**（D-053）—— 必须从 collect stats 反算真实量级。
-4. **只加 tier 奖励会被打穿**：模型会把金币全砸升级、不买随从（板面 −33%）。所以升本奖励必须带**板面门控**。
-5. **comp-target（只奖励凑阵容）被否**：模型买完核心卡就不玩了。**retained_growth 被否**（用户否决）。
-6. **战斗归因必须用引擎的 `won_last/lost_last`**（D-055）—— "没掉血" ≠ "赢了"。
-7. ~~**分段续训会破坏 anchor 保护期**~~ —— **这是 2026-11-14 的误判，已撤回**：`trainer.updates` 是累计**轮数**（`[iter 302] ... updates=302`），anchor 保护期按累计轮数走，续训不会跳过。分段续训是安全的。
-8. **本站 `h100-47` 是 MIG 切片**；两张切片可能同物理卡 → `device_count==1` → 必须用双卡门禁重投。
-9. **`--trainer-state` 会覆盖 `--lr`**（用 state 里的 `base_lrs`），想要论文的 6e-06 就不能带它。
+1. **强制升本有效**：`2:2,4:3,5:4,7:5,8:6` + prob 1.0 → T8 就有 85% 在 6 本，T10 起 95%+。
+2. **prob=1.0 + 教师关 ⇒ 学不到"自己升"**：被强制的决策 `logprob=0`、不进策略梯度，所以"按升级"这个动作从未由策略采样。**这条尚未用"不带强制的评测"验证过**。
+3. **MIG UUID 重定向解决双卡抽签**：Slurm 给数字 `CVD=0,1` 时 CUDA 把 0,1 当两张物理卡、第二张不存在 → torch 只见 1 张。用 `nvidia-smi -L` 里本作业的 MIG UUID 重写 CVD ⇒ `device_count` 1→2，吞吐 8,900 决策/秒（与跨卡持平）。
+4. **节点切片映射固定**：`h100-47:4` 里 gres `0,1 → 物理卡0`、`2,3 → 物理卡1`。
+5. **场地是"按模型自己战力校准的"** ⇒ 只堆线性身材就能打平，**没有动力去搞经济滚雪球**（v6 T18 打 4,947，场地只要 5,379）。
+6. **lr 有明显余量**：v6 实测 KL 0.0038–0.0045（target 0.05，只用 8–9%）、clip_frac 0.044、ent 1.43→1.15。
+7. 工程面：K1（流水线零更新后自动恢复）与 K4（`max-updates` 单位是轮，已设 300，末轮 lr=5e-06）均在 v6 实测生效。
+8. 本轮训练全程 `illegal / invalid / truncated = 0`。
 
 ---
 
-## 7. 下一步（等用户决定）
+## 7. 下一步（v7，等用户点头）
 
-第一轮已经走完「训练 → 双场评测 → 判胜」全流程，结论是 **IMPROVED**。下一步按 CHARTER §2.2 是：
+1. 发布 `arena-v6` 模型目录。
+2. 建 `arena-cal-v7` + `v7hold`（目标：T12 1,550 / T14 2,860 / T16 4,700 / T18 6,400，即抬高 1.15–1.30×）。
+3. 改配置：**lr 1.2e-05**（2×，`target-KL 0.05` 不动）、起点 arena-v6、其余不变。
+4. 4 分钟 smoke → 165 分钟训练 → 单模型评测（同强制计划）。
+5. 之后若要验证"自己会不会升 6 本"：跑一次**不带强制**的评测（去掉 `HSAI_GAP_FORCED_TIER`）。
 
-1. **确认换位**：把 `arena-v3-tier-20261114` 定为下一轮的起点与比较基准（候选已双场验证）。
-2. **重建战团库**：用新模型的战力曲线重新校准（`tools/build_arena_library.py --panel <新panel> --panel-model arena_v3`）→ `arena-cal-v4-snap`，
-   同时**新建一份 held-out 考试场**（换 split 或换数据源），保证下一轮还能做交叉验证。
-3. **下一轮只改一个变量**（本轮同时改了对手场 + 超参 + 奖励，无法归因）：优先候选
-   - (a) `--max-updates 300` 修退火口径（K4，纯参数、零风险）
-   - (b) 升本奖励去留（本轮实测它没把 tier 拉上去，而名次反而变好，见 `NEGATIVE_RESULTS.md`）
-   - (c) 流水线永久转串行（K1，影响吞吐不影响质量）
-4. **实机**：仍未通过（`real_game_accepted: false`），需 D-026 取证后再谈。
+**止损线**：KL 早停 > 10% 或 `ent` < 0.8 或出现 NaN/非法动作 → 停。
 
 ---
 
 ## 8. 硬约束
 
-见 [`../AGENTS.md`](../AGENTS.md)：远端脚本纯 ASCII、登录节点不跑重活、不改 `CUDA_VISIBLE_DEVICES`、新作业新目录、失败保现场、不删资产、密钥不进对话。
+见 [`../AGENTS.md`](../AGENTS.md)：远端脚本纯 ASCII、登录节点不跑重活、新作业新目录、失败保现场、不删资产、密钥不进对话。
+**CVD 唯一允许的例外**：`stage_arena.sbatch` 里的 MIG UUID 重定向（用户 2026-11-15 授权，见 D-063）。

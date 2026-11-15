@@ -64,6 +64,10 @@
   `ops/hsai_ops.py` 的登录节点守卫默认拦截这些命令。
 - 作业内**不要**包 `srun`（本站出现过把双卡缩成单卡）。
 - 不 unset / 不手工改 `CUDA_VISIBLE_DEVICES`；GPU 身份以原始 Driver UUID 与 Torch 实际计算为准。
+  **唯一例外（用户 2026-11-15 授权，见 D-063）**：`deploy/slurm/stage_arena.sbatch` 里的
+  **MIG UUID 重定向** —— Slurm 只给数字编号时 CUDA 会把 `0,1` 当两张物理卡（第 2 张不存在），
+  所以脚本用 `nvidia-smi -L` 里**本作业已分配**的 MIG UUID 重写 CVD，让两张切片都能用。
+  约束：只能用当前分配报出来的 UUID、不能凭空指定、必须把原值/UUID/结果写进 `run.env`。
 - 新作业用新输出目录；已存在且非空的目录拒绝覆盖。
 - 排队/运行期间冻结代码、依赖、引擎、库和权重；要改就新目录、新作业号。
 - 失败先用**新目录**重跑并保留旧现场，不覆盖、不删除。
@@ -145,19 +149,15 @@
 - 文档里不把旧路径当"当前路径"；历史路径只作证据。
 - 归档目录不更新、不参与流程。
 
-## 9. 当前阶段（2026-11-14）
+## 9. 当前阶段（2026-11-15）
 
 - **研发模式**：用户定方向、Agent 执行/分析/验证；不自主规划多天路线（`docs/CHARTER.md`）。
-  训练配方已冻结（`docs/TRAINING_RECIPE.md`），评测标准见 `docs/EVAL_PROTOCOL.md`。
-- **训练**：在**校准战团场**（快照镜像注入）上按 AutoTavern 论文 Table 7 配方做分阶段训练。
-  入口 `deploy/slurm/stage_arena.sbatch`（3 小时 / 双卡 MIG / 双卡硬门禁）。
-- **冠军**：`league-final-20261111-step014858`（赢家场 768 局 `mean_rank` 5.299；
-  校准场 512 局 `mean_rank` 2.650 / 前四 83.2%）。
-- **战团库**：当前 `artifacts/libraries/arena-cal-v3-snap`（1,498 帧，turn 1–18）。
-- **迭代**：每轮训练 → 同协议评测 → 与冠军对比 → 有进步换库继续 / 没进步归因。
-- **实机**：`real_game_accepted: false`，两局终局有效但无可比优势，待 D-026 取证。
-- 架构与传输：单 Agent 双环境；隧道自愈已实施（DPAPI 凭据 + SSH_ASKPASS），
-  Agent 自己调用 `hsai_ops.py tunnel`，凭据状态用 `ops\tunnel.ps1 -Status` 查，不读凭据文件。
+- **训练方式**：校准战团场 + **强制升本**（`2:2,4:3,5:4,7:5,8:6`，prob 1.0，教师关）+ 论文 Table 7 超参（lr 已提到 **1.2e-05**）。
+  每轮固定 **3 小时**（165 分钟训练），逐步累积。配方见 `docs/TRAINING_RECIPE.md`。
+- **当前最强模型**：`arena-v6-early6-20261115`（T12 中位战力 **1,344**、T12 tier 5.95、6 本停留 **7.36 回合/局**、吃鸡 45.9%）。
+- **判胜口径**：同场、同 seed、**施加同一强制计划**、512 局；主指标是**逐回合中位战力**（`docs/EVAL_PROTOCOL.md`）。
+- **GPU**：`h100-47` 是 MIG 切片，用 MIG UUID 重定向后不抽签（§3 的例外条款）。
+- **实机**：`real_game_accepted: false`，待 D-026 取证。
 - 服务器侧动态事实以 `python ops/hsai_ops.py state` 的实测输出为准，不抄文档。
 
 ## 10. 两端差异速查
