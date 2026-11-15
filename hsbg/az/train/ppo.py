@@ -358,6 +358,9 @@ class CollectConfig:
     #: 商店已全部冻结时屏蔽 Freeze（动作 2）。实机桥接在全冻结时不暴露
     #: 该动作；开启后训练/评测与实机一致，并避免 freeze/unfreeze 空转。
     forbid_unfreeze: bool = False
+    #: 每回合最多按几次 Freeze（0 = 不限制）。引擎允许 10 次/回合，且 Freeze 是整体
+    #: 切换，买走一张后可以再冻一次，容易变成「买一张→冻一次」的空转，故设上限。
+    freeze_cap: int = 0
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -3556,6 +3559,10 @@ class PPOSelfPlayPolicy(Policy):
         self._rng = np.random.default_rng(int(seed))
         self._n = 0
         self._turn_counts: Dict[tuple, int] = {}
+        #: 冻结次数上限（每座/每回合）。0 = 不限制（引擎最多允许 10 次/回合）。
+        #: 见 ``--freeze-cap``：引擎的 Freeze 是**整体切换**，买走一张后商店又变成
+        #: "未全冻"，策略可以「买一张→再冻一次」循环，纯属浪费动作。
+        self._freeze_counts: Dict[tuple, int] = {}
         self.forced_actions = 0
         self.search_calls = 0
         self.search_failures = 0
@@ -3591,6 +3598,7 @@ class PPOSelfPlayPolicy(Policy):
         self.records = []
         self._n = 0
         self._turn_counts = {}
+        self._freeze_counts = {}
         # 强制升本：把上一局的目标结果折叠进累计，再清空按局状态
         if self._forced is not None:
             self._forced.reset()
@@ -3755,6 +3763,16 @@ class PPOSelfPlayPolicy(Policy):
             if float(f[GLOBAL_FIELD_INDEX["frozen"]]) > 0.5:
                 mask = mask.copy()
                 mask[2] = False
+        # 冻结次数上限：引擎允许每回合按 10 次 Freeze，而 Freeze 是**整体切换**——
+        # 买走一张后商店不再是"全冻"，策略就能「买一张→再冻一次」循环，白耗动作。
+        # ``freeze_cap>0`` 时本回合超过 cap 次就把该动作掩掉（EndTurn 永远合法，不会卡死）。
+        _fcap = int(getattr(self.config, "freeze_cap", 0) or 0)
+        if _fcap > 0 and bool(mask[2]):
+            _fk = (int(getattr(self, "game_id", -1)), int(seat),
+                   int(getattr(game, "turn", -1)))
+            if int(self._freeze_counts.get(_fk, 0)) >= _fcap:
+                mask = mask.copy()
+                mask[2] = False
         return f, c, mask
 
     def _turn_is_forced(self, game: Any, seat: int, mask: Any) -> bool:
@@ -3795,6 +3813,9 @@ class PPOSelfPlayPolicy(Policy):
         key = (int(self.game_id), seat, turn)
         n_turn = self._turn_counts.get(key, 0) + 1
         self._turn_counts[key] = n_turn
+        # 冻结次数记账（与 ``_observe`` 里的掩码上限配对；只在 freeze_cap>0 时维护）
+        if int(getattr(self.config, "freeze_cap", 0) or 0) > 0 and int(action) == 2:
+            self._freeze_counts[key] = int(self._freeze_counts.get(key, 0)) + 1
         forced_turn = bool(limit > 0 and n_turn > limit and bool(mask[0]))
         tier_forced = bool(forced_decision is not None
                            and getattr(forced_decision, "force", False))

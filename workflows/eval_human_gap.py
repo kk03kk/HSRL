@@ -401,6 +401,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
                              norm_std=meta.get("norm_std"))
     policy = PPOGreedyPolicy(evaluator,
                              max_actions_per_turn=int(args.max_actions_per_turn),
+                             freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
                              forbid_unfreeze=bool(int(args.forbid_unfreeze)))
     pool = None
     if str(getattr(args, "human_opponents", "") or "").strip():
@@ -502,6 +503,8 @@ def main(argv=None) -> int:
     ap.add_argument("--max-steps", type=int, default=50000)
     ap.add_argument("--max-actions-per-turn", type=int, default=80)
     ap.add_argument("--forbid-unfreeze", type=int, default=1, choices=[0, 1])
+    ap.add_argument("--freeze-cap", type=int, default=0,
+                    help="每回合最多按几次 Freeze（0=不限制，与实机/训练口径保持一致）")
     ap.add_argument("--forced-tier-plan", default="",
                     help='e.g. "2:2,5:3,6:4,8:5" — diagnostic only, never for ranking')
     ap.add_argument("--human-baseline", default="")

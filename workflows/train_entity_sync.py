@@ -426,6 +426,9 @@ def main() -> int:
                          "默认 0=关闭（与旧路径逐位等价）")
     ap.add_argument("--forbid-unfreeze", type=int, default=0, choices=[0, 1],
                     help="商店全部冻结时屏蔽 Freeze（与实机桥接一致；默认 0）")
+    ap.add_argument("--freeze-cap", type=int, default=0,
+                    help="每回合最多按几次 Freeze（0=不限制，引擎上限 10）。"
+                         "Freeze 是整体切换，买走一张后可再冻，容易空转，建议 2")
     ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
                     help="1=always remove Cancel action 7; fail if no legal action remains")
     ap.add_argument("--move-cap", type=int, default=5,
@@ -2578,6 +2581,7 @@ def main() -> int:
             move_guard=bool(int(args.move_guard)),
             forbid_cancel=bool(int(args.forbid_cancel)),
             forbid_unfreeze=bool(int(args.forbid_unfreeze)),
+            freeze_cap=int(args.freeze_cap),
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),
