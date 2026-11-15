@@ -55,14 +55,14 @@ minutes="${HSAI_ARENA_MINUTES:-165}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
 ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v6-early6-20261115/model.pt}"
-snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v7-snap}"
+snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v8-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
 lr="${HSAI_ARENA_LR:-1.2e-05}"
 games="${HSAI_ARENA_GAMES:-512}"
 procs="${HSAI_ARENA_PROCS:-8}"
 epochs="${HSAI_ARENA_EPOCHS:-1}"
-anchor_beta="${HSAI_ARENA_ANCHOR:-0.1}"
-anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-100}"
+anchor_beta="${HSAI_ARENA_ANCHOR:-0.02}"
+anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-0}"
 anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 # 升本节奏奖励（唯一新增奖励）。
 # v4 调整（2026-11-14 第二轮，用户要求"在不妨碍名次奖励的前提下尽量加"）：
@@ -186,8 +186,8 @@ python workflows/train_entity_sync.py \
   --entry-p 0 \
   --games "$games" --iterations 0 --minutes "$minutes" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
-  --max-updates 300 --clip 0.2 --target-kl 0.05 --gamma 1.0 --lam 0.995 \
-  --entropy-coef 0.002 --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
+  --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.10}" --gamma 1.0 --lam 0.995 \
+  --entropy-coef "${HSAI_ARENA_ENTROPY:-0.008}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
   --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
