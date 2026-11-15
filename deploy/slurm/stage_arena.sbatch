@@ -103,18 +103,28 @@ tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-8:150,11:850,14:1400}"
 tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.15}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
-# --- 双卡硬门禁 ---------------------------------------------------------------
-# 本站 h100-47 是 MIG 3g.47gb 切片（每片 46.4 GiB）。同一节点上两张切片可能落在
-# **同一张物理卡**（此时 torch 只看到 1 张，--gpus 1 会越界崩）、也可能分属两张
-# 物理卡（此时就是从 CUDA_VISIBLE_DEVICES=0,1 拿到 2 张真卡，实测 2x46.4 GiB）。
-# 所以启动先问 device_count：<2 就在**建目录前**退出（exit 3），由外部重投换节点。
-if [[ "${HSAI_ARENA_REQUIRE_DUAL:-1}" == "1" ]]; then
-  nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
-  echo "dual-gate: node=$(hostname) visible_gpus=$nvis SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
-  if [[ "$nvis" -lt 2 ]]; then
-    echo "NEED_DUAL_GPU: visible=$nvis (<2) on $(hostname) job=${SLURM_JOB_ID:-}; abort for resubmit" >&2
-    exit 3
+# --- GPU 落位：双卡抽签 + 自动降级 ---------------------------------------------
+# 本站 h100-47 是 MIG 3g.47gb 切片（46.4 GiB）。申请 2 张时，两张可能落在**同一张物理卡**
+# （torch 只看到 1 张，--gpus 1 会越界崩），也可能分属两张物理卡（真双卡，2x46.4 GiB）。
+# 2026-11-15 实测：连续 12 次申请都抽到同卡，死等不可接受，因此改为**自动降级**：
+#   visible>=2 → actor 用 GPU1（cap0 = learner），流水线重叠，~13-20 s/轮
+#   visible==1 → actor 用 GPU0（与 learner 共享），退回串行，~32 s/轮（慢约 40%），但能跑
+# 想强制只跑双卡就传 HSAI_ARENA_REQUIRE_DUAL=1（见下方分支）。
+actor_gpus="${HSAI_ARENA_ACTOR_GPUS:-}"
+nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
+echo "gpu-gate: node=$(hostname) visible_gpus=$nvis SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
+if [[ -z "$actor_gpus" ]]; then
+  if [[ "$nvis" -ge 2 ]]; then
+    actor_gpus=1
+    echo "gpu-mode: split (learner=cuda:0, actors=cuda:1)"
+  else
+    actor_gpus=0
+    echo "gpu-mode: SHARED fallback (only $nvis visible GPU) -> learner 与采集同卡，吞吐约 -40%"
   fi
+fi
+if [[ "${HSAI_ARENA_REQUIRE_DUAL:-0}" == "1" && "$nvis" -lt 2 ]]; then
+  echo "NEED_DUAL_GPU: visible=$nvis (<2) on $(hostname); abort for resubmit" >&2
+  exit 3
 fi
 
 if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exit 2; fi
@@ -168,7 +178,7 @@ python workflows/train_entity_sync.py \
   --snapshot-every 5 --keep-snapshots 3 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --amp bf16 \
-  --gpus 1 --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
+  --gpus "$actor_gpus" --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
   --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
