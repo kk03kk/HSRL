@@ -51,13 +51,13 @@ export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 RAYON_NUM_THRE
 export HSRL_TORCH_THREADS=2 PYTHONUTF8=1 PYTHONUNBUFFERED=1
 
 out="${HSAI_ARENA_OUT:?必须指定 HSAI_ARENA_OUT（新目录）}"
-minutes="${HSAI_ARENA_MINUTES:-150}"
+minutes="${HSAI_ARENA_MINUTES:-165}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
-ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v5-force6-20261115/model.pt}"
-snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v6-snap}"
+ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v6-early6-20261115/model.pt}"
+snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v7-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
-lr="${HSAI_ARENA_LR:-6e-06}"
+lr="${HSAI_ARENA_LR:-1.2e-05}"
 games="${HSAI_ARENA_GAMES:-512}"
 procs="${HSAI_ARENA_PROCS:-8}"
 epochs="${HSAI_ARENA_EPOCHS:-1}"
@@ -93,13 +93,14 @@ forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-1.0}"
 forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-}"
 forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.0}"
 # 升本奖励本轮**关闭**：强制到 6 本后，任何"到 5 本/6 本"的软目标都必然白送分，等于常数额赏。
+# v7 起把**陈旧参数一并清空**（2026-11-15 审核发现）：以前虽 coef=0 不起作用，但 table/gate_ref
+# 还挂着 v4 的值，万一有人把 coef 改回非 0，档位和门控 ref 对不上会导致整档被无条件挡掉。
+# **要重新开启就三个一起给**：--tier-target-coef >0、--tier-target-table、--tier-gate-ref（turn 必须对齐）。
 tier_coef="${HSAI_ARENA_TIER_COEF:-0.0}"
 tier_bonus="${HSAI_ARENA_TIER_BONUS:-0.20}"
-tier_table="${HSAI_ARENA_TIER_TABLE:-8:5,11:5,14:6}"
-tier_gate_k="${HSAI_ARENA_TIER_GATE_K:-0.75}"
-# 门控参考 = 该回合**起点**板面 Σ攻+血（候选实测：T8≈157、T11≈900、T14≈1600）。
-# 表里每个 turn 都必须有 ref，否则该档会被无条件挡掉（代码里 ref 缺失即 blocked）。
-tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-8:150,11:850,14:1400}"
+tier_table="${HSAI_ARENA_TIER_TABLE:-}"
+tier_gate_k="${HSAI_ARENA_TIER_GATE_K:-0.0}"
+tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-}"
 tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.15}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
