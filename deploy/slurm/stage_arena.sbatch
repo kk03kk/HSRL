@@ -103,16 +103,34 @@ tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-8:150,11:850,14:1400}"
 tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.15}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
-# --- GPU 落位：双卡抽签 + 自动降级 ---------------------------------------------
-# 本站 h100-47 是 MIG 3g.47gb 切片（46.4 GiB）。申请 2 张时，两张可能落在**同一张物理卡**
-# （torch 只看到 1 张，--gpus 1 会越界崩），也可能分属两张物理卡（真双卡，2x46.4 GiB）。
-# 2026-11-15 实测：连续 12 次申请都抽到同卡，死等不可接受，因此改为**自动降级**：
-#   visible>=2 → actor 用 GPU1（cap0 = learner），流水线重叠，~13-20 s/轮
-#   visible==1 → actor 用 GPU0（与 learner 共享），退回串行，~32 s/轮（慢约 40%），但能跑
-# 想强制只跑双卡就传 HSAI_ARENA_REQUIRE_DUAL=1（见下方分支）。
-actor_gpus="${HSAI_ARENA_ACTOR_GPUS:-}"
+# --- GPU 落位：MIG UUID 重定向（2026-11-15 用户授权）---------------------------
+# 背景：本站 h100-47 是 MIG 3g.47gb 切片（46.4 GiB/片），每节点 4 片，映射固定为
+#   gres 0,1 → 物理卡0 ；gres 2,3 → 物理卡1 。
+# Slurm 申请 2 片时总挑编号最小的连续两片 ⇒ 大概率落在同一张物理卡上；而 Slurm 只设置
+# **数字** CUDA_VISIBLE_DEVICES=0,1，CUDA 会把它解释成"物理卡0 和 物理卡1"，第 2 张不存在
+# ⇒ torch 只看到 1 张（这就是以前要靠"抽签"的全部原因）。
+#
+# 解法（mig_probe 1143745 实测有效）：从 nvidia-smi -L 里读出**本作业已被分配**的 MIG UUID，
+# 用它重写 CUDA_VISIBLE_DEVICES，CUDA 就按 MIG 实例枚举 ⇒ 两张切片都可用，与落在哪张
+# 物理卡无关。MIG 切片的 SM 是独立分区的，所以 learner 与采集仍能真并行（同卡时共享
+# 显存带宽/L2，吞吐可能略低于跨卡，但不再有 40% 的串行惩罚）。
+#
+# 安全边界：只使用 nvidia-smi 在**当前分配**下报出来的 UUID（不凭空指定、不扩大资源）；
+# 原始值、UUID、改写后的 device_count 全部写进 run.env 可审计。
+# 关掉：HSAI_ARENA_MIG_REWRITE=0；强制只跑跨物理卡：HSAI_ARENA_REQUIRE_DUAL=1。
+cvd_orig="${CUDA_VISIBLE_DEVICES:-}"
+mig_used=""
 nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
-echo "gpu-gate: node=$(hostname) visible_gpus=$nvis SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
+if [[ "${HSAI_ARENA_MIG_REWRITE:-1}" == "1" && "$nvis" -lt 2 ]]; then
+  mig_ids="$(nvidia-smi -L 2>/dev/null | grep -o 'MIG-[0-9a-f-]*' | head -2 | paste -sd, -)"
+  if [[ -n "$mig_ids" ]]; then
+    export CUDA_VISIBLE_DEVICES="$mig_ids"
+    mig_used="$mig_ids"
+    nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
+  fi
+fi
+echo "gpu-gate: node=$(hostname) SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-} cvd_orig=${cvd_orig} mig_rewrite=${mig_used:-none} visible_gpus=$nvis"
+actor_gpus="${HSAI_ARENA_ACTOR_GPUS:-}"
 if [[ -z "$actor_gpus" ]]; then
   if [[ "$nvis" -ge 2 ]]; then
     actor_gpus=1
@@ -136,6 +154,7 @@ mkdir -p "$out"
   echo "start=$(date -Is)"
   echo "job=${SLURM_JOB_ID:-local} node=$(hostname)"
   echo "gpu=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -1)"
+  echo "gpu_placement=slurm_job_gpus=${SLURM_JOB_GPUS:-} cvd_orig=${cvd_orig} mig_rewrite=${mig_used:-none} visible=${nvis} actor_gpus=${actor_gpus}"
   echo "git=$(git rev-parse HEAD)"
   echo "resume=$resume ckpt=$ckpt seed=$seed lr=$lr"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
