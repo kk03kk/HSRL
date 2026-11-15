@@ -54,8 +54,8 @@ out="${HSAI_ARENA_OUT:?必须指定 HSAI_ARENA_OUT（新目录）}"
 minutes="${HSAI_ARENA_MINUTES:-150}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
-ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v3-tier-20261114/model.pt}"
-snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v5-snap}"
+ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v5-force6-20261115/model.pt}"
+snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v6-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
 lr="${HSAI_ARENA_LR:-6e-06}"
 games="${HSAI_ARENA_GAMES:-512}"
@@ -73,23 +73,25 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #       coef 1.0、命中 +0.20、落空 −0.15
 #       → 每局期望 −0.177（名次全距 2.0 的 8.9%），旧版是 −0.048（2.4%）⇒ 压力约 3.7 倍
 #       → 最坏情形（三档全错）−0.45 = 22.5%，仍明显小于名次信号 ±1.0
-# ── 强制升本（v5，2026-11-15 用户定：放弃前期，先冲到 6 本）────────────────────
-# 计划 = 第 2 回合 2 本 / 第 4 回合 3 本 / 第 5 回合 4 本 / 第 7 回合 5 本 / 第 9 回合 6 本。
-# 前四档是垫脚石（不垫的话到 T7/T9 金币不够，强制会被 blocked）。
+# ── 强制升本（v6，2026-11-15 用户定：纯曝光轮）──────────────────────────────────
+# 计划 = 第 2 回合 2 本 / 第 4 回合 3 本 / 第 5 回合 4 本 / 第 7 回合 5 本 / **第 8 回合 6 本**
+# （v5 是 9:6，本轮提前一回合；够不着就靠 carry 顺延到 T9）。
+# 前四档是垫脚石（不垫的话到 T7/T8 金币不够，强制会被 blocked）。
 # 语义（见 hsbg/az/train/forced_tier.py）：只在 Upgrade **真正合法**时强制（掩码 mask[3]
 # 已编码"金币够 + 未满级 + 不在待选"）；不补金币、不改引擎状态；被强制的决策标 forced、
 # logprob=0、**不进策略梯度**（只保留价值链），因此不伪造 on-policy ratio。
-# 本轮改为**一半强制 + 教师全程开**（2026-11-15 用户决定）：强制保证它真的到 6 本，
-# 教师标签保证策略自己学会按升级 —— 否则强制决策不进策略梯度，评测时它不会自己冲本。
-forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,9:6}"
+# **本轮 prob=1.0 + 教师关闭**（用户决定）：这是「纯曝光轮」——3 小时太短，不做两件事；
+# 目标是让它在 6 本攒尽可能多的运营经验。代价：prob=1.0 时"按升级"永远不由策略采样
+# ⇒ 本轮**不产出"自己会升"的能力**，教师标签会归零（教师只写在"没被强制"的那一半），
+# 下一轮必须补课。
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,8:6}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
-# 一半强制、一半交给模型 —— 未被强制但目标未达成时写 DAgger 教师标签，让策略自己学会按升级。
-# 注意：教师不是 --forced-tier-teacher（**该 flag 不存在**），而是下面两个：
-#   --forced-teacher-until  在这段累计 decisions 之前写标签（40M ≈ 全程，本次运行约 38M）
-#   --forced-teacher-coef   标签的 CE 系数（>0 才真的产生梯度；历史配方用 0.05）
-forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-0.5}"
-forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-40M}"
-forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.05}"
+# 教师本轮关闭（until 空 → 不写标签；coef 0 → 无梯度）。要开时两个都得给：
+#   --forced-teacher-until 40M  --forced-teacher-coef 0.05
+# 注意：教师不是 --forced-tier-teacher（**该 flag 不存在**）。
+forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-1.0}"
+forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-}"
+forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.0}"
 # 升本奖励本轮**关闭**：强制到 6 本后，任何"到 5 本/6 本"的软目标都必然白送分，等于常数额赏。
 tier_coef="${HSAI_ARENA_TIER_COEF:-0.0}"
 tier_bonus="${HSAI_ARENA_TIER_BONUS:-0.20}"
