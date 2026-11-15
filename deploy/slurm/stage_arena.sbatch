@@ -13,9 +13,10 @@
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
 # Formal training on the CALIBRATED snapshot field.
-# 超参 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6）：lr 6e-06→5e-06、
+# 超参基线 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6）：lr 6e-06→5e-06、
 # 有效 minibatch 8192（minibatch 1024 x grad-accum 8）、clip 0.2、target-KL 0.05、
 # lambda 0.995、entropy 0.002、grad-clip 1.0、KL anchor beta=0.1 仅前 100 轮、sims 0；
+# **v8 起按用户要求加大探索**：target-KL 0.10、entropy 0.008、anchor 0.02 全程、lr 1.2e-05。
 # max-updates 300 = 论文一个 stage 的**轮数**。注意 --max-updates 的单位是「训练轮」
 # （PPOTrainer.update() 每轮调用一次才 scheduler.step()），不是优化步数 —— 2026-11-14
 # 曾按 15.5 步/轮错算成 4650，导致 302 轮只退火 6.5%、lr 全程 5.94e-06（见 TRAINING_RECIPE §8 K4）。
