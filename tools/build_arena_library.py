@@ -223,7 +223,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         t = s["turn"]
         base = curve.get(t)
         if base is None:
-            print(f"{t:>4} {'-':>10} {mult.get(t, 0):>6} {'-':>8} {0:>4}")
+            # 2026-11-17：绝对目标可以超出模型曲线的回合范围（如 T19/T20）。以前这里
+            # 直接 continue，把**已经建好**的行也吞掉，看起来像「没建」。现在只要该回合
+            # 在 --targets 里就照常打印（p50 用 "-" 占位）。
+            if t in targets:
+                s0 = s
+                src0 = (f"{s0.get('src_turn_min')}..{s0.get('src_turn_max')}"
+                        if s0.get("n") else "-")
+                print(f"{t:>4} {'-':>10} {0:>6.2f} {s0['target']:>8} {s0['n']:>4} "
+                      f"{'-':>13} {'-':>13} {'-':>13} {src0:>12}")
+            else:
+                print(f"{t:>4} {'-':>10} {mult.get(t, 0):>6} {'-':>8} {0:>4}")
             continue
         src = f"{s.get('src_turn_min')}..{s.get('src_turn_max')}" if s.get("n") else "-"
         f = lambda v: ("-" if v is None else f"{v:.0f}")
