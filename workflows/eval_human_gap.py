@@ -123,6 +123,11 @@ def economy_curves(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             "hand_p50": _r(_pct(b["hand"], 0.5)),
             "strength_p50": _r(_pct(b["strength"], 0.5)),
             "strength_p90": _r(_pct(b["strength"], 0.90)),
+            # 2026-11-16 用户要求：逐回合除了中位数，还要**从高到低的前 5**（以及 p99/max），
+            # 用来看"上限在哪里"，而不是只看中位。
+            "strength_top5": [_r(x) for x in sorted(b["strength"], reverse=True)[:5]],
+            "strength_p99": _r(_pct(b["strength"], 0.99)),
+            "strength_max": _r(max(b["strength"])) if b["strength"] else None,
             "strength_mean": _r(sum(b["strength"]) / len(b["strength"])) if b["strength"] else None,
             "board_n_p50": _r(_pct(b["board_n"], 0.5)),
             "actions_mean": _r(sum(b["actions"]) / len(b["actions"])) if b["actions"] else None,
