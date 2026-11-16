@@ -110,6 +110,10 @@ def pick_boards(rows: List[Dict[str, Any]], turn: int, target: float,
     字段（采集侧按 turn 分桶）。
     """
     band = (target * (1.0 - jitter), target * (1.0 + jitter))
+    # 2026-11-16：per_turn 现在用来「全取」（设成 4096 之类），所以「够不够」的阈值
+    # 不能再跟着 per_turn 线性放大，否则带内有 587 条也会被判定「不够」而放宽强度带。
+    # 阈值固定在 ≤64：带内够 64 条就停止放宽，然后**全取**（受 per_turn 上限约束）。
+    need = max(8, min(int(per_turn) or 96, 256) // 4)
     cands: List[Dict[str, Any]] = []
     for _ in range(8):
         cands = []
@@ -120,7 +124,7 @@ def pick_boards(rows: List[Dict[str, Any]], turn: int, target: float,
             if not (band[0] <= st <= band[1]):
                 continue
             cands.append(r)
-        if len(cands) >= max(8, per_turn // 4):
+        if len(cands) >= need:
             break
         band = (band[0] * 0.9, band[1] * 1.1)   # 放宽强度带（回合无关）
     if not cands:
