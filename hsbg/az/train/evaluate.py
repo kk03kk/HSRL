@@ -394,18 +394,15 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                         if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),
                                 # ── 2026-11-16 全量记录 ────────────────────────────
-                                # 饰品 / 英雄 / 奖励 / 任务：引擎把它们放进 `cards` 注册表，
-                                # 键前缀 t=trinket、p=hero power、r=reward、q=quest。
-                                trinkets=[v.get("id") if isinstance(v, dict) else v
-                                          for k, v in (player.get("cards") or {}).items()
-                                          if str(k).startswith("t")]
-                                         if isinstance(player.get("cards"), dict) else None,
+                                # 饰品/奖励/英雄技能在 player_json 的**顶层数组**里
+                                # （引擎 debug.rs: `me["trinkets"]` / `me["rewards"]` /
+                                # `me["hero_powers"]`），每项是带 id/live_text 的对象。
+                                trinkets=[(t.get("id") if isinstance(t, dict) else t)
+                                          for t in (player.get("trinkets") or [])] or None,
                                 hero=((player.get("hero") or {}).get("id")
                                       if isinstance(player.get("hero"), dict) else player.get("hero")),
-                                rewards=[v.get("id") if isinstance(v, dict) else v
-                                         for k, v in (player.get("cards") or {}).items()
-                                         if str(k).startswith("r")]
-                                        if isinstance(player.get("cards"), dict) else None,
+                                rewards=[(x.get("id") if isinstance(x, dict) else x)
+                                         for x in (player.get("rewards") or [])] or None,
                                 # 首次出现时把 player_json 的顶层键记下来，便于后续核对结构演进
                                 player_keys=sorted(player.keys()),
                             ))
