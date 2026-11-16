@@ -1449,3 +1449,39 @@ CLI：`--win-bonus`（默认 0）；sbatch：`HSAI_ARENA_WIN_BONUS:-0.7`，并�
 
 **验证**：`set_win_bonus` 单测（b=0 逐位等于论文值、b=0.7 → [1.7,0.714,…]、b=0 可复原）；
 `check_flags` 77/77；sbatch `bash -n` 通过。提交 `73222fb`。
+
+## D-067 · 2026-11-16 · local · **节点 xgpi11 有 20 倍以上降速，必须长期排除（本次事故复盘）**
+
+**现象**：v13 的 4 分钟 smoke 卡住 14 分钟不出第一轮，`iter=0`，但 32 核满载（CPU 时间 7h36m）。
+看起来像死锁，实际不是：同一份代码在 xgpi14 上 3 分 47 秒跑完 7 轮。
+
+**证据（按节点分界，无一例外）**：
+
+| 作业 | 内容 | 节点 | 结果 |
+|---|---|---|---|
+| 1150096 | v12 smoke | xgpi14 | 完成 3:47 |
+| 1150153 | v12 训练 165min | xgpi14 | 完成 |
+| 1151516 | v13 smoke (b=0.7) | xgpi11 | 卡死 |
+| 1151627 | 隔离A：b=**0**，v13场 | xgpi11 | 卡死 |
+| 1151628 | 隔离B：b=0.7，**v12场** | xgpi11 | 卡死 |
+| 1151697 | 隔离D：**起点v11**，b=0 | xgpi11 | 12 分钟只走到 `[net]` |
+
+三个隔离实验分别排除了「奖励」「场地」「起点模型」，只剩节点这一个共同因子。
+
+**历史佐证**：项目早期配置文件本来就写了
+`--exclude=xgpi11,xgpi15,xgpi17,xgpi20`（`elo_8.sbatch`、`leaderboard_*.sbatch`、
+`ab_1095539.sbatch` 都能查到），但后来新建的 `stage_arena.sbatch` / 评测 sbatch
+只写了 `xgpi15,xgpi17` —— **黑名单在配置演进中丢了**。这不是新问题，是回退。
+
+**处置**：
+1. `stage_arena.sbatch`、`eval_human_gap_snap.sbatch`、`eval_shard_parallel.sbatch`
+   全部改回 `--exclude=xgpi15,xgpi17,xgpi11`（提交 `e36cb89`）。
+2. 顺带修掉一个自造故障：用 PowerShell `Set-Content -Encoding utf8` 改 sbatch 会加
+   **UTF-8 BOM**，导致 `sbatch: not a batch script`；已用无 BOM 方式重写并验证首字节
+   `23 21 2f`（`#! /`），提交 `ed5b056`。（与 D-050 同一类教训：远端文本不经 PowerShell 中转。）
+3. **以后新写 sbatch 必须照抄这条 exclude**；怀疑"卡住"时先看 `sacct --format=NodeList`
+   与健康节点对比，不要先怀疑自己的代码。
+
+**附：如何快速判断有没有空卡**（本次用到的命令）
+`sinfo -p gpu -h -N -o '%N|%t|%C|%G'` 看节点状态与切片型号；
+`squeue -p gpu -h -t R -o '%N|%b'` 累加每节点已用切片数（每节点共 4 个）。
