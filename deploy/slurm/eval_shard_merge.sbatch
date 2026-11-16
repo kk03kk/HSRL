@@ -2,7 +2,7 @@
 #SBATCH --job-name=hsai-smerge
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=cpu
+#SBATCH --partition=normal
 #SBATCH --exclude=xgpi15,xgpi17,xgpi11
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G

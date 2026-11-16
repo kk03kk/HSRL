@@ -2,7 +2,7 @@
 #SBATCH --job-name=hsai-cpueval
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=cpu
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --propagate=NONE
