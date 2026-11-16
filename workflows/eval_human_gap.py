@@ -123,11 +123,15 @@ def economy_curves(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             "hand_p50": _r(_pct(b["hand"], 0.5)),
             "strength_p50": _r(_pct(b["strength"], 0.5)),
             "strength_p90": _r(_pct(b["strength"], 0.90)),
-            # 2026-11-16 用户要求：逐回合除了中位数，还要**从高到低的前 5**（以及 p99/max），
-            # 用来看"上限在哪里"，而不是只看中位。
-            "strength_top5": [_r(x) for x in sorted(b["strength"], reverse=True)[:5]],
+            # 2026-11-16 用户要求：**逐回合所有局的战力全部保留**（原来只留 p50/p90/mean，
+            # 原始分布算完就丢了）。有了这个，"前 N 名 / 任意分位 / 直方图 / 分布形状"
+            # 都能事后从 panel.json 直接算，不用再重跑评测。
+            # 体积很小：512 局 × 18 回合 ≈ 9k 个数 ≈ 70 KB。
+            "strength_all": [_r(x) for x in sorted(b["strength"], reverse=True)],
+            "strength_top10": [_r(x) for x in sorted(b["strength"], reverse=True)[:10]],
             "strength_p99": _r(_pct(b["strength"], 0.99)),
             "strength_max": _r(max(b["strength"])) if b["strength"] else None,
+            "strength_min": _r(min(b["strength"])) if b["strength"] else None,
             "strength_mean": _r(sum(b["strength"]) / len(b["strength"])) if b["strength"] else None,
             "board_n_p50": _r(_pct(b["board_n"], 0.5)),
             "actions_mean": _r(sum(b["actions"]) / len(b["actions"])) if b["actions"] else None,
