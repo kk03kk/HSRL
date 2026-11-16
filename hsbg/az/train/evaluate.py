@@ -393,6 +393,21 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 hand_n=(len(player.get('hand') or [])
                                         if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),
+                                # ── 2026-11-16 全量记录 ────────────────────────────
+                                # 饰品 / 英雄 / 奖励 / 任务：引擎把它们放进 `cards` 注册表，
+                                # 键前缀 t=trinket、p=hero power、r=reward、q=quest。
+                                trinkets=[v.get("id") if isinstance(v, dict) else v
+                                          for k, v in (player.get("cards") or {}).items()
+                                          if str(k).startswith("t")]
+                                         if isinstance(player.get("cards"), dict) else None,
+                                hero=((player.get("hero") or {}).get("id")
+                                      if isinstance(player.get("hero"), dict) else player.get("hero")),
+                                rewards=[v.get("id") if isinstance(v, dict) else v
+                                         for k, v in (player.get("cards") or {}).items()
+                                         if str(k).startswith("r")]
+                                        if isinstance(player.get("cards"), dict) else None,
+                                # 首次出现时把 player_json 的顶层键记下来，便于后续核对结构演进
+                                player_keys=sorted(player.keys()),
                             ))
                             turn_actions = 0
                     if config.collect_action_hist:

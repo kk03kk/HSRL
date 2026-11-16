@@ -474,7 +474,124 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         "retained_gain_by_turn": retained_gain_by_turn(rows),
         "final_boards": final_boards(rows),
         "boards_by_turn": boards_by_turn(rows),
+        # ── 2026-11-16 全量留档（用户要求：一次评测尽量多给信息）──────────────
+        # 1) 逐局逐回合战力（带 seed，可做前后回合归因）
+        "strength_by_seed": _strength_by_seed(rows),
+        # 2) 完整追踪：每局每回合一条精简记录（身材/金币/手牌/饰品/英雄/动作数）
+        "trace": _trace(rows),
+        # 3) 饰品选择：逐回合 各饰品被选中的次数
+        "trinkets_by_turn": _counts_by_turn(rows, "trinkets"),
+        # 4) 实际遇到的对手强度（注入帧的 source_strength），逐回合分布
+        "opponents_by_turn": _opponents_by_turn(result.get("combat_exposure") or []),
+        # 5) 金币收支：逐回合 获得/花费（买牌/刷新/升本/其它）
+        "gold_by_turn": _gold_by_turn(rows),
+        # 6) 英雄分布
+        "heroes": _counts_all(rows, "hero"),
     }
+
+
+def _strength_by_seed(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """{seed: {turn: 战力}} —— 保留"哪一局"，可做前后回合归因。"""
+    out: Dict[str, Dict[str, float]] = {}
+    for r in rows:
+        atk, hp = r.get("eot_attack"), r.get("eot_board_hp")
+        if not (isinstance(atk, int) and isinstance(hp, int)):
+            continue
+        try:
+            t = int(r["turn"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        s = str(r.get("seed"))
+        out.setdefault(s, {})[str(t)] = float(atk + hp)
+    return out
+
+
+def _trace(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """每局每回合一条精简记录：一切能解释"为什么强/为什么弱"的字段。
+
+    体积控制：只保留数值/短列表，单条 ~200 B ⇒ 512 局 × 18 回合 ≈ 2 MB。
+    """
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        atk, hp = r.get("eot_attack"), r.get("eot_board_hp")
+        out.append({
+            "seed": r.get("seed"), "turn": r.get("turn"),
+            "tier": r.get("tier"), "gold": r.get("gold"), "health": r.get("health"),
+            "hand_n": r.get("hand_n"), "actions": r.get("actions"),
+            "strength": (int(atk) + int(hp)) if isinstance(atk, int) and isinstance(hp, int) else None,
+            "board_stats": r.get("board_stats"),
+            "hero": r.get("hero"), "trinkets": r.get("trinkets"),
+            "rewards": r.get("rewards"),
+            "repeats": r.get("consecutive_repeats"),
+            # 金币明细不逐条存（体积大），用 gold_by_turn 的逐回合聚合代替
+        })
+    return out
+
+
+def _counts_by_turn(rows: List[Dict[str, Any]], field: str) -> Dict[str, Any]:
+    """{turn: {取值: 次数}} —— 用于逐回合看某字段的分布（饰品/奖励等列表字段）。"""
+    acc: Dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for r in rows:
+        v = r.get(field)
+        if not isinstance(v, list):
+            continue
+        try:
+            t = str(int(r["turn"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        for x in v:
+            acc[t][str(x)] += 1
+    return {t: dict(c.most_common()) for t, c in sorted(acc.items(), key=lambda kv: int(kv[0]))}
+
+
+def _counts_all(rows: List[Dict[str, Any]], field: str) -> Dict[str, int]:
+    c: collections.Counter = collections.Counter()
+    for r in rows:
+        v = r.get(field)
+        if v is not None:
+            c[str(v)] += 1
+    return dict(c.most_common())
+
+
+def _opponents_by_turn(exposure: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """逐回合**实际遇到**的对手强度（注入帧的 source_strength）分布。
+
+    这是难度闭环的唯一直接度量：库里写的是目标，这里才是它真的撞上了什么。
+    """
+    acc: Dict[str, List[float]] = collections.defaultdict(list)
+    for e in exposure:
+        s = e.get("source_strength")
+        if not isinstance(s, (int, float)):
+            continue
+        acc[str(int(e.get("turn") or 0))].append(float(s))
+    out: Dict[str, Any] = {}
+    for t, v in sorted(acc.items(), key=lambda kv: int(kv[0])):
+        v.sort()
+        out[t] = {"n": len(v), "p10": _r(_pct(v, 0.10)), "p50": _r(_pct(v, 0.50)),
+                  "p90": _r(_pct(v, 0.90)), "mean": _r(sum(v) / len(v))}
+    return out
+
+
+def _gold_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """逐回合金币收支：按动作分组（买牌/刷新/升本/出售…）累加净变化。"""
+    acc: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for r in rows:
+        evs = r.get("gold_events")
+        if not isinstance(evs, list):
+            continue
+        try:
+            t = str(int(r["turn"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        for e in evs:
+            if not isinstance(e, dict):
+                continue
+            k = str(e.get("kind") or "other")
+            try:
+                acc[t][k] += float(e.get("net_change") or 0)
+            except (TypeError, ValueError):
+                continue
+    return {t: {k: _r(v) for k, v in d.items()} for t, d in sorted(acc.items(), key=lambda kv: int(kv[0]))}
 
 
 def compare(model: Dict[str, Any], human: Dict[str, Any]) -> Dict[str, Any]:
