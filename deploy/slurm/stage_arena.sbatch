@@ -75,25 +75,25 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #       coef 1.0、命中 +0.20、落空 −0.15
 #       → 每局期望 −0.177（名次全距 2.0 的 8.9%），旧版是 −0.048（2.4%）⇒ 压力约 3.7 倍
 #       → 最坏情形（三档全错）−0.45 = 22.5%，仍明显小于名次信号 ±1.0
-# ── 强制升本（v6，2026-11-15 用户定：纯曝光轮）──────────────────────────────────
-# 计划 = 第 2 回合 2 本 / 第 4 回合 3 本 / 第 5 回合 4 本 / 第 7 回合 5 本 / **第 8 回合 6 本**
-# （v5 是 9:6，本轮提前一回合；够不着就靠 carry 顺延到 T9）。
-# 前四档是垫脚石（不垫的话到 T7/T8 金币不够，强制会被 blocked）。
-# 语义（见 hsbg/az/train/forced_tier.py）：只在 Upgrade **真正合法**时强制（掩码 mask[3]
-# 已编码"金币够 + 未满级 + 不在待选"）；不补金币、不改引擎状态；被强制的决策标 forced、
-# logprob=0、**不进策略梯度**（只保留价值链），因此不伪造 on-policy ratio。
-# **本轮 prob=1.0 + 教师关闭**（用户决定）：这是「纯曝光轮」——3 小时太短，不做两件事；
-# 目标是让它在 6 本攒尽可能多的运营经验。代价：prob=1.0 时"按升级"永远不由策略采样
-# ⇒ 本轮**不产出"自己会升"的能力**，教师标签会归零（教师只写在"没被强制"的那一半），
-# 下一轮必须补课。
-forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,4:3,5:4,7:5,8:6,10:6,12:6,14:6,16:6,18:6}"
+# -- 升本课程：纯教师 BC（DAgger），完全不强制（2026-11-17 用户定）------------
+# 计划表仍是这五个里程碑，但语义变了：它不再是「强制时间表」，而是「教师时间表」。
+#   2 回合 -> 2 本 / 5 -> 3 / 7 -> 4 / 8 -> 5 / 12 -> 6
+# 语义（hsbg/az/train/forced_tier.py）：
+#   prob=0   -> out.force 永不置位，动作 100% 由策略自己采样（不再有 logprob=0 的决策）
+#   teacher  -> 到点且 Upgrade 合法（掩码 mask[3] 已编码「金币够+未满级+不在待选」）时，
+#               每回合最多写一条 record["teacher_action"] = 3；
+#               金币不够 / 待选中 / 已满级 -> 只记 blocked，不写标签
+#   until=1B -> 教师标签全程开启（三轮长训全程不放手）
+#   coef=0.1 -> PPO 里 0.1 * CE(pi_theta, a_teacher) 的辅助 BC 权重
+# 重要特性：若模型自己提前升到目标等级，该计划点记为 achieved_by=self，
+#   之后不再写标签 —— 教师只补「到点还没升」的缺口，不惩罚提前升。
+# 注意：教师由 --forced-teacher-until / --forced-teacher-coef 这两个参数开启，
+#   不存在 --forced-tier-teacher 这个 flag。
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,5:3,7:4,8:5,12:6}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
-# 教师本轮关闭（until 空 → 不写标签；coef 0 → 无梯度）。要开时两个都得给：
-#   --forced-teacher-until 40M  --forced-teacher-coef 0.05
-# 注意：教师不是 --forced-tier-teacher（**该 flag 不存在**）。
-forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-1.0}"
-forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-}"
-forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.0}"
+forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-0}"
+forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-1B}"
+forced_teacher_coef="${HSAI_ARENA_FORCED_TEACHER_COEF:-0.1}"
 # 升本奖励本轮**关闭**：强制到 6 本后，任何"到 5 本/6 本"的软目标都必然白送分，等于常数额赏。
 # v7 起把**陈旧参数一并清空**（2026-11-15 审核发现）：以前虽 coef=0 不起作用，但 table/gate_ref
 # 还挂着 v4 的值，万一有人把 coef 改回非 0，档位和门控 ref 对不上会导致整档被无条件挡掉。
