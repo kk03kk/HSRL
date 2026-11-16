@@ -574,7 +574,8 @@ def _opponents_by_turn(exposure: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def _gold_by_turn(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """逐回合金币收支：按动作分组（买牌/刷新/升本/出售…）累加净变化。"""
-    acc: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    acc: Dict[str, Dict[str, float]] = collections.defaultdict(
+        lambda: collections.defaultdict(float))
     for r in rows:
         evs = r.get("gold_events")
         if not isinstance(evs, list):
