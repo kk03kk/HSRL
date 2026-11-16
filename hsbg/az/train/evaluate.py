@@ -40,6 +40,42 @@ from .forced_tier import ForcedTierTracker
 from .mirror_snapshots import MirrorStats, inject_turn as inject_mirror_turn
 
 
+def _resolve_pending_for(game: Any, seat: int) -> bool:
+    """把席位 ``seat`` 的待选链（三选一/发现/饰品）用**引擎 bot 自己的选择**结算掉。
+
+    2026-11-16 用户要求「注入率必须 100%」：镜像快照注入时，若该席正处于
+    ``pending_choice``，引擎会直接拒绝（训练侧实测占全部尝试的 21.7%），那些席位
+    就退回成引擎 bot 的弱板子，评测出来的难度就和库里标称的不符。
+
+    做法与 ``parallel_collect._resolve_pending_for`` / ``strict_mirror.prepare``
+    同源：只执行**经掩码验证**的 Cancel / Choose 动作，直到 ``mask[0]``（EndTurn）
+    合法为止。bot 本来也会自己选，这里只是把"选完"提前到注入之前。
+    返回 True = 该席位现在可以注入。
+    """
+    from hsbg.env.action_space_std import A_CANCEL, A_CHOOSE, N_CHOICE
+    for _ in range(64):
+        try:
+            if not game.needs_action(seat):
+                return False
+            mask = game.legal_mask(seat)
+        except BaseException:  # noqa: BLE001 - 引擎异常不打断评测
+            return False
+        if bool(mask[0]):
+            return True
+        try:
+            action = int(game.bot_action(seat))
+        except BaseException:  # noqa: BLE001
+            action = -1
+        allowed = [a for a in (A_CANCEL, *range(A_CHOOSE, A_CHOOSE + N_CHOICE))
+                   if a < len(mask) and bool(mask[a])]
+        if action not in allowed:
+            if not allowed:
+                return False
+            action = allowed[0]
+        game.step(seat, action)
+    return False
+
+
 @dataclass
 class EvalConfig:
     """评测配置。"""
@@ -138,6 +174,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     mirror_stats = MirrorStats()
     hb_turns = 0
     mirror_skipped_ended = 0
+    mirror_pending_resolved = 0
     exposure = []
     economy = []
     card_names = {}
@@ -203,7 +240,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
             turn（例如 learner 结束本回合后，后续座位的 ``bot_play`` 已经属于新回合），
             只在 while 顶层注入会错过窗口、被 ``already_ended`` 拒绝。
             """
-            nonlocal last_turn, mirror_skipped_ended
+            nonlocal last_turn, mirror_skipped_ended, mirror_pending_resolved
             if config.human_board_pool is None and config.mirror_pool is None:
                 return
             turn_now = int(game.turn)
@@ -229,6 +266,10 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                         if bool(json.loads(game.player_json(target)).get("ended_turn")):
                             mirror_skipped_ended += 1
                             continue
+                        # 2026-11-16：注入前先把该席位的待选结算完（bot 自己选），
+                        # 否则引擎会以 pending_choice 拒绝、该席位退回 bot 弱板子。
+                        if _resolve_pending_for(game, target):
+                            mirror_pending_resolved += 1
                         old_applied = mirror_stats.applied
                         inject_mirror_turn(
                             game, config.mirror_pool, turn_now, seats=[target],
@@ -438,6 +479,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         "human_board": hb_meta,
         "mirror": mirror_stats.to_meta(),
         "mirror_skipped_ended": mirror_skipped_ended,
+        "mirror_pending_resolved": mirror_pending_resolved,
         "combat_exposure": exposure,
         **({"mirror_strict_counts": dict(strict_counts)} if strict_library is not None else {}),
         **({"end_turn_economy": economy} if config.collect_economy else {}),
