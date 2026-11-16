@@ -1025,6 +1025,9 @@ def main() -> int:
     # common.RANK_UTILITY，所有 `from .common import RANK_UTILITY` 的模块共享同一数组。
     from hsbg.az.train.common import rank_utility_table, set_win_bonus
     _wb = set_win_bonus(float(getattr(args, "win_bonus", 0.0) or 0.0))
+    # 关键：采集子进程是 spawn 出来的，会把 common 重新 import 一遍。这里把奖金写进
+    # 环境变量，common 在 import 时会按它再应用一次，保证**子进程算奖励时也带奖金**。
+    os.environ["HSAI_WIN_BONUS"] = str(_wb)
     if _wb:
         print(f"[reward] win_bonus={_wb}  rank_utility={[round(float(x),3) for x in rank_utility_table()]}",
               flush=True)

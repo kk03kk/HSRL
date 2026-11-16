@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import math
+import os
 from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
@@ -79,6 +80,23 @@ def set_win_bonus(bonus: float) -> float:
 def rank_utility_table() -> "np.ndarray":
     """当前生效的名次效用表（只读副本，便于写日志/核对）。"""
     return RANK_UTILITY.copy()
+
+
+# ── 2026-11-16：把冠军奖金传进 spawn 子进程 ────────────────────────────────
+# 奖励是在**采集子进程**里算的（``process_pool`` 用 ``mp.get_context("spawn")``，
+# 子进程会重新 import 本模块 ⇒ 父进程的原地改写传不过去，奖金会**静默失效**）。
+# 环境变量是 spawn 子进程唯一可靠继承的通道，所以在 import 时按它重新应用一遍。
+# 父进程（train_entity_sync）在 set_win_bonus 之后会同步写 HSAI_WIN_BONUS。
+def _apply_env_win_bonus() -> None:
+    raw = os.environ.get("HSAI_WIN_BONUS")
+    if raw:
+        try:
+            set_win_bonus(float(raw))
+        except (TypeError, ValueError):
+            pass
+
+
+_apply_env_win_bonus()
 
 
 def segment_indices(name: str) -> np.ndarray:
