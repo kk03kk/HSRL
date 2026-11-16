@@ -506,6 +506,32 @@ def _strength_by_seed(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
+def _roster(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """把「回合结束那一刻」的完整阵容逐只展开（含身材/金卡/关键字/站位）。
+
+    2026-11-16 用户要求「每局每回合的阵容必须完整记录」。这里**直接从 eot_board
+    取**（与 boards_by_turn 同源），不再用 board_stats 这个按卡牌 id 归并的字典——
+    那是个字典，重复卡会塌成一份，而且它取的是**回合开始**的板子，跟回合结束的
+    阵容对不上，导致本回合新上场的随从查不到身材（表现为 `—`）。
+    """
+    out: List[Dict[str, Any]] = []
+    board = row.get("eot_board") or row.get("board") or []
+    for m in board:
+        if not isinstance(m, dict):
+            continue
+        kw = m.get("keywords") or m.get("kw") or []
+        out.append({
+            "pos": m.get("position"),
+            "card_id": m.get("card_id") or m.get("card"),
+            "name": m.get("name"),
+            "atk": m.get("atk"), "hp": m.get("hp"),
+            "golden": bool(m.get("golden")),
+            "keywords": sorted(kw) if isinstance(kw, (list, tuple, set)) else kw,
+            "tier": m.get("tier"),
+        })
+    return out
+
+
 def _trace(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """每局每回合一条精简记录：一切能解释"为什么强/为什么弱"的字段。
 
@@ -520,6 +546,7 @@ def _trace(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "hand_n": r.get("hand_n"), "actions": r.get("actions"),
             "strength": (int(atk) + int(hp)) if isinstance(atk, int) and isinstance(hp, int) else None,
             "board_stats": r.get("board_stats"),
+            "roster": _roster(r),
             "hero": r.get("hero"), "trinkets": r.get("trinkets"),
             "rewards": r.get("rewards"),
             "repeats": r.get("consecutive_repeats"),
