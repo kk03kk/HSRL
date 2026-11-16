@@ -89,7 +89,7 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #   之后不再写标签 —— 教师只补「到点还没升」的缺口，不惩罚提前升。
 # 注意：教师由 --forced-teacher-until / --forced-teacher-coef 这两个参数开启，
 #   不存在 --forced-tier-teacher 这个 flag。
-forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,5:3,7:4,8:5,12:6}"
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,5:3,7:4,8:5,10:6}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
 forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-0}"
 forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-1B}"
