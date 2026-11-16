@@ -98,29 +98,34 @@ def load_pool(path: str) -> List[Dict[str, Any]]:
 def pick_boards(rows: List[Dict[str, Any]], turn: int, target: float,
                 jitter: float, per_turn: int, rng: random.Random,
                 min_window: int = 3) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """为目标回合挑真实战团；不够就逐步放宽强度带、再放宽回合窗口。"""
-    lo, hi = target * (1.0 - jitter), target * (1.0 + jitter)
-    band, window = (lo, hi), min_window
+    """为**目标回合**挑真实战团：**只看强度，不看回合**（2026-11-16 用户定）。
+
+    为什么删掉回合窗：我们的后期目标是"按模型自己战力校准"的（T12≈1,570、T18≈6,400），
+    远低于人类同回合中位（T12≈4,472、T18≈131,595）。若只允许借最近 3 回合，高回合的
+    候选会枯竭（T17 只有 22 条、T18 只有 4 条），且被迫放宽到跨好几个回合仍然要贴标签。
+    既然要的是"这个强度档位的战团长相"，**回合数就没有意义** —— 直接在整池里按强度找。
+
+    做法：强度带 ``[target×(1-jitter), target×(1+jitter)]``；不够 ``max(8, per_turn//4)``
+    条就把带宽按 0.9/1.1 逐级放宽（最多 8 次）。选中的记录**原样保留**，只改写 ``turn``
+    字段（采集侧按 turn 分桶）。
+    """
+    band = (target * (1.0 - jitter), target * (1.0 + jitter))
+    cands: List[Dict[str, Any]] = []
     for _ in range(8):
         cands = []
         for r in rows:
-            st, src = _num(r.get("strength")), _num(r.get("turn"))
-            if st is None or src is None:
-                continue
-            if not (turn - window <= int(src) <= turn):
+            st = _num(r.get("strength"))
+            if st is None:
                 continue
             if not (band[0] <= st <= band[1]):
                 continue
             cands.append(r)
         if len(cands) >= max(8, per_turn // 4):
             break
-        if window < turn + 8:
-            window += 2            # 先放宽窗口（借更早回合的真实战团）
-        else:
-            band = (band[0] * 0.9, band[1] * 1.1)   # 再放宽强度带
+        band = (band[0] * 0.9, band[1] * 1.1)   # 放宽强度带（回合无关）
     if not cands:
         return [], {"turn": turn, "target": round(target, 1), "n": 0,
-                    "band": [round(band[0], 1), round(band[1], 1)], "window": window}
+                    "band": [round(band[0], 1), round(band[1], 1)], "window": "all"}
     rng.shuffle(cands)
     chosen = cands[:per_turn]
     out = []
@@ -134,7 +139,7 @@ def pick_boards(rows: List[Dict[str, Any]], turn: int, target: float,
     vals = sorted(_num(r.get("strength")) for r in out)
     q = lambda p: vals[min(len(vals) - 1, max(0, int(round(p * (len(vals) - 1)))))]
     return out, {"turn": turn, "target": round(target, 1), "n": len(out),
-                 "band": [round(band[0], 1), round(band[1], 1)], "window": window,
+                 "band": [round(band[0], 1), round(band[1], 1)], "window": "all",
                  "realized_p10": q(0.10), "realized_p50": q(0.50),
                  "realized_p90": q(0.90),
                  "src_turn_min": min(r["_src_turn"] for r in out),

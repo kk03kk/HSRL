@@ -665,8 +665,42 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         for st in states:
             st["strict_mirror"] = StrictMirror(strict_library, seat, st["mirror_rng"], st["mirror_stats"])
 
+    def _resolve_pending_for(g: Any, s: int) -> bool:
+        """把席位 ``s`` 的待选链用**引擎 bot 自己的选择**结算掉，返回是否已可注入。
+
+        为什么需要（2026-11-16 用户要求「注入率必须 100%」）：镜像快照注入时，如果该席
+        正处于 ``pending_choice``（三选一 / 发现 / 选饰品），引擎会直接拒绝，实测占全部
+        尝试的 21.7%，那些席位就退回成引擎 bot 的弱板子 —— 这一轮的难度就白设计了。
+
+        做法与 ``strict_mirror.py`` 的 ``prepare()`` 同源：只执行**经掩码验证**的
+        Cancel / Choose 动作（绝不让 bot 顺手经营/买人），直到 ``mask[0]``（EndTurn）合法
+        为止。bot 本来也会自己选，这里只是把"选完"提前到注入之前。
+        """
+        from hsbg.env.action_space_std import A_CANCEL, A_CHOOSE, N_CHOICE
+        for _ in range(64):
+            try:
+                if not g.needs_action(s):
+                    return False
+                mask = g.legal_mask(s)
+            except BaseException:  # noqa: BLE001 - 引擎异常不打断采集
+                return False
+            if bool(mask[0]):            # EndTurn 合法 ⇒ 待选已结算完
+                return True
+            try:
+                action = int(g.bot_action(s))
+            except BaseException:  # noqa: BLE001
+                action = -1
+            allowed = [a for a in (A_CANCEL, *range(A_CHOOSE, A_CHOOSE + N_CHOICE))
+                       if a < len(mask) and bool(mask[a])]
+            if action not in allowed:
+                if not allowed:
+                    return False
+                action = allowed[0]
+            g.step(s, action)
+        return False
+
     def _maybe_mirror(st: Dict[str, Any]) -> None:
-        """新回合开始、任何座位行动前注入该 turn 的快照（每 turn 只尝试一次）。"""
+        """新回合开始、任何座位行动前注入该 turn 的快照（**先结算待选，保证 100% 注入**）。"""
         if not mirror_on:
             return
         g = st["game"]
@@ -684,10 +718,28 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         targets = (mirror_seats_random(int(mirror_seats_count), st["mirror_rng"],
                                        N_PLAYERS, seat)
                    if mirror_seat_random else mirror_targets)
-        inject_turn(g, mirror_pool, t, seats=targets, p=mirror_p,
-                    rng=st["mirror_rng"], learner_seat=seat,
-                    stats=st["mirror_stats"],
-                    applied_out=st["mirror_applied_seats"])
+        # ① 先把每个目标席位的待选结算掉（bot 自己选），否则引擎会拒绝注入。
+        live = [s for s in targets if _resolve_pending_for(g, s)]
+        # ② 结算可能让某个席位在这期间死掉/结算完，注入前重新过滤一次。
+        try:
+            health, placements = g.health(), g.placements()
+            live = [s for s in live if health[s] > 0 and placements[s] == 0]
+        except BaseException:  # noqa: BLE001
+            pass
+        # ③ 注入；对仍被拒的席位再结算一次重试（最多 2 轮），逼近 100%。
+        for _pass in range(2):
+            if not live:
+                break
+            before = len(st["mirror_applied_seats"])
+            inject_turn(g, mirror_pool, t, seats=live, p=mirror_p,
+                        rng=st["mirror_rng"], learner_seat=seat,
+                        stats=st["mirror_stats"],
+                        applied_out=st["mirror_applied_seats"])
+            done = set(int(s) for s in st["mirror_applied_seats"])
+            live = [s for s in live if int(s) not in done]
+            if not live or len(st["mirror_applied_seats"]) == before:
+                break
+
 
     def _maybe_human_board(st: Dict[str, Any]) -> None:
         """新回合注入人类战团（默认每 turn 只试一次；被拒则同回合重试，最多 ``HUMAN_INJECT_TRIES`` 次）。
