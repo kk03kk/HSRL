@@ -83,6 +83,7 @@ from .dpo_upgrade import UpgradeSamples, dpo_pair_loss
 from .move_guard import (MoveGuard, DEFAULT_MOVE_CAP,
                          DEFAULT_MOVE_REPEAT_LIMIT, aggregate_move_guard)
 from .pending_guard import PendingGuard, without_cancel
+from .action_ban import ban_choice_options, has_pending_choice
 from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              engine_card_id_lookup, DEFAULT_TABLE as ARCH_TABLE,
                              DEFAULT_MODEL as ARCH_MODEL)
@@ -361,6 +362,9 @@ class CollectConfig:
     #: 每回合最多按几次 Freeze（0 = 不限制）。引擎允许 10 次/回合，且 Freeze 是整体
     #: 切换，买走一张后可以再冻一次，容易变成「买一张→冻一次」的空转，故设上限。
     freeze_cap: int = 0
+    #: 禁用「加重护手」（BG36_MagicItem_414）等黑名单待选卡（2026-11-17 用户定）。
+    #: 在策略取掩码之后、采样之前把那个选项置为非法；**不改模拟器**。见 action_ban.py。
+    ban_trinkets: bool = True
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -2243,7 +2247,8 @@ class PPOGreedyPolicy(Policy):
                  move_guard: bool = True, move_cap: int = 5, move_repeat_limit: int = 2,
                  pending_guard: bool = False, cancel_cap: int = 2,
                  commit_play: bool = True, forbid_cancel: bool = True,
-                 freeze_cap: int = 0, forbid_unfreeze: bool = False) -> None:
+                 freeze_cap: int = 0, forbid_unfreeze: bool = False,
+                 ban_trinkets: bool = True) -> None:
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
         if (self.max_actions_per_turn != 80 or not bool(move_guard)
@@ -2260,6 +2265,7 @@ class PPOGreedyPolicy(Policy):
         self._pending_guard=(PendingGuard(cancel_cap=cancel_cap, commit_play=commit_play)
                              if pending_guard else None)
         self.forbid_cancel = bool(forbid_cancel)
+        self.ban_trinkets = bool(ban_trinkets)
 
     def reset(self) -> None:
         self._turn_counts = {}
@@ -2281,6 +2287,16 @@ class PPOGreedyPolicy(Policy):
             if float(f[GLOBAL_FIELD_INDEX["frozen"]]) > 0.5:
                 mask = mask.copy()
                 mask[2] = False
+        # 2026-11-17：评测侧同样禁用「加重护手」（与训练侧共用 action_ban）。
+        if self.ban_trinkets and has_pending_choice(mask):
+            try:
+                _pj = json.loads(game.player_json(int(seat)))
+            except BaseException:  # noqa: BLE001
+                _pj = None
+            if _pj is not None:
+                if not mask.flags.writeable:      # 先复制再改：mask_from_bytes 可能返回只读视图
+                    mask = mask.copy()
+                ban_choice_options(_pj, mask)
         guard_forced=False
         if self._guard is not None:
             mask,guard_forced=self._guard.guarded_mask(mask,game_id=0,seat=seat,turn=turn)
@@ -3773,6 +3789,17 @@ class PPOSelfPlayPolicy(Policy):
             if int(self._freeze_counts.get(_fk, 0)) >= _fcap:
                 mask = mask.copy()
                 mask[2] = False
+        # 2026-11-17：训练侧也禁用「加重护手」。只在真有待选时才解析 player_json（廉价守卫）。
+        _ban_on = bool(getattr(self.config, "ban_trinkets", True))
+        if _ban_on and has_pending_choice(mask):
+            try:
+                _pj = json.loads(game.player_json(int(seat)))
+            except BaseException:  # noqa: BLE001 - 解析失败就不遮，绝不打断采集
+                _pj = None
+            if _pj is not None:
+                if not mask.flags.writeable:      # 先复制再改：mask_from_bytes 可能返回只读视图
+                    mask = mask.copy()
+                ban_choice_options(_pj, mask)
         return f, c, mask
 
     def _turn_is_forced(self, game: Any, seat: int, mask: Any) -> bool:

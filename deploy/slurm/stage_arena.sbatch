@@ -211,7 +211,7 @@ python workflows/train_entity_sync.py \
   --gpus "$actor_gpus" --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
   --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
-  --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-2}" \
+  --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-2}" --ban-trinkets "${HSAI_ARENA_BAN_TRINKETS:-1}" \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
   --tier-bonus "$tier_bonus" \
   --tier-target-table "$tier_table" \

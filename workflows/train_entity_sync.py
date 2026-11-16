@@ -429,6 +429,8 @@ def main() -> int:
     ap.add_argument("--freeze-cap", type=int, default=0,
                     help="每回合最多按几次 Freeze（0=不限制，引擎上限 10）。"
                          "Freeze 是整体切换，买走一张后可再冻，容易空转，建议 2")
+    ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
+                    help="1=禁用加重护手(BG36_MagicItem_414)等黑名单待选卡（默认开，不改模拟器）")
     ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
                     help="1=always remove Cancel action 7; fail if no legal action remains")
     ap.add_argument("--move-cap", type=int, default=5,
@@ -2607,6 +2609,7 @@ def main() -> int:
             forbid_cancel=bool(int(args.forbid_cancel)),
             forbid_unfreeze=bool(int(args.forbid_unfreeze)),
             freeze_cap=int(args.freeze_cap),
+        ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),

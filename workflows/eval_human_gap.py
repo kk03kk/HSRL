@@ -412,7 +412,8 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     policy = PPOGreedyPolicy(evaluator,
                              max_actions_per_turn=int(args.max_actions_per_turn),
                              freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
-                             forbid_unfreeze=bool(int(args.forbid_unfreeze)))
+                             forbid_unfreeze=bool(int(args.forbid_unfreeze)),
+                             ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)))
     pool = None
     if str(getattr(args, "human_opponents", "") or "").strip():
         from hsbg.az.train.human_board_pool import HumanBoardPool
@@ -704,6 +705,8 @@ def main(argv=None) -> int:
     ap.add_argument("--mirror-strict", type=int, default=0, choices=[0, 1],
                     help="1=活席必须使用库，禁止 bot 回退")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
+                    help="1=禁用加重护手(BG36_MagicItem_414)等黑名单待选卡（默认开）")
     ap.add_argument("--dump-rows", type=int, default=1, choices=[0, 1],
                     help="把喂给聚合的原始 rows/outcome 落盘（rows.jsonl.gz + extra.json），"
                          "供分片并行评测无损合并；0=关闭")
