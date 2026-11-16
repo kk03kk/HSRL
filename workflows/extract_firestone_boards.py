@@ -175,6 +175,12 @@ def main():
         for game in feed:
             path = root / "pms" / (game["reviewId"] + ".json")
             if not path.exists():
+                # 2026-11-16：refresh_firestone_strength 把 PMS 落盘成 <originalReviewId>.json，
+                # 而 index 里同时有 reviewId / originalReviewId；此处加 fallback（旧批次两者相同）。
+                _alt = game.get("originalReviewId")
+                if _alt:
+                    path = root / "pms" / (str(_alt) + ".json")
+            if not path.exists():
                 continue
             data = json.loads(path.read_text(encoding="utf-8"))
             observed = False
@@ -204,6 +210,12 @@ def main():
                 continue
             stats["compatible_catalog_games"] += 1
             path = root / "pms" / (game["reviewId"] + ".json")
+            if not path.exists():
+                # 2026-11-16：refresh_firestone_strength 把 PMS 落盘成 <originalReviewId>.json，
+                # 而 index 里同时有 reviewId / originalReviewId；此处加 fallback（旧批次两者相同）。
+                _alt = game.get("originalReviewId")
+                if _alt:
+                    path = root / "pms" / (str(_alt) + ".json")
             if path.exists():
                 stats["pms_files"] += 1
                 rows, failures = pms_rows(game, json.loads(path.read_text(encoding="utf-8")), cdb)
