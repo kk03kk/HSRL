@@ -1,10 +1,10 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 #SBATCH --job-name=hsai-arena
 #SBATCH --account=allusers
 #SBATCH --qos=normal
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:2
-#SBATCH --exclude=xgpi15,xgpi17
+#SBATCH --exclude=xgpi15,xgpi17,xgpi11
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=96G
 #SBATCH --propagate=NONE
@@ -232,3 +232,4 @@ for i in $(seq 1 "$segments"); do
 done
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
+

@@ -1,10 +1,10 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 #SBATCH --job-name=hsai-gap-shard
 #SBATCH --account=allusers
 #SBATCH --qos=normal
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:1
-#SBATCH --exclude=xgpi15,xgpi17
+#SBATCH --exclude=xgpi15,xgpi17,xgpi11
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=96G
 #SBATCH --propagate=NONE
@@ -87,3 +87,4 @@ if [ "${#shards[@]}" -gt 0 ]; then
   python tools/merge_panels.py "${shards[@]}" --out "$out/panel.json" | tee -a "$out/run.env"
 fi
 echo "done=$(date -Is) total_elapsed=$(( $(date +%s) - t0 ))s" | tee -a "$out/run.env"
+

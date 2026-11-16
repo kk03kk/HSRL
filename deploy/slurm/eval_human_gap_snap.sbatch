@@ -1,10 +1,10 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 #SBATCH --job-name=hsai-gap-snap
 #SBATCH --account=allusers
 #SBATCH --qos=normal
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:h100-47:1
-#SBATCH --exclude=xgpi15,xgpi17
+#SBATCH --exclude=xgpi15,xgpi17,xgpi11
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=48G
 #SBATCH --propagate=NONE
@@ -70,3 +70,4 @@ PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   --out "$out/panel.json" 2>&1 | tee "$out/panel.log"
 
 echo "done=$(date -Is)" | tee -a "$out/run.env"
+
