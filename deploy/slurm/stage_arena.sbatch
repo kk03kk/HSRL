@@ -13,10 +13,11 @@
 #SBATCH --error=artifacts/runs/slurm/%x-%j.err
 #
 # Formal training on the CALIBRATED snapshot field.
-# 超参基线 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6）：lr 6e-06→5e-06、
-# 有效 minibatch 8192（minibatch 1024 x grad-accum 8）、clip 0.2、target-KL 0.05、
-# lambda 0.995、entropy 0.002、grad-clip 1.0、KL anchor beta=0.1 仅前 100 轮、sims 0；
-# **v8 起按用户要求加大探索**：target-KL 0.10、entropy 0.008、anchor 0.02 全程、lr 1.2e-05。
+# 超参 = AutoTavern 论文 Table 7（arXiv:2610.33845 §6），**2026-11-16 起全部回到论文原值**：
+# lr 6e-06→5e-06、有效 minibatch 8192（minibatch 1024 x grad-accum 8）、clip 0.2、target-KL 0.05、
+# lambda 0.995、entropy 0.002、grad-clip 1.0、KL anchor beta=0.1 仅前 100 轮、sims 0。
+# （v8 加探索试过 target-KL 0.10/0.15 + entropy 0.008 + anchor 0.02 全程 + lr 1.2e-05，
+#   三轮实测证伪：ent 一路升到 1.49 但棋力无进步，见 D-065 ⇒ 已全部回退。）
 # max-updates 300 = 论文一个 stage 的**轮数**。注意 --max-updates 的单位是「训练轮」
 # （PPOTrainer.update() 每轮调用一次才 scheduler.step()），不是优化步数 —— 2026-11-14
 # 曾按 15.5 步/轮错算成 4650，导致 302 轮只退火 6.5%、lr 全程 5.94e-06（见 TRAINING_RECIPE §8 K4）。
@@ -58,12 +59,12 @@ resume="${HSAI_ARENA_RESUME:-0}"
 ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v7-econ-20261115/model.pt}"
 snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v8-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
-lr="${HSAI_ARENA_LR:-1.2e-05}"
+lr="${HSAI_ARENA_LR:-6e-06}"
 games="${HSAI_ARENA_GAMES:-512}"
 procs="${HSAI_ARENA_PROCS:-8}"
 epochs="${HSAI_ARENA_EPOCHS:-1}"
-anchor_beta="${HSAI_ARENA_ANCHOR:-0.02}"
-anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-0}"
+anchor_beta="${HSAI_ARENA_ANCHOR:-0.1}"
+anchor_iters="${HSAI_ARENA_ANCHOR_ITERS:-100}"
 anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 # 升本节奏奖励（唯一新增奖励）。
 # v4 调整（2026-11-14 第二轮，用户要求"在不妨碍名次奖励的前提下尽量加"）：
@@ -187,8 +188,8 @@ python workflows/train_entity_sync.py \
   --entry-p 0 \
   --games "$games" --iterations 0 --minutes "$minutes" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
-  --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.15}" --gamma 1.0 --lam 0.995 \
-  --entropy-coef "${HSAI_ARENA_ENTROPY:-0.008}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
+  --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.05}" --gamma 1.0 --lam 0.995 \
+  --entropy-coef "${HSAI_ARENA_ENTROPY:-0.002}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
   --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
