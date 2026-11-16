@@ -1,154 +1,155 @@
 #!/usr/bin/env python3
-"""把 N 份「分片评测」的 panel.json 合并成一份完整 panel。
+"""把 N 份「分片评测」的结果合并成一份与串行完全等价的面板。
 
-为什么需要：``workflows/eval_human_gap.py`` 是**串行**的（一个进程、一局一局跑），
-512 局要 ~11 分钟。要提速最省事的办法是**按种子分片并行**：每个分片跑
-``--games K --seed (base + i*K)``，各自写一份 panel，再合并。
-
-要求：``eval_human_gap`` 已经把**逐局逐回合**的明细都写进面板
-（``trace`` / ``strength_by_seed`` / ``boards_by_turn`` / ``final_boards`` /
-``rank_sequence``），所以合并可以做到**无损**：拼接逐局部分，从 ``trace``
-重算所有聚合曲线（``curves``），其余聚合块按样本量加权或直接拼接。
+设计原则：**不重写任何聚合逻辑**。每个分片用 ``workflows/eval_human_gap.py`` 的
+``--dump-rows 1`` 落盘了 ``rows.jsonl.gz``（喂给聚合的原始 rows）和 ``extra.json``
+（outcome / rank_sequence / combat_exposure）。合并时把这些原始输入拼起来，再调用
+**同一个文件里的同一批函数**重算 —— 等价性由构造保证，不靠人工对齐口径。
 
 用法：
-    python tools/merge_panels.py --out merged.json shard0/panel.json shard1/panel.json ...
-
-注意：分片必须**用同一个 base seed、互不重叠的连续种子块**，否则不同模型之间
-就不是同一批种子了（配对 bootstrap 会失效）。
+    python tools/merge_panels.py --out <dir>/panel.json <shard0_dir> <shard1_dir> ...
+（每个参数是包含 rows.jsonl.gz 的分片目录；也接受直接给 panel.json，此时只做逐局部分拼接）
 """
+from __future__ import annotations
+
 import argparse
 import collections
+import gzip
 import json
+import sys
 from pathlib import Path
+from typing import Any, Dict, List
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from workflows.eval_human_gap import (  # noqa: E402
+    _counts_all, _counts_by_turn, _gold_by_turn, _opponents_by_turn, _strength_by_seed,
+    _trace, action_mix_by_turn, boards_by_turn, combat_by_turn, compare,
+    economy_curves, final_boards, mechanics_by_turn, retained_gain_by_turn, survival,
+)
 
 
-def _pct(v, q):
-    if not v:
-        return None
-    v = sorted(v)
-    return v[min(len(v) - 1, int(round(q * (len(v) - 1))))]
-
-
-def _r(x, nd=1):
-    return None if x is None else round(float(x), nd)
-
-
-def merge_curves(traces):
-    """从合并后的 trace 重算逐回合曲线（口径与 eval_human_gap.economy_curves 一致）。"""
-    by_turn = collections.defaultdict(lambda: collections.defaultdict(list))
-    tier_hist = collections.defaultdict(collections.Counter)
-    for r in traces:
-        try:
-            t = int(r["turn"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        b = by_turn[t]
-        if isinstance(r.get("tier"), int):
-            b["tier"].append(float(r["tier"]))
-            tier_hist[t][int(r["tier"])] += 1
-        if isinstance(r.get("gold"), int):
-            b["gold"].append(float(r["gold"]))
-        if isinstance(r.get("hand_n"), int):
-            b["hand"].append(float(r["hand_n"]))
-        if isinstance(r.get("actions"), int):
-            b["actions"].append(float(r["actions"]))
-        s = r.get("strength")
-        if isinstance(s, (int, float)):
-            b["strength"].append(float(s))
-        ro = r.get("roster") or r.get("board_stats") or []
-        if isinstance(ro, list):
-            b["board_n"].append(float(len(ro)))
-        elif isinstance(ro, dict):
-            b["board_n"].append(float(len(ro)))
-
-    out = {}
-    for t, b in by_turn.items():
-        if len(b["tier"]) < 10:
-            continue
-        hist = tier_hist[t]
-        n = len(b["tier"])
-        st = sorted(b["strength"], reverse=True)
-        out[str(t)] = {
-            "n": n,
-            "tier_mean": _r(sum(b["tier"]) / n, 2),
-            "tier_mode": hist.most_common(1)[0][0],
-            "tier6_share": _r(sum(1 for x in b["tier"] if x >= 6) / n, 3),
-            "tier5plus_share": _r(sum(1 for x in b["tier"] if x >= 5) / n, 3),
-            "tier_hist": dict(sorted(hist.items())),
-            "gold_p50": _r(_pct(b["gold"], 0.5)),
-            "hand_p50": _r(_pct(b["hand"], 0.5)),
-            "strength_p50": _r(_pct(st, 0.5)),
-            "strength_p90": _r(_pct(st, 0.90)),
-            "strength_p99": _r(_pct(st, 0.99)),
-            "strength_max": _r(st[0]) if st else None,
-            "strength_min": _r(st[-1]) if st else None,
-            "strength_mean": _r(sum(st) / len(st)) if st else None,
-            "strength_all": [_r(x) for x in st],
-            "strength_top10": [_r(x) for x in st[:10]],
-            "board_n_p50": _r(_pct(b["board_n"], 0.5)),
-            "actions_mean": _r(sum(b["actions"]) / len(b["actions"])) if b["actions"] else None,
-        }
+def load_rows(shard: Path) -> List[Dict[str, Any]]:
+    p = shard / "rows.jsonl.gz"
+    if not p.is_file():
+        return []
+    out = []
+    with gzip.open(p, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
     return out
 
 
-def merge(list_of_models, out_path):
-    models = []
-    for p in list_of_models:
-        d = json.loads(Path(p).read_text(encoding="utf-8"))
-        for m in d.get("models") or []:
-            m["_src"] = str(p)
-            models.append(m)
-    by_name = collections.OrderedDict()
-    for m in models:
-        by_name.setdefault(m.get("name") or "model", []).append(m)
+def load_extra(shard: Path) -> Dict[str, Any]:
+    p = shard / "extra.json"
+    if not p.is_file():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
 
-    merged_models = []
-    for name, ms in by_name.items():
-        trace = []
-        sbs = {}
-        bbt = {}
-        fb = []
-        ranks = []
-        for m in ms:
-            trace.extend(m.get("trace") or [])
-            for k, v in (m.get("strength_by_seed") or {}).items():
-                sbs[str(k)] = v
-            for k, v in (m.get("boards_by_turn") or {}).items():
-                bbt[str(k)] = v
-            fb.extend(m.get("final_boards") or [])
-            r = m.get("rank_sequence")
-            if isinstance(r, list):
-                ranks.extend(r)
-        out = dict(ms[0])
-        out.pop("_src", None)
-        out["trace"] = trace
-        out["strength_by_seed"] = sbs
-        out["boards_by_turn"] = bbt
-        out["final_boards"] = fb
-        if ranks:
-            out["rank_sequence"] = ranks
-        out["curves"] = merge_curves(trace)
-        out["shards"] = [m.get("_src") for m in ms]
-        out["games"] = len(sbs) or out.get("games")
-        merged_models.append(out)
 
-    doc = {"models": merged_models, "merged_from": [str(p) for p in list_of_models]}
-    Path(out_path).write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    for m in merged_models:
-        cv = m["curves"]
-        print("merged %-14s games=%-5s turns=%s  T12=%s  T16=%s"
-              % (m.get("name"), m.get("games"), sorted(cv, key=lambda x: int(x))[-1:],
-                 (cv.get("12") or {}).get("strength_p50"), (cv.get("16") or {}).get("strength_p50")))
+def merge_outcome(extras: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """按逐局名次重算名次类指标（与 evaluate.py 同口径）；其余计数直接累加。"""
+    ranks: List[int] = []
+    for e in extras:
+        for r in e.get("rank_sequence") or []:
+            try:
+                ranks.append(int(r))
+            except (TypeError, ValueError):
+                pass
+    games = sum(int(e.get("games") or 0) for e in extras)
+    decisions = sum(int((e.get("outcome") or {}).get("decisions") or 0) for e in extras)
+    out = {
+        "games": games,
+        "illegal_actions": sum(int((e.get("outcome") or {}).get("illegal_actions") or 0) for e in extras),
+        "truncated_games": sum(int((e.get("outcome") or {}).get("truncated_games") or 0) for e in extras),
+        "decisions": decisions,
+        "decisions_per_game": round(decisions / games, 1) if games else None,
+    }
+    ok = [r for r in ranks if 1 <= r <= 8]
+    if ok:
+        out["mean_rank"] = round(sum(ok) / len(ok), 4)
+        out["top4_rate"] = round(sum(1 for r in ok if r <= 4) / len(ok), 4)
+        out["win_rate"] = round(sum(1 for r in ok if r == 1) / len(ok), 4)
+    return out
+
+
+def merge(shard_dirs: List[Path], out_path: Path) -> Dict[str, Any]:
+    rows: List[Dict[str, Any]] = []
+    extras: List[Dict[str, Any]] = []
+    exposure: List[Dict[str, Any]] = []
+    hist: collections.Counter = collections.Counter()
+    ranks: List[int] = []
+    names = set()
+    for d in shard_dirs:
+        rows.extend(load_rows(d))
+        e = load_extra(d)
+        if e:
+            extras.append(e)
+            names.add(str(e.get("name")))
+            exposure.extend(e.get("combat_exposure") or [])
+            for k, v in (e.get("action_hist") or {}).items():
+                hist[str(k)] += int(v)
+            for r in e.get("rank_sequence") or []:
+                try:
+                    ranks.append(int(r))
+                except (TypeError, ValueError):
+                    pass
+    if not rows:
+        raise SystemExit("no rows.jsonl.gz found in any shard dir")
+
+    name = next(iter(names)) if len(names) == 1 else "+".join(sorted(names))
+    entry: Dict[str, Any] = {
+        "name": name,
+        "games": len(_strength_by_seed(rows)) or None,
+        "shards": [str(d) for d in shard_dirs],
+        "outcome": merge_outcome(extras),
+        "rank_sequence": ranks or None,
+        "action_hist": dict(hist.most_common()) or None,
+        "survival": survival(rows),
+        "curves": economy_curves(rows),
+        "action_mix_by_turn": action_mix_by_turn(rows),
+        "combat_by_turn": combat_by_turn(exposure),
+        "mechanics_by_turn": mechanics_by_turn(rows),
+        "retained_gain_by_turn": retained_gain_by_turn(rows),
+        "final_boards": final_boards(rows),
+        "boards_by_turn": boards_by_turn(rows),
+        "strength_by_seed": _strength_by_seed(rows),
+        "trace": _trace(rows),
+        "trinkets_by_turn": _counts_by_turn(rows, "trinkets"),
+        "opponents_by_turn": _opponents_by_turn(exposure),
+        "gold_by_turn": _gold_by_turn(rows),
+        "heroes": _counts_all(rows, "hero"),
+        "rows": len(rows),
+    }
+    doc = {"models": [entry], "merged_from": [str(d) for d in shard_dirs],
+           "merge": {"schema": "hsai.panel.merge/v1", "shards": len(shard_dirs)}}
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    cv = entry["curves"]
+    print("merged %-16s games=%-5s rows=%-6d  T12=%-7s T16=%-7s rank=%s"
+          % (name, entry["games"], len(rows),
+             (cv.get("12") or {}).get("strength_p50"),
+             (cv.get("16") or {}).get("strength_p50"),
+             (entry["outcome"] or {}).get("mean_rank")))
     print("wrote", out_path)
+    return doc
 
 
-def main():
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("shards", nargs="+")
+    ap.add_argument("shards", nargs="+", help="分片目录（含 rows.jsonl.gz）或 panel.json")
     ap.add_argument("--out", required=True)
-    a = ap.parse_args()
-    merge(a.shards, a.out)
+    a = ap.parse_args(argv)
+    dirs = []
+    for s in a.shards:
+        p = Path(s)
+        dirs.append(p.parent if p.is_file() else p)
+    merge(dirs, Path(a.out))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -47,6 +47,7 @@ mkdir -p "$out"
 {
   echo "start=$(date -Is)"
   echo "games=$games"
+  echo "base_seed=${HSAI_GAP_SEED:-930000}"
   echo "mirror_snaps=$snaps"
   echo "mirror_sample=${HSAI_GAP_MIRROR_SAMPLE:-p50band}"
   echo "mirror_strict=${HSAI_GAP_MIRROR_STRICT:-0}"
@@ -57,6 +58,7 @@ mkdir -p "$out"
 PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   "${specs[@]}" \
   --games "$games" \
+  --seed "${HSAI_GAP_SEED:-930000}" \
   --device cuda:0 \
   --forbid-unfreeze 1 \
   --freeze-cap "${HSAI_GAP_FREEZE_CAP:-2}" \

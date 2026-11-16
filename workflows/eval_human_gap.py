@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import gzip
 import hashlib
 import json
 import sys
@@ -452,6 +453,29 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     # (the seats[] shape belongs to the saved multi-seat report format).
     rows = result.get("end_turn_economy") or []
     hist = result.get("action_hist")
+    # 2026-11-16：分片并行评测需要「无损合并」。做法是**不重写聚合逻辑**，而是把
+    # 喂给它们的原始 rows（以及 outcome/exposure）原样落盘；合并时把各分片的 rows
+    # 拼起来，再调用本文件**同一批函数**重算 —— 等价性由构造保证，不靠人工对齐口径。
+    if bool(getattr(args, "dump_rows", 1)):
+        _d = Path(args.out).parent
+        try:
+            with gzip.open(_d / "rows.jsonl.gz", "wt", encoding="utf-8") as _gz:
+                for _r in rows:
+                    _gz.write(json.dumps(_r, ensure_ascii=False) + "\n")
+            (_d / "extra.json").write_text(json.dumps({
+                "name": name,
+                "outcome": {k: result.get(k) for k in
+                            ("mean_rank", "top4_rate", "win_rate", "illegal_actions",
+                             "truncated_games", "decisions", "decisions_per_game")},
+                "rank_sequence": result.get("rank_sequence"),
+                "action_hist": hist,
+                "combat_exposure": result.get("combat_exposure") or [],
+                "seconds": round(time.time() - started, 1),
+                "games": int(args.games),
+                "seed": int(args.seed),
+            }, ensure_ascii=False), encoding="utf-8")
+        except OSError as exc:      # 落盘失败不能影响评测本身
+            print(f"warn: dump rows failed: {exc!r}", flush=True)
     return {
         "name": name,
         "checkpoint": str(path),
@@ -680,6 +704,9 @@ def main(argv=None) -> int:
     ap.add_argument("--mirror-strict", type=int, default=0, choices=[0, 1],
                     help="1=活席必须使用库，禁止 bot 回退")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--dump-rows", type=int, default=1, choices=[0, 1],
+                    help="把喂给聚合的原始 rows/outcome 落盘（rows.jsonl.gz + extra.json），"
+                         "供分片并行评测无损合并；0=关闭")
     args = ap.parse_args(argv)
 
     specs = []

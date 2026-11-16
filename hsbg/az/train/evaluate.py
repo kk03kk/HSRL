@@ -302,8 +302,12 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                     dec = policy.decide(game, seat)
                     action = int(dec.action)
                     forced_tier_here = 0
+                    # 2026-11-16 性能：以前强制升本和经济采集**各自** json.loads 一次
+                    # player_json，等于每决策解析两遍完整状态（评测的热点）。
+                    # 两处都在 game.step 之前读，所以一次解析就够，语义完全等价。
+                    _need_pj = (ft_tracker is not None) or bool(config.collect_economy)
+                    _pj = json.loads(game.player_json(seat)) if _need_pj else None
                     if ft_tracker is not None:
-                        _pj = json.loads(game.player_json(seat))
                         _fd = ft_tracker.decide(
                             game_id=gi, seat=seat, turn=int(game.turn),
                             tier=int(_pj.get("tier") or 1),
@@ -330,7 +334,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                             repeated_actions = 0
                             upgrade_legal_steps = 0
                             gold_events = []
-                        _pj = json.loads(game.player_json(seat))
+                        _pj = _pj if _pj is not None else json.loads(game.player_json(seat))
                         gold_before = int(_pj['gold'])
                         turn_actions += 1
                         action_counts[group_of(action)] += 1
