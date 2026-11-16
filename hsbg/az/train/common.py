@@ -47,10 +47,38 @@ ACTION_SEGMENTS: Dict[str, tuple[int, int]] = {
 }
 
 #: 名次效用 u(r)=1-2*(r-1)/(N-1)，u(1)=+1 … u(8)=-1（设计 §2.5）。
-RANK_UTILITY = np.array(
+#: 2026-11-16 用户要求「提高吃鸡奖励」：新增**冠军奖金** b，u(1) 变成 1+b，
+#: 其余名次**完全不动**（保住已经学到的"稳前四"结构）。
+#: 关键：只用同一个数组同时喂 ①终局奖励 ②V(s)=Σp·u —— 两边必须一致，
+#: 所以这里用**原地改写**（in-place）而不是换对象：model/ppo/train_loop 都是
+#: ``from .common import RANK_UTILITY`` 持有同一个 ndarray 引用，改元素即可全局生效。
+_BASE_RANK_UTILITY = np.array(
     [1.0 - 2.0 * (r - 1) / (N_PLAYERS - 1) for r in range(1, N_RANKS + 1)],
     dtype=np.float32,
 )
+RANK_UTILITY = _BASE_RANK_UTILITY.copy()
+
+#: 当前生效的冠军奖金（0 = 论文原值；写进 run.env/checkpoint 便于复现）。
+WIN_BONUS = 0.0
+
+
+def set_win_bonus(bonus: float) -> float:
+    """设置冠军奖金 b：u(1) ← 1+b，其余名次不变。返回实际生效值。
+
+    b=0 时与论文原值**逐位相同**（回归安全）。传负数会被夹到 0。
+    """
+    global WIN_BONUS
+    b = max(0.0, float(bonus or 0.0))
+    RANK_UTILITY[:] = _BASE_RANK_UTILITY
+    if b:
+        RANK_UTILITY[0] = 1.0 + b
+    WIN_BONUS = b
+    return b
+
+
+def rank_utility_table() -> "np.ndarray":
+    """当前生效的名次效用表（只读副本，便于写日志/核对）。"""
+    return RANK_UTILITY.copy()
 
 
 def segment_indices(name: str) -> np.ndarray:

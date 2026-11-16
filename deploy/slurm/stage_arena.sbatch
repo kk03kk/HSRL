@@ -104,6 +104,10 @@ tier_table="${HSAI_ARENA_TIER_TABLE:-}"
 tier_gate_k="${HSAI_ARENA_TIER_GATE_K:-0.0}"
 tier_gate_ref="${HSAI_ARENA_TIER_GATE_REF:-}"
 tier_penalty="${HSAI_ARENA_TIER_PENALTY:-0.15}"
+# 冠军奖金（2026-11-16 用户要求「提高吃鸡奖励」，激进但不过火）。
+# u(1) 由 1.0 → 1.0+b，其余名次**完全不变** ⇒ 冠军/亚军 = 1.40× → 2.38×。
+# 同一张效用表同时用于终局奖励与 V(s)=Σp·u，两边恒等。0 = 论文原值。
+win_bonus="${HSAI_ARENA_WIN_BONUS:-0.7}"
 
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
 # --- GPU 落位：MIG UUID 重定向（2026-11-15 用户授权）---------------------------
@@ -159,7 +163,7 @@ mkdir -p "$out"
   echo "gpu=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -1)"
   echo "gpu_placement=slurm_job_gpus=${SLURM_JOB_GPUS:-} cvd_orig=${cvd_orig} mig_rewrite=${mig_used:-none} visible=${nvis} actor_gpus=${actor_gpus}"
   echo "git=$(git rev-parse HEAD)"
-  echo "resume=$resume ckpt=$ckpt seed=$seed lr=$lr"
+  echo "resume=$resume ckpt=$ckpt seed=$seed lr=$lr win_bonus=$win_bonus"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
   echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=1"
@@ -190,6 +194,7 @@ python workflows/train_entity_sync.py \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.05}" --gamma 1.0 --lam 0.995 \
   --entropy-coef "${HSAI_ARENA_ENTROPY:-0.002}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
+  --win-bonus "$win_bonus" \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
   --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
   --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
