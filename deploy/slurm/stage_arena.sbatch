@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 #SBATCH --job-name=hsai-arena
 #SBATCH --account=allusers
 #SBATCH --qos=normal
