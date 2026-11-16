@@ -684,6 +684,10 @@ def main() -> int:
                     help="冠军奖金 b：名次效用 u(1) 由 1.0 变成 1+b，其余名次不变。"
                          "同一张表同时用于终局奖励与 V(s)=Σp·u，两边恒等一致。"
                          "0=论文原值（默认）。v13 起用 0.7（冠军/亚军 2.38×）")
+    ap.add_argument("--rank-utility-table", default="",
+                    help="直接指定整张名次效用表（8 个逗号分隔的浮点数，如 "
+                         "'1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75'）。"
+                         "给了它就以整表为准，--win-bonus 被覆盖。空=不用（默认）")
     ap.add_argument("--terminal-strength-coef", type=float, default=0.0,
                     help="终局强度奖励系数（默认 0=关闭）：末步额外加 coef·L(Σ_末决策)；"
                          "0.7 = 0.7·强度 + 0.3·名次")
@@ -1023,14 +1027,21 @@ def main() -> int:
     args = ap.parse_args()
     # 2026-11-16：冠军奖金必须在**任何**策略/训练器构造之前生效——它是原地改写
     # common.RANK_UTILITY，所有 `from .common import RANK_UTILITY` 的模块共享同一数组。
-    from hsbg.az.train.common import rank_utility_table, set_win_bonus
+    from hsbg.az.train.common import rank_utility_table, set_rank_utility_table, set_win_bonus
     _wb = set_win_bonus(float(getattr(args, "win_bonus", 0.0) or 0.0))
     # 关键：采集子进程是 spawn 出来的，会把 common 重新 import 一遍。这里把奖金写进
     # 环境变量，common 在 import 时会按它再应用一次，保证**子进程算奖励时也带奖金**。
     os.environ["HSAI_WIN_BONUS"] = str(_wb)
-    if _wb:
-        print(f"[reward] win_bonus={_wb}  rank_utility={[round(float(x),3) for x in rank_utility_table()]}",
-              flush=True)
+    # 整表优先（2026-11-17）：只奖励前二。同样要传进 spawn 子进程。
+    _tbl_raw = str(getattr(args, "rank_utility_table", "") or "").strip()
+    if _tbl_raw:
+        vals = [float(x) for x in _tbl_raw.replace(" ", "").split(",") if x]
+        set_rank_utility_table(vals)
+        os.environ["HSAI_RANK_UTILITY"] = ",".join("%g" % v for v in vals)
+        if _wb:
+            print("[warn] 同时给了 --win-bonus 与 --rank-utility-table：以整表为准", flush=True)
+    print(f"[reward] win_bonus={_wb} rank_utility={[round(float(x),3) for x in rank_utility_table()]}",
+          flush=True)
     if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
             or int(args.move_cap) != 5 or int(args.move_repeat_limit) != 2
             or int(args.forbid_cancel) != 1 or int(args.sims) != 0):

@@ -82,6 +82,22 @@ def rank_utility_table() -> "np.ndarray":
     return RANK_UTILITY.copy()
 
 
+def set_rank_utility_table(values) -> "np.ndarray":
+    """**直接指定**整张名次效用表（2026-11-17 用户定：只奖励前二）。
+
+    例：``[1.00, 0.35, -1.00, -1.15, -1.30, -1.45, -1.60, -1.75]``
+    ⇒ 2 名→3 名断崖 1.35（原设计 0.286 的 4.7 倍），3–8 名之间只留 0.15 的梯度。
+
+    与 ``set_win_bonus`` 的关系：两者都写同一个 ``RANK_UTILITY``；本函数**后写生效**，
+    因此 ``--rank-utility-table`` 与 ``--win-bonus`` 同时给时以整表为准（训练侧会告警）。
+    """
+    vals = [float(v) for v in values]
+    if len(vals) != int(N_RANKS):
+        raise ValueError(f"rank utility 需要 {int(N_RANKS)} 个数，得到 {len(vals)} 个")
+    RANK_UTILITY[:] = np.asarray(vals, dtype=np.float32)
+    return rank_utility_table()
+
+
 # ── 2026-11-16：把冠军奖金传进 spawn 子进程 ────────────────────────────────
 # 奖励是在**采集子进程**里算的（``process_pool`` 用 ``mp.get_context("spawn")``，
 # 子进程会重新 import 本模块 ⇒ 父进程的原地改写传不过去，奖金会**静默失效**）。
@@ -92,6 +108,13 @@ def _apply_env_win_bonus() -> None:
     if raw:
         try:
             set_win_bonus(float(raw))
+        except (TypeError, ValueError):
+            pass
+    # 整表优先：环境里有 HSAI_RANK_UTILITY 就覆盖掉上面的 win_bonus 结果。
+    raw_tbl = os.environ.get("HSAI_RANK_UTILITY")
+    if raw_tbl:
+        try:
+            set_rank_utility_table([float(x) for x in raw_tbl.split(",") if x.strip()])
         except (TypeError, ValueError):
             pass
 
