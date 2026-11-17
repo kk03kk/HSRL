@@ -94,6 +94,22 @@ def _as_int(value: Any, default: int) -> int:
         return int(default)
 
 
+def _race_names(spec: Any) -> Tuple[str, ...]:
+    """解析 ``--lobby-exclude``（``"MECH,DRAGON"`` / list）成规范种族名。
+
+    与 ``lobby_filter.parse_race_list`` 同一口径；这里**惰性 import**，避免把
+    ``lobby_filter``（依赖 numpy 的位解码）拖进本模块的 import 期。
+    """
+    if not spec:
+        return ()
+    try:
+        from .lobby_filter import parse_race_list  # noqa: PLC0415
+        return tuple(parse_race_list(spec))
+    except Exception:  # noqa: BLE001 - 解析失败就按"没写"处理（后续 assert 会再查）
+        return tuple(str(x) for x in (spec if isinstance(spec, (list, tuple))
+                                      else str(spec).split(",")) if str(x).strip())
+
+
 @dataclass(frozen=True)
 class EvalProtocol:
     """一次评测的**可比性协议**：契约 + 对手场 + 引擎口径。
@@ -134,6 +150,10 @@ class EvalProtocol:
     human_board_sample: str = "auto"
     forced_tier_plan: str = ""
     forced_tier_prob: float = 0.0
+    #: **lobby 种族排除**（D-071；空 = 不过滤）。它改变了"环境里有哪些部族"，
+    #: 属于**必须进指纹**的量：禁龙/机械与不禁是两张不同的榜。
+    #: 2026-11-17 验证时发现它原先不在 protocol 里 ⇒ 两次评测会撞同一个 sha。
+    lobby_exclude: Tuple[str, ...] = ()
 
     # ── 3. 引擎口径（空 dict = 未提供）───────────────────────────
     engine: Mapping[str, Any] = field(default_factory=dict)
@@ -160,6 +180,7 @@ class EvalProtocol:
                 "human_board_sample": str(self.human_board_sample or ""),
                 "forced_tier_plan": str(self.forced_tier_plan or ""),
                 "forced_tier_prob": float(self.forced_tier_prob),
+                "lobby_exclude": [str(x) for x in (self.lobby_exclude or ())],
             },
             "engine": {str(k): self.engine[k] for k in sorted(self.engine or {})},
         }
@@ -239,6 +260,7 @@ def protocol_from_args(args: Any, *, engine: Optional[Mapping[str, Any]] = None,
         human_board_sample=str(get("human_opponent_sample", "auto") or "auto"),
         forced_tier_plan=str(get("forced_tier_plan", "") or ""),
         forced_tier_prob=float(get("forced_tier_prob", 0.0) or 0.0),
+        lobby_exclude=tuple(_race_names(get("lobby_exclude", ""))),
         engine=dict(engine or {}),
     )
 

@@ -548,6 +548,13 @@ def run_checkpoint(name: str, path: Path, args,
         "games": int(args.games),
         "seed": int(args.seed),
         "protocol_sha256": protocol.sha256(),
+        # 2026-11-17（验证发现）：分片的 extra 以前不含**模型身份**，于是合并后的
+        # 判胜面板丢了 checkpoint / sha256 / arch —— 无法自证"评的是哪个权重"。
+        "checkpoint": str(path),
+        "checkpoint_sha256": sha256_file(path),
+        "arch": meta.get("arch"),
+        "seed_start": int(args.seed),
+        "seed_end": int(args.seed) + int(args.games) - 1,
         # 注入是否真的生效（审计 P1-3：以前算完就丢，面板无法自证对手是真人战团）。
         "field_stats": _field_stats(result, mirror_pool),
     }

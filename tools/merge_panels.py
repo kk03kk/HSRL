@@ -208,7 +208,8 @@ def _protocol(extras: List[Dict[str, Any]], shard: Path,
     return {"protocol_sha256": sha}
 
 
-def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]],
+                 ident: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     parts = list(shard_map.values())
     rows = [r for part in parts for r in part["rows"]]
     extras = [part["extra"] for part in parts]
@@ -224,7 +225,7 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, A
                 ranks.append(int(r))
             except (TypeError, ValueError):
                 pass
-    return {
+    entry = {
         "name": name,
         "games": len(_strength_by_seed(rows)) or None,
         "shards": [str(p["extra"].get("shard") or "") for p in parts],
@@ -249,6 +250,30 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, A
         "heroes": _counts_all(rows, "hero"),
         "rows": len(rows),
     }
+    # 2026-11-17（验证发现）：**模型身份必须跟着走**。以前这里只拼统计量，
+    # `checkpoint` / `checkpoint_sha256` / `arch` / `seed_start` / `seed_end` 全丢 ——
+    # 合并出来的判胜面板无法自证"评的是哪个权重"。这些字段各分片相同，取第一个即可。
+    first = extras[0] if extras else {}
+    ident = ident or {}
+    for key in ("checkpoint", "checkpoint_sha256", "arch",
+                "seed_start", "seed_end"):
+        val = first.get(key, ident.get(key))
+        if val is not None:
+            entry[key] = val
+    entry["seconds"] = sum(float(e.get("seconds") or 0.0) for e in extras) or None
+    return entry
+
+
+def _shard_panel_identity(name: str,
+                          shard_dirs: List[Path]) -> Dict[str, Any]:
+    """从分片 ``panel.json`` 里取该模型的**身份字段**（旧分片的 extra 没这些键）。"""
+    keys = ("checkpoint", "checkpoint_sha256", "arch", "seed_start", "seed_end")
+    for d in shard_dirs:
+        doc = _read_json(Path(d) / "panel.json")
+        for mdl in doc.get("models") or []:
+            if str(mdl.get("name")) == str(name):
+                return {k: mdl[k] for k in keys if k in mdl}
+    return {}
 
 
 def _shard_panel_protocol(shard_dirs: List[Path]) -> Optional[Dict[str, Any]]:
@@ -284,7 +309,8 @@ def merge(shard_dirs: List[Path], out_path: Path, *,
         protocol = _protocol([v["extra"] for v in shard_map.values()],
                              shard_dirs[0],
                              _shard_panel_protocol(shard_dirs))
-        merged_models.append(_model_entry(name, shard_map))
+        merged_models.append(_model_entry(
+            name, shard_map, ident=_shard_panel_identity(name, shard_dirs)))
 
     total_games = int((merged_models[0].get("outcome") or {}).get("games") or 0)
     doc = {

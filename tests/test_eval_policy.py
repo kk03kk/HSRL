@@ -174,6 +174,28 @@ def test_sha_changes_with_every_scoring_relevant_field(kwargs):
     assert EP.EvalProtocol(**kwargs).sha256() != base
 
 
+def test_lobby_exclude_is_part_of_the_protocol():
+    """D-071 验证发现的缺陷：``lobby_exclude`` 原先不在 protocol 里 ⇒ 禁/不禁同 sha。
+
+    两个环境不同的评测绝不能共享 ``protocol_sha256``，否则会被当同榜混比。
+    """
+    off = EP.EvalProtocol()
+    on = EP.EvalProtocol(lobby_exclude=("MECHANICAL", "DRAGON"))
+    assert off.sha256() != on.sha256()
+    assert off.as_dict()["field"]["lobby_exclude"] == []
+    assert on.as_dict()["field"]["lobby_exclude"] == ["MECHANICAL", "DRAGON"]
+    # 只有空元组与"未设置"等价（回归：默认值必须保持旧 sha 的语义）
+    assert EP.EvalProtocol(lobby_exclude=()).sha256() == off.sha256()
+
+
+def test_protocol_from_args_reads_lobby_exclude():
+    a = EP.protocol_from_args(SimpleNamespace(lobby_exclude="MECH,DRAGON"))
+    assert a.lobby_exclude == ("MECHANICAL", "DRAGON")
+    b = EP.protocol_from_args(SimpleNamespace(lobby_exclude=""))
+    assert b.lobby_exclude == ()
+    assert a.sha256() != b.sha256()
+
+
 def test_sha_ignores_per_shard_run_params():
     """分片参数（局数/seed 区间/分片号）**不能**进指纹，否则 8 个分片互不相等。"""
     proto = EP.EvalProtocol(mirror_snaps="lib/x")
