@@ -114,6 +114,10 @@ class EvalConfig:
     #: **lobby 种族排除**（与训练同口径；空 = 不过滤）。非空时建局会跳过含被禁种族的
     #: 种子，`seed_sequence` 记录的是**实际使用**的种子（不再等于 base+gi）。
     lobby_exclude: tuple = ()
+    # Research-only suffix rollout. Not exposed by the formal evaluation CLI.
+    # Existing opponents in this actionable recruit state have already been
+    # prepared; preserve them until the next turn. Caller must record provenance.
+    research_initial_state: Any = None
 
 
 def _mix_seed(*parts: int) -> int:
@@ -158,6 +162,12 @@ def _inject_human_turn(game: Any, config: "EvalConfig", *, seed: int, gi: int,
 def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     """评测一个策略（固定 seeds，seat0 vs 7 引擎 bot / 可选人类战团注入）。"""
     E = load_engine()
+    initial_state = getattr(config, 'research_initial_state', None)
+    if initial_state is not None:
+        if int(config.games) != 1 or config.mirror_strict or config.human_board_pool is not None or config.lobby_exclude:
+            raise ValueError('research suffix requires one game, no strict/human/lobby override')
+        if int(initial_state.get('seed', -1)) != int(config.seed):
+            raise ValueError('research state seed must match its declared rollout seed')
     strict_library = None
     if config.mirror_strict:
         if config.mirror_pool is None:
@@ -202,15 +212,23 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     t0 = time.time()
     for gi in range(int(config.games)):
         # 2026-11-17（D-071）：可能因 lobby 种族过滤换种子 ⇒ 记录**实际**使用的 seed。
-        game, game_seed = make_filtered_game(
-            E, int(config.seed) + gi, getattr(config, "lobby_exclude", ()),
-            learner_seat=seat0)
+        if initial_state is None:
+            game, game_seed = make_filtered_game(
+                E, int(config.seed) + gi, getattr(config, "lobby_exclude", ()),
+                learner_seat=seat0)
+        else:
+            game = E.Game.from_json(json.dumps(initial_state))
+            game_seed = int(config.seed)
+            if game.is_over() or not game.needs_action(seat0) or int(game.turn) < 1:
+                raise ValueError('research state is not an actionable recruit suffix')
+            from .engine_quality import require_clean_engine
+            require_clean_engine(game)
         used_seeds.append(int(game_seed))
         if config.decision_recorder is not None:
             config.decision_recorder.begin_game(game, gi, game_seed, seat0)
         policy.reset()
         steps = 0
-        last_turn = -1
+        last_turn = -1 if initial_state is None else int(game.turn)
         state: Dict[str, int] = {"turns": 0}
         injected = {}
         combat_seen = set()
@@ -507,6 +525,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         "seed_end": int(config.seed) + int(config.games) - 1,
         "policy_seat": seat0,
         "opponent": str(config.opponent),
+        **({'research_suffix': True, 'initial_turn': int(initial_state['turn']),
+            'scope': 'conditional suffix diagnostic, not a natural full-game score'}
+           if initial_state is not None else {}),
         "mean_rank": float(known.mean()) if n_known else None,
         "top4_rate": float((known <= 4).mean()) if n_known else None,
         "win_rate": float((known == 1).mean()) if n_known else None,

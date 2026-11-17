@@ -1,0 +1,24 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "purpose": "Distinguish unwillingness to acquire economic/growth cores from inability to profit after acquisition",
+  "status": "predeclared before case selection and outcomes",
+  "source_bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "source_selection": "natural training-source games only; seed % 5 != 0; T9-T12; core legal in shop and absent from board/hand; one earliest case per source game; deterministic identifier ordering",
+  "cores": ["BG_LOE_077", "BG36_352"],
+  "maximum_source_games_per_core": 12,
+  "future_rng_replicates": 8,
+  "models": {
+    "parent": {"path": "artifacts/models/arena-v1.4-r1/model.pt", "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"},
+    "cycle": {"path": "artifacts/runs/nus-cycle-all-20261118-1/learn/model.pt", "sha256": "6a37a51cf32f024ed4d4d5eb9ba78b4e12d175050d8dc37f87b3b0cb2761e47b"}
+  },
+  "arms": ["natural policy", "one forced legal purchase, then same policy"],
+  "field": "arena-cal-v14-snap / p50band / seven opponents",
+  "current_opponents": "preserve source EOT state; inject normal paired snapshots only from next turn",
+  "future_seed": "11901000 + case_index * 1000 + replicate; same per model and arm",
+  "controller": "reset equally in both arms; conditional suffixes, not exact replay of original controller history",
+  "quality": "all learner actions recorded; native replay 16 steps per rollout; finished rank and clean engine required",
+  "analysis": "paired rank difference, case-clustered bootstrap; core play/sell/retention, EOT strength and survival recorded; no automatic labels or model promotion",
+  "engineering_probe": "CPU, maximum one case per core and one replicate, parent only; validates execution before the main study; not added as independent evidence",
+  "main_rollouts_max": 768,
+  "formal_reserved_seeds": "1119000..1119511 remain unused"
+}
