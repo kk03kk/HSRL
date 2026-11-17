@@ -2,7 +2,7 @@
 
 All starts are explicitly endowed. This is not natural-game performance.
 """
-import argparse,copy,gzip,json,multiprocessing as mp,sys
+import argparse,gzip,hashlib,json,multiprocessing as mp,sys
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -69,6 +69,7 @@ def trial(task):
             **recorder.economy[row['turn']]})
     row={'case':case['case'],'source_seed':case['seed'],'initial_turn':case['turn'],
         'variant':variant,'replica':replica,'future_seed':seed,'name':name,
+        'initial_sha256':hashlib.sha256(json.dumps(initial,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
         'rank':result['rank_sequence'][0],'turns':turns,'operator_actions':recorder.option_actions,
         'trace':trace,'validation':validation}
     atomic_json(path/'result.json',{'summary':row,'evaluation':result});return row
@@ -89,6 +90,7 @@ def compare(rows,parent='parent'):
                 if set(arms)!=set(names):raise ValueError('unpaired suffix outcome')
                 a,b=arms[name],arms[parent]
                 if a['future_seed']!=b['future_seed']:raise ValueError('paired future seed differs')
+                if a['initial_sha256']!=b['initial_sha256']:raise ValueError('paired initial state differs')
                 cases[case].append(a['rank']-b['rank'])
                 ta={t['turn']:t for t in a['turns']};tb={t['turn']:t for t in b['turns']}
                 if all(t in ta and t in tb for t in (9,12)):
