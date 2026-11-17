@@ -177,7 +177,7 @@ mkdir -p "$out"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
   echo "budget iterations=$iterations stop_decisions=$stop_decisions"
-  echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=1"
+  echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=fresh_only"
   echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry prob=$forced_tier_prob"
   echo "teacher until=$forced_teacher_until coef=$forced_teacher_coef"
   # 动作契约 / 规则限制：让 run.env 自证"这一轮用的是哪套限制"（2026-11-17 审计）
@@ -190,8 +190,9 @@ mkdir -p "$out"
 # 续训**必须**用 --trainer-state：本训练器没有 --resume。完整 Trainer 含 Adam/调度器/
 # RNG/anchor，只有 model.pt 不能精确续训（AGENTS.md §4）。段 1 = 从 --checkpoint fork；
 # 段 2+ = 接着本目录的 model.pt + trainer.pt 续训。
-first_args=(--checkpoint "$ckpt")
-cont_args=(--checkpoint "$out/train/model.pt" --trainer-state "$out/train/trainer.pt")
+# A fresh weight fork creates an anchor; every Trainer continuation preserves it.
+first_args=(--checkpoint "$ckpt" --reset-anchor 1)
+cont_args=(--checkpoint "$out/train/model.pt" --trainer-state "$out/train/trainer.pt" --reset-anchor 0)
 if [[ "$resume" == "1" ]]; then first_args=("${cont_args[@]}"); fi
 
 train_segment() {
@@ -210,7 +211,7 @@ python workflows/train_entity_sync.py \
   --entropy-coef "${HSAI_ARENA_ENTROPY:-0.002}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \
   --win-bonus "$win_bonus" --rank-utility-table "$rank_utility_table" \
   --anchor-beta "$anchor_beta" --anchor-iterations "$anchor_iters" \
-  --anchor-beta-tail "$anchor_tail" --reset-anchor 1 \
+  --anchor-beta-tail "$anchor_tail" \
   --forced-tier-plan "$forced_tier_plan" --forced-tier-carry "$forced_tier_carry" \
   --forced-tier-prob "$forced_tier_prob" \
   --forced-teacher-until "$forced_teacher_until" \

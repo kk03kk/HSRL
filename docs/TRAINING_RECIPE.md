@@ -144,7 +144,7 @@ sims 0（不做搜索）
 | `--anchor-beta` | 0.1 | 论文 Table 7 |
 | `--anchor-iterations` | **100** | 论文 Table 7（一个 stage 的前 100/300 = 33%） |
 | `--anchor-beta-tail` | 0.02 | 本仓库沿用值（论文未给 tail） |
-| `--reset-anchor` | 1 | 分叉时把 anchor 重建为当前策略 |
+| `--reset-anchor` | 新权重分叉1；完整Trainer续段0 | D-101修复公共参数覆盖，恢复时保留原anchor；不改变累计轮数 |
 
 ### 2.6 奖励
 

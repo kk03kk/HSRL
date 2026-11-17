@@ -2337,3 +2337,12 @@ D-097关于“正式评测/训练使用严格库路径”的一句不准确，�
 GPU实际开始后取消旧CPU作业及其尚未开始的依赖分析，避免无效重算继续占用资源。
 旧CPU部分不并入能力统计；新GPU全量为本次唯一候选比较。CPU/GPU浮点实现可能有微小差异，
 不声称两次执行逐位等价。普通四核心教师CPU研究1159900按原计划继续，未改任何科学参数。
+
+## D-101 · 2026-11-18 · 修复分段入口在Trainer恢复后重置anchor
+
+stage_arena.sbatch原先把--reset-anchor 1放在所有段共有参数，包含--trainer-state的续段也会重建anchor。
+这与完整Trainer恢复承诺冲突；它不同于旧K5的“累计轮数/优化步数”误判，累计轮数本身仍然正确。
+现在fresh first_args显式reset=1，cont_args显式reset=0，移除公共覆盖参数；run.env记录fresh_only。
+真实Bash执行完整段参数拼接（仅替换python可执行体）验证fresh两段为1/0、resume两段为0/0，
+各段仅一个reset参数，Trainer参数存在性正确。既有真实CPU PPO恢复探针已验证reset=0下anchor保留。
+未运行新的能力训练，未改变旧冻结发布/Trainer；本轮八个能力PPO均fresh单段，不将它们的负结果归因此Bug。
