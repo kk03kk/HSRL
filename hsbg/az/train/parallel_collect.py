@@ -193,6 +193,19 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
     meta.update(tracker.stats())
     meta.update(policy.move_guard_meta())
     meta.update(policy.archetype_bias_meta())
+    # 动作契约/规则限制：让每轮的 meta 自证"当时用的是哪套限制"。
+    # 2026-11-17（smoke 审计）：这些以前只存在于命令行，pool 路径完全不记录。
+    for _k, _v in (("max_actions_per_turn", int(cfg.max_actions_per_turn)),
+                   ("move_guard", bool(getattr(cfg, "move_guard", False))),
+                   ("move_cap", int(getattr(cfg, "move_cap", 0) or 0)),
+                   ("move_repeat_limit", int(getattr(cfg, "move_repeat_limit", 0) or 0)),
+                   ("freeze_cap", int(getattr(cfg, "freeze_cap", 0) or 0)),
+                   ("forbid_cancel", bool(getattr(cfg, "forbid_cancel", False))),
+                   ("forbid_unfreeze", bool(getattr(cfg, "forbid_unfreeze", False))),
+                   ("ban_trinkets", bool(getattr(cfg, "ban_trinkets", False))),
+                   ("lobby_exclude", list(getattr(cfg, "lobby_exclude", ()) or ())),
+                   ("sims", int(getattr(cfg, "sims", 0) or 0))):
+        meta[_k] = _v
     _ft_game = policy.forced_tier_game_meta()
     if _ft_game:
         meta["forced_tier_game"] = _ft_game
