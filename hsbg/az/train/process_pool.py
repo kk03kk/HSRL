@@ -1448,6 +1448,15 @@ class ProcessActorPool:
             meta.update(_rg_agg)
         # 换位去抖守卫：逐 shard 汇总（默认关闭 -> 空 dict，不新增键）。
         meta.update(aggregate_move_guard(metas))
+        # 动作契约/规则限制：worker meta 里逐 shard 相同，取第一个补到父 meta。
+        # 2026-11-17（smoke 审计）：以前 pool 路径不带这些键，跑完无法自证
+        # freeze_cap / ban_trinkets / lobby_exclude / forbid_* 到底是不是生效的那套。
+        _c0 = next((m for m in metas if isinstance(m, dict)), {}) or {}
+        for _k in ("max_actions_per_turn", "move_guard", "move_cap",
+                   "move_repeat_limit", "freeze_cap", "forbid_cancel",
+                   "forbid_unfreeze", "ban_trinkets", "lobby_exclude", "sims"):
+            if _k in _c0 and _k not in meta:
+                meta[_k] = _c0[_k]
         meta.update(aggregate_archetype_bias(metas))
         # 强制升本统计：逐 shard 的逐局 meta 汇总（默认关闭 -> 不新增键）
         _ft_games = []
