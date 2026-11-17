@@ -1833,6 +1833,49 @@ outcome           mean_rank 4.9141 · top4 40.23% · win 8.40% ·
   （含 30/43 张双种族卡，会连带削掉海盗/恶魔/鱼人/亡灵的部分卡）。不需要改 Rust。
 - **L3**：L2 + 拦"赠送"路径（饰品/奖励指定随从）⇒ 需要新增掩码或改引擎。
 
+---
+
+## D-076 · 2026-11-17 · local+server · **v1.4-r1 开训前：修 4 处审核隐患 + smoke 逐参数审计（又发现 2 个真问题）**
+
+用户逐项审核配置后要求："全部修改，完成后审计检查一遍，定下目标，开始训练；
+注意 smoke 时要着重检查所有参数。"
+
+**1. 审核发现的 4 处隐患（已修）**
+
+| # | 问题 | 修法 |
+|---|---|---|
+| 1 | `HSAI_ARENA_CKPT` 默认 `arena-v1.2/model.pt` ⇒ 忘覆盖就**从旧模型起训** | 改成**必填**（`${VAR:?}`），缺参数直接报错 |
+| 2 | 头部注释写 `MINUTES` 默认 150，实际 165 | 注释改成 165 |
+| 3 | `stage_arena.sbatch` 注释写"12 -> 6"，实际值是 `10:6` | 注释改成实际四档，并**去掉 10→6**（用户决定） |
+| 4 | `forced_tier.py` 默认计划 `2:2,5:3,6:4,8:5` 与脚本传的 `2:2,5:3,7:4,8:5` 不一致 | 代码默认对齐为 `2:2,5:3,7:4,8:5`（同步改测试） |
+
+**2. smoke 三轮抓到的 2 个真问题（都已修 + 回归测试）**
+- **健康门阈值对本游戏是错的**：`entropy_warn_below=0.8` 几乎恒真——早期只有 2 个合法
+  动作，最大熵就是 `ln2=0.693`，于是**每一轮都报** `entropy<0.8`（告警疲劳）；
+  `throughput_warn_below=1500` 让任何小规模 smoke 都报"吞吐异常"。
+  改为 **0.05（只抓崩塌）** 与 **0（默认关闭，需要时显式打开）**。修后 smoke：**0 告警**。
+- **动作契约不进训练产物**：`freeze_cap / ban_trinkets / forbid_unfreeze / lobby_exclude /
+  max_actions_per_turn` 只存在于命令行，`history.jsonl` 查不到 ⇒ 跑完无法自证用的是哪套限制。
+  更糟的是 meta 有**四处**组装点（串行 / parallel 逐局 / lockstep / process_pool 汇总），
+  逐处手写必然漂移——第一版只改到串行路径，pool 路径仍然丢。
+  ⇒ 新增 `hsbg/az/train/contract_meta.py` 作**单一来源**，四处共用；
+  并在 `run.env` 增加一行 `contract ...` 让它自证。
+
+**3. smoke 逐参数审计（每项都是"预期 vs 实际"，取自 run.env + history meta）**
+
+全部 **33/33 通过**，关键项：`ckpt sha256 1808f178…`、`arch entity / 16,436,034`、
+`engine c4c71014e3d41760`、`move_cap 2 / repeat 2 / freeze 1 / max_actions 100 /
+ban_trinkets 1 / forbid_* 1 / lobby_exclude [] / sims 0`、`rank utility
+1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75`、`win_bonus 0`、`tier coef 0`、
+`teacher plan 2:2,5:3,7:4,8:5`（targets 无 '6'）、`forced_actions 0`、`teacher_labels>0`、
+`mirror 7 席 p1 p50band 落地 100%`、`illegal/truncated/invalid 0`、`forced_end_turns 0`。
+
+**4. 正式训练（作业 1156986，节点 xgpi14，16:09 起，165 分钟 1 段）**
+`run.env` 与 `history.jsonl` 双证：契约行 `max_actions=100 move_cap=2 freeze_cap=1
+ban_trinkets=1 lobby_exclude=<none> sims=0`；教师计划四档；镜像注入 46,180/46,182；
+`move_guard_blocked_cap ≈ 155 万/轮`（cap 2 真实生效）；零非法动作、零截断。
+
+
 
 
 
