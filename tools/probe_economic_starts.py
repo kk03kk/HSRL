@@ -54,7 +54,7 @@ class ProtectCoresView:
         return bytes(mask)
 
 
-def run_turn(policy,state,ids,*,protect_cores=False):
+def run_turn(policy,state,ids,*,protect_cores=False,allow_recruit_death=False):
     game=engine.Game.from_json(json.dumps(state));policy.reset()
     policy_game=ProtectCoresView(game,ids) if protect_cores else game
     initial=own(game);initial_turn=game.turn;steps=[];counts=Counter();income=0
@@ -62,11 +62,14 @@ def run_turn(policy,state,ids,*,protect_cores=False):
         before=json.loads(game.state_json());p=before['players'][0]
         legal=list(bytes(game.legal_mask(0)))
         policy_mask=list(bytes(policy_game.legal_mask(0)))
-        action=int(policy.decide(policy_game,0).action)
+        decision=policy.decide(policy_game,0);action=int(decision.action)
+        decision_info=dict(getattr(decision,'info',{}))
         if not 0<=action<len(legal) or not legal[action]:raise ValueError('illegal diagnostic action')
         if not policy_mask[action]:raise ValueError('diagnostic policy constraint failed')
         if action==0:
-            end_intent={'action':0,'executed':False,'reason':'probe stops before EndTurn','legal_mask':legal}
+            end_intent={'action':0,'executed':False,
+                        'reason':decision_info.get('forced_reason') or 'probe stops before EndTurn',
+                        'policy_info':decision_info,'legal_mask':legal}
             break
         chosen=None;kind=None
         if 8<=action<16:kind='buy';chosen=item(p['shop'][action-8],ids)
@@ -74,11 +77,18 @@ def run_turn(policy,state,ids,*,protect_cores=False):
         elif 46<=action<126:kind='play';chosen=item(p['hand'][(action-46)//8],ids)
         if kind:counts[kind+':'+chosen]+=1
         game.step(0,action)
-        if game.turn!=initial_turn or any(game.diagnostic_counts()):raise ValueError('unclean turn boundary')
         after=json.loads(game.state_json());q=after['players'][0]
+        if any(game.diagnostic_counts()):raise ValueError('unclean native diagnostic')
+        dead=not q['alive']
+        if game.turn!=initial_turn and not (allow_recruit_death and dead):
+            raise ValueError('unclean turn boundary')
         income+=max(0,q['gold']-p['gold'])
         steps.append({'action':action,'executed':True,'legal_mask':legal,
-                      'policy_constraint_mask':policy_mask,'before':before,'after':after})
+                      'policy_constraint_mask':policy_mask,'policy_info':decision_info,
+                      'before':before,'after':after})
+        if dead and allow_recruit_death:
+            end_intent={'action':None,'executed':False,'reason':'recruit_death'}
+            break
     else:raise ValueError('policy failed to finish recruit turn')
     final=own(game)
     strength=lambda p:sum(m['atk']+m['hp'] for m in p['board'])

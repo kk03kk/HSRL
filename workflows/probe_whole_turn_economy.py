@@ -73,13 +73,16 @@ def run_operator(state):
 def metrics(trace):
     initial=trace['initial']['players'][0];final=trace['final']['players'][0]
     game=E.Game.from_json(json.dumps(trace['final']))
-    frame=capture_eot(game,0)
+    alive=bool(final['alive'])
+    frame=capture_eot(game,0) if alive else None
+    if alive and frame is None:raise ValueError('missing native EOT frame for surviving learner')
     return {'actions':len(trace['steps']),
         'gold_spent':final['stats']['gold_spent_total']-initial['stats']['gold_spent_total'],
         'gold_end':final['gold'],'hand_end':len(final['hand']),
         'initial_body':sum(strength(x) for x in initial['board']),
-        'eot_body':sum(strength(x) for x in frame['player']['board']),
-        'core_count':len({cid(x) for x in json.loads(game.view(0))['me']['board']} & set(CORES)),
+        'eot_body':sum(strength(x) for x in frame['player']['board']) if alive else 0,
+        'alive':alive,'eot_observed':alive,'health_end':final['health'],'armor_end':final['armor'],
+        'core_count':len({cid(x) for x in json.loads(game.view(0))['me']['board']} & set(CORES)) if alive else 0,
         'stopped_at_cap':trace['end_intent'].get('reason')=='action_cap'}
 
 

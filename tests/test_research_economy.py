@@ -43,6 +43,43 @@ def test_specialized_teacher_does_not_spend_health_to_buy():
     assert action!=8 and view==before
 
 
+def test_native_recruit_death_is_an_explicit_bad_outcome_not_silent_omission():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug
+    from hsbg.az.train.policies import Decision
+    from tools.probe_economic_starts import run_turn,canonical_items
+    game=E.Game.from_json(json.dumps(natural_source()))
+    debug(game,'clear_zone',zone='board');debug(game,'clear_zone',zone='hand')
+    debug(game,'add_minion',zone='board',card='TB_BaconUps_045')
+    debug(game,'add_minion',zone='hand',card='BG26_525_G')
+    state=json.loads(game.state_json());state['players'][0]['health']=1;state['players'][0]['armor']=0
+    game=E.Game.from_json(json.dumps(state));game.step(0,46)
+    state=json.loads(game.state_json());assert state['players'][0]['pending']
+    class Choose:
+        def reset(self):pass
+        def decide(self,game,seat):
+            return Decision(next(a for a in range(30,46) if bytes(game.legal_mask(seat))[a]))
+    _,trace=run_turn(Choose(),state,canonical_items(),allow_recruit_death=True)
+    outcome=metrics(trace)
+    assert trace['end_intent']['reason']=='recruit_death' and len(trace['steps'])==1
+    assert not outcome['alive'] and not outcome['eot_observed'] and outcome['eot_body']==0
+    assert not any(E.Game.from_json(json.dumps(trace['final'])).diagnostic_counts())
+
+
+def test_policy_cap_is_recorded_as_a_forced_boundary():
+    import hsbg_engine as E
+    import numpy as np
+    from hsbg.az.train.ppo import PPOGreedyPolicy
+    game=E.Game.from_json(json.dumps(natural_source()))
+    def evaluator(features,cards,mask,seat):
+        prior=np.asarray(mask,dtype=np.float32);return prior/prior.sum(),0.
+    policy=PPOGreedyPolicy(evaluator)
+    policy._turn_counts[(0,game.turn)]=policy.max_actions_per_turn
+    decision=policy.decide(game,0)
+    assert decision.action==0 and decision.info['forced']
+    assert decision.info['forced_reason']=='action_cap'
+
+
 @pytest.mark.parametrize('variant',VARIANTS)
 def test_native_whole_turn_is_legal_preserves_input_and_replay(variant):
     import hsbg_engine as E

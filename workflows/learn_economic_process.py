@@ -21,10 +21,14 @@ from hsbg.runtime.provenance import source_identity,environment_identity
 
 def tensors(data,model,device):
     width=getattr(model,'input_floats',3227)
-    return {k:torch.as_tensor(np.array(data[k],copy=True),device=device,
-             dtype=torch.float32 if k=='features' else torch.long if k=='cards' else torch.bool)
-            for k in ('features','cards','masks','targets') if k in data} | {
-        'features':torch.as_tensor(np.array(data['features'][:,:width],copy=True),device=device)}
+    result={}
+    for key in ('features','cards','masks','targets'):
+        if key not in data:continue
+        value=data[key]
+        if key=='features':value=value[:,:width]
+        result[key]=torch.as_tensor(np.array(value,copy=True),device=device,
+            dtype=torch.float32 if key=='features' else torch.long if key=='cards' else torch.bool)
+    return result
 
 
 def forward(model,data,indices):

@@ -12,7 +12,10 @@ def export(dataset,out):
     manifest=json.loads((root/'manifest.json').read_text())
     if manifest['schema']!='hsai.whole-turn-process-dataset/v1':raise ValueError('not a complete-turn dataset')
     if file_identity(root/'labels.npz')!=manifest['files']['labels.npz']:raise ValueError('label identity differs')
-    data=np.load(root/'labels.npz',allow_pickle=False)
+    # NpzFile.__getitem__ decompresses a member on every access. Materialize
+    # once before the per-row export rather than rereading the full dataset.
+    with np.load(root/'labels.npz',allow_pickle=False) as archive:
+        data={key:archive[key] for key in archive.files}
     if not np.array_equal(data['dev'],data['seeds']%5==0):raise ValueError('source split is inconsistent')
     indices=np.flatnonzero(~data['dev'])
     if not len(indices):raise ValueError('empty training split')

@@ -2395,8 +2395,9 @@ class PPOGreedyPolicy(Policy):
         key = (seat, turn)
         n_turn = self._turn_counts.get(key, 0) + 1
         self._turn_counts[key] = n_turn
-        forced = bool(guard_forced or (self.max_actions_per_turn > 0 and n_turn > self.max_actions_per_turn
-                      and bool(mask[0])))
+        cap_forced = bool(self.max_actions_per_turn > 0 and n_turn > self.max_actions_per_turn
+                          and bool(mask[0]))
+        forced = bool(guard_forced or cap_forced)
         if forced:
             self.forced_actions += 1
             action = 0
@@ -2410,7 +2411,9 @@ class PPOGreedyPolicy(Policy):
         if self._guard is not None:self._guard.note_action(action,game_id=0,seat=seat,turn=turn)
         if self._pending_guard is not None:self._pending_guard.note_action(action,game_id=0,seat=seat,turn=turn)
         return Decision(int(action), pi, {"search": False, "policy": self.name,
-                                          "value": float(value), "forced": forced})
+                                          "value": float(value), "forced": forced,
+                                          "forced_reason": "action_cap" if cap_forced else
+                                              "move_guard" if guard_forced else None})
 
     def pending_guard_meta(self) -> Dict[str, Any]:
         return {} if self._pending_guard is None else self._pending_guard.to_meta()

@@ -18,6 +18,7 @@ def summarize(rows):
             'eot_body_p50':float(np.median([r['student']['eot_body'] for r in rr])),
             'gold_spent_mean':float(np.mean([r['student']['gold_spent'] for r in rr])),
             'core_count_mean':float(np.mean([r['student']['core_count'] for r in rr])),
+            'recruit_deaths':sum(not r['student'].get('alive',True) for r in rr),
             'teacher_eot_body_mean':float(np.mean([r['teacher']['eot_body'] for r in rr]))}
     return {'all':group(rows),'kinds':{k:group([r for r in rows if r['kind']==k]) for k in sorted({r['kind'] for r in rows})},'rows':rows}
 
@@ -53,7 +54,7 @@ def make_closure(args):
         policy=PPOGreedyPolicy(PPOEvaluator(model,device=device));ids=canonical_items();rows=[]
         with gzip.open(path,'xt',encoding='utf-8',compresslevel=3) as stream:
             for task in tasks:
-                _,trace=run_turn(policy,task['initial'],ids)
+                _,trace=run_turn(policy,task['initial'],ids,allow_recruit_death=True)
                 row={'seed':task['seed'],'kind':task['kind'],'student':metrics(trace),'teacher':task['teacher']}
                 rows.append(row);stream.write(json.dumps({'result':row,**trace},separators=(',',':'))+'\n')
         return summarize(rows)
