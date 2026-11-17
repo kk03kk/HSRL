@@ -220,8 +220,15 @@ class EvalProtocol:
 
 
 def protocol_sha256_of(payload: Mapping[str, Any]) -> str:
-    """``payload`` 的稳定 sha256（``sort_keys`` + 紧凑分隔符，无空格差异）。"""
-    blob = json.dumps(dict(payload), sort_keys=True, ensure_ascii=False,
+    """``payload`` 的稳定 sha256（``sort_keys`` + 紧凑分隔符，无空格差异）。
+
+    2026-11-17：**忽略 payload 里的 ``protocol_sha256`` 字段**。以前不忽略，导致最自然的
+    审计动作——"拿面板里存下来的 ``protocol`` 段重算一次指纹"——**必然 MISMATCH**
+    （自己把自己算进去了），会让人误判"面板被篡改"。``EvalProtocol.as_dict()`` 本来
+    就没有这个键，所以本改动**不改变任何既有指纹**。
+    """
+    body = {k: v for k, v in dict(payload).items() if k != "protocol_sha256"}
+    blob = json.dumps(body, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 

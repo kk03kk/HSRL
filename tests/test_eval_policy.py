@@ -174,6 +174,21 @@ def test_sha_changes_with_every_scoring_relevant_field(kwargs):
     assert EP.EvalProtocol(**kwargs).sha256() != base
 
 
+def test_panel_protocol_can_be_re_verified_from_itself():
+    """拿面板里存下来的 ``protocol`` 段重算指纹，必须等于它自己记的 sha。
+
+    2026-11-17：以前 ``protocol_sha256_of`` 会把 ``protocol_sha256`` 键也算进去，
+    于是"自证"必然 MISMATCH —— 审计者会误判面板被篡改。
+    """
+    proto = EP.EvalProtocol(mirror_snaps="lib/x", lobby_exclude=("DRAGON",))
+    stored = dict(proto.as_dict())
+    stored["protocol_sha256"] = proto.sha256()
+    assert EP.protocol_sha256_of(stored) == proto.sha256()
+    # 去掉那一行无关键后也必须一致
+    body = {k: v for k, v in stored.items() if k != "protocol_sha256"}
+    assert EP.protocol_sha256_of(body) == proto.sha256()
+
+
 def test_lobby_exclude_is_part_of_the_protocol():
     """D-071 验证发现的缺陷：``lobby_exclude`` 原先不在 protocol 里 ⇒ 禁/不禁同 sha。
 
