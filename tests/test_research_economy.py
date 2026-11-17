@@ -10,6 +10,39 @@ def test_public_operator_rejects_full_state():
         Operator().act({'rng':123,'players':[]})
 
 
+def test_specialized_teacher_does_not_cycle_health_loss_battlecries():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug
+    from workflows.probe_whole_turn_economy import public_view
+    game=E.Game.from_json(json.dumps(natural_source()))
+    debug(game,'clear_zone',zone='board');debug(game,'clear_zone',zone='hand')
+    debug(game,'add_minion',zone='board',card='TB_BaconUps_045')
+    debug(game,'add_minion',zone='hand',card='BG26_525_G')
+    view=public_view(game)
+    assert any(view['mask'][46:54]),'risk card is native legal, not globally banned'
+    action,reason=Operator().act(view)
+    assert not 46<=action<54
+    debug(game,'add_minion',zone='board',card='BG26_525')
+    action,reason=Operator().act(public_view(game))
+    assert action==17 and reason=='remove_health_risk'
+
+
+def test_specialized_teacher_does_not_spend_health_to_buy():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug,card_ids
+    from workflows.probe_whole_turn_economy import public_view
+    game=E.Game.from_json(json.dumps(natural_source()))
+    debug(game,'clear_zone',zone='board');debug(game,'clear_zone',zone='hand')
+    debug(game,'clear_zone',zone='shop');debug(game,'add_minion',zone='shop',card='BG25_520')
+    state=json.loads(game.state_json())
+    state['players'][0]['trinkets']=[card_ids()['BG32_MagicItem_821']]
+    game=E.Game.from_json(json.dumps(state))
+    view=public_view(game);before=copy.deepcopy(view)
+    assert view['me']['shop'][0]['costs_health'] and view['mask'][8]
+    action,_=Operator().act(view)
+    assert action!=8 and view==before
+
+
 @pytest.mark.parametrize('variant',VARIANTS)
 def test_native_whole_turn_is_legal_preserves_input_and_replay(variant):
     import hsbg_engine as E
@@ -57,5 +90,9 @@ def test_reused_baseline_requires_exact_state_and_teacher(tmp_path):
         'rows':[{'source_seed':10,'variant':'normal','trace':file_identity(trace),'parent':metric,'operator':metric}]})
     result=reuse_baseline(tmp_path,[task],checkpoint)
     assert result['all']['eot_body_mean']==100 and result['reused_baseline']
+    task['teacher']={**metric,'eot_body':120}
+    result=reuse_baseline(tmp_path,[task],checkpoint)
+    assert result['changed_teacher_cases']==1
+    assert result['all']['eot_body_mean']==100 and result['all']['teacher_eot_body_mean']==120
     task['initial']={'seed':124,'players':[]}
     with pytest.raises(ValueError,match='not identical'):reuse_baseline(tmp_path,[task],checkpoint)

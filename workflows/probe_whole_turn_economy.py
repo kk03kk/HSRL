@@ -60,7 +60,10 @@ def run_operator(state):
         if action==0:
             end={'action':0,'executed':False,'reason':reason};break
         before=json.loads(game.state_json());game.step(0,action)
-        if game.turn!=state['turn'] or any(game.diagnostic_counts()):raise ValueError('unclean operator transition')
+        if game.turn!=state['turn'] or any(game.diagnostic_counts()):
+            raise ValueError(f'unclean operator transition index={index} action={action} '
+                f'turn={state["turn"]}->{game.turn} alive={own(game)["alive"]} '
+                f'diagnostics={game.diagnostic_counts()}')
         after=json.loads(game.state_json());operator.note(view,public_view(game),action)
         steps.append({'action':action,'reason':reason,'before':before,'after':after})
     else:raise ValueError('unresolved operator turn budget')

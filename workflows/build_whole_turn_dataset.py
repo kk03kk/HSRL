@@ -21,7 +21,15 @@ def make_task(spec):
     fresh=E.Game(seed=source['seed']+(40000000 if split=='dev' else 70000000))
     random_state=json.loads(fresh.state_json())
     state['seed']=random_state['seed'];state['rng']=random_state['rng']
-    trace=run_operator(state);game=E.Game.from_json(json.dumps(state));rows=[]
+    try:
+        trace=run_operator(state)
+    except Exception as exc:
+        failure=Path(out)/'failures';failure.mkdir(exist_ok=True)
+        atomic_json(failure/(str(source['seed'])+'-'+variant+'.json'),
+            {'source_seed':source['seed'],'variant':variant,'split':split,
+             'error':repr(exc),'initial':state,'interventions':edits})
+        raise
+    game=E.Game.from_json(json.dumps(state));rows=[]
     sequence=list(trace['steps'])
     # A controller-enforced boundary is not a genuine teacher EndTurn choice.
     if trace['end_intent']['reason']!='action_cap':
@@ -77,6 +85,22 @@ def main(args):
     if file_identity(anchor_root/'anchors.npz')!=anchor_manifest['files']['anchors.npz']:
         raise ValueError('natural anchor identity differs')
     shutil.copyfile(anchor_root/'anchors.npz',out/'anchors.npz')
+    files=['labels.npz','anchors.npz','tasks.jsonl.gz']
+    if args.baseline:
+        from workflows.learn_whole_turn_process import reuse_baseline
+        assessment=reuse_baseline(args.baseline,[t for t in tasks if t['split']=='dev'],args.checkpoint)
+        paired={};rng=np.random.default_rng(1194801)
+        for variant in VARIANTS:
+            rr=[r for r in assessment['rows'] if r['kind']==variant]
+            delta=np.asarray([r['teacher']['eot_body']-r['student']['eot_body'] for r in rr])
+            boot=np.mean(rng.choice(delta,size=(5000,len(delta)),replace=True),axis=1)
+            paired[variant]={'n':len(rr),'teacher_minus_parent_mean':float(delta.mean()),
+                'paired_source_bootstrap_95ci':np.quantile(boot,[.025,.975]).tolist(),
+                'teacher_p50':float(np.median([r['teacher']['eot_body'] for r in rr])),
+                'parent_p50':float(np.median([r['student']['eot_body'] for r in rr]))}
+        atomic_json(out/'teacher_comparison.json',{'baseline_validation':assessment,
+            'paired_eot_body':paired,'scope':'same held-out-source synthetic starts; not natural full-game ability'})
+        files.append('teacher_comparison.json')
     atomic_json(out/'manifest.json',{'schema':'hsai.whole-turn-process-dataset/v1','engine':engine_info(),
         'mechanism_schema_sha256':M.SCHEMA_SHA256,'source':source_identity(Path(__file__).resolve().parents[1]),
         'source_manifest':file_identity(bank/'manifest.json'),'anchor_source':file_identity(anchor_root/'manifest.json'),
@@ -88,12 +112,13 @@ def main(args):
             'Teacher remembers its own newly played minions; student is feedforward',
             'Action-cap EndTurn is excluded from imitation labels',
             'Single public controller trajectory per source/variant, no per-case outcome filtering'],
-        'files':{n:file_identity(out/n) for n in ('labels.npz','anchors.npz','tasks.jsonl.gz')}})
+        'files':{n:file_identity(out/n) for n in files}})
     print(json.dumps({'sources':len(sources),'tasks':len(tasks),'labels':len(all_rows)}),flush=True)
 
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--bank',required=True)
     p.add_argument('--anchors',required=True);p.add_argument('--out',required=True)
+    p.add_argument('--baseline');p.add_argument('--checkpoint',default='artifacts/models/arena-v1.4-r1/model.pt')
     p.add_argument('--workers',type=int,default=4);p.add_argument('--limit',type=int,default=0)
     main(p.parse_args())

@@ -11,6 +11,13 @@ CARDS=json.loads((Path(__file__).resolve().parents[3]/'engine/crates/hsbg-engine
 NORMAL={c['id']:c.get('normal') or c['id'] for c in CARDS}
 CORES=('BG_LOE_077','BG33_823','BG33_825','BG36_523')
 ECON=('BG33_821','BGS_123','BGS_116','BGS_115')
+# This specialized economic demonstrator is not a Demon health-management
+# expert. Do not cycle health-loss Battlecries, or introduce persistent health
+# spenders. In particular, golden Percussionist + golden Brann can be lethal
+# across a chain of compulsory discoveries despite a healthy starting hero.
+HEALTH_RISK=('BG26_522','BG26_525','BG26_528','CORE_LOOT_013','LOOT_013',
+             'BGS_004','BG32_892','BG26_524','BG27_011','BGDUO31_210',
+             'BG28_905','BG30_106','BG32_893')
 def cid(m):return NORMAL.get(m.get('id',''),m.get('id',''))
 def strength(m):return int(m.get('atk',0))+int(m.get('hp',0))
 
@@ -26,7 +33,9 @@ class Operator:
     def act(self,v):
         if set(v)-{'me','mask','turn','phase','lobby_races'}:
             raise ValueError('operator accepts only a restricted public own view')
-        p=v['me'];m=v['mask'];board=p['board'];hand=p['hand'];shop=p['shop']
+        p=v['me'];m=list(v['mask']);board=p['board'];hand=p['hand'];shop=p['shop']
+        for i,x in enumerate(shop):
+            if x.get('costs_health',False):m[8+i]=False
         protected=self.protect(board);gold=p['gold']
         lobby=v.get('lobby_races') or sorted({r for x in board for r in x.get('races',[]) if r!='ALL'})
         race_counts={r:sum(r in x.get('races',[]) or 'ALL' in x.get('races',[]) for x in board) for r in lobby}
@@ -41,12 +50,16 @@ class Operator:
                 def score(i):
                     x=opts[i] if i<len(opts) and isinstance(opts[i],dict) else {}
                     c=cid(x)
-                    return (10000 if c in CORES and not any(cid(b)==c for b in board)
+                    return (-10000 if c in HEALTH_RISK else
+                            10000 if c in CORES and not any(cid(b)==c for b in board)
                             else 5000 if c in ECON else strength(x))
                 allowed=[i for i in legal if i>=len(opts) or not isinstance(opts[i],dict) or opts[i].get('id')!='BG36_MagicItem_414']
                 best=max(allowed or legal,key=score)
             return 30+best,'pending'
+        for i,x in enumerate(board):
+            if cid(x) in HEALTH_RISK and m[16+i]:return 16+i,'remove_health_risk'
         def play(i):
+            if cid(hand[i]) in HEALTH_RISK:return None
             a=[46+8*i+j for j in range(8) if m[46+8*i+j]]
             return a[-1] if a else None
         def play_card(c):
@@ -92,6 +105,7 @@ class Operator:
         order=sorted(range(len(hand)),key=lambda i:(cid(hand[i]) not in ECON,-strength(hand[i]),i))
         for i in order:
             if hand[i].get('type')!='minion':continue
+            if cid(hand[i]) in HEALTH_RISK:continue
             # Keep the second normal core for a native triple. Cycling it would
             # destroy the route from the normal engine to larger multipliers.
             if cid(hand[i]) in CORES and not hand[i].get('golden',False) and any(cid(x)==cid(hand[i]) and not x.get('golden',False) for x in board):continue

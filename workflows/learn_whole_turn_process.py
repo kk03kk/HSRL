@@ -29,7 +29,7 @@ def reuse_baseline(root,tasks,checkpoint):
         raise ValueError('invalid baseline evidence')
     if run_info['checkpoint']!=file_identity(checkpoint):raise ValueError('baseline uses another checkpoint')
     indexed={(r['source_seed'],r['variant']):r for r in complete['rows']}
-    rows=[]
+    rows=[];changed_teacher=0
     for task in tasks:
         key=(task['seed'],task['kind']);row=indexed[key]
         trace_path=root/(str(key[0])+'-'+key[1]+'.jsonl.gz')
@@ -38,10 +38,11 @@ def reuse_baseline(root,tasks,checkpoint):
             original=json.loads(next(stream))
         if original['policy']!='parent' or original['initial']!=task['initial']:
             raise ValueError('baseline initial state is not identical')
-        if task['teacher']!=row['operator']:raise ValueError('teacher changed since paired baseline')
+        changed_teacher+=task['teacher']!=row['operator']
         rows.append({'seed':key[0],'kind':key[1],'student':row['parent'],'teacher':task['teacher']})
     return {**summarize(rows),'reused_baseline':file_identity(root/'complete.json'),
-            'validation':'all initial states, teacher metrics, source checkpoint and trace checksums identical; no repeated parent games'}
+            'changed_teacher_cases':changed_teacher,
+            'validation':'all initial states, source checkpoint and trace checksums identical; teacher metrics come from the new validated dataset; no repeated parent games'}
 
 
 def make_closure(args):
