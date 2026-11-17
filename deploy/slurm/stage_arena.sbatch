@@ -55,6 +55,8 @@ export HSRL_TORCH_THREADS=2 PYTHONUTF8=1 PYTHONUNBUFFERED=1
 
 out="${HSAI_ARENA_OUT:?必须指定 HSAI_ARENA_OUT（新目录）}"
 minutes="${HSAI_ARENA_MINUTES:-165}"
+iterations="${HSAI_ARENA_ITERATIONS:-0}"
+stop_decisions="${HSAI_ARENA_STOP_DECISIONS:-0}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
 # 2026-11-17 用户定：**必须显式给**。以前默认是 `arena-v1.2/model.pt`，忘记覆盖就会
@@ -174,6 +176,7 @@ mkdir -p "$out"
   echo "resume=$resume ckpt=$ckpt seed=$seed lr=$lr win_bonus=$win_bonus rank_utility=$rank_utility_table"
   echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
+  echo "budget iterations=$iterations stop_decisions=$stop_decisions"
   echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=1"
   echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry prob=$forced_tier_prob"
   echo "teacher until=$forced_teacher_until coef=$forced_teacher_coef"
@@ -200,7 +203,7 @@ python workflows/train_entity_sync.py \
   --mirror-strict 0 --mirror-max-turn 0 \
   --human-board-p 0 --human-boards "" \
   --entry-p 0 \
-  --games "$games" --iterations 0 --minutes "$minutes" \
+  --games "$games" --iterations "$iterations" --minutes "$minutes" --stop-at-decisions "$stop_decisions" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.05}" --gamma 1.0 --lam 0.995 \
   --entropy-coef "${HSAI_ARENA_ENTROPY:-0.002}" --pi-coef 0.0 --seq-coef 0.0 --max-grad-norm 1.0 \

@@ -55,7 +55,8 @@ class DecisionRecorder:
                    state=json.loads(game.state_json()))
 
     def before(self, game, seat):
-        features, cards = game.observe(seat)
+        from hsbg.az.train.mechanism_obs import observe
+        features, cards = observe(game, seat, self.identity.get('mechanism_schema', ''))
         return dict(game=self.game, seed=self.seed, action_index=self.action_index,
                     turn=int(game.turn), seat=int(seat),
                     state_before=json.loads(game.state_json()),
@@ -137,12 +138,17 @@ def validate_trace(path, *, replay=0):
                 if len(row['legal_mask']) != 245 or not 0 <= row['action'] < 245 or not row['legal_mask'][row['action']]:
                     raise ValueError('illegal recorded action')
                 obs = row['observation']
-                if len(base64.b64decode(obs['floats_f32le'], validate=True)) != 3227*4 or len(base64.b64decode(obs['cards_i32le'], validate=True)) != 124*4:
+                from hsbg.az.train.mechanism_obs import SCHEMA, SCHEMA_SHA256, OBS_FLOATS, observe
+                schema = manifest['identity'].get('mechanism_schema', '')
+                if schema and (schema != SCHEMA or manifest['identity'].get('mechanism_schema_sha256') != SCHEMA_SHA256):
+                    raise ValueError('unknown mechanism trace schema')
+                width = OBS_FLOATS if schema else 3227
+                if len(base64.b64decode(obs['floats_f32le'], validate=True)) != width*4 or len(base64.b64decode(obs['cards_i32le'], validate=True)) != 124*4:
                     raise ValueError('invalid observation dimensions')
                 if replayed < replay and (counts['action']-1) % stride == 0:
                     import hsbg_engine as engine
                     game = engine.Game.from_json(json.dumps(row['state_before']))
-                    features, cards = game.observe(row['seat'])
+                    features, cards = observe(game, row['seat'], schema)
                     if bytes(features) != base64.b64decode(obs['floats_f32le']) or bytes(cards) != base64.b64decode(obs['cards_i32le']):
                         raise ValueError('recorded observation differs from engine state')
                     if list(bytes(game.legal_mask(row['seat']))) != row['legal_mask']:

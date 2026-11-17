@@ -131,7 +131,8 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
     mag_query: bool = False,
     new_init_scale: float = 0.02,
                      strength_head: bool = False,
-                     process_head: bool = False):
+                     process_head: bool = False,
+                     mechanism_schema: str = ""):
     """构造 EntityAZNet（torch 模块）。
 
     ``seq_head=True`` 时在 global token 上加一个 245 维的「动作序列辅助头」
@@ -164,6 +165,9 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
     tables = tables or load_card_tables()
     n_cards = int(tables.n_cards)
     model_arch = str(arch)
+    from . import mechanism_obs as M
+    if mechanism_schema not in ('', M.SCHEMA):
+        raise ValueError(f'unknown mechanism schema: {mechanism_schema}')
     static_t = torch.from_numpy(tables.static.copy())
     text_t = torch.from_numpy(tables.text.copy())
 
@@ -283,6 +287,15 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             # 过程价值辅助头（可选）：3 维 [log1p(酒馆永久 buff), log1p(施法数),
             # log1p(consume 数)]。默认 None = 不构建、前向/checkpoint 与旧版逐位一致。
             self.process_head = nn.Linear(d, 3) if process_head else None
+            self.mechanism_schema = str(mechanism_schema)
+            self.input_floats = M.OBS_FLOATS if self.mechanism_schema else OBS_FLOATS
+            if self.mechanism_schema:
+                self.mechanism_global = nn.Linear(M.N_STATS, d, bias=False)
+                self.mechanism_counter = nn.Linear(1, d, bias=False)
+                self.mechanism_pending = nn.Linear(d, d, bias=False)
+                for module in (self.mechanism_global, self.mechanism_counter,
+                               self.mechanism_pending):
+                    nn.init.zeros_(module.weight)
 
         def _card_repr(self, idx, z=None):            # idx [B, ...] long; 返回 [B, ..., d]
             i = idx.clamp(0, self.n_cards - 1)
@@ -307,10 +320,14 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             以前这三项（z/attr/mag）没有记录也没有推断 ⇒ 带它们训练出的 ckpt
             **无法再加载**（``strict=True`` 直接报 unexpected/missing key）。
             """
-            return {"use_z": bool(self.use_z), "n_z": int(self.n_z),
+            flags = {"use_z": bool(self.use_z), "n_z": int(self.n_z),
                     "use_attr": bool(self.use_attr),
                     "attr_f": int(getattr(self, "attr", None).shape[1]) if self.use_attr else 0,
                     "mag_query": bool(self.mag_query)}
+            if self.mechanism_schema:
+                flags.update(mechanism_schema=self.mechanism_schema,
+                             mechanism_schema_sha256=M.SCHEMA_SHA256)
+            return flags
 
         def zero_neutral_slot(self):
             """强制 ``zcard[n_z-1]`` 与 ``z_global`` 的中立列全零。
@@ -379,6 +396,8 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             return logits, pred
 
         def _forward_impl(self, features, cards, mask=None, z=None):
+            if features.shape[-1] != self.input_floats:
+                raise ValueError(f'expected {self.input_floats} features for {self.mechanism_schema or "legacy"}')
             B = features.shape[0]
             dev = features.device
             x = features.float()
@@ -417,6 +436,10 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             g = g + self._card_repr(c[:, C["powers"]], _zvec).sum(dim=1)
             g = g + self._card_repr(c[:, C["deity"]], _zvec).sum(dim=1)
             g = g + self._card_repr(c[:, C["trinkets"]], _zvec).sum(dim=1)
+            if self.mechanism_schema:
+                extra = x[:, OBS_FLOATS:]
+                g = g + self.mechanism_global(extra[:, :M.N_STATS])
+                g = g + self.mechanism_pending(self._card_repr(c[:, 4:5], _zvec).sum(dim=1))
 
             def card_of(name, shape):
                 return self._card_repr(c[:, C[name]].reshape(B, *shape), _zvec)
@@ -426,16 +449,22 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
                         + self.type_emb(torch.zeros(B, dtype=torch.long, device=dev))).unsqueeze(1))
             # board 7
             b = self.minion_proj(board) + card_of("board", (N_BOARD,))
+            if self.mechanism_schema:
+                b = b + self.mechanism_counter(extra[:, M.N_STATS:M.N_STATS+7].unsqueeze(-1))
             b = b + self.type_emb(torch.ones(B, N_BOARD, dtype=torch.long, device=dev)) \
                 + self.pos_emb(torch.arange(N_BOARD, device=dev).view(1, -1))
             tok.append(b)
             # hand 10
             hnd = self.item_proj(hand) + card_of("hand", (N_HAND,))
+            if self.mechanism_schema:
+                hnd = hnd + self.mechanism_counter(extra[:, M.N_STATS+7:M.N_STATS+17].unsqueeze(-1))
             hnd = hnd + self.type_emb(torch.full((B, N_HAND), 2, dtype=torch.long, device=dev)) \
                 + self.pos_emb(torch.arange(N_HAND, device=dev).view(1, -1))
             tok.append(hnd)
             # shop 8
             sh = self.item_proj(shop) + card_of("shop", (N_SHOP,))
+            if self.mechanism_schema:
+                sh = sh + self.mechanism_counter(extra[:, M.N_STATS+17:].unsqueeze(-1))
             sh = sh + self.type_emb(torch.full((B, N_SHOP), 3, dtype=torch.long, device=dev)) \
                 + self.pos_emb(torch.arange(N_SHOP, device=dev).view(1, -1))
             tok.append(sh)

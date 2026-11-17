@@ -411,6 +411,11 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
         _zcard = state.get("zcard")
         _n_z = int(_zcard.shape[0]) if hasattr(_zcard, "shape") else 46
     _attr_f = int(meta.get("attr_f", 0) or 0)
+    from .mechanism_obs import SCHEMA, SCHEMA_SHA256
+    mechanism_schema = str(meta.get('mechanism_schema', '') or '')
+    if any(str(k).startswith('mechanism_') for k in state):
+        if mechanism_schema != SCHEMA or meta.get('mechanism_schema_sha256') != SCHEMA_SHA256:
+            raise ValueError('mechanism checkpoint lacks matching observation schema identity')
     if _borrow["use_attr"] and _attr_f <= 0:
         _attr = state.get("attr")
         _attr_f = int(_attr.shape[1]) if hasattr(_attr, "shape") else 311
@@ -423,7 +428,7 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
                           process_head=has_process_head,
                           use_z=_borrow["use_z"], n_z=_n_z,
                           use_attr=_borrow["use_attr"], attr_f=_attr_f,
-                          mag_query=_borrow["mag_query"])
+                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema)
     elif arch == "entity":
         model = build_net(arch="entity", d_model=int(meta.get("d_model", 384)),
                           n_layers=int(meta.get("n_layers", 8)),
@@ -435,7 +440,7 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
                           process_head=has_process_head,
                           use_z=_borrow["use_z"], n_z=_n_z,
                           use_attr=_borrow["use_attr"], attr_f=_attr_f,
-                          mag_query=_borrow["mag_query"])
+                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema)
     else:
         model = build_net(hidden, seq_head=seq_head, bc_card_head=has_card_head,
                           bc_card_dim=(card_dim or None))

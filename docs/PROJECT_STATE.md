@@ -1,6 +1,9 @@
 # HSAI 当前状态
 
 状态：**as of 2026-11-17，现代化与正式评测完成；本轮模型能力研究完成，下一轮科学方案待决策**。
+
+**23:06更新（D-081）**：用户已授权自主研究、开发与训练，主动操作截止2026-11-18 10:30新加坡时间。
+正在实现可见机制状态输入与经济过程学习实验；旧v1.4及正式证据保留，实机暂停。实际新作业另行登记。
 动态作业以 `python ops/hsai_ops.py state` 实测为准。历史在 [DECISIONS.md](DECISIONS.md)；
 完整本轮报告在 [MODERNIZATION_20261117.md](analysis/MODERNIZATION_20261117.md)。
 本文件原 18:27 快照保存在 Git 历史及本地 `records/archive/project-state-20261117-1827/`。

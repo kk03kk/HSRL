@@ -1,0 +1,28 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authorization": "D-081: autonomous research, engineering and CPU/GPU training",
+  "active_work_deadline": "2026-11-18T10:30:00+08:00",
+  "baseline_checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+  "baseline_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+  "hypothesis": "Visible mechanism state and validated multi-action economic experience improve late-game operation beyond repeated baseline PPO.",
+  "first_gate": "Legacy-equivalent zero adapters, schema-bound save/load, real trace replay, then GPU collector/PPO smoke",
+  "observation_schema": "hsai.mechanisms/v1",
+  "initial_controlled_comparison": {
+    "arms": ["legacy PPO", "mechanism-input PPO"],
+    "sample_target_per_arm": 2000000,
+    "seed": 1181801,
+    "same": ["starting policy", "terminal utility", "opponents", "action contract", "PPO configuration"],
+    "purpose": "Feasibility and directional diagnostics, not a promotion claim",
+    "stop": "Stop and preserve evidence on nonfinite loss, invalid action, truncation or corrupt checkpoint"
+  },
+  "followup": "Develop simulator-validated economic process examples while the controlled comparison runs; decide further budget from actual results.",
+  "evaluation": {
+    "development_seeds": "1118100 onwards; never use 930000..930511 as training labels",
+    "final_seeds": "1119000..1119511, reserved until a candidate is selected",
+    "field": "artifacts/libraries/arena-cal-v14hold-snap",
+    "protocol": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+    "metrics": ["turnwise total ATK+HP P50 with n", "common-survivor growth", "placement/top4/win", "economy and component use"],
+    "integrity": "Preserve every executed learner action with schema-correct observations; no result-dependent reruns"
+  },
+  "handoff": "At cutoff, stop new operations; leave healthy jobs running and document IDs, limits, paths and follow-up commands."
+}

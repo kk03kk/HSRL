@@ -1588,8 +1588,12 @@ class PPOBatch:
         """形状/合法性自检；返回问题列表（空 = 通过）。"""
         errs: List[str] = []
         n = len(self)
+        from .mechanism_obs import valid_width
+        width = self.features.shape[1] if self.features.ndim == 2 else -1
+        if not valid_width(width):
+            errs.append(f'unsupported observation width: {width}')
         expected = {
-            "features": (n, OBS_FLOATS), "cards": (n, OBS_CARDS),
+            "features": (n, width), "cards": (n, OBS_CARDS),
             "masks": (n, N_ACTIONS), "actions": (n,),
             "old_logprobs": (n,), "values": (n,), "rewards": (n,), "dones": (n,),
             "advantages": (n,), "returns": (n,), "seats": (n,), "game_ids": (n,),
@@ -1850,7 +1854,8 @@ def build_batch_from_records(records: List[Dict[str, Any]], *,
                       for r in recs]).astype(np.int16)
     masks = np.stack([np.asarray(r["mask"], dtype=bool).reshape(-1)
                       for r in recs]).astype(bool)
-    if features.shape[1] != OBS_FLOATS or cards.shape[1] != OBS_CARDS \
+    from .mechanism_obs import valid_width
+    if not valid_width(features.shape[1]) or cards.shape[1] != OBS_CARDS \
             or masks.shape[1] != N_ACTIONS:
         raise ValueError("features/cards/mask 形状不符合 3227/124/245 固定协议")
     actions = np.asarray([int(r["action"]) for r in recs], dtype=np.int64)
@@ -2310,7 +2315,8 @@ class PPOGreedyPolicy(Policy):
     def decide(self, game: Any, seat: int) -> Decision:
         seat = int(seat)
         turn = int(getattr(game, "turn", -1))
-        f, c = obs_arrays(game.observe(seat))
+        from .mechanism_obs import observe, schema_of
+        f, c = obs_arrays(observe(game, seat, schema_of(getattr(self.evaluator, 'model', None))))
         mask = mask_from_bytes(game.legal_mask(seat))
         if self.forbid_cancel:
             mask = without_cancel(mask)
@@ -2525,7 +2531,8 @@ class TrainForward:
             torch.set_float32_matmul_precision("high")
         mb = max(1, int(batch_size or self.minibatch or 1))
         d = self.device
-        warm = (torch.zeros((mb, OBS_FLOATS), dtype=torch.float32, device=d),
+        width = int(getattr(self.model, 'input_floats', OBS_FLOATS))
+        warm = (torch.zeros((mb, width), dtype=torch.float32, device=d),
                 torch.zeros((mb, OBS_CARDS), dtype=torch.long, device=d),
                 torch.ones((mb, N_ACTIONS), dtype=torch.bool, device=d))
         self._warm_one("main", *warm, backward=backward)
@@ -2540,7 +2547,7 @@ class TrainForward:
                 self._warn("bc", RuntimeError(
                     "模型没有 forward_bc，BC 路径保持 eager（只算类型级）"))
             else:
-                bc_warm = (torch.zeros((bmb, OBS_FLOATS), dtype=torch.float32, device=d),
+                bc_warm = (torch.zeros((bmb, width), dtype=torch.float32, device=d),
                            torch.zeros((bmb, OBS_CARDS), dtype=torch.long, device=d),
                            torch.ones((bmb, N_ACTIONS), dtype=torch.bool, device=d))
                 if self._warm_one("bc", *bc_warm, backward=backward):
@@ -3831,7 +3838,8 @@ class PPOSelfPlayPolicy(Policy):
 
     def _observe(self, game: Any, seat: int):
         """取观测与合法动作掩码（与 decide 一致）。"""
-        f, c = obs_arrays(game.observe(int(seat)))
+        from .mechanism_obs import observe, schema_of
+        f, c = obs_arrays(observe(game, seat, schema_of(self.model)))
         mask = mask_from_bytes(game.legal_mask(int(seat)))
         if bool(getattr(self.config, "forbid_cancel", False)):
             mask = without_cancel(mask)

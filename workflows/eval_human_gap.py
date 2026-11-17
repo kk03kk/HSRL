@@ -230,8 +230,13 @@ def run_checkpoint(name: str, path: Path, args,
     recorder = None
     if bool(getattr(args, 'record_decisions', False)):
         from hsbg.evaluation.trace import DecisionRecorder
+        from hsbg.az.train.mechanism_obs import schema_of, SCHEMA_SHA256
+        mechanism_identity = ({'mechanism_schema': schema_of(model),
+                               'mechanism_schema_sha256': SCHEMA_SHA256}
+                              if schema_of(model) else {})
         recorder = DecisionRecorder(Path(args.out).parent / f'decisions-{_safe_name(name)}.jsonl.gz',
                                     identity={'name': name, 'checkpoint_sha256': checkpoint_sha,
+                                              **mechanism_identity,
                                               'protocol': {**protocol.as_dict(), 'protocol_sha256': protocol.sha256()}})
         cfg.decision_recorder = recorder
     started = time.time()
