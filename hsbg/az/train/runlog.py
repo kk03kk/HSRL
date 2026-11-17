@@ -27,6 +27,8 @@ SLIM_DROP_KEYS = ("worker_meta", "games_meta", "learner_final_str_samples")
 INJECTION_KEYS = (
     "mirror_on", "mirror_attempt", "mirror_applied", "mirror_rejected",
     "mirror_missing", "mirror_fallback", "mirror_errors",
+    "mirror_missing_learner_alive", "mirror_missing_learner_dead", "mirror_missing_learner_unknown",
+    "mirror_missing_observations",
     "mirror_p", "mirror_sample", "mirror_p_ramp", "mirror_max_turn",
     "mirror_seats", "mirror_frames", "mirror_last_rejected",
     "mirror_rejected_by_reason", "mirror_strict_counts", "mirror_pool_unbalanced", "mirror_pool_species_unbalanced",
@@ -120,6 +122,7 @@ INJECTION_KEYS = (
 )
 #: 跨 worker 聚合口径：事件计数求和、开关取 any、概率取均值、设置取首个值。
 INJECTION_SUM_KEYS = frozenset({
+    "mirror_missing_learner_alive", "mirror_missing_learner_dead", "mirror_missing_learner_unknown",
     "mirror_attempt", "mirror_applied", "mirror_rejected", "mirror_missing",
     "mirror_fallback", "mirror_errors",
     "mirror_pool_unbalanced", "mirror_pool_species_unbalanced", "mirror_pool_preexisting",
@@ -258,7 +261,7 @@ def aggregate_injection(sources: Any) -> Dict[str, Any]:
                         merged[str(kk)] = int(merged.get(str(kk), 0) + int(n))
             if merged:
                 out[key] = dict(sorted(merged.items()))
-        elif key in ('mirror_last_rejected', 'mirror_pool_observations'):
+        elif key in ('mirror_last_rejected', 'mirror_pool_observations', 'mirror_missing_observations'):
             out[key] = [item for value in vals if isinstance(value, list) for item in value][-10:]
         elif key in INJECTION_FIRST_KEYS:
             out[key] = vals[0]

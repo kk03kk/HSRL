@@ -545,6 +545,10 @@ class MirrorStats:
     applied: int = 0        # 引擎成功替换的座位数
     rejected: int = 0       # 引擎拒绝的座位数（fail-closed，状态未变）
     missing: int = 0        # 缺帧数
+    missing_learner_alive: int = 0
+    missing_learner_dead: int = 0
+    missing_learner_unknown: int = 0
+    missing_observations: List[Dict[str, Any]] = field(default_factory=list)
     fallback: int = 0       # 退回 bot 行为的座位数（= missing + rejected + errors）
     errors: int = 0         # Python 侧异常（引擎/数据问题）
     pool_unbalanced: int = 0        # 注入后 pool_balance 不守恒的次数
@@ -568,6 +572,10 @@ class MirrorStats:
         self.applied += other.applied
         self.rejected += other.rejected
         self.missing += other.missing
+        self.missing_learner_alive += other.missing_learner_alive
+        self.missing_learner_dead += other.missing_learner_dead
+        self.missing_learner_unknown += other.missing_learner_unknown
+        self.missing_observations.extend(other.missing_observations[:max(0,8-len(self.missing_observations))])
         self.fallback += other.fallback
         self.errors += other.errors
         self.pool_unbalanced += other.pool_unbalanced
@@ -585,6 +593,10 @@ class MirrorStats:
     def to_meta(self) -> Dict[str, Any]:
         return {"mirror_attempt": int(self.attempt), "mirror_applied": int(self.applied),
                 "mirror_rejected": int(self.rejected), "mirror_missing": int(self.missing),
+                "mirror_missing_learner_alive": int(self.missing_learner_alive),
+                "mirror_missing_learner_dead": int(self.missing_learner_dead),
+                "mirror_missing_learner_unknown": int(self.missing_learner_unknown),
+                "mirror_missing_observations": list(self.missing_observations),
                 "mirror_fallback": int(self.fallback), "mirror_errors": int(self.errors),
                 "mirror_pool_unbalanced": int(self.pool_unbalanced),
                 "mirror_pool_species_unbalanced": int(self.pool_species_unbalanced),
@@ -759,6 +771,23 @@ def inject_turn(game: Any, pool: MirrorSnapshotPool, turn: int, *,
         if frame is None:
             st.missing += 1
             st.fallback += 1
+            # Diagnostic only: no RNG, policy, pool sampling, or engine mutation.
+            # Older histories cannot distinguish opponent-only play after the
+            # learner has died from a missing frame affecting its live game.
+            try:
+                state = json.loads(game.state_json())
+                learner = state['players'][int(learner_seat)]
+                if type(learner['alive']) is not bool:
+                    raise ValueError('unknown learner alive state')
+                status = 'alive' if learner['alive'] else 'dead'
+                observation = dict(seed=state['seed'],turn=int(turn),target=seat,
+                    learner=int(learner_seat),alive=learner['alive'],health=learner['health'])
+            except Exception:
+                st.missing_learner_unknown += 1
+            else:
+                setattr(st, 'missing_learner_'+status, getattr(st, 'missing_learner_'+status)+1)
+                if len(st.missing_observations)<8:
+                    st.missing_observations.append(observation)
             continue
         if frame.player.get("hand_queue"):
             any_queue = True
