@@ -71,3 +71,7 @@ def test_full_board_probe_explicitly_preserves_original_and_credits_disposable_v
     assert len(full['protected_eids'])==len(task['initial']['players'][0]['board'])
     assert full['objective']==task['objective']+len(full['liquid_eids'])
     assert not set(full['protected_eids']) & set(full['liquid_eids'])
+    task['initial']['players'][0]['board']=[]
+    sparse=fill_board(task)
+    assert len(sparse['initial']['players'][0]['board'])==7
+    assert len(sparse['liquid_eids'])==7

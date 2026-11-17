@@ -20,7 +20,8 @@ def fill_board(task):
     edits=[]
     # Vanilla bodies have no recruit effect. Tokens are explicit diagnostic
     # interventions, not claims about natural availability or training labels.
-    for card in ('BGS_061t','BG29_864t','BG_CS2_200'):
+    for card in ('BGS_061t','BG29_864t','BG_CS2_200','BG30_MagicItem_442t',
+                 'BG_CFM_315t','BG_BRM_006t','BGS_115t','BG_EX1_556t'):
         if len(own(game)['board'])==7:break
         if card_ids()[card] in existing:continue
         debug(game,'add_minion',zone='board',card=card,atk=1,hp=1)
