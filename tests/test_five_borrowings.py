@@ -59,7 +59,7 @@ print()
 print("=== ①②③ 模型结构（需要 torch + 引擎卡表） ===")
 try:
     from hsbg.az.train.entity_model import build_entity_net
-    from hsbg.env import hsbg_engine as _e  # noqa: F401
+    import hsbg_engine as _e  # noqa: F401
     have_engine = True
 except BaseException as exc:  # noqa: BLE001
     have_engine = False
