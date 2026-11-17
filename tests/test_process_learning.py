@@ -59,3 +59,15 @@ def test_short_process_run_publishes_checks_and_reload(tmp_path,monkeypatch):
     assert result['roundtrip_exact']
     assert len(list((tmp_path/'out/checks').glob('*.json')))==2
     assert (tmp_path/'out/bc_state.pt').exists()
+
+
+def test_full_board_probe_explicitly_preserves_original_and_credits_disposable_value():
+    from tests.test_economic_tasks import natural_source
+    from workflows.build_economic_dataset import build_task
+    from tools.probe_full_board_process import fill_board
+    task=build_task((dict(state=natural_source(),seat=0,seed=11800000,turn=8),'buy_privateer',2,0))
+    full=fill_board(task)
+    assert len(full['initial']['players'][0]['board'])==7
+    assert len(full['protected_eids'])==len(task['initial']['players'][0]['board'])
+    assert full['objective']==task['objective']+len(full['liquid_eids'])
+    assert not set(full['protected_eids']) & set(full['liquid_eids'])

@@ -58,6 +58,8 @@ def closed_loop(model,tasks,device,out):
             game=engine.Game.from_json(json.dumps(task['initial']))
             policy=PPOGreedyPolicy(evaluator)
             original={m['eid'] for m in own(game)['board']}
+            protected=set(task.get('protected_eids',original))
+            liquid=set(task.get('liquid_eids',[]))
             actions=[];stop='budget';board_retained=True
             for step in range(12):
                 if wealth_remaining(game)==0:stop='completed';break
@@ -70,11 +72,11 @@ def closed_loop(model,tasks,device,out):
                 game.step(0,action)
                 after=json.loads(game.state_json())
                 actions.append({'action':action,'before':before,'after':after})
-                if not original<={m['eid'] for m in own(game)['board']}:
+                if not protected<={m['eid'] for m in own(game)['board']}:
                     board_retained=False;stop='sold_original';break
                 if any(game.diagnostic_counts()):raise RuntimeError('engine diagnostic in skill rollout')
             if wealth_remaining(game)==0 and board_retained:stop='completed'
-            value=score(game,original)
+            value=score(game,original)+sum(m['eid'] in liquid for m in own(game)['board'])
             row={'seed':task['seed'],'kind':task['kind'],'bounties':task['bounties'],
                  'stop':stop,'actions':len(actions),'wealth_remaining':wealth_remaining(game),
                  'gold':own(game)['gold'],'value':value,'oracle_value':task['objective'],
