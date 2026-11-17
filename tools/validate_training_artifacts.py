@@ -4,7 +4,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
+import numbers
 from pathlib import Path
+
+
+def require(condition, detail):
+    if not condition:
+        raise ValueError(f'invalid completed training artifact: {detail}')
 
 
 def sha256(path):
@@ -19,25 +26,27 @@ def validate(root):
     import torch
     torch.set_num_threads(2)
     root = Path(root)
-    summary = json.loads((root/'summary.json').read_text())
-    latest = json.loads((root/'latest.json').read_text())
-    rows = [json.loads(line) for line in (root/'history.jsonl').read_text().splitlines()]
+    summary = json.loads((root/'summary.json').read_text(encoding='utf-8'))
+    latest = json.loads((root/'latest.json').read_text(encoding='utf-8'))
+    rows = [json.loads(line) for line in (root/'history.jsonl').read_text(encoding='utf-8').splitlines()]
     rows = [row for row in rows if 'iter' in row]
     model = torch.load(root/'model.pt', map_location='cpu', weights_only=False)
     trainer = torch.load(root/'trainer.pt', map_location='cpu', weights_only=False)
     updates = int(trainer['updates'])
-    assert updates == int(summary['updates']) == int(model['meta']['trainer_updates'])
-    assert len(rows) == int(summary['iterations']) == int(summary['history_len'])
-    assert rows[-1]['ppo']['trainer_updates'] == updates
+    require(updates == int(summary['updates']) == int(model['meta']['trainer_updates']), 'generation mismatch')
+    require(bool(rows) and len(rows) == int(summary['iterations']) == int(summary['history_len']), 'history coverage')
+    require(rows[-1]['ppo']['trainer_updates'] == updates, 'history final generation')
     for key in ('optimizer', 'scheduler', 'rng', 'torch_rng', 'python_rng', 'anchor_model'):
-        assert trainer.get(key) is not None, key
-    assert trainer['optimizer']['state'], 'empty Adam state'
-    assert set(model['state_dict']) == set(trainer['model'])
+        require(trainer.get(key) is not None, key)
+    require(trainer['optimizer']['state'], 'empty Adam state')
+    require(set(model['state_dict']) == set(trainer['model']), 'model/Trainer keys')
     for key, value in model['state_dict'].items():
-        assert torch.equal(value, trainer['model'][key]), key
+        require(torch.equal(value, trainer['model'][key]), key)
     def finite(value, path='trainer'):
         if torch.is_tensor(value):
-            assert bool(torch.isfinite(value).all()), path
+            require(bool(torch.isfinite(value).all()), path)
+        elif isinstance(value, numbers.Real):
+            require(math.isfinite(value), path)
         elif isinstance(value, dict):
             for key, child in value.items(): finite(child, f'{path}/{key}')
         elif isinstance(value, (tuple, list)):
@@ -45,13 +54,18 @@ def validate(root):
     finite(trainer)
     counters = ('illegal_actions', 'invalid_games', 'truncated_games', 'truncated_combats',
                 'truncated_recruit_contexts', 'engine_stopped', 'mirror_errors', 'dropped_decisions')
+    for row in rows:
+        for key in counters:
+            value=row['collect'].get(key,0)
+            require(isinstance(value,numbers.Real) and math.isfinite(value) and value>=0 and int(value)==value, key)
     totals = {key: sum(row['collect'].get(key, 0) for row in rows) for key in counters}
-    assert not any(totals.values()), totals
+    require(not any(totals.values()), totals)
     return {
         'schema': 'hsai.completed-run-validation/v1', 'valid': True,
         'updates': updates, 'history_rows': len(rows),
         'decisions': sum(row['collect'].get('decisions', 0) for row in rows),
         'latest_snapshot_version': latest['version'], 'counters': totals,
+        'counter_coverage': {key:sum(key in row['collect'] for row in rows) for key in counters},
         'model_meta': model['meta'], 'trainer_extra': trainer['extra'],
         'scheduler': trainer['scheduler'], 'optimizer_states': len(trainer['optimizer']['state']),
         'files': {name: {'bytes': (root/name).stat().st_size, 'sha256': sha256(root/name)}
