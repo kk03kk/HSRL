@@ -1,5 +1,9 @@
 # HSAI 架构：单 Agent 统一管理双环境
 
+2026-11-17 工程层补充：源码发布、运行资产与验证证据已分层。模块边界、发布/回滚、
+Windows 隔离环境、完整逐动作评测见 [ENGINEERING.md](ENGINEERING.md)。本文保留双环境职责
+与通信架构；新的作业应从冻结 worktree 提交，不能直接依赖持续修改的主检出。
+
 状态：**当前生效**（2026-11-12 起）。取代 2026-11-10 的"双 Agent + GitHub 同步"架构。
 传输层细节见 [`architecture/TRANSPORT.md`](architecture/TRANSPORT.md)；
 日常工作流见 [`OPERATIONS.md`](OPERATIONS.md)。

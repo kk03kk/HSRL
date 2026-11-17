@@ -24,19 +24,16 @@ AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`）。**由一个 Agent 同时�
 完整职责与三层结构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，日常流程见
 [docs/OPERATIONS.md](docs/OPERATIONS.md)，规则见 [AGENTS.md](AGENTS.md)。
 
-## 当前状态（2026-11-12）
+## 当前入口
 
-- 架构：**单 Agent 双环境管理已上线**。`ops/hsai_ops.py` 是唯一远端入口；GitHub 降级为
-  异地归档；`docs/sync/` 散文协作协议已退休并归档。
-- 模拟器：酒馆 **37.0.2.256589**，源码指纹 `c4c71014e3d41760`，原生动作 **245**，观测 **3227 floats + 124 cards**。
-- 训练：`1102669 hsai-league-36h` **已完成**（72/72 段；final `v14858`、累计 `1,552,463,499`；`illegal/truncated/dropped=0`）。final 资产在 `artifacts/models/league-final-20261111-step014858/`。**当前没有正式作业在跑。**
-- 审计：2026-11-11 全链路审计已完成，报告 `docs/AUDIT_2026-11-11.md`；修复了镜像 p75 退化、Freeze 空转、评测 Elo 尺度/shared bootstrap 等问题。
-- 评测（引擎 `c4c71014`）：E1 四模型校准正式报告 r2（2,688 局，与 r1 六对逐对一致）：`league-final-14858` 点估计冠军 **1086.53**（CI [1062.49, 1111.01]），`13806` 1068.45，`12311` 1055.92，`V1.1` 1000；final vs 13806 为 240–208，不显著。按用户规则只跑一轮、不做挑战赛。
-- 旧结果：v2 榜（12311 1067.68）协议与 E1 不同，不能混榜；11 模型 live-v1 锚定旧引擎 `c7b5f27d`，只作历史证据。
-- 实机：pin 已更新为 `league-final-14858`，`real_game_accepted: false`；两局终局有效（第 6 / 第 5 名），尚未显示相对 12311 的优势，与 D-026（`public-approx-v1` 有损投影）一致，待取证。
-- 下一阶段：下一轮长训使用 `config/league-stage2.json`（turnband + forbid-unfreeze + stage fork，2×H100，94×30min），**等待用户确认后再启动**。
+动态训练与模型状态只看 [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) 和实时
+`python ops/hsai_ops.py state`；本页不复制作业号、冠军或下一轮训练配置。
 
-详细状态：[docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)。
+- [工程架构与验收](docs/ENGINEERING.md)：冻结源码发布、模型登记、完整动作证据、环境复建。
+- [训练配方](docs/TRAINING_RECIPE.md)与[评测协议](docs/EVAL_PROTOCOL.md)：科学设计的约束。
+- [现代化与正式评测报告](docs/analysis/MODERNIZATION_20261117.md)：本轮工作、证据、结果与限制。
+- 引擎仍为 37.0.2.256589 / `c4c71014e3d41760`；原生动作 245，观测 3227 floats + 124 cards。
+- 实机 pin 不因候选登记或离线评测自动改变；真实游戏验收仍独立进行。
 
 ## 目录结构
 
@@ -63,11 +60,13 @@ AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`）。**由一个 Agent 同时�
 ### 本地（Windows，代码/测试）
 
 ```powershell
-python -m venv .venv && .\.venv\Scripts\activate
-pip install -r requirements.txt          # numpy / torch / pytest / maturin
-python tools/verify_workspace.py         # BOM、源指纹、卡表、契约门禁
-python -m pytest tests/test_live_*.py -q # 实机链路离线回归
+.venv\Scripts\python.exe -m pip check
+.venv\Scripts\python.exe tools/verify_workspace.py --skip-rust
+.venv\Scripts\python.exe -m pytest tests -q
 ```
+
+新机器先按 [环境复建步骤](docs/ENGINEERING.md#5-环境与可选外部源码) 安装角色锁定依赖和引擎轮子。
+Rust 构建与 GPU 验证在 Slurm 计算节点进行。
 
 ### 实机（真实游戏自动化）
 

@@ -1,6 +1,6 @@
 # HSAI 文档索引
 
-状态：**当前生效**（2026-11-15 重排）。本目录只放**当前有效**的文档，共 **18 份**。
+状态：**当前生效**（2026-11-17 更新）。当前入口以本索引为准；专题分析均带日期与适用范围。
 历史文档在 `records/archive/<topic>-<YYYYMMDD>/`，**不是启动命令**。
 
 ## 新人从这 5 份读起（顺序照抄）
@@ -18,6 +18,7 @@
 | 文档 | 内容 |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 单 Agent 双环境：职责、三层结构 |
+| [ENGINEERING.md](ENGINEERING.md) | 模块边界、冻结发布、模型登记、完整动作证据、环境与验收 |
 | [OPERATIONS.md](OPERATIONS.md) | 日常运作：开工开场、提交作业、**§10 一轮迭代操作清单** |
 | [architecture/TRANSPORT.md](architecture/TRANSPORT.md) | SSH 隧道、git over SSH、GitHub 定位、大文件传输 |
 

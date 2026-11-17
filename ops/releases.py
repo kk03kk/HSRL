@@ -4,15 +4,17 @@ Run on NUS with Python's standard library. Does not alter the checkout or submit
 """
 import argparse
 import datetime
-import hashlib
 import json
 from pathlib import Path
 import re
 import subprocess
 
 
-def create_release(workspace, commit, name):
+def create_release(workspace, commit, name, environment=None):
     workspace = Path(workspace).resolve()
+    environment = (workspace / (environment or '.venv')).resolve()
+    if not environment.is_relative_to(workspace) or not environment.is_dir():
+        raise ValueError('release environment must be an existing directory inside workspace')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', name):
         raise ValueError('release name must be a safe component')
     def git(*args):
@@ -25,7 +27,7 @@ def create_release(workspace, commit, name):
     git('worktree', 'add', '--detach', str(target), commit)
     mounts = {}
     for name in ('.venv', 'artifacts'):
-        source = workspace/name
+        source = environment if name == '.venv' else (workspace/name).resolve()
         if source.exists():
             dest = target/name
             if dest.exists():
@@ -61,5 +63,6 @@ if __name__ == '__main__':
     parser.add_argument('--workspace', type=Path, required=True)
     parser.add_argument('--commit', required=True)
     parser.add_argument('--name', required=True)
+    parser.add_argument('--environment', help='workspace-relative immutable environment directory; default .venv target')
     args = parser.parse_args()
-    print(json.dumps(create_release(args.workspace, args.commit, args.name), indent=2))
+    print(json.dumps(create_release(args.workspace, args.commit, args.name, args.environment), indent=2))

@@ -386,7 +386,7 @@ git rev-parse --abbrev-ref HEAD
 echo "@@DIRTY"
 git status --porcelain=v1
 echo "@@JOBS"
-squeue -u "$USER" -h -o '%i|%P|%j|%T|%M|%D|%R' 2>/dev/null
+squeue -u "$USER" -h -o '%i|%P|%j|%T|%M|%D|%R' || exit 4
 echo "@@GPU"
 sinfo -h -p gpu,gpu-long -o '%P|%a|%t|%D' 2>/dev/null | sort
 echo "@@DISK"
@@ -628,9 +628,10 @@ def cmd_jobs(args: argparse.Namespace) -> int:
     require_tunnel()
     script = r"""
 echo "=== running/pending ==="
-squeue -u "$USER" 2>/dev/null || echo "none"
+squeue -u "$USER" || exit 4
 echo "=== last 8 accounting ==="
-sacct -u "$USER" -X -S now-7days -o JobID,JobName%28,State,Elapsed,End 2>/dev/null | tail -9
+set -o pipefail
+sacct -u "$USER" -X -S now-7days -o JobID,JobName%28,State,Elapsed,End | tail -9
 """
     rc, out, err = remote_run(script, timeout=120, label="jobs")
     print(truncate(out or err, DEFAULT_MAX_BYTES if not args.full else 0))

@@ -1,5 +1,10 @@
 # HSAI 工作规范：单 Agent 双环境日常运作
 
+2026-11-17 工程入口更新：新作业从 `ops/releases.py` 创建的冻结 worktree 提交；正式评测
+使用已提交的 `config/evaluation/*.json` 与 `deploy/slurm/evaluate_suite.sbatch`。发布、回滚、
+环境复建和逐动作证据验收详见 [ENGINEERING.md](ENGINEERING.md)。旧命令保留兼容，但历史
+作业目录不可覆盖。具体 GPU 作业仍须有用户授权；本次现代化验证和正式评测已获明确授权。
+
 状态：**当前生效**（2026-11-12）。取代 `docs/SYNC_MODEL.md` 与 `docs/sync/` 的散文协作协议。
 架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，传输层见 [`architecture/TRANSPORT.md`](architecture/TRANSPORT.md)。
 
