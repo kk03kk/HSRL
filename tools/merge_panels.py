@@ -183,8 +183,14 @@ def _merge_field_stats(extras: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
-def _protocol(extras: List[Dict[str, Any]], shard: Path) -> Dict[str, Any]:
-    """所有分片必须同 ``protocol_sha256``；返回合并后的 ``protocol`` 段。"""
+def _protocol(extras: List[Dict[str, Any]], shard: Path,
+              panel_protocol: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """所有分片必须同 ``protocol_sha256``；返回合并后的 ``protocol`` 段。
+
+    2026-11-17：以前这里只带 ``protocol_sha256``，把契约/场地/引擎口径都丢了 ——
+    于是一个"能比"的面板没法自证"比的是什么"。现在优先取分片 ``panel.json`` 里
+    **完整的 protocol 段**（各分片必然相同）。
+    """
     shas = {str((e or {}).get("protocol_sha256") or "") for e in extras}
     shas.discard("")
     if not shas:
@@ -195,7 +201,11 @@ def _protocol(extras: List[Dict[str, Any]], shard: Path) -> Dict[str, Any]:
         raise SystemExit(
             f"{shard}: 同一分片内的模型/分片协议不一致 {sorted(s[:12] for s in shas)}"
             "——不同协议不能混榜（docs/EVAL_PROTOCOL.md §4 规则 5）。")
-    return {"protocol_sha256": next(iter(shas))}
+    sha = next(iter(shas))
+    if isinstance(panel_protocol, dict) and panel_protocol.get("protocol_sha256"):
+        if str(panel_protocol["protocol_sha256"]) == sha:
+            return dict(panel_protocol)
+    return {"protocol_sha256": sha}
 
 
 def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -241,6 +251,16 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, A
     }
 
 
+def _shard_panel_protocol(shard_dirs: List[Path]) -> Optional[Dict[str, Any]]:
+    """从第一个带 ``protocol`` 的分片 ``panel.json`` 里取**完整**协议段。"""
+    for d in shard_dirs:
+        doc = _read_json(Path(d) / "panel.json")
+        proto = doc.get("protocol")
+        if isinstance(proto, dict) and proto.get("protocol_sha256"):
+            return dict(proto)
+    return None
+
+
 def merge(shard_dirs: List[Path], out_path: Path, *,
           expect_games: Optional[int] = None,
           expect_models: Optional[int] = None) -> Dict[str, Any]:
@@ -262,7 +282,8 @@ def merge(shard_dirs: List[Path], out_path: Path, *,
             missing = [str(d) for d, m in per_shard if name not in m]
             raise SystemExit(f"模型 {name!r} 在分片 {missing} 里缺失——拒绝合并（不静默降级）")
         protocol = _protocol([v["extra"] for v in shard_map.values()],
-                             shard_dirs[0])
+                             shard_dirs[0],
+                             _shard_panel_protocol(shard_dirs))
         merged_models.append(_model_entry(name, shard_map))
 
     total_games = int((merged_models[0].get("outcome") or {}).get("games") or 0)

@@ -86,8 +86,10 @@ echo "collected ${#shards[@]}/${nshard} shard panels"
 if [ "${#shards[@]}" -gt 0 ]; then
   # 2026-11-17（审计 P1-6）：缺分片不再静默——`--expect-games` 断言每个模型的名次样本数
   # 等于本轮计划局数，`--expect-models` 断言模型数；不符则 merge 直接失败（不写盘）。
+  # 注意 ``specs`` 是 "--checkpoint name=path" 展开后的数组（每个模型 2 个元素），
+  # 所以模型数要用 ``pairs`` 的长度。
   python tools/merge_panels.py "${shards[@]}" --out "$out/panel.json" \
-    --expect-games "$total" --expect-models "${#specs[@]}" 2>&1 | tee -a "$out/run.env"
+    --expect-games "$total" --expect-models "${#pairs[@]}" 2>&1 | tee -a "$out/run.env"
 fi
 echo "done=$(date -Is) total_elapsed=$(( $(date +%s) - t0 ))s" | tee -a "$out/run.env"
 
