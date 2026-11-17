@@ -521,6 +521,9 @@ class CollectConfig:
 
     def __post_init__(self) -> None:
         """构造期校验（只在显式开了法术自举补贴时才检查，默认路径零成本）。"""
+        from .recruit_start import validate_options
+        validate_options(self.recruit_start_bank,self.recruit_start_p,lockstep=self.lockstep,
+                         rust_collector=self.rust_collector,learner_seat=self.learner_seat)
         _sbc = float(self.spell_bootstrap_coef or 0.0)
         if not math.isfinite(_sbc) or _sbc < 0.0:
             raise ValueError(f"spell_bootstrap_coef 必须 >= 0，得到 {_sbc!r}")
@@ -615,6 +618,10 @@ class CollectConfig:
     curriculum_stage: str = "none"
     #: 当前 iteration 生效的金币收入倍数；1.0 = 完全不碰金币（逐位等价）。
     curriculum_gold_mult: float = 1.0
+    # Whole-state curriculum is independent of income multiplication and off by default.
+    recruit_start_bank: str = ''
+    recruit_start_p: float = 0.0
+    recruit_start_manifest_sha256: str = ''
     #: 在线缩放教师 DAgger：True 时在「gold>=10 且 tier>=4」的决策上写
     #: ``teacher_action``（-1 = 本决策无标签）；默认 False = 不查教师、不新增字段。
     teacher_bc: bool = False

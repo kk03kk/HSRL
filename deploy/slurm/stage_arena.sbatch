@@ -203,6 +203,7 @@ python workflows/train_entity_sync.py \
   --mirror-strict 0 --mirror-max-turn 0 \
   --human-board-p 0 --human-boards "" \
   --entry-p 0 \
+  --recruit-start-bank "${HSAI_RECRUIT_START_BANK:-}" --recruit-start-p "${HSAI_RECRUIT_START_P:-0}" \
   --games "$games" --iterations "$iterations" --minutes "$minutes" --stop-at-decisions "$stop_decisions" \
   --epochs "$epochs" --minibatch 1024 --grad-accum 8 --lr "$lr" --lr-min-ratio 0.8333333333 \
   --max-updates 300 --clip 0.2 --target-kl "${HSAI_ARENA_TARGET_KL:-0.05}" --gamma 1.0 --lam 0.995 \

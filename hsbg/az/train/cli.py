@@ -496,6 +496,8 @@ def build_parser():
     ap.add_argument("--gold-curriculum", type=int, default=0,
                     help="1=启用经济课程（--curriculum-stage 仍为 none 时按 warmup 处理）；"
                          "默认 0=关闭")
+    ap.add_argument('--recruit-start-bank',default='',help='Verified whole-state curriculum directory')
+    ap.add_argument('--recruit-start-p',type=float,default=0.,help='Episode probability for verified recruit starts')
     ap.add_argument("--curriculum-stage", default="none",
                     choices=["none", "warmup", "anneal"],
                     help="none=关闭（默认，逐位等价）；warmup=金币收入 ×mult 在 "

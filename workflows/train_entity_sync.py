@@ -460,6 +460,20 @@ def main() -> int:
                                       or not int(args.lockstep) or int(args.sims) != 0):
         ap.error("local-batch-inference仅支持processes=workers=1、lockstep=1、sims=0")
     args.out = os.path.abspath(args.out)
+    from hsbg.az.train.recruit_start import validate_options as validate_recruit_start, load_bank as load_recruit_bank
+    validate_recruit_start(args.recruit_start_bank,args.recruit_start_p,
+                           lockstep=bool(args.lockstep),rust_collector=bool(args.rust_collector))
+    args.recruit_start_manifest_sha256=''
+    if args.recruit_start_p:
+        if (args.entry_p or args.lobby_exclude or args.mirror_strict
+                or str(args.opponent)!='bot' or args.sims):
+            raise ValueError('recruit starts require bot-mode snapshot field, sims=0, no legacy entry/filter/strict mirror')
+        start_manifest,_start_rows,start_identity=load_recruit_bank(args.recruit_start_bank)
+        if str(args.mirror_snaps)!=start_manifest['source_training_field']:
+            raise ValueError('recruit start source and training snapshot fields differ')
+        args.recruit_start_manifest_sha256=start_identity['sha256']
+        print('[recruit-start] '+json.dumps(dict(identity=start_identity,variant=start_manifest['variant'],
+                                               states=len(_start_rows),probability=args.recruit_start_p)),flush=True)
     # 经济课程：gold_curriculum=1 且 stage=none 时按 warmup 处理；非法倍数/窗口启动期报错
     if int(args.gold_curriculum) and str(args.curriculum_stage) == "none":
         args.curriculum_stage = "warmup"
@@ -2113,6 +2127,9 @@ def main() -> int:
             # 经济课程（默认 none+1.0 -> 采集侧不碰金币，逐位等价）
             curriculum_stage=str(_curr_cfg["curriculum_stage"]),
             curriculum_gold_mult=float(_gold_mult),
+            recruit_start_bank=str(args.recruit_start_bank),
+            recruit_start_p=float(args.recruit_start_p),
+            recruit_start_manifest_sha256=str(args.recruit_start_manifest_sha256),
             # 在线缩放教师 / 过程价值标签（默认 False -> 不查教师、不读日志）
             teacher_bc=bool(float(args.teacher_bc_coef) > 0.0),
             process_value=bool(float(args.process_value_coef) > 0.0),

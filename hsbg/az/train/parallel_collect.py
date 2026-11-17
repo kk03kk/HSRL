@@ -466,6 +466,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         from .strict_mirror import StrictLibrary, StrictMirror
         strict_library = StrictLibrary(mirror_pool)
     _curr_mult = float(getattr(cfg, "curriculum_gold_mult", 1.0) or 1.0)
+    start_p=float(getattr(cfg,'recruit_start_p',0.0))
+    if start_p and (float(entry_p)>0 or cfg.lobby_exclude or cfg.mirror_strict):
+        raise ValueError('recruit start cannot combine with legacy entry, race filter or strict mirror')
     _teacher_on = bool(getattr(cfg, "teacher_bc", False))
     _process_on = bool(getattr(cfg, "process_value", False))
     _teacher = ScalingTeacher() if _teacher_on else None
@@ -507,9 +510,15 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         g0, _used_seed = make_filtered_game(
             E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
             learner_seat=int(getattr(cfg, "learner_seat", 0)))
+        start_info=None
+        if start_p:
+            from .recruit_start import choose_start
+            g0,start_info=choose_start(g0,bank=cfg.recruit_start_bank,probability=start_p,
+                seed=int(cfg.seed)+gi,engine=E,expected_sha256=cfg.recruit_start_manifest_sha256)
         states.append({
             "gi": gi, "gid": int(cfg.game_id_offset) + gi,
             "game": g0,
+            "recruit_start":start_info,
             "rng": np.random.default_rng(int(seed) + gi),
             "steps": 0, "decisions": 0, "illegal": 0, "done": False, "truncated": 0,
             "rec_start": 0,
@@ -1271,6 +1280,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
                       "truncated": int(st["truncated"]), "records": int(n_rec),
                       "rank": rank, "illegal_actions": int(st["illegal"]),
                       "engine_diagnostics": quality})
+        if st.get('recruit_start') is not None:metas[-1]['recruit_start']=st['recruit_start']
         if st["truncated"] or st["illegal"] or st["mirror_stats"].errors:
             # 只在失败时保留精确现场，供跨平台回放；正常采集不序列化整局。
             metas[-1].update({"turn": int(g.turn), "placements": list(g.placements()),
@@ -1436,6 +1446,11 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "action_hist": {str(k): int(v) for k, v in sorted(policy.action_hist.items())}}
     # 动作契约/规则限制：lockstep（pool）路径有自己的 meta 组装点，同样要走单一来源。
     meta.update(contract_meta(cfg))
+    if start_p:
+        selected=[s for s in states if s['recruit_start'] is not None]
+        meta['recruit_start']={'probability':start_p,'manifest_sha256':cfg.recruit_start_manifest_sha256,
+            'games':len(selected),'decisions':sum(s['decisions'] for s in selected),
+            'source_seeds':sorted({s['recruit_start']['source_seed'] for s in selected})}
     # 回合末快照镜像是「每座位每回合」事件：逐局计数后汇总写入 meta。
     mstats = MirrorStats()
     for st in states:

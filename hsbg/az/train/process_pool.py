@@ -1489,6 +1489,14 @@ class ProcessActorPool:
         if _bm_agg:
             meta["behavior_mix"] = _bm_agg
         # 缩放课程 / 教师 / 过程价值（默认关闭 -> 不新增键）
+        starts=[m['recruit_start'] for m in metas if 'recruit_start' in m]
+        if starts:
+            identities={s['manifest_sha256'] for s in starts}
+            if len(identities)!=1:raise ValueError('workers used different recruit-start banks')
+            meta['recruit_start']={'manifest_sha256':next(iter(identities)),
+                'probability':starts[0]['probability'],'games':sum(s['games'] for s in starts),
+                'decisions':sum(s['decisions'] for s in starts),
+                'source_seeds':sorted({seed for s in starts for seed in s['source_seeds']})}
         if any(str(m.get("curriculum_stage", "none")) != "none" for m in metas):
             meta["curriculum_stage"] = str(
                 (metas[0] or {}).get("curriculum_stage", "none"))

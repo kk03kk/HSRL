@@ -4,9 +4,9 @@ import pytest
 from hsbg.az.train.economic_tasks import fixture,solve,own,wealth_remaining,score
 
 
-def natural_source():
+def natural_source(seed=11800000):
     e=pytest.importorskip('hsbg_engine')
-    game=e.Game(seed=11800000)
+    game=e.Game(seed=seed)
     while game.turn<8 and not game.is_over():
         for seat in range(game.num_players):
             if game.needs_action(seat):game.bot_play(seat)
