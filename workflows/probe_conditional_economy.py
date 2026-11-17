@@ -17,7 +17,7 @@ def main(args):
     manifest=json.loads((root/'manifest.json').read_text())
     for name in ('labels.npz','anchors.npz'):
         if file_identity(root/name)!=manifest['files'][name]:raise ValueError('dataset identity differs')
-    parent,meta=load_checkpoint(args.checkpoint);model=fork_conditional(parent,meta).eval()
+    parent,meta=load_checkpoint(args.checkpoint);model=fork_conditional(parent,meta,mechanisms=args.mechanisms).eval()
     with np.load(root/'labels.npz',allow_pickle=False) as raw:labels=tensors(raw,model,'cpu')
     with np.load(root/'anchors.npz',allow_pickle=False) as raw:anchors=tensors(raw,model,'cpu')
     with torch.no_grad():
@@ -25,8 +25,9 @@ def main(args):
         anchor_active=model.gate(anchors['features'],anchors['cards'])
     if not bool(active.all()):raise ValueError('demonstration outside conditional gate')
     mix={k:torch.cat((labels[k][:16],anchors[k][:16])) for k in ('features','cards','masks')}
+    parent_mix={**mix,'features':mix['features'][:,:getattr(parent,'input_floats',3227)]}
     with torch.no_grad():
-        expected=forward(parent,mix,np.arange(32));actual=forward(model,mix,np.arange(32))
+        expected=forward(parent,parent_mix,np.arange(32));actual=forward(model,mix,np.arange(32))
     if not all(torch.equal(a,b) for a,b in zip(expected,actual)):raise ValueError('neutral fork differs')
     save_checkpoint(model,str(out/'neutral-model.pt'),meta={**meta,'research_probe_only':True})
     restored,_=load_checkpoint(str(out/'neutral-model.pt'))
@@ -37,6 +38,7 @@ def main(args):
         'gate':model.gate_spec,'label_rows':len(active),'active_label_rows':int(active.sum()),
         'anchor_rows':len(anchor_active),'active_anchor_rows':int(anchor_active.sum()),
         'neutral_exact':True,'roundtrip_exact':True,'checkpoint':file_identity(out/'neutral-model.pt')}
+    summary['input_floats']=model.input_floats;summary['mechanism_schema']=model.mechanism_schema
     atomic_json(out/'preflight.json',summary)
     if args.ppo_probe:
         command=[sys.executable,'workflows/probe_recruit_resume.py','--out',str(out/'ppo'),
@@ -53,4 +55,5 @@ def main(args):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--checkpoint',required=True)
     p.add_argument('--dataset',required=True);p.add_argument('--out',required=True)
-    p.add_argument('--ppo-probe',action='store_true');main(p.parse_args())
+    p.add_argument('--ppo-probe',action='store_true');p.add_argument('--mechanisms',action='store_true')
+    main(p.parse_args())

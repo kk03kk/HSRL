@@ -99,3 +99,39 @@ def test_trainer_audit_still_checks_single_entity_tables():
     del state['model']['card_text']
     with pytest.raises(ValueError,match='card table differs'):
         audit_card_tables(state,'entity',tables)
+
+
+def test_mechanism_conditional_fork_is_neutral_and_can_separate_native_source_alias(tmp_path):
+    from hsbg.az.train import mechanism_obs as M
+    from tests.test_mechanism_observation import native_target_source_pair
+    base,meta=small_parent();model=fork_conditional(base,meta,mechanisms=True).eval()
+    assert M.schema_of(base)=='' and model.input_floats==3282
+    arrays=[]
+    for game in native_target_source_pair():
+        f,c=M.observe(game,0,M.SCHEMA)
+        arrays.append((np.frombuffer(f,dtype='<f4').copy(),np.frombuffer(c,dtype='<i4').copy(),
+                       np.asarray(list(bytes(game.legal_mask(0))),bool)))
+    f,c,mask=(torch.as_tensor(np.stack([a[i] for a in arrays]),
+        dtype=torch.float32 if i==0 else torch.long if i==1 else torch.bool) for i in range(3))
+    assert model.gate(f,c).tolist()==[True,True]
+    with torch.no_grad():before=base(f[:,:3227],c,mask);neutral=model(f,c,mask)
+    assert all(torch.equal(x,y) for x,y in zip(before,neutral))
+    configure_parameters(model,'all')
+    opt=torch.optim.SGD([p for p in model.parameters() if p.requires_grad],lr=.01)
+    action=int(mask[0].nonzero()[0]);loss=-model(f,c,mask)[0][0,action]
+    loss.backward()
+    assert model.specialist.mechanism_pending.weight.grad.abs().sum()>0
+    opt.step()
+    with torch.no_grad():after=model(f,c,mask)
+    assert not torch.equal(after[0][0],after[0][1])
+    assert all(torch.equal(a,b) for a,b in zip(after[1:],before[1:]))
+    assert not model.base.mechanism_pending.weight.any()
+    path=tmp_path/'mechanism-conditional.pt';save_checkpoint(model,str(path),meta=meta)
+    restored,loaded=load_checkpoint(str(path))
+    assert loaded['mechanism_schema_sha256']==M.SCHEMA_SHA256
+    with torch.no_grad():roundtrip=restored(f,c,mask)
+    assert all(torch.equal(a,b) for a,b in zip(after,roundtrip))
+    payload=torch.load(path,weights_only=True);payload['meta']['mechanism_schema_sha256']='wrong'
+    torch.save(payload,tmp_path/'bad.pt')
+    with pytest.raises(ValueError,match='wrapper observation schema'):
+        load_checkpoint(str(tmp_path/'bad.pt'))

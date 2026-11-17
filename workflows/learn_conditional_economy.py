@@ -14,6 +14,8 @@ if __name__=='__main__':
     p.add_argument('--device',default='cuda:0');p.add_argument('--mode',default='all',choices=('all',))
     p.add_argument('--updates',type=int,default=1000);p.add_argument('--lr',type=float,default=3e-6)
     p.add_argument('--anchor-kl',type=float,default=10.);p.add_argument('--per-kind-batch',type=int,default=32)
+    p.add_argument('--mechanisms',action='store_true')
     p.add_argument('--seed',type=int,default=1193801);args=p.parse_args()
     run(args,expected_schema='hsai.whole-turn-process-dataset/v1',closed_loop_fn=make_closure(args),
-        learning_tag='conditional_economy_learning',model_transform=fork_conditional)
+        learning_tag='conditional_economy_learning',
+        model_transform=lambda model,meta:fork_conditional(model,meta,mechanisms=args.mechanisms))

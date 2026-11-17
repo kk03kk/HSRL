@@ -11,6 +11,7 @@ from functools import lru_cache
 import torch
 from torch import nn
 from hsbg.env import obs_std as O
+from hsbg.az.train import mechanism_obs as M
 
 ARCH='conditional_economy_v1'
 CORE_GROUPS=(('BG_LOE_077','TB_BaconUps_045'),('BG33_823','BG33_823_G'),
@@ -41,9 +42,14 @@ class ConditionalEconomy(nn.Module):
         super().__init__()
         if component_meta.get('arch') not in ('entity','entity18m'):
             raise ValueError('conditional specialist requires an entity component')
-        if component_meta.get('mechanism_schema') or any(component_meta.get(k) is not None
-                for k in ('norm_mean','norm_std')):
-            raise ValueError('conditional gate requires unnormalized legacy observations')
+        schema=str(component_meta.get('mechanism_schema','') or '')
+        if schema not in ('',M.SCHEMA) or (schema and component_meta.get('mechanism_schema_sha256')!=M.SCHEMA_SHA256):
+            raise ValueError('conditional component observation schema identity differs')
+        if any(component_meta.get(k) is not None for k in ('norm_mean','norm_std')):
+            raise ValueError('conditional gate requires an unnormalized legacy prefix')
+        self.mechanism_schema=schema;self.input_floats=M.OBS_FLOATS if schema else M.LEGACY_FLOATS
+        if any(M.schema_of(c)!=schema or getattr(c,'input_floats',3227)!=self.input_floats for c in (base,specialist)):
+            raise ValueError('conditional components disagree with declared observation schema')
         spec=copy.deepcopy(current_gate_spec() if gate_spec is None else gate_spec)
         if spec!=current_gate_spec():raise ValueError('conditional gate or vocabulary identity differs')
         self.base=base;self.specialist=specialist
@@ -51,7 +57,7 @@ class ConditionalEconomy(nn.Module):
         self.register_buffer('_gate_ids',torch.tensor(spec['embedding_ids'],dtype=torch.long),persistent=False)
 
     def gate(self,features,cards):
-        if features.shape[-1]!=3227 or cards.shape[-1]!=124:
+        if features.shape[-1]!=self.input_floats or cards.shape[-1]!=124:
             raise ValueError('conditional observation layout differs')
         owned=torch.cat((cards[:,O.SLICE_CARD_BOARD],cards[:,O.SLICE_CARD_HAND]),dim=1)
         distinct=(owned[:,:,None,None]==self._gate_ids[None,None,:,:]).any(1).any(-1).sum(-1)
@@ -70,10 +76,15 @@ class ConditionalEconomy(nn.Module):
 
     def checkpoint_metadata(self):
         return {'arch':ARCH,'component_meta':copy.deepcopy(self.component_meta),
-                'conditional_gate':copy.deepcopy(self.gate_spec)}
+                'conditional_gate':copy.deepcopy(self.gate_spec),
+                'input_floats':self.input_floats,'mechanism_schema':self.mechanism_schema,
+                'mechanism_schema_sha256':M.SCHEMA_SHA256 if self.mechanism_schema else ''}
 
 
-def fork_conditional(base,meta):
+def fork_conditional(base,meta,*,mechanisms=False):
+    if mechanisms:
+        base=M.enable_mechanisms(copy.deepcopy(base));meta=copy.deepcopy(meta)
+        meta.update(base.arch_flags())
     return ConditionalEconomy(base,copy.deepcopy(base),meta).to(next(base.parameters()).device)
 
 
@@ -85,6 +96,11 @@ def load_payload(payload,device,load_component):
         raise ValueError('conditional checkpoint missing explicit identities')
     if meta['component_meta'].get('arch') not in ('entity','entity18m'):
         raise ValueError('conditional component architecture differs')
+    schema=str(meta['component_meta'].get('mechanism_schema','') or '')
+    if str(meta.get('mechanism_schema','') or '')!=schema or (schema and meta.get('mechanism_schema_sha256')!=M.SCHEMA_SHA256):
+        raise ValueError('conditional wrapper observation schema identity differs')
+    width=M.OBS_FLOATS if schema else M.LEGACY_FLOATS
+    if int(meta.get('input_floats',width))!=width:raise ValueError('conditional wrapper observation width differs')
     if any(not (k.startswith('base.') or k.startswith('specialist.')) for k in state):
         raise ValueError('unexpected conditional state key')
     components=[]

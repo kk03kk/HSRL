@@ -9,22 +9,9 @@ import numpy as np
 import torch
 
 from hsbg.az.train import mechanism_obs as M
+from hsbg.az.train.mechanism_obs import enable_mechanisms
 from hsbg.az.train.model import load_checkpoint, save_checkpoint
 from hsbg.runtime.artifacts import atomic_json, file_identity
-
-
-def enable_mechanisms(model):
-    if getattr(model, 'arch', '') != 'entity' or M.schema_of(model):
-        raise ValueError('upgrade expects a legacy entity model')
-    d = model.d_model
-    for name, width in (('mechanism_global', M.N_STATS),
-                        ('mechanism_counter', 1), ('mechanism_pending', d)):
-        module = torch.nn.Linear(width, d, bias=False).to(next(model.parameters()).device)
-        torch.nn.init.zeros_(module.weight)
-        setattr(model, name, module)
-    model.mechanism_schema = M.SCHEMA
-    model.input_floats = M.OBS_FLOATS
-    return model
 
 
 def upgrade(source, out, device='cpu'):

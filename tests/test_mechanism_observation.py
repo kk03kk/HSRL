@@ -95,3 +95,29 @@ def test_unknown_schema_and_nonfinite_fail_closed():
     with pytest.raises(ValueError,match='unknown'):M.observe(game,0,'new_unknown')
     player=json.loads(game.player_json(0));player['stats']['gold_spent_turn']=float('nan')
     with pytest.raises(ValueError,match='non-finite'):M.encode_player(player)
+
+
+def native_target_source_pair():
+    import hsbg_engine as E
+    from tests.test_economic_tasks import natural_source
+    from workflows.probe_whole_turn_economy import fixture as whole_fixture
+    from hsbg.az.train.economic_tasks import debug
+    state,_=whole_fixture(natural_source(),'normal');game=E.Game.from_json(json.dumps(state))
+    debug(game,'clear_zone',zone='hand')
+    debug(game,'add_spell',zone='hand',card='BG28_698')
+    debug(game,'add_spell',zone='hand',card='BG30_804')
+    initial=game.state_json();a=E.Game.from_json(initial);b=E.Game.from_json(initial)
+    a.step(0,46);b.step(0,54)
+    return a,b
+
+
+def test_native_target_source_alias_is_ignored_by_legacy_entity():
+    a,b=native_target_source_pair();fa,ca=a.observe(0);fb,cb=b.observe(0)
+    assert fa==fb and bytes(a.legal_mask(0))==bytes(b.legal_mask(0))
+    assert np.flatnonzero(np.frombuffer(ca,dtype='<i4')!=np.frombuffer(cb,dtype='<i4')).tolist()==[4]
+    torch.set_num_threads(1)
+    model=build_net(arch='entity',d_model=16,n_layers=1,n_heads=2).eval()
+    f=torch.tensor(np.stack([np.frombuffer(fa,dtype='<f4'),np.frombuffer(fb,dtype='<f4')]))
+    c=torch.tensor(np.stack([np.frombuffer(ca,dtype='<i4'),np.frombuffer(cb,dtype='<i4')]),dtype=torch.long)
+    with torch.no_grad():outputs=model(f,c)
+    assert all(torch.equal(o[0],o[1]) for o in outputs)

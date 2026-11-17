@@ -97,3 +97,16 @@ def schema_of(model):
 
 def valid_width(width):
     return int(width) in (LEGACY_FLOATS, OBS_FLOATS)
+
+
+def enable_mechanisms(model):
+    """Attach zero-initialized public-input adapters to a legacy entity model."""
+    import torch
+    if getattr(model,'arch','')!='entity' or schema_of(model):
+        raise ValueError('upgrade expects a legacy entity model')
+    d=model.d_model
+    for name,width in (('mechanism_global',N_STATS),('mechanism_counter',1),('mechanism_pending',d)):
+        module=torch.nn.Linear(width,d,bias=False).to(next(model.parameters()).device)
+        torch.nn.init.zeros_(module.weight);setattr(model,name,module)
+    model.mechanism_schema=SCHEMA;model.input_floats=OBS_FLOATS
+    return model
