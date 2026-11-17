@@ -41,6 +41,10 @@ def test_sealed_study_merge_rejects_identity_changes(tmp_path):
             'models':{name:{'sha256':name}},'rollouts':len(rr),'rows':rr})
     merged,_,result=merge_studies(roots)
     assert len(merged)==8 and result['paired']['student/normal']['rank_minus_parent']['mean']==1.5
+    selected,_,_=merge_studies(roots,['parent'])
+    assert len(selected)==4 and {r['name'] for r in selected}=={'parent'}
+    with pytest.raises(ValueError,match='whole policy arm missing'):
+        merge_studies(roots,['parent','missing'])
     path=roots[1]/'complete.json';changed=json.loads(path.read_text());changed['rows'][0]['source_seed']=999
     atomic_json(path,changed,replace=True)
     with pytest.raises(ValueError,match='source seed'):merge_studies(roots)
