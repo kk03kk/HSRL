@@ -413,6 +413,10 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
     _attr_f = int(meta.get("attr_f", 0) or 0)
     from .mechanism_obs import SCHEMA, SCHEMA_SHA256
     mechanism_schema = str(meta.get('mechanism_schema', '') or '')
+    activate_head_split = bool(meta.get('activate_head_split', False))
+    has_activate_delta = any(str(k).startswith('q_activate_delta.') for k in state)
+    if activate_head_split != has_activate_delta:
+        raise ValueError('activation-head checkpoint metadata/state mismatch')
     if any(str(k).startswith('mechanism_') for k in state):
         if mechanism_schema != SCHEMA or meta.get('mechanism_schema_sha256') != SCHEMA_SHA256:
             raise ValueError('mechanism checkpoint lacks matching observation schema identity')
@@ -428,7 +432,8 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
                           process_head=has_process_head,
                           use_z=_borrow["use_z"], n_z=_n_z,
                           use_attr=_borrow["use_attr"], attr_f=_attr_f,
-                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema)
+                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema,
+                          activate_head_split=activate_head_split)
     elif arch == "entity":
         model = build_net(arch="entity", d_model=int(meta.get("d_model", 384)),
                           n_layers=int(meta.get("n_layers", 8)),
@@ -440,7 +445,8 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
                           process_head=has_process_head,
                           use_z=_borrow["use_z"], n_z=_n_z,
                           use_attr=_borrow["use_attr"], attr_f=_attr_f,
-                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema)
+                          mag_query=_borrow["mag_query"], mechanism_schema=mechanism_schema,
+                          activate_head_split=activate_head_split)
     else:
         model = build_net(hidden, seq_head=seq_head, bc_card_head=has_card_head,
                           bc_card_dim=(card_dim or None))

@@ -1,0 +1,29 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "status": "predeclared before dataset and learning jobs",
+  "purpose": "Test broader native economic/growth skill teaching and representation preservation after the narrow Privateer transfer failed",
+  "parent": "artifacts/models/arena-v1.4-r1/model.pt",
+  "parent_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+  "source_bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "task_source_games_max": 192,
+  "task_split": "seed % 5 == 0 dev; all variants of a source game stay together",
+  "task_kinds": ["amplify_draw", "buy_draw", "activate_draw", "free_refresh", "elemental_growth"],
+  "task_scope": "explicit synthetic fixtures, shortest native plans within a declared action subset, not globally optimal play",
+  "hidden_rng_checks_per_label": 2,
+  "natural_anchors": {"games": 32, "seed_start": 11808000, "states_per_turn_reservoir": 8, "field": "arena-cal-v14-snap"},
+  "architecture": "zero-initialized independent Activate residual; exact parent policy before learning",
+  "arms": [
+    {"mode": "all", "lr": 0.000003},
+    {"mode": "heads", "lr": 0.00003}
+  ],
+  "note": "Two practical optimization approaches, not a single-variable causal ablation because learning rates differ",
+  "updates": 400,
+  "per_kind_batch": 16,
+  "anchor_batch": 160,
+  "anchor_kl_coefficient": 10.0,
+  "whole_anchor_kl_stop": 0.03,
+  "seed": 1182801,
+  "decision_gate": "Require closed-loop held-out skill improvement and a natural-game development assessment before allocating PPO continuation; no automatic promotion",
+  "formal_reserved_seeds": "1119000..1119511 remain untouched",
+  "live_pin_changes": false
+}

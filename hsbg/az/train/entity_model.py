@@ -132,7 +132,8 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
     new_init_scale: float = 0.02,
                      strength_head: bool = False,
                      process_head: bool = False,
-                     mechanism_schema: str = ""):
+                     mechanism_schema: str = "",
+                     activate_head_split: bool = False):
     """构造 EntityAZNet（torch 模块）。
 
     ``seq_head=True`` 时在 global token 上加一个 245 维的「动作序列辅助头」
@@ -219,6 +220,12 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             # pointer 查询/位置
             self.q_buy = nn.Linear(d, d)
             self.q_board = nn.Linear(d, d)
+            # Optional residual query removes the fixed Sell/Activate log-odds
+            # constraint. Zero initialization preserves the parent's exact logits.
+            self.activate_head_split = bool(activate_head_split)
+            if self.activate_head_split:
+                self.q_activate_delta = nn.Linear(d, d, bias=False)
+                nn.init.zeros_(self.q_activate_delta.weight)
             self.buy_bias = nn.Parameter(torch.zeros(N_SHOP))
             self.sell_bias = nn.Parameter(torch.zeros(N_BOARD))
             self.activate_bias = nn.Parameter(torch.zeros(N_BOARD))
@@ -327,6 +334,8 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             if self.mechanism_schema:
                 flags.update(mechanism_schema=self.mechanism_schema,
                              mechanism_schema_sha256=M.SCHEMA_SHA256)
+            if self.activate_head_split:
+                flags['activate_head_split'] = True
             return flags
 
         def zero_neutral_slot(self):
@@ -511,7 +520,10 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             # sell/activate 16..22 / 23..29
             qb = self.q_board(g).unsqueeze(1)
             logits[:, 16:23] = self.pointer_scale * (hb * qb).sum(-1) + self.sell_bias
-            logits[:, 23:30] = self.pointer_scale * (hb * qb).sum(-1) + self.activate_bias
+            qa = qb
+            if self.activate_head_split:
+                qa = qa + self.q_activate_delta(g).unsqueeze(1)
+            logits[:, 23:30] = self.pointer_scale * (hb * qa).sum(-1) + self.activate_bias
             # choose 30..45
             logits[:, 30:46] = self.pointer_scale * (hc * self.q_buy(g).unsqueeze(1)).sum(-1) + self.choose_bias
             # play 46..125: hand 10 × pos 8
