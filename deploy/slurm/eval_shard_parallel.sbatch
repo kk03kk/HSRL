@@ -50,6 +50,9 @@ per=$(( (total + nshard - 1) / nshard ))
   echo "start=$(date -Is)"
   echo "total_games=$total shards=$nshard per_shard=$per base_seed=$base"
   echo "mirror_snaps=$snaps"
+  # 让 run.env 自证"这次到底有没有 ban 种族"（2026-11-17：曾经设了却静默不生效）
+  echo "lobby_exclude=${HSAI_GAP_LOBBY_EXCLUDE:-<none>}"
+  echo "freeze_cap=${HSAI_GAP_FREEZE_CAP:-1} max_actions=100 move_cap=2"
   echo "job=${SLURM_JOB_ID:-local} node=$(hostname)"
 } | tee "$out/run.env"
 
