@@ -36,7 +36,7 @@ sys.path.insert(0, str(ROOT))
 from hsbg.az.train.eval_policy import assert_same_protocol
 from tools.panel_integrity import validate_identity, validate_rows, validate_samples
 
-from workflows.eval_human_gap import (  # noqa: E402
+from hsbg.evaluation.metrics import (  # noqa: E402
     _counts_all, _counts_by_turn, _gold_by_turn, _strength_by_seed, _trace,
     economy_curves, mechanics_by_turn, retained_gain_by_turn, survival,
 )

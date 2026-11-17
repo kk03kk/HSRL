@@ -99,26 +99,6 @@ def sha256_file(path) -> str:
     return h.hexdigest()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _safe_name(name: str) -> str:
     """模型名 → 安全文件名片段（只留字母数字与 ``._-``）。"""
     keep = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in str(name))
@@ -363,22 +343,6 @@ def run_checkpoint(name: str, path: Path, args,
         # 6) 英雄分布
         "heroes": _counts_all(rows, "hero"),
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _opponent_label(args: Any) -> str:

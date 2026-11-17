@@ -102,6 +102,8 @@ def validate_trace(path, *, replay=0):
     """Validate every record and optionally replay bounded native steps on CPU."""
     path = Path(path)
     manifest = json.loads(Path(str(path)+'.manifest.json').read_text(encoding='utf-8'))
+    if manifest.get('schema') != 'hsai.decision-trace-manifest/v1' or manifest.get('complete') is not True:
+        raise ValueError('trace manifest is not complete')
     if file_identity(path) != {k: manifest[k] for k in ('bytes', 'sha256')}:
         raise ValueError('trace file identity mismatch')
     counts = Counter()
@@ -110,21 +112,27 @@ def validate_trace(path, *, replay=0):
     seeds = []
     ranks = []
     replayed = 0
+    ended = False
+    game_index = None
     stride = max(1, int(manifest['actions']) // max(1, replay))
     with gzip.open(path, 'rt', encoding='utf-8') as stream:
         for line in stream:
             row = json.loads(line)
             event = row['event']
+            if ended or (not counts and event != 'header'):
+                raise ValueError('trace header/footer ordering is invalid')
             counts[event] += 1
             if event == 'header':
-                if row['identity'] != manifest['identity']:
+                if counts['header'] != 1 or row.get('schema') != 'hsai.decision-trace/v1' or row['identity'] != manifest['identity']:
                     raise ValueError('trace identity differs from manifest')
             elif event == 'game_start':
                 if current is not None: raise ValueError('game lacks terminal event')
                 current, index = row['seed'], 0
+                game_index = row['game']
+                if game_index != len(seeds): raise ValueError('noncontiguous game sequence')
                 seeds.append(current)
             elif event == 'action':
-                if row['seed'] != current or row['action_index'] != index:
+                if current is None or row['seed'] != current or row['game'] != game_index or row['action_index'] != index:
                     raise ValueError('noncontiguous action sequence')
                 if len(row['legal_mask']) != 245 or not 0 <= row['action'] < 245 or not row['legal_mask'][row['action']]:
                     raise ValueError('illegal recorded action')
@@ -143,17 +151,23 @@ def validate_trace(path, *, replay=0):
                     replayed += 1
                 index += 1
             elif event == 'game_end':
-                if row['seed'] != current or row['actions'] != index:
+                if current is None or row['seed'] != current or row['game'] != game_index or row['actions'] != index:
                     raise ValueError('terminal event action count mismatch')
+                if type(row['rank']) is not int or not 1 <= row['rank'] <= 8 or not row['finished']:
+                    raise ValueError('game did not finish with a valid rank')
                 ranks.append(row['rank'])
                 current = None
             elif event == 'footer':
-                if row['seeds'] != seeds or row['ranks'] != ranks:
+                if current is not None or row['seeds'] != seeds or row['ranks'] != ranks or row['games'] != len(seeds) or row['actions'] != counts['action']:
                     raise ValueError('footer does not match game records')
+                ended = True
+            else:
+                raise ValueError(f'unknown trace event: {event}')
     if current is not None or counts != Counter(manifest['counts']) or counts['footer'] != 1 or counts['header'] != 1:
         raise ValueError('incomplete trace')
     if seeds != manifest['seeds'] or len(set(seeds)) != len(seeds):
         raise ValueError('manifest seed coverage mismatch')
     if counts['game_end'] != manifest['games'] or counts['action'] != manifest['actions']:
         raise ValueError('manifest coverage mismatch')
-    return {'valid': True, 'games': len(seeds), 'actions': counts['action'], 'replayed': replayed}
+    return {'valid': True, 'games': len(seeds), 'actions': counts['action'], 'replayed': replayed,
+            'seeds': seeds, 'ranks': ranks, 'identity': manifest['identity']}

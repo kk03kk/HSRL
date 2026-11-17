@@ -1,0 +1,13 @@
+# Windows CPython 3.13; preserve the accepted runtime versions.
+# Install torch separately from the official CPU index at 2.13.0+cpu.
+numpy==2.4.0
+pytest==8.4.1
+scipy==1.17.0
+matplotlib==3.10.0
+Pillow==11.1.0
+rapidocr==3.10.0
+onnxruntime==1.31.1
+opencv-python-headless==5.0.0.93
+psutil==5.9.0
+pywin32==308
+setuptools==84.0.0

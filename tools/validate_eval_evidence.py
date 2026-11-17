@@ -23,6 +23,7 @@ def validate_panel(path, *, replay=16):
             raise ValueError(f'{model["name"]}: missing full decision evidence')
         games = actions = 0
         seeds = []
+        ranks = []
         for reference in traces:
             trace = Path(reference['directory'])/reference['file']
             identity = reference['identity']
@@ -32,13 +33,18 @@ def validate_panel(path, *, replay=16):
             if file_identity(trace) != {k:reference[k] for k in ('bytes','sha256')}:
                 raise ValueError('panel trace identity mismatch')
             result = validate_trace(trace, replay=replay)
+            if result['identity'] != identity or result['seeds'] != reference['seeds']:
+                raise ValueError('panel trace reference differs from manifest/records')
             games += result['games']
             actions += result['actions']
-            seeds.extend(reference['seeds'])
+            seeds.extend(result['seeds'])
+            ranks.extend(result['ranks'])
         if seeds != model['seed_sequence'] or len(set(seeds)) != games:
             raise ValueError('panel/trace seed coverage differs')
         if games != len(model['rank_sequence']) or actions != model['outcome']['decisions']:
             raise ValueError('panel/trace coverage differs')
+        if ranks != model['rank_sequence']:
+            raise ValueError('panel ranks differ from terminal game evidence')
         if any(model['outcome'].get(k, 0) for k in ('illegal_actions', 'truncated_games')):
             raise ValueError('invalid evaluation outcome')
         results.append({'name':model['name'],'games':games,'actions':actions,'trace_files':len(traces)})
