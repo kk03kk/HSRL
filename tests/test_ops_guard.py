@@ -299,3 +299,41 @@ def test_tunnel_ps1_detaches_the_resident_ssh_from_caller_handles() -> None:
     text = (ROOT / "ops" / "tunnel.ps1").read_bytes().decode("utf-8-sig")
     for flag in ("-RedirectStandardInput", "-RedirectStandardOutput", "-RedirectStandardError"):
         assert flag in text, f"tunnel.ps1 no longer detaches ssh via {flag}"
+
+
+def test_tunnel_wait_has_one_deadline_instead_of_multiplying_probe_timeouts(tmp_path):
+    import json
+    import shutil
+    import subprocess
+    import sys
+    import pytest
+
+    if sys.platform != 'win32' or not shutil.which('powershell'):
+        pytest.skip('requires Windows PowerShell')
+    # Load only the wait function, never credentials or the tunnel entry point.
+    script = tmp_path / 'deadline.ps1'
+    script.write_text(r'''
+param([string]$Source)
+$tree = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$null, [ref]$null)
+$definition = $tree.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Wait-Tunnel'}, $true)
+Invoke-Expression $definition.Extent.Text
+$script:calls = 0
+function Test-TunnelUp {
+    param([int]$p, [int]$TimeoutSec = 8)
+    $script:calls += 1
+    Start-Sleep -Seconds $TimeoutSec
+    return $false
+}
+$watch = [Diagnostics.Stopwatch]::StartNew()
+$failed = Wait-Tunnel -p 1 -Proc $null -TimeoutSec 1
+$watch.Stop()
+function Test-TunnelUp { param([int]$p, [int]$TimeoutSec) return $true }
+$success = Wait-Tunnel -p 1 -Proc $null -TimeoutSec 1
+@{ failed=$failed; success=$success; calls=$script:calls; elapsed=$watch.Elapsed.TotalSeconds } | ConvertTo-Json -Compress
+''', encoding='utf-8-sig')
+    result = subprocess.run(['powershell', '-NoProfile', '-File', str(script),
+                             '-Source', str(ROOT / 'ops' / 'tunnel.ps1')],
+                            capture_output=True, text=True, timeout=6, check=True)
+    evidence = json.loads(result.stdout)
+    assert evidence['failed'] is False and evidence['success'] is True
+    assert evidence['calls'] == 1 and evidence['elapsed'] < 2.5

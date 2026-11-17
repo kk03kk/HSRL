@@ -105,7 +105,7 @@ function Invoke-WithTimeout {
 }
 
 function Test-TunnelUp {
-    param([int]$p)
+    param([int]$p, [int]$TimeoutSec = 8)
     # 端口没人听 = 立刻判定断开，不必花时间发 SSH。
     if (-not (Test-PortListening -p $p)) { return $false }
     if ($p -eq 2222) {
@@ -117,7 +117,7 @@ function Test-TunnelUp {
                '-o', 'ConnectionAttempts=1', '-o', 'ConnectTimeout=6',
                'hengzhi@127.0.0.1', 'echo TUNNEL_OK')
     }
-    return (Invoke-WithTimeout -SshArgs $a -TimeoutSec 8 -Pattern 'TUNNEL_OK').Ok
+    return (Invoke-WithTimeout -SshArgs $a -TimeoutSec $TimeoutSec -Pattern 'TUNNEL_OK').Ok
 }
 
 function Get-FreePort {
@@ -197,11 +197,16 @@ function New-Tunnel {
 }
 
 function Wait-Tunnel {
-    param([int]$p, [object]$Proc)
-    foreach ($i in 1..8) {
-        Start-Sleep -Milliseconds 700
-        if (Test-TunnelUp -p $p) { return $true }
+    param([int]$p, [object]$Proc, [double]$TimeoutSec = 25)
+    $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(0, $TimeoutSec))
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $remaining = ($deadline - [DateTime]::UtcNow).TotalSeconds
+        if ($remaining -le 0) { break }
+        $probeSeconds = [int][Math]::Max(1, [Math]::Min(8, [Math]::Ceiling($remaining)))
+        if (Test-TunnelUp -p $p -TimeoutSec $probeSeconds) { return $true }
         if ($Proc -and $Proc.HasExited) { return $false }
+        $remainingMs = [int](($deadline - [DateTime]::UtcNow).TotalMilliseconds)
+        if ($remainingMs -gt 0) { Start-Sleep -Milliseconds ([Math]::Min(700, $remainingMs)) }
     }
     return $false
 }
