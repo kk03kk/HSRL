@@ -37,6 +37,7 @@ for i in $(seq 0 $((procs-1))); do
       --checkpoint "bench=$model" \
       --games "$per" --seed "$s" --device cpu \
       --forbid-unfreeze 1 --freeze-cap 1 \
+      --lobby-exclude "${HSAI_GAP_LOBBY_EXCLUDE:-}" \
       --mirror-snaps "$snaps" --mirror-sample p50band --mirror-strict 0 \
       --out "$out/p$i/panel.json" > "$out/p$i.log" 2>&1
     echo "$i rc=$?"

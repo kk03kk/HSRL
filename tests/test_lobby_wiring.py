@@ -51,6 +51,28 @@ def test_configs_carry_the_field():
 
 
 # ────────────────────────── 端到端（真实引擎）──────────────────────────
+def test_every_eval_driver_passes_the_flag():
+    """**所有**调用 ``eval_human_gap.py`` 的 sbatch 都必须把 ``--lobby-exclude`` 传下去。
+
+    2026-11-17 真实事故：``eval_shard_parallel.sbatch``（512 局那两次评测用的驱动）
+    只传了 ``--freeze-cap``，没传 ``--lobby-exclude`` ⇒ 即使设了
+    ``HSAI_GAP_LOBBY_EXCLUDE`` 也会被**静默忽略**，跑出来照旧带龙/机械。
+    """
+    sbatch_dir = ROOT / "deploy" / "slurm"
+    drivers = []
+    for p in sorted(sbatch_dir.glob("*.sbatch")):
+        text = p.read_text(encoding="utf-8")
+        if "eval_human_gap.py" not in text:
+            continue
+        drivers.append(p.name)
+        assert "--lobby-exclude" in text, (
+            f"{p.name} 调用 eval_human_gap.py 却没传 --lobby-exclude"
+            "（HSAI_GAP_LOBBY_EXCLUDE 会被静默忽略）")
+        assert 'HSAI_GAP_LOBBY_EXCLUDE' in text, (
+            f"{p.name} 没有把 HSAI_GAP_LOBBY_EXCLUDE 透传进 --lobby-exclude")
+    assert drivers, "没有找到任何评测驱动脚本"
+
+
 def test_eval_with_exclusion_only_sees_allowed_races(tmp_path):
     """跑 2 局真实对局：被禁种族绝不能出现在 lobby；seed_sequence 记录实际种子。"""
     pytest.importorskip("hsbg_engine")
