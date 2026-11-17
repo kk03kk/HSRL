@@ -1744,6 +1744,50 @@ C `100/2/2`（只收换位）｜D `100/2/1`（当前）。在拿到"同契约训
   （每个模型 = `--checkpoint` + `name=path` 两个）⇒ 单模型报 2、merge 直接拒绝写盘。
   改成 `${#pairs[@]}`。
 
+---
+
+## D-074 · 2026-11-17 · server · **r3 在"新契约 + 完整协议"下的正式基线（512 局，可复现）**
+
+D-073 那份面板是"旧协议定义"算出来的（`protocol_sha256` 不含 `lobby_exclude`），
+不能与新评测混榜。用户批准重跑一次，产出一份**协议完整、可长期比**的基线。
+
+**运行**：作业 1156519，节点 xgpi12，8 分片 × 64 局，墙钟 **209 s**。
+产物：`artifacts/runs/gap-r3-baseline-512-20261117/`
+
+```
+name              v1.3_r3
+checkpoint        artifacts/models/arena-v1.3-r3/model.pt
+checkpoint_sha256 1808f178…c206472
+arch              entity            seeds 930000..930511   shard_count 8
+protocol_sha256   7e15f114…b5b56c
+contract          max_actions 100 / move_cap 2 / freeze_cap 1 / forbid_cancel / forbid_unfreeze
+                  / ban_trinkets；lobby_exclude []（本次不 ban 种族）
+engine            source_hash c4c71014e3d41760（未改引擎）
+outcome           mean_rank 4.9141 · top4 40.23% · win 8.40% ·
+                  illegal 0 · truncated 0 · 182.2 决策/局
+```
+
+**逐条验证（从 6,336 行逐回合记录实测，不看配置）**
+
+| 检查 | 实测 | 判 |
+|---|---|---|
+| 每回合动作数 ≤100 | max **87**（0 回合达 100） | ✅ |
+| 每回合换位 ≤2 | max **2** | ✅ |
+| 每回合冻结 ≤1 | max **1** | ✅ |
+| Cancel(7) | **0** | ✅ |
+| 每回合 end_turn 恰 1 | 6,336/6,336 | ✅ |
+| 动作 id 上界 | 243（无 245+ 扩展段） | ✅ |
+| 加重护手（3037）持有 | **0** | ✅ |
+| 注入落地 | 99.99%（45,409/45,415） | ✅ |
+
+**可复现性**：同一模型 / 同一 seed 集 / 同一契约 / 同一场地重跑，`rank_sequence`
+**512/512 逐局相同**、每回合 M1 全部相同 ⇒ 评测链路是**确定性**的。
+
+**与 D-073 那份的关系**：数值完全一致，只有 `protocol_sha256` 不同
+（`10e0f9f0…` → `7e15f114…`，因为协议定义多了 `lobby_exclude` 字段）。
+**正式基线用这一份**；D-073 那份只作"同一模型的重复计算"参考。
+
+
 
 
 
