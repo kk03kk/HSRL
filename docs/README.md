@@ -27,6 +27,7 @@
 | 文档 | 内容 |
 |---|---|
 | [DECISIONS.md](DECISIONS.md) | 决策留痕（`D-###`，**只追加不改历史**） |
+| [analysis/MODEL_CAPABILITY_RESEARCH_20261117.md](analysis/MODEL_CAPABILITY_RESEARCH_20261117.md) | 当前模型能力研究：全量动作、训练账本、AutoTavern差异与下一轮建议（未实施） |
 | [NEGATIVE_RESULTS.md](NEGATIVE_RESULTS.md) | **哪些方向已否证、不要重跑** + 踩过的技术坑 |
 | [DATA_BANKS.md](DATA_BANKS.md) | 真人数据资产清单（战团库、入场库） |
 | [nus/ENVIRONMENT.md](nus/ENVIRONMENT.md) | NUS 环境限制、GPU 容量、QOS 上限 |
@@ -34,7 +35,7 @@
 | [nus/INCIDENTS.md](nus/INCIDENTS.md) | 历史故障与防复发规则 |
 | [COMP_TARGET.md](COMP_TARGET.md) | 阵容覆盖奖励的设计（**已判负**，保留实现说明） |
 | [EXPERT_QA.md](EXPERT_QA.md) | 专家问答清单（部分未答） |
-| [battlegrounds_strategy_guide.md](battlegrounds_strategy_guide.md) | 酒馆战棋攻略原文（`config/strategy_cards.json` 的源头） |
+| [battlegrounds_strategy_guide.md](battlegrounds_strategy_guide.md) | 用户持续维护的唯一现役HSReplay攻略；旧 `config/strategy_cards.json` 有未解析卡，不能替代正文 |
 | [analysis/TRACE_UNIFIED_20261111.md](analysis/TRACE_UNIFIED_20261111.md) | 统一对局记录规范 `hsai.game-trace/v2` |
 
 ## 事实的唯一来源（有冲突时以这一列为准）

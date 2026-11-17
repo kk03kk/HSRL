@@ -1,8 +1,8 @@
 # HSAI
 
-Hearthstone Battlegrounds 的强化学习 + **真实游戏自动化**工作区。模拟器基于
+Hearthstone Battlegrounds 的**强化学习与模型能力研究**工作区；真实游戏自动化暂时搁置。模拟器基于
 AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`）。**由一个 Agent 同时管理两个环境**：
-本地 Windows 负责真实游戏桥接与运维，NUS 服务器负责模拟器、训练、评测与 GPU 资产。
+本地 Windows 负责脚本、远程管理及未来实际验收，NUS 服务器负责模拟器、训练、评测与大规模资产。
 
 ```text
              ┌───────────────────────────────┐
@@ -30,6 +30,8 @@ AutoTavern / HSBRSIM 的 Rust 引擎（`engine/`）。**由一个 Agent 同时�
 `python ops/hsai_ops.py state`；本页不复制作业号、冠军或下一轮训练配置。
 
 - [工程架构与验收](docs/ENGINEERING.md)：冻结源码发布、模型登记、完整动作证据、环境复建。
+- [模型能力与下一轮研究](docs/analysis/MODEL_CAPABILITY_RESEARCH_20261117.md)：历史训练账本、完整动作分析、机制限制与待批准实验。
+- [唯一现役HSReplay攻略](docs/battlegrounds_strategy_guide.md)：以用户持续维护的正文版本为准，不混用归档攻略。
 - [训练配方](docs/TRAINING_RECIPE.md)与[评测协议](docs/EVAL_PROTOCOL.md)：科学设计的约束。
 - [现代化与正式评测报告](docs/analysis/MODERNIZATION_20261117.md)：本轮工作、证据、结果与限制。
 - 引擎仍为 37.0.2.256589 / `c4c71014e3d41760`；原生动作 245，观测 3227 floats + 124 cards。
