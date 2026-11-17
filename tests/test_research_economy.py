@@ -133,3 +133,63 @@ def test_reused_baseline_requires_exact_state_and_teacher(tmp_path):
     assert result['all']['eot_body_mean']==100 and result['all']['teacher_eot_body_mean']==120
     task['initial']={'seed':124,'players':[]}
     with pytest.raises(ValueError,match='not identical'):reuse_baseline(tmp_path,[task],checkpoint)
+
+
+def test_legacy_teacher_action_sequences_remain_unchanged():
+    import hashlib
+    expected={'normal':'12f7cdb83dffaae72fd3d510bf8a61b00fddd416913569d9c54195471abdec79',
+        'complete':'9fca3e0613fc446bdf63755910adbd1c212e82e0aa5219ca16d3914c594a1706',
+        'complete_gold':'f0d22d72c58b4e89c003991adf5d3a560c6ff8636d616903d2b044112ac33a61',
+        'missing_privateer':'c827e8b528fcd92edd21627c69b93f209e6caa28f7f0303c768b3b5632b903c6'}
+    for variant,want in expected.items():
+        trace=run_operator(fixture(natural_source(),variant)[0])
+        got=hashlib.sha256(json.dumps([s['action'] for s in trace['steps']]).encode()).hexdigest()
+        assert got==want
+
+
+def test_target_safe_teacher_preserves_privateer_when_evolving():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug,card_ids
+    from workflows.probe_whole_turn_economy import public_view
+    state,_=fixture(natural_source(),'normal');game=E.Game.from_json(json.dumps(state))
+    debug(game,'clear_zone',zone='board');debug(game,'clear_zone',zone='hand');debug(game,'clear_zone',zone='shop')
+    for card in ('BG_LOE_077','BG33_823','BG33_825'):debug(game,'add_minion',zone='board',card=card)
+    debug(game,'add_minion',zone='shop',card='BGS_115')
+    debug(game,'add_spell',zone='hand',card='BG30_804')
+    state=json.loads(game.state_json());state['players'][0]['board'][2].update(atk=50,hp=50,max_hp=50)
+    game=E.Game.from_json(json.dumps(state));game.step(0,46);view=public_view(game)
+    old,_=Operator().act(view);new,_=Operator('target_safe').act(view)
+    assert old==32 and new==33
+    game.step(0,new)
+    assert json.loads(game.player_json(0))['board'][2]['card']==card_ids()['BG33_825']
+    assert not any(game.diagnostic_counts())
+
+
+def test_target_safe_teacher_does_not_cast_destructive_spell_on_only_cores():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug
+    from workflows.probe_whole_turn_economy import public_view
+    game=E.Game.from_json(json.dumps(natural_source()))
+    for zone in ('board','hand','shop'):debug(game,'clear_zone',zone=zone)
+    for card in ('BG_LOE_077','BG33_823','BG33_825'):debug(game,'add_minion',zone='board',card=card)
+    debug(game,'add_spell',zone='hand',card='EBG_Spell_032')
+    view=public_view(game);assert any(view['mask'][46:54])
+    action,_=Operator('target_safe').act(view)
+    assert not 46<=action<54
+
+
+def test_growth_teacher_acquires_payoff_and_reserves_upgrade_economy():
+    import hsbg_engine as E
+    from hsbg.az.train.economic_tasks import debug
+    from workflows.probe_whole_turn_economy import public_view
+    state,_=fixture(natural_source(),'normal');game=E.Game.from_json(json.dumps(state))
+    debug(game,'clear_zone',zone='hand');debug(game,'clear_zone',zone='shop')
+    debug(game,'add_minion',zone='shop',card='BG36_344')
+    action,reason=Operator('growth').act(public_view(game))
+    assert action==8 and reason=='complete_engine'
+    debug(game,'clear_zone',zone='shop');state=json.loads(game.state_json())
+    state['players'][0]['tier']=5;state['players'][0]['gold']=30
+    game=E.Game.from_json(json.dumps(state));view=public_view(game)
+    assert view['mask'][3]
+    assert Operator('growth').act(view)==(3,'unlock_growth_payoff')
+    assert Operator('target_safe').act(view)[0]!=3

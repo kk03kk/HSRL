@@ -14,9 +14,10 @@ def active(view):
     return 'PIRATE' in view['lobby_races'] and len(owned & {'BG_LOE_077','BG33_823','BG33_825'})>=2
 
 class _Evaluator:
-    def __init__(self,base):
+    def __init__(self,base,operator_mode='legacy'):
         self.base=base;self.model=getattr(base,'model',None)
-        self.operator=Operator();self.view=None;self.reason=None;self.enabled=False
+        self.operator_mode=operator_mode
+        self.operator=Operator(operator_mode);self.view=None;self.reason=None;self.enabled=False
     def __call__(self,features,cards,mask,seat):
         self.enabled=active(self.view);self.reason=None
         if not self.enabled:return self.base(features,cards,mask,seat)
@@ -29,12 +30,12 @@ class _Evaluator:
 class EconomicOptionPolicy:
     name='research-public-economic-option'
     supports_pi=False
-    def __init__(self,base_evaluator,**guard_args):
-        self.evaluator=_Evaluator(base_evaluator)
+    def __init__(self,base_evaluator,*,operator_mode='legacy',**guard_args):
+        self.evaluator=_Evaluator(base_evaluator,operator_mode)
         self.policy=PPOGreedyPolicy(self.evaluator,**guard_args)
         self.previous=None
     def reset(self):
-        self.policy.reset();self.evaluator.operator=Operator();self.previous=None
+        self.policy.reset();self.evaluator.operator=Operator(self.evaluator.operator_mode);self.previous=None
     @property
     def forced_actions(self):return self.policy.forced_actions
     def pending_guard_meta(self):return self.policy.pending_guard_meta()
@@ -45,11 +46,12 @@ class EconomicOptionPolicy:
             before,action=self.previous
             if before['turn']==view['turn']:
                 self.evaluator.operator.note(before,view,action)
-            else:self.evaluator.operator=Operator()
+            else:self.evaluator.operator=Operator(self.evaluator.operator_mode)
         self.evaluator.view=view
         decision=self.policy.decide(game,seat)
         decision.info.update(research_option_active=self.evaluator.enabled,
                              research_operator_reason=self.evaluator.reason,
+                             research_operator_mode=self.evaluator.operator_mode,
                              research_policy_intervention=True)
         self.previous=(view,int(decision.action))
         return decision

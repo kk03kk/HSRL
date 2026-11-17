@@ -39,7 +39,8 @@ def trial(task):
     if key not in _CACHE:
         built=make_eval_policy(checkpoint,protocol=EvalProtocol(mirror_snaps=library),device=device)
         policy=built['policy']
-        if operator:policy=EconomicOptionPolicy(policy.evaluator)
+        if operator:policy=EconomicOptionPolicy(policy.evaluator,
+            operator_mode=operator if isinstance(operator,str) else 'legacy')
         _CACHE[key]=(policy,file_identity(checkpoint))
     if ('pool',library) not in _CACHE:_CACHE[('pool',library)]=MirrorSnapshotPool(library,sample='p50band')
     policy,checkpoint_identity=_CACHE[key]
@@ -102,8 +103,8 @@ def compare(rows,parent='parent'):
                 boot=np.mean(rng.choice(x,size=(5000,len(x)),replace=True),axis=1)
                 return {'sources':len(x),'paired_replicates':sum(map(len,groups.values())),
                     'mean':float(x.mean()),'ci95':np.quantile(boot,[.025,.975]).tolist()}
-            out[name+'/'+variant]={'rank_minus_parent':estimate(cases),
-                'common_survivor_T9_T12_log_growth_minus_parent':estimate(growth)}
+            out[name+'/'+variant]={'rank_minus_'+parent:estimate(cases),
+                'common_survivor_T9_T12_log_growth_minus_'+parent:estimate(growth)}
     curves={}
     for name in names:
         for variant in sorted({r['variant'] for r in rows}):
@@ -115,7 +116,7 @@ def compare(rows,parent='parent'):
                     'strength_median':float(np.median([x['strength'] for x in v])),
                     'gold_spent_median':float(np.median([x['gold_spent'] for x in v])),
                     'cap_count':sum(x['forced_reason']=='action_cap' for x in v)} for t,v in sorted(turns.items())}}
-    return {'paired':out,'curves':curves,
+    return {'reference':parent,'paired':out,'curves':curves,
         'limitations':['Explicit component endowments; not natural acquisition or promotion',
             'Bootstrap units are source games, after averaging future RNG replicas',
             'Growth uses common survivors only and may select a different cohort',
@@ -129,7 +130,9 @@ def main(args):
     for i,s in enumerate(sources):s['case']=i
     variants=plan['variants'][:1] if args.probe else plan['variants']
     replicas=1 if args.probe else plan['replicas']
-    models={n:m for n,m in plan['models'].items() if not args.probe or n in ('parent','operator')}
+    models={n:m for n,m in plan['models'].items()
+            if not args.probe or n in plan.get('probe_models',('parent','operator'))}
+    if not models:raise ValueError('no study models selected')
     identities={n:file_identity(m['checkpoint']) for n,m in models.items()}
     for n,m in models.items():
         if m.get('sha256') and identities[n]['sha256']!=m['sha256']:raise ValueError('model identity differs: '+n)
@@ -156,7 +159,7 @@ def main(args):
     if {n:file_identity(m['checkpoint']) for n,m in models.items()}!=identities:raise ValueError('models changed')
     if {p.name:file_identity(p) for p in sorted(library.glob('snap_*.json.gz'))}!=library_identity:raise ValueError('library changed')
     result={'valid':True,'probe':args.probe,'run':file_identity(out/'run.json'),
-        'rollouts':len(rows),'models':identities,'comparison':compare(rows),'rows':rows}
+        'rollouts':len(rows),'models':identities,'comparison':compare(rows,plan.get('reference','parent')),'rows':rows}
     atomic_json(out/'complete.json',result);print(json.dumps(result['comparison']),flush=True)
 
 if __name__=='__main__':

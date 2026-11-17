@@ -1,0 +1,33 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-094: source-aware target protection and a guide-grounded economic payoff",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["normal", "complete_gold"],
+  "replicas": 2,
+  "reference": "target_safe",
+  "probe_models": ["target_safe", "growth"],
+  "models": {
+    "target_safe": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "target_safe"
+    },
+    "growth": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "growth"
+    }
+  },
+  "trigger_evidence": "CPU suffix probe 1159742, seed11960000 T10 action88: legacy teacher uses Robust Evolution on Privateer, transforming its protected economic component; trace SHA8378eba68e2ba7de584de42f49114c7f243a3a62772a8889b6732dfd1430b4e6",
+  "target_safe_change": "Use own public casting card identity (or own last-play memory) for destructive targets; exclude protected components, prefer shop targets for Robust Evolution; do not start destructive casts with no safe public target",
+  "growth_change_over_target_safe": "Acquire/play/protect Hooktusk as the Pirate discover/golden-minion payoff; unlock Tier6 when Rogers+Privateer are established and at least 6 gold remains after upgrade; otherwise retain existing economic flow",
+  "guide": "docs/battlegrounds_strategy_guide.md, Pirate golden-hand section; SHA f03150e215ab5a52d2e2f8f7cfd2d7e02b8aac3d00e8da8886257463860bbb5a",
+  "native_rule": "BG36_344 discovery buff = golden_multiplier * (1 + own golden_played) to friendly Pirates; game rules unchanged",
+  "selection": "Same 49 dev sources and paired futures as economy-suffix-20261118, no outcome selection; no extra Hooktusk endowment",
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "budget": "392 CPU conditional suffixes after two CPU probe suffixes; source-clustered comparison, no neural training in this study",
+  "legacy_evidence": "Preserve completed or running legacy controller/student/parent study unchanged; separately compare completed paired evidence after matching initial state hashes",
+  "limitations": ["Two specifically motivated heuristic changes, not optimal teacher discovery", "Growth arm combines payoff acquisition/retention and a reserve-based upgrade rule", "Artificial initial economy, not natural ability", "Both targets and payoff must prove actual suffix benefit before further imitation"],
+  "formal_reserved_seeds_used": false
+}
