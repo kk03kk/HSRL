@@ -12,6 +12,6 @@ export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUNBUFFER
 exec .venv/bin/python tools/analyze_economy_suffix.py \
   --runs artifacts/runs/nus-economy-suffix-20261118-1 \
     artifacts/runs/nus-economic-payoff-20261118-1 \
-    artifacts/runs/nus-payoff-student-suffix-20261118-1 \
+    "${HSAI_STUDENT_SUFFIX_ROOT:-artifacts/runs/nus-payoff-student-suffix-20261118-1}" \
   --policies parent growth payoff_student \
   --out "${HSAI_STUDENT_ANALYSIS_OUT:?}/complete.json"
