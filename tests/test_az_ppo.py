@@ -385,8 +385,10 @@ def test_train_ppo_kl_early_stop():
 # ── 6. 入口脚本（不需要引擎：--help 在引擎检查前返回）───────────────────
 def test_entry_script_help():
     script = os.path.join(ROOT, "workflows", "train_az_ppo.py")
-    proc = subprocess.run([sys.executable, script, "--help"], cwd=ROOT,
-                          capture_output=True, text=True, timeout=180)
+    # A parent's -X utf8 is not inherited by a child interpreter. Explicitly
+    # agree on UTF-8 so Windows ACP=936 cannot break captured Chinese help.
+    proc = subprocess.run([sys.executable, "-X", "utf8", script, "--help"], cwd=ROOT,
+                          capture_output=True, text=True, encoding="utf-8", timeout=180)
     assert proc.returncode == 0, proc.stderr
     for flag in ("--games", "--epochs", "--arch", "--device", "--out", "--seed",
                  "--sims", "--determinizations", "--lr", "--clip", "--collect-only"):
