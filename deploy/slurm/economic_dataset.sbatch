@@ -2,7 +2,7 @@
 #SBATCH --job-name=hsai-economic-data
 #SBATCH --account=allusers
 #SBATCH --qos=normal
-#SBATCH --partition=cpu
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=12G
 #SBATCH --time=00:30:00
