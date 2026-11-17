@@ -84,6 +84,7 @@ class FirstBuy:
             self.first = False
             if not bytes(game.legal_mask(seat))[self.action]:
                 raise RuntimeError('predeclared core purchase became illegal')
+            self.base.note_external_purchase(game, seat, self.action)
             pi = np.zeros(245, np.float32)
             pi[self.action] = 1
             return Decision(self.action, pi, {'research_intervention': 'buy_core_first', 'forced': True})

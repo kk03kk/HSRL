@@ -2319,6 +2319,35 @@ class PPOGreedyPolicy(Policy):
         if self._guard is not None:self._guard.clear_state()
         if self._pending_guard is not None:self._pending_guard.clear_state()
 
+    def note_external_purchase(self, game: Any, seat: int, action: int) -> None:
+        """Account for a research intervention without a fictitious model action.
+
+        Only native legal Buy actions are supported. They still consume the
+        ordinary turn budget and update move/pending histories exactly once.
+        The normal decide path is unchanged.
+        """
+        seat, action, turn = int(seat), int(action), int(game.turn)
+        if not 8 <= action < 16:
+            raise ValueError('external accounting supports only purchases')
+        mask = mask_from_bytes(game.legal_mask(seat))
+        if not bool(mask[action]):
+            raise ValueError('external purchase is not native legal')
+        key = (seat, turn)
+        count = self._turn_counts.get(key, 0) + 1
+        if self.max_actions_per_turn > 0 and count > self.max_actions_per_turn:
+            raise ValueError('external purchase exceeds the ordinary action budget')
+        if self._guard is not None:
+            mask, _ = self._guard.guarded_mask(mask, game_id=0, seat=seat, turn=turn)
+        if self._pending_guard is not None:
+            mask, _ = self._pending_guard.guarded_mask(mask, game_id=0, seat=seat, turn=turn, game=game)
+        if not bool(mask[action]):
+            raise ValueError('external purchase violates the policy guard')
+        self._turn_counts[key] = count
+        if self._guard is not None:
+            self._guard.note_action(action, game_id=0, seat=seat, turn=turn)
+        if self._pending_guard is not None:
+            self._pending_guard.note_action(action, game_id=0, seat=seat, turn=turn)
+
     def decide(self, game: Any, seat: int) -> Decision:
         seat = int(seat)
         turn = int(getattr(game, "turn", -1))

@@ -21,21 +21,47 @@ def test_first_buy_intervenes_once_without_recording_a_fake_base_action():
     debug(game, 'set_player', gold=3)
     class Base:
         calls = 0
+        external = 0
         def reset(self):
             self.calls = 0
         def decide(self, game, seat):
             self.calls += 1
             return Decision(game.bot_action(seat))
+        def note_external_purchase(self, game, seat, action):
+            self.external += 1
     base = Base()
     policy = FirstBuy(base, 8, True)
     policy.reset()
     decision = policy.decide(game, 0)
     assert decision.action == 8 and decision.info['forced']
-    assert base.calls == 0
+    assert base.calls == 0 and base.external == 1
     game.step(0, decision.action)
     assert json.loads(game.player_json(0))['gold'] == 0
     policy.decide(game, 0)
     assert base.calls == 1
+
+
+def test_external_purchase_consumes_the_normal_policy_budget():
+    from hsbg.az.train.ppo import PPOGreedyPolicy
+    import numpy as np
+    class Game:
+        turn = 9
+        def legal_mask(self, seat):
+            mask = bytearray(245)
+            mask[0] = mask[8] = 1
+            return bytes(mask)
+    def evaluator(*args):
+        raise AssertionError('external purchase must not sample a fictitious action')
+    model_policy = PPOGreedyPolicy(evaluator)
+    game = Game()
+    model_policy.note_external_purchase(game, 0, 8)
+    assert model_policy._turn_counts[(0, 9)] == 1
+    assert model_policy._guard._turns[(0, 0)].last_action == 8
+    model_policy._turn_counts[(0, 9)] = model_policy.max_actions_per_turn
+    with pytest.raises(ValueError, match='budget'):
+        model_policy.note_external_purchase(game, 0, 8)
+    with pytest.raises(ValueError, match='only purchases'):
+        model_policy.note_external_purchase(game, 0, 0)
 
 
 def test_comparison_clusters_replicates_within_source_case():
