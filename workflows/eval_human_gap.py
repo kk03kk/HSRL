@@ -58,6 +58,7 @@ from hsbg.az.train.common import engine_info  # noqa: E402
 from hsbg.az.train.evaluate import EvalConfig, evaluate_policy  # noqa: E402
 from hsbg.az.train.model import load_checkpoint  # noqa: E402
 from hsbg.az.train.ppo import PPOEvaluator, PPOGreedyPolicy  # noqa: E402
+from hsbg.az.train.thirdparty_policy import is_thirdparty_spec  # noqa: E402
 
 
 def sha256_file(path: Path) -> str:
@@ -405,15 +406,32 @@ def boards_by_turn(rows: List[Dict[str, Any]],
 
 
 def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
-    model, meta = load_checkpoint(str(path), device=args.device)
-    evaluator = PPOEvaluator(model, device=args.device,
-                             norm_mean=meta.get("norm_mean"),
-                             norm_std=meta.get("norm_std"))
-    policy = PPOGreedyPolicy(evaluator,
-                             max_actions_per_turn=int(args.max_actions_per_turn),
-                             freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
-                             forbid_unfreeze=bool(int(args.forbid_unfreeze)),
-                             ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)))
+    # 第三方权重（作者的 tg-ckpt-v1）：只换「策略从哪来」，其余规则与自家模型完全一致。
+    if is_thirdparty_spec(str(path)):
+        from hsbg.az.train.thirdparty_policy import (ThirdPartyGreedyPolicy,
+                                                     split_thirdparty)
+        real = split_thirdparty(str(path))
+        policy = ThirdPartyGreedyPolicy(
+            real, device=args.device,
+            max_actions_per_turn=int(args.max_actions_per_turn),
+            forbid_cancel=True,
+            keep_start_board=bool(int(getattr(args, "keep_start_board", 1) or 0)),
+            ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
+            freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
+            forbid_unfreeze=bool(int(args.forbid_unfreeze)),
+        )
+        print(f"[{name}] 第三方权重：{real}  z={policy.z}", flush=True)
+        model, meta, evaluator = policy.net, {}, None
+    else:
+        model, meta = load_checkpoint(str(path), device=args.device)
+    if evaluator is None:                     # 第三方权重：policy 已在上面建好
+        pass
+    else:
+        policy = PPOGreedyPolicy(evaluator,
+                                 max_actions_per_turn=int(args.max_actions_per_turn),
+                                 freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
+                                 forbid_unfreeze=bool(int(args.forbid_unfreeze)),
+                                 ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)))
     pool = None
     if str(getattr(args, "human_opponents", "") or "").strip():
         from hsbg.az.train.human_board_pool import HumanBoardPool
@@ -705,6 +723,8 @@ def main(argv=None) -> int:
     ap.add_argument("--mirror-strict", type=int, default=0, choices=[0, 1],
                     help="1=活席必须使用库，禁止 bot 回退")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--keep-start-board", type=int, default=1, choices=[0, 1],
+                    help="1=回合开始已在场的随从不可卖（第三方权重要求 keep_start_board=1）")
     ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
                     help="1=禁用加重护手(BG36_MagicItem_414)等黑名单待选卡（默认开）")
     ap.add_argument("--dump-rows", type=int, default=1, choices=[0, 1],
