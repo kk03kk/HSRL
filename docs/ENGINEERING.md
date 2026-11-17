@@ -70,7 +70,7 @@ history、Trainer 代数和张量，再复制成不可覆盖的候选模型目�
 2. `shard*/command.json/process.log/exit.json`：实际命令与退出状态。
 3. 每模型 `rows-*.jsonl.gz` 与 `decisions-*.jsonl.gz`（具体文件名由面板引用）。
 4. `panel.json`：聚合结果、逐 seed 名次和逐回合数据、trace 清单。
-5. `validation.json`：全记录完整性校验与原生步骤回放。
+5. `validation.json`：全记录完整性校验；原生步骤回放由 `--replay` 显式启用并记录抽样数，不能把结构校验等同于全量重新模拟。
 6. `complete.json`：仅在所有验收完成后写入，绑定 panel/validation 文件 SHA。
 
 逐动作记录包括 game/seed/turn/seat/动作序号、实际动作与提议动作、强制标志、完整前后引擎

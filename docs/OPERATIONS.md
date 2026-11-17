@@ -136,6 +136,10 @@ python ops/hsai_ops.py state        # 首行 tunnel : OK  xlogin2；顺带看同
 
 #### D. 25–30 s 仍 DOWN：读日志分类，不要盲等
 
+2026-11-17 修复：就绪等待使用一个共享 25 秒截止时间，单次 SSH 探针按剩余预算收缩；
+不再把 8 秒超时重复 8 次（曾实测失败等待 71.9 秒）。网络拥塞也可能出现认证成功而命令
+迟迟不返回，不能仅凭一次超时认定密码或 VPN 已失效。大文件传输失败保留 partial，并独立探活。
+
 ```powershell
 Get-Content C:\ProgramData\HSAI\tunnel-2222.log -Tail 5
 ```

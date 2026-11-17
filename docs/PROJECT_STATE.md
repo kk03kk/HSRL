@@ -1,117 +1,59 @@
 # HSAI 当前状态
 
-状态：**as of 2026-11-17 18:27 +08:00**（本次工程审计实测；只写"现在是什么"，历史在
-[`DECISIONS.md`](DECISIONS.md)，失效结论清单在 [`analysis/AUDIT_20261117.md`](analysis/AUDIT_20261117.md)）。
-服务器实时状态用 `python ops/hsai_ops.py state` 取，**不抄本文件**。
+状态：**as of 2026-11-17，工程现代化与正式评测完成，最终交付核验中**。
+动态作业以 `python ops/hsai_ops.py state` 实测为准。历史在 [DECISIONS.md](DECISIONS.md)；
+完整本轮报告在 [MODERNIZATION_20261117.md](analysis/MODERNIZATION_20261117.md)。
+本文件原 18:27 快照保存在 Git 历史及本地 `records/archive/project-state-20261117-1827/`。
 
-> **本文件的三条硬规则（2026-11-17 新增）**
-> 1. 任何带作业号/时间戳的段落必须写 `(as of <date>)`，否则视为历史。
-> 2. **模型名/冠军/库名只在这里写一次**，且必须与 `DECISIONS.md` 最新条一致；
->    本文与决议冲突时**以决议为准**。
-> 3. 参数真值不写在这里，看 `deploy/slurm/stage_arena.sbatch` 与最新 `D-###`。
+## 当前结论
 
----
+v1.4-r1 长训正常完成并登记 candidate。与起点 v1.3-r3 的同协议 512 对 seed 正式比较：
+平均名次 4.9141 → 4.6895，夺冠率 8.40% → 12.70%；T12 总攻血 P50 1,287（n=360）
+→ 1,352（n=345），T16 5,609（n=35）→ 4,826（n=54）。
+排名和夺冠率改善，但后期成长没有证明改善；共同存活 T16 只有 7 对。
+**不宣布新冠军，不更换线上 pin。** 完整配对区间、共同存活曲线及运营观察见本轮报告。
 
-## 1. 一句话
+用户继续决定科学方向。本次授权工程重构、计算节点验证与正式评测，不授权下一轮长训或改变
+奖励/模型/超参/对手/游戏规则/评测标准。当前配方仍看 D-076 与
+`deploy/slurm/stage_arena.sbatch`；评判口径仍为 [EVAL_PROTOCOL.md](EVAL_PROTOCOL.md)。
 
-在**校准战团场**上做 PPO（1 学习席 + 7 席严格 EOT 快照）。2026-11-17 审计发现两个
-风险：**(a)** 历史面板显示现役训练场在 T12–T16 约为模型的 **2.2–2.6 倍**，可能削弱奖励分辨力；
-但“没有梯度”尚无充分证据，不能由平均名次接近 4.5 推出；**(b)** 历史模型逐回合板面增长
-落后于 winner-biased 真人参照，提示后期运营不足，但仍需控制共同存活样本与协议差异。
-历史分析与建议见
-[`analysis/AUDIT_20261117.md`](analysis/AUDIT_20261117.md) §5 与
-[`analysis/TRAINING_OPPONENT_DESIGN_20261117.md`](analysis/TRAINING_OPPONENT_DESIGN_20261117.md)。
+## 当前资产与版本锚点
 
----
+| 资产 | 位置与身份 |
+|---|---|
+| 引擎 | `config/engine-upstream-lock.json`；37.0.2.256589 / `c4c71014e3d41760`；245 动作，3227 floats + 124 cards |
+| 当前候选 | `artifacts/models/arena-v1.4-r1/`；745 轮 / 69,691,656 决策；manifest 绑定 model SHA `5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1` |
+| 完整 Trainer | 候选目录及原运行均保留；SHA `2e6073f7a80fbb57c4cca0ede148145addb4541029083f6fe35048a2d51141dc` |
+| 对照起点 | `artifacts/models/arena-v1.3-r3/`；SHA `1808f178ae38bf5910e3561043a2478c9f559eb7a6cf065a948a8fbc1c206472` |
+| 线上 pin | `config/live/model.json`；SHA `ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7`，本次未改 |
+| 训练场 / 考试场 | `artifacts/libraries/arena-cal-v14-snap` / `arena-cal-v14hold-snap` |
+| 正式协议 | `7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c` |
+| 正式评测 | `artifacts/runs/nus-eval-v14-r1-20261117-1/`，complete/validation 均 valid |
+| 分析与封存 | `artifacts/runs/nus-eval-analysis-v14-r1-20261117-1/`；正式目录另有 evidence-inventory |
 
-## 2. 目标与研发模式
+## 运行事实（as of 2026-11-17）
 
-见 [`CHARTER.md`](CHARTER.md)。2026-11-17 用户口径补充：
-- **不设单一判胜指标**。主看**逐回合 M1 与增长曲线**（尤其看中后期会不会滚雪球），
-  名次/前四/吃鸡只作参考。
-- 但**评测数据必须准确、可复现、可比较**（协议指纹、按 seed 配对、有效性门、共同存活子集）。
-- 任何 GPU 作业仍需用户批准；训练配方与场地强度的变更由用户决定。
+- 长训 **1156986** 于 18:53:59 COMPLETED / 0:0，原始资产完整；没有重启。
+- 正式评测 **1157979** COMPLETED / 0:0，耗时 31:05，两个模型各 512 局；19.09 万个学习席动作完整验收。
+- 封存与分析 **1158028** COMPLETED / 0:0，耗时 2:20。
+- 两端 CPU、Rust、CUDA、真实恢复及真实训练入口工程探针均已完成，详细作业及失败修复现场见报告。
+- 真实游戏仍 `real_game_accepted=false`；离线通过不能替代 D-026 实机验收。
 
----
+## 维护入口
 
-## 3. 最近一次完整对照（同一场地、同 seed、1028 局、4 个模型）
+[ENGINEERING.md](ENGINEERING.md) 定义模块边界、冻结发布、环境复建、模型登记、完整评测与验收矩阵。
+正式新入口为 `workflows/evaluate_suite.py` / `deploy/slurm/evaluate_suite.sbatch`，
+旧分片脚本兼容转入同一执行器。每次发布用固定提交的 Git worktree，作业输入/环境在运行期间保持不变。
 
-场地 `arena-cal-v14hold-snap`（held-out，与训练库帧签名交集 0），入口
-`artifacts/runs/gap-v1.2-plus3-1024-20261117/`（服务器）。**名次只作参考。**
+Windows 使用独立 CPU 环境，旧环境完整保留；NUS 使用原已验证 CUDA 环境。
+两端同步源码和语义契约，模型/库/训练资产按职责保留，不强行统一二进制包版本。
+训练参数接口与纯聚合实现已做等价校验；旧基线 512 局的 seed、名次、动作统计及逐回合 trace
+与重构前完全一致。科学实现没有随工程拆分调整。
 
-| 模型 | mean_rank | 前四 | 吃鸡 | T12 M1 | T16 M1 |
-|---|---:|---:|---:|---:|---:|
-| v1.2（本轮起点） | 4.477 | 49.5% | 7.2% | 1,311 | 4,692 |
-| v1.3_r1 | 4.615 | 44.2% | 12.3% | 1,348 | 5,634 |
-| v1.3_r2 | 4.580 | 44.8% | 14.9% | 1,422 | 5,521 |
-| v1.3_r3 | 4.549 | 46.7% | 14.2% | 1,376 | 5,669 |
+## 仍需关注
 
-**怎么读这张表（重要）**：
-- 8 人局随机名次期望 4.5；1028 局下 `mean_rank` 的标准误 ≈0.071 ⇒ 4.549 与 4.5 **无法区分**。
-  前四 46.7% 略低于 50%；这是描述性比较，**不能据此证明奖励无分辨力或梯度为零**。
-- 三轮训练的真实变化在**后期板面**：T16 +21%、吃鸡 7.2%→14.2%；而 T12 只 +5%。
-- 该面板**没有** `protocol_sha256`（旧代码产物）⇒ 按 `EVAL_PROTOCOL` §4 规则 5，
-  它是 **UNVERIFIED**：只能当"同一轮内多模型对照"，**不能与任何新结果混榜**。
-
----
-
-## 4. 已确认的事实（不要重复验证）
-
-1. **库不泄漏**：`train-joint.jsonl`（1,783 局）与 `eval-joint.jsonl`（199 局）game_id 交集 **0**；
-   `arena-cal-v14`（16,658 帧）与 `v14hold`（2,355 帧）帧签名交集 **0**（2026-11-17 实查）。
-2. **镜像注入真的生效**：训练侧 `mirror_applied/attempt = 45,870/45,878 = 99.98%`；
-   评测侧按 `(seed, turn, seat)` 派生 RNG，跨模型可配对。
-3. **工程洁净**：v1.3 三轮全程 `illegal_actions / invalid_games / truncated_games = 0`。
-4. **模型后期结构缺口**（T12，v1.3_r3 vs 真人 winner-biased 基线）：金卡/局 **0.97 vs 2.55**、
-   有金卡局占比 61% vs 90%、每格 atk **123 vs 598**、留存随从每回合增重 **+87 vs +690**。
-5. **动作空转**：T12 每回合 argmax 行为 `refresh 5.44 / move 5.02 / freeze 1.91`，
-   move 与 freeze **都打满上限**（训练日志 `move_guard_blocked_cap` 每轮 142 万次）。
-6. **强制升本课程已改为纯教师 BC**：`prob=0`（不强制）+ 教师标签（每回合最多 1 条，
-   `--forced-teacher-coef 0.1`）。模型确实在自升：T4 里程碑 `self=418 / on_time=94`。
-7. **工程面（已修）**：主评测入口的 `UnboundLocalError`、多模型落盘覆盖、协议指纹缺失、
-   按下标配对、`pytest tests` 不可收集、`z_global` 死代码、ckpt 架构开关不可加载——
-   见 [`analysis/AUDIT_20261117.md`](analysis/AUDIT_20261117.md) §2。
-
----
-
-## 5. 当前资产（名字只写这一处）
-
-| 类别 | 位置 | 说明 |
-|---|---|---|
-| 引擎 | `engine/`（`hsbg_engine` 37.0.2.256589，指纹 `c4c71014e3d41760`） | 245 动作；观测 3227 floats + 124 cards |
-| 训练器 | `workflows/train_entity_sync.py` | entity 16,436,034 参数；续训用 `--trainer-state`（**无** `--resume`） |
-| 训练入口 | `deploy/slurm/stage_arena.sbatch` | 含 MIG UUID 重定向 + 自动降级 |
-| 建库入口 | `deploy/slurm/build_arena_snap.sbatch` | 纯 CPU；校准库 + 快照库同源 |
-| 评测入口 | `deploy/slurm/eval_shard_parallel.sbatch`（8 分片）/ `eval_node_job.sbatch` | 现役 1024 局；**现在会写 `protocol_sha256`** |
-| 判胜工具 | `tools/compare_panels.py` | 逐回合 M1/M2 + 按 **seed** 配对 bootstrap + **共同存活子集** M1 |
-| 合并工具 | `tools/merge_panels.py`（新布局）/ `merge_panels_multi.py`（旧分片） | 有效性计数跨分片求和、协议校验、缺分片拒绝 |
-| 健康门 | `hsbg/az/train/health_gate.py` | 硬门 fail-closed；熵/KL/吞吐只警告 |
-| 训练场 | `artifacts/libraries/arena-cal-v14-snap` | 校准目标与统计在源库 `artifacts/libraries/arena-cal-v14/summary.json`，snap 目录只有快照与 manifest |
-| 考试场 | `artifacts/libraries/arena-cal-v14hold-snap` | held-out，只判胜 |
-| 真人库 | `data/real_library/firestone-37.0.2-joint/{train,eval}-joint.jsonl` | 1,783 / 199 局（服务器） |
-| **当前候选模型** | `artifacts/models/arena-v1.3-r3/`（2026-11-17 12:55 发布，`status=candidate`） | `model.pt` sha `1808f178…`，v626 / 64,308,028 决策 / 16,436,034 参数；= v1.3 三轮链产物（作业 1153480）。**未宣布为冠军** |
-| 候选模型的评测 | [`analysis/EVAL_V13_R3_1024_20261117.md`](analysis/EVAL_V13_R3_1024_20261117.md) | 1032 局 held-out；6 本停留 0.45→**10.03**；T15/T16 M1 **+29.5%/+20.8%**；吃鸡 7.2%→14.2%；名次 Δ+0.073（CI 跨 0）。**无 `protocol_sha256`（legacy 面板），不得与新榜混比** |
-
----
-
-## 6. 运行与审计状态（as of 2026-11-17 18:27 +08:00）
-
-**D-076 已授权并启动训练**：作业 `1156986` 在 `xgpi14` 运行，16:09 起，165 分钟单段，
-Slurm 截止 19:09。产物 `artifacts/runs/nus-arena-v1.4-r1-20261117/`。
-18:27 实测 619 轮 / 57,799,833 决策，非法/无效/截断/引擎停止/注入错误/丢弃决策均 0；
-27 次动作预算强制结束回合不是整局截断。此为观测快照，不保证未来状态。
-
-**工程审计修复在本地隔离分支** `codex/engineering-audit-20261117`，未部署至服务器。
-服务器 HEAD `8d6d823`，保留原有 5 个未跟踪第三方参考文件；因此不能宣称两端 IN SYNC。
-完整问题、验证、未解决风险与后续部署条件见
-[`analysis/ENGINEERING_AUDIT_20261117.md`](analysis/ENGINEERING_AUDIT_20261117.md)、D-077。
-
-先前“没有排队/运行作业”的文字已被 D-076 取代。历史训练建议仍是建议，不构成新任务授权；
-本次审计没有提交新 GPU 作业、改变奖励/模型/对手/超参或模型 pin，也没有中断当前训练。
-
----
-
-## 7. 硬约束
-
-见 [`../AGENTS.md`](../AGENTS.md)：远端脚本纯 ASCII、登录节点不跑重活、新作业新目录、失败保现场、
-不删资产、密钥不进对话。**CVD 唯一允许的例外**：`stage_arena.sbatch` 的 MIG UUID 重定向（D-063）。
+后期成长、反复移动/冻结和留牌选择值得用已保存动作证据进一步研究，不能直接认定为已证实的错误策略。
+分布式在途采集轨迹尚未证明逐位恢复；固定 batch Adam/模型恢复已证明等价。
+环境/共享资产通过身份校验和运行纪律冻结，尚非操作系统强制只读。
+第三方参考源码 revision/授权范围待确认；Windows 沿用的 NumPy 2.4.0 为索引撤回版本。
+历史缺协议的面板仍为 UNVERIFIED，不能与本轮混榜。
