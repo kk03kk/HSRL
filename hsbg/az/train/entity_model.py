@@ -279,7 +279,7 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             # log1p(consume 数)]。默认 None = 不构建、前向/checkpoint 与旧版逐位一致。
             self.process_head = nn.Linear(d, 3) if process_head else None
 
-        def _card_repr(self, idx):
+        def _card_repr(self, idx, z=None):
             # idx [B, ...] long; 返回 [B, ..., d]
             i = idx.clamp(0, self.n_cards - 1)
             emb = self.card_id(i) + self.card_static_proj(self.card_static[i]) \
@@ -372,12 +372,12 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
 
             # global token + 英雄/技能/饰品/秘密卡牌表示（直接加和到 global）
             g = self.global_proj(glob)
-            g = g + self._card_repr(c[:, C["powers"]]).sum(dim=1)
-            g = g + self._card_repr(c[:, C["deity"]]).sum(dim=1)
-            g = g + self._card_repr(c[:, C["trinkets"]]).sum(dim=1)
+            g = g + self._card_repr(c[:, C["powers"]], z).sum(dim=1)
+            g = g + self._card_repr(c[:, C["deity"]], z).sum(dim=1)
+            g = g + self._card_repr(c[:, C["trinkets"]], z).sum(dim=1)
 
             def card_of(name, shape):
-                return self._card_repr(c[:, C[name]].reshape(B, *shape))
+                return self._card_repr(c[:, C[name]].reshape(B, *shape), z)
 
             tok = []
             tok.append((g + self.pos_emb(torch.zeros(B, dtype=torch.long, device=dev))
