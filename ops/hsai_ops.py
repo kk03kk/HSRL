@@ -40,6 +40,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,18 +130,22 @@ HEREDOC_RE = re.compile(r"<<-?\s*'?([A-Za-z_][A-Za-z0-9_]*)'?")
 
 
 def _strip_heredocs(script: str) -> List[str]:
-    """丢弃 heredoc 正文。提交信息、内联 python 里的文字不是命令，不该触发守卫。"""
+    """跳过数据 heredoc；解释器执行的 heredoc 正文仍须检查。"""
     out: List[str] = []
     tag: Optional[str] = None
+    executable = False
     for raw in script.splitlines():
         if tag is not None:
             if raw.strip() == tag:
                 tag = None
+            elif executable:
+                out.append(raw)
             continue
         out.append(raw)
         m = HEREDOC_RE.search(raw)
         if m and "<<<" not in raw:
             tag = m.group(1)
+            executable = bool(re.search(r"\b(?:python[0-9.]*|bash|sh)\b", raw[:m.start()]))
     return out
 
 
@@ -167,16 +172,37 @@ def _executed_lines(script: str) -> List[str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        first = line.split(None, 1)[0]
-        # 允许前缀形如 `FOO=bar cmd` 的环境变量赋值
-        if "=" in first and not first.startswith("-"):
-            parts = line.split(None, 1)
-            first = parts[1].split(None, 1)[0] if len(parts) > 1 else ""
-        if first in SAFE_LEADING_TOKENS:
+        # A safe first command does not make the rest of a compound command safe.
+        # Keep quoted strings intact (e.g. echo 'pytest'), but inspect shell
+        # substitutions conservatively since they execute before the outer command.
+        if '$(' in line or '`' in line:
+            kept.append(line)
             continue
-        if first in SHELL_KEYWORDS and not CMD_SEPARATORS.search(line):
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=';&|')
+            lexer.whitespace_split = True
+            tokens = list(lexer)
+        except ValueError:
+            kept.append(line)
             continue
-        kept.append(line)
+        segments: List[List[str]] = [[]]
+        for token in tokens:
+            if token and set(token) <= set(';&|'):
+                segments.append([])
+            else:
+                segments[-1].append(token)
+        for segment in segments:
+            if not segment:
+                continue
+            first = segment[0]
+            while re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', first):
+                segment = segment[1:]
+                first = segment[0] if segment else ''
+            if first in SAFE_LEADING_TOKENS:
+                continue
+            if first in SHELL_KEYWORDS and len(segments) == 1:
+                continue
+            kept.append(' '.join(segment))
     return kept
 
 
@@ -496,15 +522,21 @@ def local_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def stream_file_down(remote_rel: str, local_path: Path, *, label: str = "pull") -> int:
+def stream_file_down(remote_rel: str, local_path: Path, *, expected_sha256: str,
+                     label: str = "pull", timeout: float = 600.0) -> int:
     """``ssh cat`` 流式下载单个文件，避免 scp 在 Windows 上的路径怪癖。
 
     注意：脚本必须走 **stdin**（``bash -s``）。ssh 会把多余参数用空格拼起来，
     ``ssh host bash -c "cd X && cat f"`` 实际只把 ``cd`` 交给 bash，其余变成独立
     词，于是 cat 在 $HOME 里找文件——这个坑已经踩过一次。
     """
+    if not re.fullmatch(r'[0-9a-fA-F]{64}', expected_sha256 or ''):
+        raise OpsError('下载前必须提供有效的 SHA256')
     local_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = local_path.with_suffix(local_path.suffix + ".partial")
+    fd, temp_name = tempfile.mkstemp(prefix=local_path.name + '.', suffix='.partial',
+                                     dir=local_path.parent)
+    os.close(fd)
+    tmp = Path(temp_name)
     script = f"cd {REMOTE_ROOT} && cat -- {shlex.quote(remote_rel)}"
     started = time.time()
     with tmp.open("wb") as fh:
@@ -513,13 +545,17 @@ def stream_file_down(remote_rel: str, local_path: Path, *, label: str = "pull") 
             input=script.encode("utf-8"),
             stdout=fh,
             stderr=subprocess.PIPE,
+            timeout=timeout,
         )
     if proc.returncode != 0:
-        tmp.unlink(missing_ok=True)
         raise OpsError(
             f"下载 {remote_rel} 失败 rc={proc.returncode}: "
             f"{proc.stderr.decode('utf-8', 'replace')[:300]}"
         )
+    got = local_sha256(tmp)
+    if got.lower() != expected_sha256.lower():
+        raise OpsError(f'SHA256 不匹配 {remote_rel}: local={got} remote={expected_sha256}; '
+                       f'保留旧文件与下载现场 {tmp.name}')
     tmp.replace(local_path)
     secs = time.time() - started
     size = local_path.stat().st_size
@@ -530,6 +566,10 @@ def stream_file_down(remote_rel: str, local_path: Path, *, label: str = "pull") 
 def cmd_model_pull(args: argparse.Namespace) -> int:
     require_tunnel()
     name = args.name
+    def safe_component(value: str) -> bool:
+        return bool(re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*', value))
+    if not safe_component(name):
+        raise OpsError('模型名必须是单个目录名，不能含路径分隔符')
     rel_dir = f"artifacts/models/{name}"
     rc, out, _ = remote_run(
         f"cd {REMOTE_ROOT} && ls -1 {shlex.quote(rel_dir)} 2>/dev/null", timeout=60, label="model-ls"
@@ -537,10 +577,17 @@ def cmd_model_pull(args: argparse.Namespace) -> int:
     if rc != 0 or not out.strip():
         raise OpsError(f"服务器上没有模型目录 {rel_dir}")
     available = [x.strip() for x in out.splitlines() if x.strip()]
-    wanted = [f for f in available if f in args.files] or available
+    if any(not safe_component(f) for f in available + list(args.files)):
+        raise OpsError('模型目录含不安全的文件名')
+    missing = set(args.files) - set(available)
+    if missing:
+        raise OpsError(f'指定文件不存在: {sorted(missing)}')
+    wanted = list(dict.fromkeys(args.files)) if args.files else available
     # 大文件按需拉；trainer.pt 只有显式要求才下载
     if "trainer.pt" in wanted and not args.with_trainer:
         wanted.remove("trainer.pt")
+    if not wanted:
+        raise OpsError('没有可下载文件（trainer.pt 需要 --with-trainer）')
     remote_paths = [f"{rel_dir}/{f}" for f in wanted]
     sums = remote_sha256(remote_paths)
     dest_root = REPO_ROOT / "artifacts" / "models" / name
@@ -552,10 +599,7 @@ def cmd_model_pull(args: argparse.Namespace) -> int:
         if local.exists() and local_sha256(local) == sums.get(rel):
             print(f"  = {f} (already matches)")
             continue
-        size = stream_file_down(rel, local)
-        got = local_sha256(local)
-        if got != sums.get(rel):
-            raise OpsError(f"SHA256 不匹配 {f}: local={got[:16]} remote={str(sums.get(rel))[:16]}")
+        size = stream_file_down(rel, local, expected_sha256=sums.get(rel, ''))
         total += size
         print(f"  + {f} {size/1e6:.1f} MB  sha256 ok")
     secs = max(time.time() - started, 1e-6)
@@ -616,11 +660,10 @@ def cmd_push(args: argparse.Namespace) -> int:
     会直接更新服务器工作区；服务器有未提交改动时 git 会**拒绝**——这正是我们要的
     漂移保护。
 
-    **digest 守卫（D-037 / D-046 的代码化）**：``training_source_digest()`` 覆盖
-    ``hsbg/az/train/*.py`` 与 ``workflows/train_entity_sync.py``。若有训练作业正在跑，
-    推送这些文件会让它在下一个分段边界因"训练代码已变更"直接 FAILED。
-    因此：**只要改动里含 digest 文件且队列里有 RUNNING 的训练作业，就拒绝推送**，
-    除非显式给 ``--force-digest``（只应在"就是要中止这些作业"时使用）。
+    运行时守卫：刷新 server/main 后检查实际将改变的运行时文件。
+    任意本用户活动作业（含排队、暂停、收尾）都阻止运行时更新；查询失败也拒绝。
+    作业名不是依赖清单，评测也可能延迟导入代码，因此不再按少数名字白名单保护。
+    ``--force-digest`` 是显式的运维覆盖开关，不应在需要保护现有作业时使用。
     """
     require_tunnel()
     ensure_server_remote()
@@ -631,21 +674,22 @@ def cmd_push(args: argparse.Namespace) -> int:
     if dirty and not args.allow_dirty:
         raise OpsError(f"本地有 {len(dirty)} 个未提交改动，先提交再推送")
 
-    # ---- digest 守卫 ----
+    # Refresh the comparison base: a stale remote-tracking ref can hide changes.
+    _git(['fetch', 'server', 'main'])
+    # Runtime files can be loaded lazily by running workers or pending jobs.
     changed = _git(["diff", "--name-only", "server/main..HEAD"]).split()
-    digest_files = [p for p in changed if _is_digest_path(p)]
+    digest_files = [p for p in changed if _is_runtime_path(p)]
     if digest_files and not getattr(args, "force_digest", False):
         running = _resume_sensitive_jobs()
         if running:
             raise OpsError(
-                "拒绝推送：这次推送含 digest 相关文件 "
-                f"{digest_files}，而队列里还有会 resume 的训练作业 {running}。\n"
-                "  这些作业会在下一个分段边界被续训守卫判死（D-037/D-046）。\n"
+                "拒绝推送：这次推送含运行时文件 "
+                f"{digest_files}，而队列里还有活动作业 {running}。\n"
+                "  更新可能破坏延迟导入或下一段续训（D-037/D-046）。\n"
                 "  处理方式：① 等作业结束；② 把 digest 改动放侧分支 pending-digest/；\n"
                 "  ③ 确实要中止时显式加 --force-digest")
         else:
-            print(f"[guard] 含 digest 文件 {digest_files}，但队列里没有会 resume 的"
-                  "训练作业（评测作业不算），放行。")
+            print(f"[guard] 含运行时文件 {digest_files}，已确认本用户没有活动作业，放行。")
 
     proc = subprocess.run(
         ["git", "push", "server", f"main:main"],
@@ -667,35 +711,33 @@ def _is_digest_path(path: str) -> bool:
     return p.startswith("hsbg/az/train/") and p.endswith(".py")
 
 
-#: 会从 trainer state 续训的作业名前缀。只有这些作业会被 digest 改动打断：
-#: 评测（hsai-human-gap / hsai-bench / …）从不读 trainer state，改 digest 对它们无影响。
-_TRAINING_JOB_PREFIXES = ("hsai-spell", "hsai-lrfork", "hsai-late")
+def _is_runtime_path(path: str) -> bool:
+    p = path.replace('\\', '/')
+    return p.startswith(('hsbg/', 'engine/', 'workflows/', 'deploy/', 'config/',
+                         'tools/', 'thirdparty/', 'client/', 'ops/')) or p in ('pyproject.toml', 'requirements.txt')
 
 
 def _resume_sensitive_jobs() -> list:
-    """队列里会被 digest 改动直接打断的作业（``RUNNING`` **或** ``PENDING``）。
-
-    两条精度修正（D-051）：
-
-    1. **只管训练作业**：``hsai-human-gap`` 这类评测/建库作业不 resume，
-       以前"任何 hsai-* 在跑就拦"会让整段夜班都推不了代码。
-    2. **PENDING 也要算**：``--dependency=afterany`` 链里的下一段一旦被调度，
-       就会以新 digest 启动并因 trainer state 不一致而失败——比 RUNNING 更隐蔽。
-    """
+    """保留旧函数名；现在保护本用户全部活动作业，未知状态也不放行。"""
     try:
-        out = subprocess.run(
+        proc = subprocess.run(
             ["ssh", SSH_HOST, "squeue -u $USER -h -o '%i,%T,%j'"],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20,
-        ).stdout.decode("utf-8", "replace")
-    except BaseException:  # noqa: BLE001 - 查不到就退化为"无作业"，不阻塞推送
-        return []
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise OpsError('无法确认作业状态，拒绝推送运行时文件') from exc
+    if proc.returncode != 0:
+        raise OpsError('查询作业失败，拒绝推送运行时文件')
+    out = proc.stdout.decode('utf-8', 'strict')
     rows = []
     for line in out.splitlines():
         parts = line.strip().split(",")
-        if len(parts) < 3:
+        if not line.strip():
             continue
+        if len(parts) != 3:
+            raise OpsError('作业列表格式异常，拒绝推送运行时文件')
         jid, state, name = parts[0], parts[1], parts[2]
-        if state in ("RUNNING", "PENDING") and name.startswith(_TRAINING_JOB_PREFIXES):
+        if state not in ('COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT', 'OUT_OF_MEMORY', 'NODE_FAIL'):
             rows.append(f"{jid}({name},{state})")
     return rows
 

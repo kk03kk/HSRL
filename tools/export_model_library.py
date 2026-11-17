@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import tarfile
 from pathlib import Path
@@ -53,10 +54,18 @@ def main() -> int:
     unknown = [m for m in ids if m not in entries]
     if unknown:
         raise SystemExit(f"unknown model ids: {unknown}")
+    if not ids or len(set(ids)) != len(ids) or any(
+            not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*', m) for m in ids):
+        raise SystemExit('model ids must be unique safe directory names')
     out = Path(args.out).resolve()
     staging = out.with_suffix("").with_name(out.name.replace(".tar.gz", "") + ".staging")
-    if staging.exists():
-        shutil.rmtree(staging)
+    for existing in (out, Path(str(out) + '.sha256'), staging):
+        if existing.exists():
+            raise SystemExit(f'refusing to overwrite existing export evidence: {existing}')
+    for mid in ids:
+        for name in ('model.pt', 'model.json'):
+            if not (LIB/'models'/mid/name).is_file():
+                raise SystemExit(f'incomplete model asset: {mid}/{name}')
     (staging / "models").mkdir(parents=True)
 
     sums = []
@@ -99,7 +108,7 @@ def main() -> int:
             f.write(f"{h}  {p}\n")
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(out, "w:gz") as tar:
+    with tarfile.open(out, "x:gz") as tar:
         tar.add(staging, arcname="library-v1")
     digest = sha256_file(out)
     (out.parent / (out.name + ".sha256")).write_text(

@@ -215,6 +215,7 @@ def _fake_squeue(monkeypatch, rows: str) -> None:
 
     class _Out:
         stdout = rows.encode("utf-8")
+        returncode = 0
 
     def _run(*_a, **_k):
         return _Out()
@@ -233,21 +234,18 @@ def test_digest_guard_blocks_on_pending_chained_resume(monkeypatch) -> None:
     assert hsai_ops._resume_sensitive_jobs() == ["2(hsai-lrfork,PENDING)"]
 
 
-def test_digest_guard_ignores_eval_and_data_jobs(monkeypatch) -> None:
-    """评测/建库作业从不读 trainer state，改 digest 对它们无影响（D-051）。
-
-    以前"任何 hsai-* 在跑就拦"会让整段夜班都推不了代码。
-    """
+def test_runtime_guard_protects_eval_and_data_jobs(monkeypatch) -> None:
+    """评测也会延迟导入运行时；只允许无关文档更新。"""
     _fake_squeue(
         monkeypatch,
         "3,RUNNING,hsai-human-gap\n4,RUNNING,hsai-bench\n5,PENDING,hsai-library\n",
     )
-    assert hsai_ops._resume_sensitive_jobs() == []
+    assert len(hsai_ops._resume_sensitive_jobs()) == 3
 
 
-def test_digest_guard_ignores_other_users_jobs(monkeypatch) -> None:
+def test_runtime_guard_does_not_guess_dependencies_from_names(monkeypatch) -> None:
     _fake_squeue(monkeypatch, "6,RUNNING,other-job\n7,PENDING,coursework\n")
-    assert hsai_ops._resume_sensitive_jobs() == []
+    assert len(hsai_ops._resume_sensitive_jobs()) == 2
 
 
 def test_digest_guard_ignores_completed_training_job(monkeypatch) -> None:

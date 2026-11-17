@@ -33,6 +33,8 @@ from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from hsbg.az.train.eval_policy import assert_same_protocol
+from tools.panel_integrity import validate_identity, validate_rows, validate_samples
 
 from workflows.eval_human_gap import (  # noqa: E402
     _counts_all, _counts_by_turn, _gold_by_turn, _strength_by_seed, _trace,
@@ -200,27 +202,52 @@ def _merge_opponents(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def merge(srcs, out_path: Path, *, expect_models: Optional[int] = None):
+    if out_path.exists():
+        raise SystemExit(f'refusing to overwrite existing panel: {out_path}')
+    srcs = list(srcs)
+    if not srcs or len({Path(p).resolve() for p in srcs}) != len(srcs):
+        raise SystemExit('empty inputs or duplicate shard panel')
     by_model: "collections.OrderedDict[str, List[Dict[str, Any]]]" = \
         collections.OrderedDict()
     protocols: set = set()
     legacy = False
+    protocol_docs = []
+    model_names = None
     for p in srcs:
         doc = json.loads(Path(p).read_text(encoding="utf-8"))
         sha = str((doc.get("protocol") or {}).get("protocol_sha256") or "")
         if sha:
             protocols.add(sha)
+            protocol_docs.append(doc)
         else:
             legacy = True
-        for m in doc.get("models") or []:
+        models = doc.get('models') or []
+        names = [str(m.get('name')) for m in models]
+        if len(set(names)) != len(names):
+            raise SystemExit(f'{p}: duplicate model names')
+        if model_names is not None and set(names) != model_names:
+            raise SystemExit(f'{p}: models missing from shard')
+        model_names = set(names)
+        for m in models:
             by_model.setdefault(str(m.get("name")), []).append(m)
     if len(protocols) > 1:
         raise SystemExit(
             f"子面板的 protocol_sha256 不一致 {sorted(s[:12] for s in protocols)}"
             "——不同协议不能混榜（docs/EVAL_PROTOCOL.md §4 规则 5）。")
+    if legacy and protocols:
+        raise SystemExit('cannot mix legacy and verified protocol shards')
+    if protocol_docs:
+        try:
+            assert_same_protocol(*protocol_docs)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
 
     merged_models = []
     for name, parts in by_model.items():
+        validate_samples(parts, name=name)
+        validate_identity(parts, name=name)
         rows = [r for m in parts for r in (m.get("trace") or [])]
+        validate_rows(rows, name=name)
         ranks: List[int] = []
         fb: List[Dict[str, Any]] = []
         for m in parts:
@@ -260,6 +287,10 @@ def merge(srcs, out_path: Path, *, expect_models: Optional[int] = None):
             "action_hist": _merge_action_hist(parts),
             "field_stats": _merge_field_stats(parts),
         }
+        for key in ('checkpoint', 'checkpoint_sha256', 'arch'):
+            value = next((p[key] for p in parts if p.get(key) is not None), None)
+            if value is not None:
+                entry[key] = value
         merged_models.append(entry)
 
     if expect_models is not None and len(merged_models) != int(expect_models):
@@ -268,7 +299,7 @@ def merge(srcs, out_path: Path, *, expect_models: Optional[int] = None):
     doc = {
         "models": merged_models,
         "merged_from": [str(p) for p in srcs],
-        "protocol": ({"protocol_sha256": next(iter(protocols))} if protocols else
+        "protocol": (dict(max((d['protocol'] for d in protocol_docs), key=len)) if protocols else
                      {"protocol_sha256": None, "legacy": True,
                       "note": "子面板来自 2026-11-17 之前的旧代码，没有协议指纹；"
                               "不得与新榜混比"}),
@@ -276,7 +307,8 @@ def merge(srcs, out_path: Path, *, expect_models: Optional[int] = None):
                   "models": len(merged_models), "legacy_sources": legacy},
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    with out_path.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(doc, ensure_ascii=False))
     for m in merged_models:
         cv = m["curves"]
         o = m["outcome"]

@@ -84,10 +84,10 @@ def test_config_rejects_absolute_schedule(tmp_path, monkeypatch):
     import workflows.run_forced_tier_long as runner
     bad = _cfg()
     bad['forced-tier-schedule'] = '558873732:1,598873732:0.6,638873732:0.3,678873732:0'
-    path = ROOT / 'artifacts/local/_bad-forced-tier.json'
+    path = tmp_path / '_bad-forced-tier.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(bad), encoding='utf-8')
-    monkeypatch.setattr(runner, 'CONFIG', str(path.relative_to(ROOT)))
+    monkeypatch.setattr(runner, 'CONFIG', str(path))
     with pytest.raises(ValueError, match='从 0 开始'):
         runner.config()
 
@@ -96,10 +96,10 @@ def test_config_rejects_mismatched_teacher_cutoff(tmp_path, monkeypatch):
     import workflows.run_forced_tier_long as runner
     bad = _cfg()
     bad['forced-teacher-until'] = '90000000'
-    path = ROOT / 'artifacts/local/_bad-forced-tier2.json'
+    path = tmp_path / '_bad-forced-tier2.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(bad), encoding='utf-8')
-    monkeypatch.setattr(runner, 'CONFIG', str(path.relative_to(ROOT)))
+    monkeypatch.setattr(runner, 'CONFIG', str(path))
     with pytest.raises(ValueError, match='teacher-until'):
         runner.config()
 

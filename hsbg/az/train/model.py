@@ -358,7 +358,7 @@ def save_checkpoint(model: Any, path: str, *, meta: Optional[Dict[str, Any]] = N
     if hasattr(model, "d_model"):
         payload["meta"].setdefault("d_model", int(model.d_model))
         payload["meta"].setdefault("n_layers", int(getattr(model.trunk, "num_layers", 8)))
-        payload["meta"].setdefault("n_heads", int(getattr(model.trunk.layers[0], "nhead", 8))
+        payload["meta"].setdefault("n_heads", int(model.trunk.layers[0].self_attn.num_heads)
                                   if hasattr(model.trunk, "layers") else 8)
     if hasattr(model, "obs_floats"):
         payload["meta"].setdefault("obs_floats", int(model.obs_floats))

@@ -1315,9 +1315,12 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
         _final_str_all.append(_s)
     _final_str_all.sort()
 
-    def _fq(q: float) -> int:
+    def _fq(q: float) -> float:
         if not _final_str_all:
             return 0
+        if q == 0.5:
+            from statistics import median
+            return float(median(_final_str_all))
         i = min(len(_final_str_all) - 1,
                 max(0, int(round(float(q) * (len(_final_str_all) - 1)))))
         return int(_final_str_all[i])
@@ -1376,6 +1379,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "learner_final_str_mean": (int(sum(_final_str_all) / len(_final_str_all))
                                        if _final_str_all else 0),
             "learner_final_str_p50": _fq(0.5), "learner_final_str_p90": _fq(0.9),
+            # Sufficient evidence for an exact cross-worker median; never average medians.
+            "learner_final_str_samples": _final_str_all,
             "rounds": int(rounds), "decisions": int(decisions_total),
             "curriculum_stage": str(getattr(cfg, "curriculum_stage", "none")),
             "curriculum_gold_mult": float(getattr(cfg, "curriculum_gold_mult", 1.0)),

@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from tools.merge_panels import merge
+from hsbg.az.train.eval_policy import protocol_sha256_of
 
 PROTO = "f" * 64
 FULL = {
@@ -21,6 +22,8 @@ FULL = {
     "field": {"mirror_snaps": "lib/x", "mirror_sample": "p50band"},
     "engine": {"game_version": "37.0.2.256589"},
 }
+PROTO = protocol_sha256_of(FULL)
+FULL['protocol_sha256'] = PROTO
 
 
 def _write_shard(d: Path, seed0: int, n: int = 12) -> Path:

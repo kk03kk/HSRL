@@ -33,6 +33,8 @@ from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from hsbg.az.train.eval_policy import assert_same_protocol
+from tools.panel_integrity import validate_identity, validate_rows, validate_samples
 
 from workflows.eval_human_gap import (  # noqa: E402
     _counts_all,
@@ -60,8 +62,10 @@ SUMMED_OUTCOME_KEYS = ("illegal_actions", "truncated_games", "decisions")
 def _read_json(path: Path) -> Dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return {}
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f'{path}: cannot read JSON: {exc}') from exc
 
 
 def load_shard(shard: Path) -> Dict[str, Dict[str, Any]]:
@@ -86,6 +90,8 @@ def load_shard(shard: Path) -> Dict[str, Dict[str, Any]]:
     for p in sorted(glob.glob(str(shard / "extra-*.json"))):
         d = _read_json(Path(p))
         if d.get("name"):
+            if str(d['name']) in seen_extra_names:
+                raise SystemExit(f'{shard}: duplicate model name {d["name"]}')
             extras.append(d)
             seen_extra_names.add(str(d["name"]))
     legacy_extra = shard / "extra.json"
@@ -101,6 +107,8 @@ def load_shard(shard: Path) -> Dict[str, Dict[str, Any]]:
         if rows_path is None and legacy_rows.is_file() and len(per_model_rows) <= 1:
             rows_path = legacy_rows
         rows: List[Dict[str, Any]] = []
+        if rows_path is None or not rows_path.is_file():
+            raise SystemExit(f'{shard}: missing rows for {name}')
         if rows_path is not None and rows_path.is_file():
             with gzip.open(rows_path, "rt", encoding="utf-8") as fh:
                 for line in fh:
@@ -108,8 +116,8 @@ def load_shard(shard: Path) -> Dict[str, Dict[str, Any]]:
                     if line:
                         try:
                             rows.append(json.loads(line))
-                        except ValueError:
-                            continue
+                        except ValueError as exc:
+                            raise SystemExit(f'{rows_path}: corrupt JSON row') from exc
         rows_by_name[name] = rows
         out[name] = {"rows": rows, "extra": extra}
     return out
@@ -192,8 +200,7 @@ def _protocol(extras: List[Dict[str, Any]], shard: Path,
     **完整的 protocol 段**（各分片必然相同）。
     """
     shas = {str((e or {}).get("protocol_sha256") or "") for e in extras}
-    shas.discard("")
-    if not shas:
+    if not shas or '' in shas:
         raise SystemExit(
             f"{shard}: 分片没有 protocol_sha256（旧代码产物）。"
             "该分片的可比性无法证明，请重跑评测；不允许把它并进新榜。")
@@ -205,6 +212,7 @@ def _protocol(extras: List[Dict[str, Any]], shard: Path,
     if isinstance(panel_protocol, dict) and panel_protocol.get("protocol_sha256"):
         if str(panel_protocol["protocol_sha256"]) == sha:
             return dict(panel_protocol)
+        raise SystemExit(f'{shard}: extra 与 panel protocol_sha256 不一致')
     return {"protocol_sha256": sha}
 
 
@@ -213,6 +221,12 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]],
     parts = list(shard_map.values())
     rows = [r for part in parts for r in part["rows"]]
     extras = [part["extra"] for part in parts]
+    validate_samples(extras, name=name)
+    validate_identity(extras + [ident or {}], name=name)
+    all_seeds = [s for e in extras for s in (e.get('seed_sequence') or [])]
+    complete = all(isinstance(e.get('seed_sequence'), list) for e in extras)
+    truncated = any((e.get('outcome') or {}).get('truncated_games') for e in extras)
+    validate_rows(rows, name=name, seeds=all_seeds if complete and not truncated else None)
     hist: collections.Counter = collections.Counter()
     exposure: List[Dict[str, Any]] = []
     ranks: List[int] = []
@@ -291,6 +305,9 @@ def _shard_panel_identity(name: str,
             if str(mdl.get("name")) != str(name):
                 continue
             for k in ("checkpoint", "checkpoint_sha256", "arch"):
+                if k in ('checkpoint_sha256', 'arch') and mdl.get(k) is not None:
+                    if k in ident and ident[k] != mdl[k]:
+                        raise SystemExit(f'{name}: inconsistent {k} across shard panels')
                 if k in mdl and k not in ident:
                     ident[k] = mdl[k]
             if mdl.get("seed_start") is not None:
@@ -306,18 +323,29 @@ def _shard_panel_identity(name: str,
 
 def _shard_panel_protocol(shard_dirs: List[Path]) -> Optional[Dict[str, Any]]:
     """从第一个带 ``protocol`` 的分片 ``panel.json`` 里取**完整**协议段。"""
+    protocols = []
     for d in shard_dirs:
         doc = _read_json(Path(d) / "panel.json")
         proto = doc.get("protocol")
         if isinstance(proto, dict) and proto.get("protocol_sha256"):
-            return dict(proto)
-    return None
+            protocols.append(dict(proto))
+    if not protocols:
+        return None
+    try:
+        assert_same_protocol(*[{'protocol': p} for p in protocols])
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    return max(protocols, key=len)
 
 
 def merge(shard_dirs: List[Path], out_path: Path, *,
           expect_games: Optional[int] = None,
           expect_models: Optional[int] = None) -> Dict[str, Any]:
     """合并分片。``expect_*`` 给出时必须**精确相等**，否则拒绝写盘（缺分片不静默）。"""
+    if out_path.exists():
+        raise SystemExit(f'refusing to overwrite existing panel: {out_path}')
+    if len({Path(d).resolve() for d in shard_dirs}) != len(shard_dirs):
+        raise SystemExit('duplicate shard directory')
     per_shard = [(d, load_shard(d)) for d in shard_dirs]
     names: List[str] = []
     for _d, m in per_shard:
@@ -328,15 +356,13 @@ def merge(shard_dirs: List[Path], out_path: Path, *,
         raise SystemExit("no models found in any shard (rows-*/extra-* 或旧名缺失)")
 
     merged_models: List[Dict[str, Any]] = []
-    protocol: Dict[str, Any] = {}
+    protocol = _protocol([v['extra'] for _, models in per_shard for v in models.values()],
+                         shard_dirs[0], _shard_panel_protocol(shard_dirs))
     for name in names:
         shard_map = {str(d): m[name] for d, m in per_shard if name in m}
         if len(shard_map) != len(per_shard):
             missing = [str(d) for d, m in per_shard if name not in m]
             raise SystemExit(f"模型 {name!r} 在分片 {missing} 里缺失——拒绝合并（不静默降级）")
-        protocol = _protocol([v["extra"] for v in shard_map.values()],
-                             shard_dirs[0],
-                             _shard_panel_protocol(shard_dirs))
         merged_models.append(_model_entry(
             name, shard_map, ident=_shard_panel_identity(name, shard_dirs)))
 
@@ -358,7 +384,8 @@ def merge(shard_dirs: List[Path], out_path: Path, *,
                     f"模型 {m['name']!r} 名次样本 {got} != 期望 {expect_games}："
                     "分片缺失或 seeds 重叠，拒绝写盘")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    with out_path.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(doc, ensure_ascii=False))
     for m in merged_models:
         cv = m["curves"]
         print("merged %-16s games=%-5s rows=%-6d T12=%-7s T16=%-7s rank=%-6s "

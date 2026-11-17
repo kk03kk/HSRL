@@ -67,6 +67,8 @@ def load_models(paths: Sequence[str]) -> Tuple[Dict[str, Dict[str, Any]],
         for m in d.get("models") or []:
             name = str(m.get("name") or "").strip()
             if name:
+                if name in out:
+                    raise SystemExit(f"duplicate model name {name!r}; merge shards before comparison")
                 out[name] = m
     if not out:
         raise SystemExit("面板里没有 models（检查 panel.json 结构）")
@@ -89,8 +91,13 @@ def _pair_keys(a_ranks: Sequence[Any], b_ranks: Sequence[Any],
     * 两侧都有 ``seed_sequence`` ⇒ 以 seed 为键求交集（**顺序无关**，缺分片也安全）；
     * 否则退回按下标配对，返回 ``pairing="index"``（调用方必须把这当成告警）。
     """
-    if a_seeds and b_seeds and len(a_seeds) == len(a_ranks) \
-            and len(b_seeds) == len(b_ranks):
+    for ranks, seeds in ((a_ranks, a_seeds), (b_ranks, b_seeds)):
+        if seeds is not None:
+            if len(seeds) != len(ranks) or any(type(s) is not int for s in seeds):
+                raise ValueError("invalid seed_sequence length or type")
+            if len(set(seeds)) != len(seeds):
+                raise ValueError("duplicate seed in paired evidence")
+    if a_seeds is not None and b_seeds is not None:
         b_index = {int(s): i for i, s in enumerate(b_seeds)}
         idx_a: List[int] = []
         idx_b: List[int] = []
@@ -381,6 +388,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         protocol = assert_same_protocol(*docs, where="输入面板")
     except ValueError as exc:
+        # Legacy opt-in covers absent fingerprints only; never known mismatches
+        # or a corrupted full protocol payload.
+        known = [d for d in docs if (d.get('protocol') or {}).get('protocol_sha256')
+                 or (d.get('panel') or {}).get('protocol_sha256') or d.get('protocol_sha256')]
+        if known:
+            try:
+                assert_same_protocol(*known, where="known input protocols")
+            except ValueError as known_exc:
+                raise SystemExit(str(known_exc)) from known_exc
         if not a.legacy_no_protocol:
             raise SystemExit(
                 f"{exc}\n（历史面板可用 --legacy-no-protocol 强制比较，结果会标 UNVERIFIED；"

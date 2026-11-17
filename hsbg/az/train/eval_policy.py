@@ -262,7 +262,7 @@ def protocol_from_args(args: Any, *, engine: Optional[Mapping[str, Any]] = None,
         mirror_strict=_as_int(get("mirror_strict"), 0),
         mirror_seats=(_as_int(mirror_seats, 7) if mirror_seats is not None
                       else _as_int(get("mirror_seats"), 7)),
-        mirror_p=float(get("mirror_p", 1.0) or 1.0),
+        mirror_p=float(1.0 if get("mirror_p", 1.0) is None else get("mirror_p", 1.0)),
         human_boards=str(get("human_opponents", "") or ""),
         human_board_sample=str(get("human_opponent_sample", "auto") or "auto"),
         forced_tier_plan=str(get("forced_tier_plan", "") or ""),
@@ -352,6 +352,8 @@ def assert_same_protocol(*panels: Mapping[str, Any], where: str = "面板") -> s
     任何一侧缺失或不同都抛 ``ValueError``（**不是警告**）：``docs/EVAL_PROTOCOL.md``
     §4 规则 5 规定"不一致就是不同榜，禁止混比"，而混比出来的数字看起来一样正常。
     """
+    if not panels:
+        raise ValueError(f'{where}: 没有输入面板')
     seen: Dict[str, int] = {}
     for i, panel in enumerate(panels):
         proto = (panel or {}).get("protocol") or {}
@@ -360,6 +362,9 @@ def assert_same_protocol(*panels: Mapping[str, Any], where: str = "面板") -> s
             raise ValueError(
                 f"{where}[{i}] 没有 protocol_sha256：该面板无法证明与其它面板同协议"
                 "（旧面板请重跑评测；不要直接混比）")
+        if any(k in proto for k in ('schema', 'contract', 'field', 'engine')):
+            if protocol_sha256_of(proto) != sha:
+                raise ValueError(f'{where}[{i}] protocol_sha256 与协议正文不一致')
         seen[sha] = seen.get(sha, 0) + 1
     if len(seen) > 1:
         detail = ", ".join(f"{k[:12]}…×{v}" for k, v in sorted(seen.items()))

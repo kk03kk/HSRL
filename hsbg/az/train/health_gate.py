@@ -95,8 +95,8 @@ def _count_failures(meta: Mapping[str, Any], key: str, limit: int) -> List[str]:
     if key not in meta:
         return []
     value = _num(meta.get(key))
-    if value is None:
-        return []
+    if value is None or not math.isfinite(value) or value < 0 or not value.is_integer():
+        return [f'{key}={meta.get(key)!r} 非法计数']
     if value > float(limit):
         return [f"{key}={value:g} > 允许 {limit}"]
     return []
@@ -120,12 +120,22 @@ def hard_collect_failures(meta: Any, limits: HealthLimits = HealthLimits()
                        ("invalid_games", limits.invalid_games),
                        ("truncated_games", limits.truncated_games),
                        ("truncated_combats", limits.truncated_combats),
+                       ("truncated_recruit_contexts", 0),
+                       ("mirror_errors", 0),
+                       ("dropped_decisions", 0),
                        ("engine_stopped", limits.engine_stopped)):
         out += _count_failures(meta, key, limit)
     if limits.mirror_apply_min is not None:
         m = _mirror_map(meta)
         attempt = _num(m.get("mirror_attempt"))
         applied = _num(m.get("mirror_applied"))
+        for key in ('mirror_attempt', 'mirror_applied'):
+            if key in m:
+                value = _num(m[key])
+                if value is None or not math.isfinite(value) or value < 0 or not value.is_integer():
+                    out.append(f'{key}={m[key]!r} 非法计数')
+        if attempt is not None and applied is not None and applied > attempt:
+            out.append('mirror_applied > mirror_attempt（计数损坏）')
         if attempt and attempt > 0 and applied is not None:
             rate = applied / attempt
             if rate < float(limits.mirror_apply_min):
@@ -154,7 +164,7 @@ def hard_update_failures(stats: Any, limits: HealthLimits = HealthLimits()
             if v is not None and not math.isfinite(v):
                 out.append(f"epoch[{i}].{key}={v!r} 非有限")
         p = _num(row.get("illegal_prob_max"))
-        if p is not None and p > float(limits.illegal_prob_max):
+        if p is not None and (not math.isfinite(p) or p < 0 or p > float(limits.illegal_prob_max)):
             out.append(f"epoch[{i}].illegal_prob_max={p:g} > "
                        f"{limits.illegal_prob_max:g}（掩码泄漏）")
     return out

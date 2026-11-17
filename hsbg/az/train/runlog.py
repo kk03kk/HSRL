@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import json
 import os
+import statistics
 from typing import Any, Dict, List, Optional, Tuple
 
 #: 入日志前从 collect meta 里剔除的字段（体积大且训练中不使用）
-SLIM_DROP_KEYS = ("worker_meta", "games_meta")
+SLIM_DROP_KEYS = ("worker_meta", "games_meta", "learner_final_str_samples")
 
 #: 注入计数/开关（mirror 快照 + 人类战团）：必须进 history 才能验证「是否真的生效」。
 #: worker meta 里可能存在（顶层或嵌套 ``collect``），slim 时统一提升到 collect 段顶层。
@@ -228,10 +229,9 @@ def aggregate_injection(sources: Any) -> Dict[str, Any]:
     for src in sources:
         if not isinstance(src, dict):
             continue
-        flat.append(src)
         inner = src.get("collect")
-        if isinstance(inner, dict):
-            flat.append(inner)
+        # Nested collect is another view of the same worker, not another worker.
+        flat.append({**(inner if isinstance(inner, dict) else {}), **src})
     out: Dict[str, Any] = {}
     for key in INJECTION_KEYS:
         vals = [s[key] for s in flat if key in s and s[key] is not None]
@@ -264,6 +264,33 @@ def aggregate_injection(sources: Any) -> Dict[str, Any]:
             out[key] = vals[0]
         else:  # 未知的注入键：保留首值，宁可多记也不丢
             out[key] = vals[0]
+    # A mean of shard medians is not the median of all games. Old logs do not
+    # contain the samples needed to reconstruct it; explicitly leave it unknown.
+    final_parts = [s for s in flat if 'learner_final_str_p50' in s
+                   or 'learner_final_str_samples' in s]
+    if final_parts:
+        if all(isinstance(s.get('learner_final_str_samples'), list) for s in final_parts):
+            samples = sorted(v for s in final_parts for v in s['learner_final_str_samples'])
+            out['learner_final_str_p50'] = float(statistics.median(samples)) if samples else None
+            out['learner_final_str_p90'] = (samples[round(0.9 * (len(samples)-1))] if samples else None)
+            out['learner_final_str_mean'] = statistics.fmean(samples) if samples else None
+        elif len(final_parts) > 1:
+            out['learner_final_str_p50'] = None
+            out['learner_final_str_p90'] = None
+    # Survivors per worker diverge in late turns. Weight each mean by the
+    # population it actually describes; empty workers must not contribute zero.
+    for turn in (6, 8, 10, 12, 13):
+        nk = f'tel_n_{turn}'
+        for stem in ('tier', 'own_str', 'cum_dmg', 'gold', 'nmin'):
+            key = f'tel_{stem}_{turn}'
+            parts = [s for s in flat if key in s and s[key] is not None]
+            if parts and all(nk in s for s in parts):
+                n = sum(int(s[nk]) for s in parts)
+                out[key] = (sum(float(s[key]) * int(s[nk]) for s in parts) / n if n else 0.0)
+    for turn in (9, 12):
+        count = f'arena_reach{turn}_n'
+        if count in out and out.get('arena_episodes', 0) > 0:
+            out[f'tel_reach{turn}'] = out[count] / out['arena_episodes']
     return out
 
 

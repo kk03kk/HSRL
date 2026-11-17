@@ -86,7 +86,8 @@ def main():
             extra = {"name": "t", "outcome": {"decisions": 1000, "illegal_actions": 0,
                                               "truncated_games": 0, "decisions_per_game": 31.2},
                      "rank_sequence": ranks[lo:hi], "action_hist": {"buy": 10, "roll": 3},
-                     "combat_exposure": se, "seconds": 1.0, "games": hi - lo, "seed": 930000}
+                     "combat_exposure": se, "seconds": 1.0, "games": hi - lo, "seed": 930000,
+                     "seed_sequence": seeds[lo:hi], "protocol_sha256": "a" * 64}
             write_shard(td / ("shard%d" % i), sr, extra)
             shards.append(td / ("shard%d" % i))
         doc = merge(shards, td / "panel.json")
@@ -121,6 +122,10 @@ def main():
         return 1
     print("EQUIV_OK  所有聚合块与「不分片直接算」逐位一致；mean_rank=%s" % o.get("mean_rank"))
     return 0
+
+
+def test_sharded_aggregation_equals_unsharded():
+    assert main() == 0
 
 
 if __name__ == "__main__":

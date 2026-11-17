@@ -14,7 +14,7 @@ ROOT=Path(__file__).resolve().parents[1]
 #: ``training_source_sha256`` / ``runner_sha256``）并让 "utf-8 读 + ast.parse"
 #: 报假 SyntaxError（2026-11-07 作业 1092598）。
 BOM=b'\xef\xbb\xbf'
-CODE_DIRS=('hsbg','workflows','tests','tools','client','deploy')
+CODE_DIRS=('hsbg','workflows','tests','tools','client','deploy','ops')
 
 
 def iter_sources(root=ROOT):

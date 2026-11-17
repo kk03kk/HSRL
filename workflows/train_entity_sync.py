@@ -3368,7 +3368,8 @@ def main() -> int:
         os.replace(os.path.join(args.out, 'model.pt.tmp'), os.path.join(args.out, 'model.pt'))
         trainer.save(os.path.join(args.out, "trainer.pt"))
     except Exception as exc:  # noqa: BLE001
-        print(f"[warn] final save failed: {exc!r}", flush=True)
+        print(f"[error] final save failed: {exc!r}; retained snapshots are authoritative", flush=True)
+        raise
     summary = {"iterations": i, "updates": trainer.updates,
                "elapsed_s": time.time() - t0, "config": vars(args),
                "history_len": len(history),

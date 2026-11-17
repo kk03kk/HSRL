@@ -421,6 +421,25 @@ def _safe_name(name: str) -> str:
     return keep.strip("._-")[:64]
 
 
+def _preflight_outputs(names, out, dump_rows=True):
+    """Reject ambiguous names and existing evidence before loading any model."""
+    safe = [_safe_name(name) for name in names]
+    if any(not name for name in safe) or len({s.casefold() for s in safe}) != len(safe):
+        raise SystemExit("checkpoint names must have unique nonempty safe filenames")
+    out = Path(out)
+    targets = [out]
+    if dump_rows:
+        for suffix in [""] + [f"-{name}" for name in safe]:
+            targets.extend([out.parent / f"rows{suffix}.jsonl.gz",
+                            out.parent / f"extra{suffix}.json"])
+    existing = [str(path) for path in targets if path.exists()]
+    if existing:
+        raise SystemExit("refusing to overwrite evaluation evidence: " + ", ".join(existing))
+    if len({str(p.resolve()).casefold() for p in targets}) != len(targets):
+        raise SystemExit("panel output conflicts with row/extra output")
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+
 def _field_stats(result: Dict[str, Any], mirror_pool: Any) -> Dict[str, Any]:
     """对手场是否**真的**生效（审计 P1-3：以前算完就丢，面板无法自证）。
 
@@ -563,10 +582,7 @@ def run_checkpoint(name: str, path: Path, args,
         # 2026-11-17：以前这里假设 dir 已存在（sbatch 里确实会 mkdir），但
         # `--out <新目录>/panel.json` 直接跑就会 FileNotFoundError 并**静默丢掉**
         # rows/extra —— 而合并工具依赖这两个文件。自己建一下。
-        try:
-            _d.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            print(f"warn: cannot create {_d}: {exc!r}", flush=True)
+        _d.mkdir(parents=True, exist_ok=True)
         _safe = _safe_name(name)
         # 命名顺序固定：先按模型名的新文件，再写旧名兼容文件。
         for suffix in ([f"-{_safe}"] if _safe else []) + [""]:
@@ -578,9 +594,8 @@ def run_checkpoint(name: str, path: Path, args,
                         _gz.write(json.dumps(_r, ensure_ascii=False) + "\n")
                 extra_path.write_text(json.dumps(extra_payload, ensure_ascii=False),
                                       encoding="utf-8")
-            except OSError as exc:   # 落盘失败不能影响评测本身
-                print(f"warn: dump {rows_path.name} failed: {exc!r}", flush=True)
-                break
+            except OSError as exc:
+                raise OSError(f"evaluation evidence export failed: {rows_path}") from exc
     return {
         "name": name,
         "checkpoint": str(path),
@@ -871,6 +886,8 @@ def main(argv=None) -> int:
             raise SystemExit(f"checkpoint not found: {p}")
         specs.append((name, p))
 
+    _preflight_outputs([name for name, _ in specs], args.out, bool(args.dump_rows))
+
     human = {}
     if args.human_baseline:
         hp = Path(args.human_baseline)
@@ -941,7 +958,8 @@ def main(argv=None) -> int:
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    with out.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, ensure_ascii=False, indent=2))
 
     # ---- compact side-by-side print ----
     if human:
