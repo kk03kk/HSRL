@@ -572,7 +572,8 @@ def cmd_model_pull(args: argparse.Namespace) -> int:
         raise OpsError('模型名必须是单个目录名，不能含路径分隔符')
     rel_dir = f"artifacts/models/{name}"
     rc, out, _ = remote_run(
-        f"cd {REMOTE_ROOT} && ls -1 {shlex.quote(rel_dir)} 2>/dev/null", timeout=60, label="model-ls"
+        f"cd {REMOTE_ROOT} && find {shlex.quote(rel_dir)} -maxdepth 1 -type f -printf '%f\\n'",
+        timeout=60, label="model-ls"
     )
     if rc != 0 or not out.strip():
         raise OpsError(f"服务器上没有模型目录 {rel_dir}")
