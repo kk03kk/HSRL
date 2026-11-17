@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=hsai-payoff-refinement
+#SBATCH --account=allusers
+#SBATCH --qos=normal
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:h100-47:1
+#SBATCH --exclude=xgpi11,xgpi15,xgpi17
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=00:35:00
+#SBATCH --output=artifacts/runs/slurm/%x-%j.out
+#SBATCH --error=artifacts/runs/slurm/%x-%j.err
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:?}"
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUTF8=1 PYTHONUNBUFFERED=1
+exec .venv/bin/python workflows/learn_payoff_refinement.py \
+  --plan config/research/payoff-query-refinement-20261118.json \
+  --queries "${HSAI_QUERY_ROOT:?}" --arm "${HSAI_REFINE_ARM:?}" \
+  --out "${HSAI_REFINE_OUT:?}" --device cuda:0
