@@ -24,3 +24,26 @@ def test_suffix_comparison_rejects_unpaired_or_changed_seed():
     with pytest.raises(ValueError,match='future seed'):compare(data)
     data=rows();data[-1]['initial_sha256']='different'
     with pytest.raises(ValueError,match='initial state'):compare(data)
+
+
+def test_sealed_study_merge_rejects_identity_changes(tmp_path):
+    import json
+    from hsbg.runtime.artifacts import atomic_json,file_identity
+    from tools.analyze_economy_suffix import merge_studies
+    roots=[]
+    for name in ('parent','student'):
+        root=tmp_path/name;root.mkdir();roots.append(root)
+        run={k:{'identity':'same'} for k in ('engine','action_contract','source_manifest','snapshot_files')}
+        atomic_json(root/'run.json',run)
+        rr=[r for r in rows() if r['name']==name]
+        for row in rr:row['trace']={'identity':{'checkpoint_sha256':name}}
+        atomic_json(root/'complete.json',{'valid':True,'probe':False,'run':file_identity(root/'run.json'),
+            'models':{name:{'sha256':name}},'rollouts':len(rr),'rows':rr})
+    merged,_,result=merge_studies(roots)
+    assert len(merged)==8 and result['paired']['student/normal']['rank_minus_parent']['mean']==1.5
+    path=roots[1]/'complete.json';changed=json.loads(path.read_text());changed['rows'][0]['source_seed']=999
+    atomic_json(path,changed,replace=True)
+    with pytest.raises(ValueError,match='source seed'):merge_studies(roots)
+    changed['rows'][0]['source_seed']=0;changed['rows'][0]['trace']['identity']['checkpoint_sha256']='wrong'
+    atomic_json(path,changed,replace=True)
+    with pytest.raises(ValueError,match='model identity'):merge_studies(roots)

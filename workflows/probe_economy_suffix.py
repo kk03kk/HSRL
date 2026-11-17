@@ -90,6 +90,7 @@ def compare(rows,parent='parent'):
                 if v!=variant:continue
                 if set(arms)!=set(names):raise ValueError('unpaired suffix outcome')
                 a,b=arms[name],arms[parent]
+                if a['source_seed']!=b['source_seed']:raise ValueError('paired source seed differs')
                 if a['future_seed']!=b['future_seed']:raise ValueError('paired future seed differs')
                 if a['initial_sha256']!=b['initial_sha256']:raise ValueError('paired initial state differs')
                 cases[case].append(a['rank']-b['rank'])
