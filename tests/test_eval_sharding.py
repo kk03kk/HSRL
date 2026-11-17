@@ -28,3 +28,14 @@ def test_legacy_entry_preserves_explicit_scientific_options():
     assert plan['evaluation']['mirror-strict'] == 1
     assert plan['evaluation']['lobby-exclude'] == 'beast'
     assert plan['evaluation']['forced-tier-plan'] == '2:2'
+
+
+def test_real_protocol_is_checked_before_allocating_evaluation_outputs():
+    import json
+    from pathlib import Path
+    from workflows.evaluate_suite import preflight_protocol
+    pytest.importorskip('hsbg_engine')
+    plan=json.loads((Path(__file__).resolve().parents[1]/'config/evaluation/v14-r1-20261117.json').read_text(encoding='utf-8'))
+    assert preflight_protocol(plan)['schema'] == 'hsai.eval_protocol/v1'
+    plan['expected_protocol_sha256']='0'*64
+    with pytest.raises(ValueError,match='before evaluation'): preflight_protocol(plan)

@@ -29,6 +29,17 @@ def shard_ranges(games, shards, seed):
     return result
 
 
+def preflight_protocol(plan):
+    from hsbg.az.train.common import engine_info
+    from hsbg.az.train.eval_policy import protocol_from_args
+    options = argparse.Namespace(**{key.replace('-', '_'):value for key,value in plan.get('evaluation',{}).items()})
+    protocol = protocol_from_args(options, engine=engine_info())
+    protocol.assert_training_contract()
+    if plan.get('expected_protocol_sha256') and protocol.sha256() != plan['expected_protocol_sha256']:
+        raise ValueError('protocol differs from the predeclared baseline before evaluation')
+    return protocol.as_dict()
+
+
 def run(plan, out, *, device='cuda:0'):
     out = Path(out).resolve()
     if out.exists():
@@ -39,11 +50,12 @@ def run(plan, out, *, device='cuda:0'):
     from workflows.eval_human_gap import _preflight_outputs
     _preflight_outputs([m['name'] for m in models], out/'panel.json', False)
     ranges = shard_ranges(plan['games'], plan['shards'], plan['seed'])
+    preflight_protocol(plan)
     inputs = {m['checkpoint']: file_identity(ROOT/m['checkpoint']) for m in models}
     for model in models:
         if model.get('sha256') and model['sha256'] != inputs[model['checkpoint']]['sha256']:
             raise ValueError(f'checkpoint differs from planned identity: {model["name"]}')
-    for key in ('mirror-snaps', 'human-opponents'):
+    for key in ('mirror-snaps', 'human-opponents', 'human-baseline'):
         value = plan.get('evaluation', {}).get(key)
         if value:
             source = ROOT/value
