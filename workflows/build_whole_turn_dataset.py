@@ -41,8 +41,9 @@ def make_task(spec):
     name=str(source['seed'])+'-'+variant
     trace_path=Path(out)/'traces'/(name+'.json.gz')
     with gzip.open(trace_path,'xt',encoding='utf-8',compresslevel=3) as stream:
-        json.dump({'source_seed':source['seed'],'variant':variant,'split':split,
-                   'interventions':edits,**trace},stream,separators=(',',':'))
+        # Avoid millions of tiny gzip.write calls from json.dump's iterator.
+        stream.write(json.dumps({'source_seed':source['seed'],'variant':variant,'split':split,
+                                 'interventions':edits,**trace},separators=(',',':')))
     task={'seed':source['seed'],'kind':variant,'split':split,'initial':state,
           'interventions':edits,'teacher':metrics(trace),'trace':file_identity(trace_path),
           'labels':len(rows)}

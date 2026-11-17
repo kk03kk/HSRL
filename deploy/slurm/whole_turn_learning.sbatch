@@ -15,7 +15,7 @@ cd "${SLURM_SUBMIT_DIR:?}"
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUNBUFFERED=1
 exec .venv/bin/python workflows/learn_whole_turn_process.py \
   --checkpoint artifacts/models/arena-v1.4-r1/model.pt \
-  --dataset artifacts/runs/nus-whole-turn-dataset-20261118-1 \
+  --dataset "${HSAI_WHOLE_DATASET:?}" \
   --baseline artifacts/runs/nus-whole-turn-economy-20261118-1 \
   --out "${HSAI_WHOLE_LEARN_OUT:?}" --device cuda:0 --updates 1000 --lr 0.000003 \
   --per-kind-batch 32 --anchor-kl 10 --seed 1193801

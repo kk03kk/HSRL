@@ -1678,7 +1678,7 @@ def load_problem_pool(path: str = DEFAULT_PROBLEM_PATH, *,
             or str(norm.get("target", "")) not in ("delta_log1p", "")):
         vals = delta_lp[aux]
         mean = float(vals.mean()) if vals.size else 0.0
-        std = float(vals.std()) or 1.0
+        std = (float(vals.std()) or 1.0) if vals.size else 1.0
         norm = {"mean": mean, "std": std, "source": "pool",
                 "target": "delta_log1p"}
     z = (delta_lp - float(norm["mean"])) / float(norm["std"])
