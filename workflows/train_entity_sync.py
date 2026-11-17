@@ -1076,12 +1076,14 @@ def main() -> int:
     ap.add_argument("--health-engine-stopped", type=int, default=0)
     ap.add_argument("--health-mirror-apply-min", type=float, default=0.99,
                     help="镜像注入成功率下限（0=关闭该项检查；纯 bot 作业应设 0）")
-    ap.add_argument("--health-entropy-warn-below", type=float, default=0.8,
-                    help="策略熵软警告阈值（只记录，不停机）")
+    ap.add_argument("--health-entropy-warn-below", type=float, default=0.05,
+                    help="策略熵软警告阈值（只记录，不停机）。默认 0.05 = 只抓崩塌："
+                         "本游戏早期仅 2 个合法动作，最大熵 ln2=0.693，0.8 会每轮误报")
     ap.add_argument("--health-kl-warn-above", type=float, default=0.03,
                     help="近似 KL 软警告阈值（只记录，不停机）")
-    ap.add_argument("--health-throughput-warn-below", type=float, default=1500.0,
-                    help="吞吐软警告阈值 决策/秒（只记录，不停机；0=关闭）")
+    ap.add_argument("--health-throughput-warn-below", type=float, default=0.0,
+                    help="吞吐软警告阈值 决策/秒（只记录，不停机；**默认 0=关闭**，"
+                         "小规模 smoke 必然低于固定阈值）")
     ap.add_argument("--teacher-loss-normalize", default="labeled",
                     choices=["labeled", "valid"],
                     help="教师 CE 的分母：labeled=改动前语义（对有标签行取均值）；"

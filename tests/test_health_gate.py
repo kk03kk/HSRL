@@ -80,9 +80,13 @@ def test_healthy_update_passes():
 
 # ────────────────────────── 软警告：只记录，不停机 ──────────────────────────
 def test_low_entropy_is_only_a_warning():
-    stats = {"epochs": [{"entropy": 0.5}]}
+    """熵崩塌（< 0.05）才告警。默认阈值 0.8 会误报：本游戏早期只有 2 个合法
+    动作，最大熵就是 ln2 = 0.693（2026-11-17 smoke 实测每轮都报）。"""
+    stats = {"epochs": [{"entropy": 0.01}]}
     assert hard_update_failures(stats) == []
     assert any("entropy" in w for w in soft_warnings(stats))
+    # ln2 级别的"正常"熵不该告警
+    assert soft_warnings({"epochs": [{"entropy": 0.69}]}) == []
 
 
 def test_high_kl_is_only_a_warning():
@@ -91,10 +95,14 @@ def test_high_kl_is_only_a_warning():
     assert any("approx_kl" in w for w in soft_warnings(stats))
 
 
-def test_low_throughput_is_only_a_warning():
+def test_low_throughput_warning_is_off_by_default():
+    """吞吐告警默认关闭（0）：小规模 smoke 必然低于任何固定阈值。"""
     meta = {"decisions_per_s": 900}
     assert hard_collect_failures(meta) == []
-    assert any("decisions_per_s" in w for w in soft_warnings({}, meta))
+    assert soft_warnings({}, meta) == []
+    # 显式打开后才告警
+    lim = HealthLimits(throughput_warn_below=1500.0)
+    assert any("decisions_per_s" in w for w in soft_warnings({}, meta, limits=lim))
 
 
 # ────────────────────────── 参数与格式化 ──────────────────────────
@@ -103,7 +111,8 @@ def test_limits_from_args_defaults_and_override():
         health_mirror_apply_min = 0.0        # 0 = 关掉该项
     lim = HealthLimits.from_args(A())
     assert lim.mirror_apply_min is None
-    assert lim.illegal_actions == 0 and lim.entropy_warn_below == 0.8
+    assert lim.illegal_actions == 0 and lim.entropy_warn_below == 0.05
+    assert lim.throughput_warn_below == 0.0
 
 
 def test_format_failures_is_empty_when_clean():

@@ -52,12 +52,16 @@ class HealthLimits:
     mirror_apply_min: Optional[float] = 0.99
     #: 非法动作概率上限（masked softmax 后应为 0）
     illegal_prob_max: float = 1e-6
-    #: 软警告：策略熵下限
-    entropy_warn_below: float = 0.8
+    #: 软警告：策略熵下限。**默认 0.05 = 只抓崩塌**（2026-11-17 smoke 修正）：
+    #: 以前默认 0.8，在本游戏里几乎恒真 —— 早期只有 2 个合法动作时最大熵就是
+    #: ln2 = 0.693，于是每轮都报 `entropy<0.8`，把真告警淹掉（告警疲劳）。
+    entropy_warn_below: float = 0.05
     #: 软警告：近似 KL 上限
     kl_warn_above: float = 0.03
-    #: 软警告：吞吐下限（决策/秒）
-    throughput_warn_below: float = 1500.0
+    #: 软警告：吞吐下限（决策/秒）。**默认 0 = 关闭**（2026-11-17 smoke 修正）：
+    #: 小规模 smoke 必然低于任何固定阈值，固定阈值只会制造噪声；
+    #: 需要时用 `--health-throughput-warn-below` 显式打开。
+    throughput_warn_below: float = 0.0
 
     @classmethod
     def from_args(cls, args: Any) -> "HealthLimits":
@@ -71,9 +75,9 @@ class HealthLimits:
             truncated_combats=int(get("health_truncated_combats", 0)),
             engine_stopped=int(get("health_engine_stopped", 0)),
             mirror_apply_min=(None if float(mir) <= 0 else float(mir)),
-            entropy_warn_below=float(get("health_entropy_warn_below", 0.8)),
+            entropy_warn_below=float(get("health_entropy_warn_below", 0.05)),
             kl_warn_above=float(get("health_kl_warn_above", 0.03)),
-            throughput_warn_below=float(get("health_throughput_warn_below", 1500.0)),
+            throughput_warn_below=float(get("health_throughput_warn_below", 0.0)),
         )
 
 
