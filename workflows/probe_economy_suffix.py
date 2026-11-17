@@ -61,7 +61,8 @@ def trial(task):
         result=evaluate_policy(policy,EvalConfig(games=1,seed=seed,research_initial_state=initial,
             collect_economy=True,decision_recorder=recorder,mirror_pool=_CACHE[('pool',library)],
             mirror_strict=False,mirror_seats=7,mirror_p=1.))
-        if result['illegal_actions'] or result['truncated_games']:raise ValueError('suffix quality failure')
+        from hsbg.evaluation.quality import suffix_quality
+        suffix_quality(result)
         trace=recorder.finish(result);validation=validate_trace(path/'decisions.jsonl.gz',replay=16)
     except BaseException:
         recorder.abort();raise
