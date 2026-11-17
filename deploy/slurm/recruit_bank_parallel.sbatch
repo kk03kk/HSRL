@@ -10,4 +10,4 @@ set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:?}"
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUTF8=1 PYTHONUNBUFFERED=1
 exec .venv/bin/python workflows/collect_recruit_bank_parallel.py \
-  --out "${HSAI_BANK_PARALLEL_OUT:?}" --games 512 --shards 4 --seed 11840000
+  --out "${HSAI_BANK_PARALLEL_OUT:?}" --games 512 --shards 4 --seed 11802000

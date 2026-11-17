@@ -12,9 +12,9 @@ from hsbg.az.train.common import engine_info
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',required=True);p.add_argument('--games',type=int,default=512)
-    p.add_argument('--shards',type=int,default=4);p.add_argument('--seed',type=int,default=11840000)
+    p.add_argument('--shards',type=int,default=4);p.add_argument('--seed',type=int,default=11802000)
     args=p.parse_args()
-    if args.games%args.shards or args.shards<1:raise ValueError('require equal nonempty shards')
+    if args.shards<1 or args.games<1 or args.games%args.shards:raise ValueError('require equal nonempty shards')
     out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=False)
     checkpoint='artifacts/models/arena-v1.4-r1/model.pt'
     source=source_identity(Path.cwd());environment=environment_identity()
