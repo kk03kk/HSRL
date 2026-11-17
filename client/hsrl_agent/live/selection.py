@@ -8,9 +8,11 @@ def selected_checkpoint(root):
     root=Path(root).resolve()
     config=json.loads((root/'config/live/model.json').read_text(encoding='utf8'))
     if config.get('schema')!='hsai.live-model/v1':raise Blocked('invalid selected model configuration')
-    path=(root/config['checkpoint']).resolve()
-    if not path.is_relative_to(root):raise Blocked('selected checkpoint must stay inside workspace')
-    return path
+    from hsbg.runtime.paths import workspace_asset
+    try:
+        return workspace_asset(root, config['checkpoint'])
+    except ValueError as exc:
+        raise Blocked('selected checkpoint must stay inside workspace or its verified asset mount') from exc
 
 def validate_live_profile(checkpoint,profile):
     """在创建窗口后端之前检查；不把旧版UI配置自动批准为新版。"""
