@@ -34,7 +34,8 @@ def scan(spec):
     if file_identity(path)!={k:expected[k] for k in ('bytes','sha256')}:
         raise ValueError('sealed trace changed')
     evaluator=RecordedEvaluator();guard=PPOGreedyPolicy(evaluator);operator=Operator('growth')
-    previous=None;counts=Counter();by_reason=defaultdict(Counter);deaths=[];examples=[];abstentions=[]
+    previous=None;counts=Counter();by_reason=defaultdict(Counter);by_card=defaultdict(Counter)
+    deaths=[];examples=[];abstentions=[];disagreement_examples=defaultdict(list)
     with gzip.open(path,'rt',encoding='utf-8') as stream:
         for line in stream:
             row=json.loads(line)
@@ -83,6 +84,22 @@ def scan(spec):
                 if within and not decision.info['forced']:
                     counts['eligible']+=1;counts['agreement']+=int(teacher==row['action'])
                     by_reason[reason]['rows']+=1;by_reason[reason]['agreement']+=int(teacher==row['action'])
+                    from hsbg.az.train.common import group_of
+                    from tools.analyze_payoff_labels import action_card
+                    cc=np.frombuffer(c,dtype='<i4')
+                    wanted=(group_of(teacher),action_card(teacher,cc))
+                    actual=(group_of(row['action']),action_card(row['action'],cc))
+                    same_card=wanted==actual
+                    by_reason[reason]['same_action_group_and_card']+=int(same_card)
+                    key='/'.join((reason,*wanted));by_card[key]['rows']+=1
+                    by_card[key]['exact']+=int(teacher==row['action'])
+                    by_card[key]['same_action_group_and_card']+=int(same_card)
+                    if not same_card and len(disagreement_examples[reason])<2:
+                        disagreement_examples[reason].append({'turn':row['turn'],'action_index':row['action_index'],
+                            'teacher_action':teacher,'teacher':wanted,'executed_action':row['action'],'executed':actual,
+                            'tier':view['me']['tier'],'gold':view['me']['gold'],
+                            'board':[x['id'] for x in view['me']['board']],
+                            'hand':[x['id'] for x in view['me']['hand']]})
                     dependent=without_cycle is not None and teacher!=without_cycle
                     counts['cycle_memory_changes_action']+=int(dependent)
                     by_reason[reason]['cycle_memory_changes_action']+=int(dependent)
@@ -94,6 +111,7 @@ def scan(spec):
     if counts['actions']!=expected['actions']:raise ValueError('trace action coverage differs')
     return {'path':str(path),'identity':file_identity(path),'counts':dict(counts),
         'reasons':{k:dict(v) for k,v in by_reason.items()},'recruit_deaths':deaths,'memory_examples':examples,
+        'teacher_cards':{k:dict(v) for k,v in by_card.items()},'disagreement_examples':dict(disagreement_examples),
         'teacher_abstention_examples':abstentions}
 
 
@@ -119,17 +137,20 @@ def main(args):
             specs.append((str(trial/'decisions.jsonl.gz'),r['trace'],name=='growth'))
         with ProcessPoolExecutor(max_workers=args.workers,mp_context=multiprocessing.get_context('spawn')) as pool:
             detail=list(pool.map(scan,specs))
-        counts=Counter();reasons=defaultdict(Counter)
+        counts=Counter();reasons=defaultdict(Counter);cards=defaultdict(Counter)
         for d in detail:
             counts.update(d['counts'])
             for k,v in d['reasons'].items():reasons[k].update(v)
-        panel={'name':name,'sources':49,'counts':dict(counts),'reasons':{k:dict(v) for k,v in reasons.items()},'trials':detail}
+            for k,v in d['teacher_cards'].items():cards[k].update(v)
+        panel={'name':name,'sources':49,'counts':dict(counts),'reasons':{k:dict(v) for k,v in reasons.items()},
+            'teacher_cards':{k:dict(v) for k,v in cards.items()},'trials':detail}
         atomic_json(out/(name+'.json'),panel);rows.append(panel)
         inputs.append({'root':str(root),'complete':file_identity(root/'complete.json'),'run':complete['run']})
     result={'inputs':inputs,'rows':rows,'source':source_identity(Path(__file__).resolve().parents[1]),
         'scope':'Read-only shadow teacher on sealed visited states; no new ability samples or labels admitted to training',
         'limitations':['Teacher suggestions are heuristic, not optimal actions',
             'Explicit unsafe-target abstentions remain counted; they are never replaced by invented labels',
+            'Same action group and card ignores position, stats and target identity; not an equivalence or optimality test',
             'Clearing private cycled memory is a controller ablation, not proof of reachable aliased environment histories',
             'Teacher/student visited-state distributions differ; agreement differences are descriptive']}
     atomic_json(out/'complete.json',result)
