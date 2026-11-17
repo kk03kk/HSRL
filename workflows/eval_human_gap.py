@@ -737,6 +737,9 @@ def main(argv=None) -> int:
         if "=" not in spec:
             raise SystemExit(f"--checkpoint needs NAME=PATH, got {spec!r}")
         name, path = spec.split("=", 1)
+        if is_thirdparty_spec(str(path)):
+            specs.append((name, str(path)))   # thirdparty: 前缀不是文件路径
+            continue
         p = Path(path)
         if not p.is_file():
             raise SystemExit(f"checkpoint not found: {p}")

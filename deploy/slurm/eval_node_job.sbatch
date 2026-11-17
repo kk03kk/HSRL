@@ -26,7 +26,6 @@
 #   HSAI_NODE_PROCS(默认 8) / HSAI_GAP_FORCED_TIER(可空=自由升本)
 set -uo pipefail
 cd "${SLURM_SUBMIT_DIR:-$HOME/projects/HSAI}"
-hsrl_require_compute
 source .venv/bin/activate
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 export PYTHONUTF8=1 PYTHONUNBUFFERED=1
