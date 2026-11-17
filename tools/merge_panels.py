@@ -255,25 +255,53 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]],
     # 合并出来的判胜面板无法自证"评的是哪个权重"。这些字段各分片相同，取第一个即可。
     first = extras[0] if extras else {}
     ident = ident or {}
-    for key in ("checkpoint", "checkpoint_sha256", "arch",
-                "seed_start", "seed_end"):
+    for key in ("checkpoint", "checkpoint_sha256", "arch"):
         val = first.get(key, ident.get(key))
         if val is not None:
             entry[key] = val
+    # seed 区间必须取**全部**分片的 min/max，不能抄第一个分片的（否则面板会说谎）。
+    starts = [int(e["seed_start"]) for e in extras if e.get("seed_start") is not None]
+    ends = [int(e["seed_end"]) for e in extras if e.get("seed_end") is not None]
+    if not starts and ident.get("seed_start") is not None:
+        starts = [int(ident["seed_start"])]
+    if not ends and ident.get("seed_end") is not None:
+        ends = [int(ident["seed_end"])]
+    if starts:
+        entry["seed_start"] = min(starts)
+    if ends:
+        entry["seed_end"] = max(ends)
+    entry["shard_count"] = len(extras)
     entry["seconds"] = sum(float(e.get("seconds") or 0.0) for e in extras) or None
     return entry
 
 
 def _shard_panel_identity(name: str,
                           shard_dirs: List[Path]) -> Dict[str, Any]:
-    """从分片 ``panel.json`` 里取该模型的**身份字段**（旧分片的 extra 没这些键）。"""
-    keys = ("checkpoint", "checkpoint_sha256", "arch", "seed_start", "seed_end")
+    """从分片 ``panel.json`` 里聚合该模型的**身份字段**（旧分片的 extra 没这些键）。
+
+    * ``checkpoint`` / ``checkpoint_sha256`` / ``arch``：各分片相同，取第一个；
+    * ``seed_start`` / ``seed_end``：取**全部**分片的 min / max（合并面板要覆盖整轮）。
+    """
+    ident: Dict[str, Any] = {}
+    starts: List[int] = []
+    ends: List[int] = []
     for d in shard_dirs:
         doc = _read_json(Path(d) / "panel.json")
         for mdl in doc.get("models") or []:
-            if str(mdl.get("name")) == str(name):
-                return {k: mdl[k] for k in keys if k in mdl}
-    return {}
+            if str(mdl.get("name")) != str(name):
+                continue
+            for k in ("checkpoint", "checkpoint_sha256", "arch"):
+                if k in mdl and k not in ident:
+                    ident[k] = mdl[k]
+            if mdl.get("seed_start") is not None:
+                starts.append(int(mdl["seed_start"]))
+            if mdl.get("seed_end") is not None:
+                ends.append(int(mdl["seed_end"]))
+    if starts:
+        ident["seed_start"] = min(starts)
+    if ends:
+        ident["seed_end"] = max(ends)
+    return ident
 
 
 def _shard_panel_protocol(shard_dirs: List[Path]) -> Optional[Dict[str, Any]]:

@@ -57,7 +57,8 @@ def test_identity_is_taken_from_shard_panel_when_extra_lacks_it(tmp_path):
     assert m["checkpoint_sha256"] == SHA
     assert m["checkpoint"].endswith("model.pt")
     assert m["arch"] == "entity"
-    assert m["seed_start"] == 930000 and m["seed_end"] == 930000 + 11
+    assert m["seed_start"] == 930000
+    assert m["seed_end"] == 930111          # 两个 shard 合并后的末 seed（不是 s0 的）
 
 
 def test_identity_is_taken_from_extra_when_present(tmp_path):
@@ -65,6 +66,17 @@ def test_identity_is_taken_from_extra_when_present(tmp_path):
     doc = merge([a], tmp_path / "panel.json")
     assert doc["models"][0]["checkpoint_sha256"] == SHA
     assert doc["models"][0]["seconds"] == 10.0
+
+
+def test_seed_range_spans_all_shards(tmp_path):
+    """合并面板的 seed 区间必须是全部 shard 的 min/max（不能抄第一个 shard）。"""
+    a = _shard(tmp_path / "s0", 930000, with_ident_in_extra=False)
+    b = _shard(tmp_path / "s1", 930100, with_ident_in_extra=False)
+    doc = merge([a, b], tmp_path / "panel.json")
+    m = doc["models"][0]
+    assert m["seed_start"] == 930000
+    assert m["seed_end"] == 930111           # s1 的末 seed
+    assert m["shard_count"] == 2
 
 
 def test_seconds_is_summed_across_shards(tmp_path):
