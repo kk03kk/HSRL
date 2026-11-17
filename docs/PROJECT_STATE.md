@@ -1,6 +1,6 @@
 # HSAI 当前状态
 
-状态：**as of 2026-11-17，工程现代化、正式评测、证据复核与冷备份均已验收，报告终稿同步中**。
+状态：**as of 2026-11-17，工程现代化、正式评测、证据复核、冷备份与两端发布均已完成并验收**。
 动态作业以 `python ops/hsai_ops.py state` 实测为准。历史在 [DECISIONS.md](DECISIONS.md)；
 完整本轮报告在 [MODERNIZATION_20261117.md](analysis/MODERNIZATION_20261117.md)。
 本文件原 18:27 快照保存在 Git 历史及本地 `records/archive/project-state-20261117-1827/`。
