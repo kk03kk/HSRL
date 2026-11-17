@@ -36,12 +36,12 @@ sys.path.insert(0, str(ROOT))
 from hsbg.az.train.eval_policy import assert_same_protocol
 from tools.panel_integrity import validate_identity, validate_rows, validate_samples
 
-from workflows.eval_human_gap import (  # noqa: E402
+from workflows.eval_human_gap import _safe_name  # Compatibility filename convention.
+from hsbg.evaluation.metrics import (  # noqa: E402
     _counts_all,
     _counts_by_turn,
     _gold_by_turn,
     _opponents_by_turn,
-    _safe_name,
     _strength_by_seed,
     _trace,
     action_mix_by_turn,
@@ -263,6 +263,10 @@ def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]],
         "gold_by_turn": _gold_by_turn(rows),
         "heroes": _counts_all(rows, "hero"),
         "rows": len(rows),
+        "decision_traces": [dict(part['extra']['decision_trace'],
+                                 directory=str(Path(directory).resolve()))
+                            for directory, part in shard_map.items()
+                            if part['extra'].get('decision_trace')],
     }
     # 2026-11-17（验证发现）：**模型身份必须跟着走**。以前这里只拼统计量，
     # `checkpoint` / `checkpoint_sha256` / `arch` / `seed_start` / `seed_end` 全丢 ——

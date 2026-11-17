@@ -22,7 +22,8 @@ EV = (ROOT / "hsbg" / "az" / "train" / "evaluate.py").read_text(encoding="utf-8"
 
 
 def test_cli_flags_exist():
-    assert '"--lobby-exclude"' in TRAIN
+    from hsbg.az.train.cli import build_parser
+    assert build_parser().parse_args(['--lobby-exclude', 'DRAGON']).lobby_exclude == 'DRAGON'
     assert '"--lobby-exclude"' in EVAL
 
 

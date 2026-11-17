@@ -36,8 +36,9 @@ def test_collect_config_exposes_fields() -> None:
 def test_train_entry_wires_args_into_collect_config() -> None:
     """argparse 有、且真的塞进 CollectConfig；启动必须打印一行 `[spell-bootstrap]`。"""
     src = (ROOT / "workflows" / "train_entity_sync.py").read_text(encoding="utf-8")
-    assert '"--spell-bootstrap-coef"' in src
-    assert '"--spell-bootstrap-per-game"' in src
+    from hsbg.az.train.cli import build_parser
+    args = build_parser().parse_args(['--spell-bootstrap-coef', '0.05', '--spell-bootstrap-per-game', '3'])
+    assert (args.spell_bootstrap_coef, args.spell_bootstrap_per_game) == (0.05, 3)
     assert "spell_bootstrap_coef=float(" in src
     assert "spell_bootstrap_per_game=int(" in src
     assert "[spell-bootstrap]" in src

@@ -30,12 +30,13 @@ def test_soft_warnings_are_recorded_not_fatal():
 
 
 def test_health_gate_defaults_to_on():
-    assert '"--health-gate"' in SRC
-    assert 'ap.add_argument("--health-gate", type=int, default=1' in SRC
+    from hsbg.az.train.cli import build_parser
+    assert build_parser().parse_args([]).health_gate == 1
 
 
 def test_teacher_loss_normalize_flag_exists_and_defaults_to_legacy():
-    assert '"--teacher-loss-normalize", default="labeled"' in SRC
+    from hsbg.az.train.cli import build_parser
+    assert build_parser().parse_args([]).teacher_loss_normalize == 'labeled'
 
 
 def test_limits_are_built_once_from_args():

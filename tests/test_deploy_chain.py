@@ -29,12 +29,12 @@ def _cfg():
 
 def test_every_config_key_is_a_known_option_and_has_a_cli_flag():
     from hsbg.az.train.personal import OPTIONS
-    src = TRAINER_SRC.read_text(encoding='utf-8')
+    from hsbg.az.train.cli import build_parser
+    flags = build_parser()._option_string_actions
     cfg = _cfg()
     unknown = sorted(k for k in cfg if k not in OPTIONS)
     assert not unknown, f'配置里有 personal.OPTIONS 不认识的键：{unknown}'
-    missing_flag = sorted(k for k in cfg if f"add_argument('--{k}'" not in src
-                          and f'add_argument("--{k}"' not in src)
+    missing_flag = sorted(k for k in cfg if f'--{k}' not in flags)
     assert not missing_flag, f'配置键没有对应的 train_entity_sync 参数：{missing_flag}'
 
 

@@ -1,0 +1,31 @@
+{
+  "schema": "hsai.eval-plan/v1",
+  "purpose": "One paired held-out assessment of completed v1.4-r1 and its v1.3-r3 starting model",
+  "games": 512,
+  "shards": 8,
+  "seed": 930000,
+  "models": [
+    {"name": "v1.3_r3", "checkpoint": "artifacts/models/arena-v1.3-r3/model.pt", "sha256": "1808f178ae38bf5910e3561043a2478c9f559eb7a6cf065a948a8fbc1c206472"},
+    {"name": "v1.4_r1", "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt", "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"}
+  ],
+  "evaluation": {
+    "mirror-snaps": "artifacts/libraries/arena-cal-v14hold-snap",
+    "mirror-sample": "p50band",
+    "mirror-strict": 0,
+    "mirror-seats": 7,
+    "mirror-p": 1,
+    "lobby-exclude": "",
+    "max-actions-per-turn": 100,
+    "move-guard": 1,
+    "move-cap": 2,
+    "move-repeat-limit": 2,
+    "freeze-cap": 1,
+    "forbid-cancel": 1,
+    "forbid-unfreeze": 1,
+    "ban-trinkets": 1,
+    "human-baseline": "artifacts/runs/human-baseline-20261112/baseline.json"
+  },
+  "expected_protocol_sha256": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+  "replay_steps_per_trace": 64,
+  "stop_rule": "One complete valid assessment; no extra runs selected based on outcome"
+}

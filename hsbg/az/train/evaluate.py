@@ -105,6 +105,7 @@ class EvalConfig:
     collect_action_hist: bool = False
     #: 逐决策动作轨迹（审计/行为分析用；默认关闭）。
     collect_action_trace: bool = False
+    decision_recorder: Any = None  # Streaming evidence; never influences policy or RNG.
     collect_exposure: bool = False  # 有界研究面板才读取实际战斗，不影响默认热路径
     #: 评测期强制升本计划（``"2:2,5:3,6:4,8:5"``；空 = 关闭，模型完全自主）。
     #: 只用于「规则内」探针；正式 Dev 评测必须保持空，否则棋力不可比。
@@ -205,6 +206,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
             E, int(config.seed) + gi, getattr(config, "lobby_exclude", ()),
             learner_seat=seat0)
         used_seeds.append(int(game_seed))
+        if config.decision_recorder is not None:
+            config.decision_recorder.begin_game(game, gi, game_seed, seat0)
         policy.reset()
         steps = 0
         last_turn = -1
@@ -319,6 +322,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                     continue
                 seat = int(p)
                 if seat == seat0:
+                    _trace_before = (config.decision_recorder.before(game, seat)
+                                     if config.decision_recorder is not None else None)
                     mask = mask_from_bytes(game.legal_mask(seat))
                     dec = policy.decide(game, seat)
                     action = int(dec.action)
@@ -440,6 +445,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                              "group": group_of(action),
                                              "forced": bool(dec.info.get("forced", False))})
                     game.step(seat, action)
+                    if config.decision_recorder is not None:
+                        config.decision_recorder.after(game, _trace_before, dec, action, forced_tier_here)
                     if config.collect_economy and action != 0:
                         after = json.loads(game.player_json(seat))
                         gold_events.append(dict(action=action, kind=group_of(action),
@@ -479,6 +486,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
             ranks.append(0)
         from .engine_quality import require_clean_engine
         quality = require_clean_engine(game)
+        if config.decision_recorder is not None:
+            config.decision_recorder.end_game(game, ranks[-1], quality)
         truncated_combats += quality['truncated_combats']
     elapsed = time.time() - t0
     known = np.asarray([r for r in ranks if r >= 1], dtype=np.float32)

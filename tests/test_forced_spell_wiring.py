@@ -43,10 +43,11 @@ def test_collect_config_defaults_are_off() -> None:
 def test_train_entry_wires_args_into_collect_config() -> None:
     """argparse 有、且真的塞进 CollectConfig；启动必须打印一行 `[forced-spell]`。"""
     src = (ROOT / "workflows" / "train_entity_sync.py").read_text(encoding="utf-8")
-    assert '"--forced-spell-per-game"' in src
-    assert '"--forced-spell-turn-min"' in src
-    assert '"--forced-spell-prob"' in src
-    assert '"--forced-spell-teacher"' in src
+    from hsbg.az.train.cli import build_parser
+    args = build_parser().parse_args(['--forced-spell-per-game', '3', '--forced-spell-turn-min', '7',
+                                     '--forced-spell-prob', '0.5', '--forced-spell-teacher', '1'])
+    assert (args.forced_spell_per_game, args.forced_spell_turn_min,
+            args.forced_spell_prob, args.forced_spell_teacher) == (3, 7, 0.5, 1)
     assert "forced_spell_per_game=int(" in src
     assert "[forced-spell]" in src
 
