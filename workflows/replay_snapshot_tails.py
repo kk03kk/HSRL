@@ -64,7 +64,7 @@ def main(args):
             replay=Replay(record['start'],record['actions'],record['end'],pool)
             result=evaluate_policy(replay,EvalConfig(games=1,seed=case['seed'],
                 mirror_pool=pool,mirror_strict=False,mirror_seats=field['mirror_seats'],mirror_p=field['mirror_p'],
-                decision_recorder=replay,keep_start_board=panel['protocol']['keep_start_board']))
+                decision_recorder=replay))
             if result['mirror']['mirror_missing']!=len(pool.misses):raise ValueError('missing counter differs')
             counts[(case['panel'],case['model'])]+=len(pool.misses)
             row={'case':case,'original_all_actions_and_final_state_exact':True,'actions':replay.i,
