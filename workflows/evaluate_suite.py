@@ -103,7 +103,9 @@ def run(plan, out, *, device='cuda:0'):
     expected = plan.get('expected_protocol_sha256')
     if expected and panel['protocol']['protocol_sha256'] != expected:
         raise ValueError('protocol differs from the predeclared baseline')
-    checked = validate_panel(out/'panel.json', replay=int(plan.get('replay_steps_per_trace', 16)))
+    available = max(1,int(os.environ.get('SLURM_CPUS_PER_TASK') or os.cpu_count() or 1))
+    checked = validate_panel(out/'panel.json', replay=int(plan.get('replay_steps_per_trace', 16)),
+                             workers=min(8,len(ranges),available))
     for relative, before in inputs.items():
         if file_identity(ROOT/relative) != before:
             raise ValueError(f'input changed during evaluation: {relative}')
