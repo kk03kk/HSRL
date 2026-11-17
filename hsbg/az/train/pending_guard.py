@@ -172,3 +172,17 @@ class PendingGuard:
 
 __all__ = ["PendingGuard", "PendingGuardStats", "CANCEL", "without_cancel",
            "play_hand", "hero_slot"]
+
+
+def no_cancel_choose(mask):
+    """**只在存在待选（Choose 段有合法动作）时**禁掉 Cancel（2026-11-17 借鉴第三方）。
+
+    与 ``without_cancel`` 的区别：后者**全局**禁 Cancel（我们的训练契约）；
+    这里只禁"待选阶段取消"，保留目标选择阶段用 Cancel 退出的能力。
+    返回新数组（不改入参）。
+    """
+    from hsbg.env.action_space_std import A_CANCEL, A_CHOOSE, N_CHOICE
+    out = mask.copy()
+    if bool(out[A_CHOOSE:A_CHOOSE + N_CHOICE].any()) and len(out) > A_CANCEL:
+        out[A_CANCEL] = False
+    return out

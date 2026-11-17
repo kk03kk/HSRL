@@ -82,7 +82,7 @@ from .seq_aux import (
 from .dpo_upgrade import UpgradeSamples, dpo_pair_loss
 from .move_guard import (MoveGuard, DEFAULT_MOVE_CAP,
                          DEFAULT_MOVE_REPEAT_LIMIT, aggregate_move_guard)
-from .pending_guard import PendingGuard, without_cancel
+from .pending_guard import PendingGuard, no_cancel_choose, without_cancel
 from .action_ban import ban_choice_options, has_pending_choice
 from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              engine_card_id_lookup, DEFAULT_TABLE as ARCH_TABLE,
@@ -365,6 +365,8 @@ class CollectConfig:
     #: 禁用「加重护手」（BG36_MagicItem_414）等黑名单待选卡（2026-11-17 用户定）。
     #: 在策略取掩码之后、采样之前把那个选项置为非法；**不改模拟器**。见 action_ban.py。
     ban_trinkets: bool = True
+    #: 只在"有待选"时禁 Cancel（第三方做法 2026-11-17）；与全局 forbid_cancel 不冲突。
+    no_cancel_choose: bool = False
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -2248,7 +2250,8 @@ class PPOGreedyPolicy(Policy):
                  pending_guard: bool = False, cancel_cap: int = 2,
                  commit_play: bool = True, forbid_cancel: bool = True,
                  freeze_cap: int = 0, forbid_unfreeze: bool = False,
-                 ban_trinkets: bool = True) -> None:
+                 ban_trinkets: bool = True,
+                 no_cancel_choose_on: bool = False) -> None:
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
         if (self.max_actions_per_turn != 80 or not bool(move_guard)
@@ -2266,6 +2269,7 @@ class PPOGreedyPolicy(Policy):
                              if pending_guard else None)
         self.forbid_cancel = bool(forbid_cancel)
         self.ban_trinkets = bool(ban_trinkets)
+        self.no_cancel_choose = bool(no_cancel_choose_on)
 
     def reset(self) -> None:
         self._turn_counts = {}
@@ -2288,6 +2292,8 @@ class PPOGreedyPolicy(Policy):
                 mask = mask.copy()
                 mask[2] = False
         # 2026-11-17：评测侧同样禁用「加重护手」（与训练侧共用 action_ban）。
+        if self.no_cancel_choose:
+            mask = no_cancel_choose(mask)
         if self.ban_trinkets and has_pending_choice(mask):
             try:
                 _pj = json.loads(game.player_json(int(seat)))
@@ -3790,6 +3796,8 @@ class PPOSelfPlayPolicy(Policy):
                 mask = mask.copy()
                 mask[2] = False
         # 2026-11-17：训练侧也禁用「加重护手」。只在真有待选时才解析 player_json（廉价守卫）。
+        if bool(getattr(self.config, "no_cancel_choose", False)):
+            mask = no_cancel_choose(mask)
         _ban_on = bool(getattr(self.config, "ban_trinkets", True))
         if _ban_on and has_pending_choice(mask):
             try:

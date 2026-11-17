@@ -126,6 +126,10 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
                      bc_card_head: bool = False,
                      bc_card_dim: Optional[int] = None,
                      move_head_split: bool = False,
+    use_z: bool = False, n_z: int = 46,
+    use_attr: bool = False, attr_f: int = 311,
+    mag_query: bool = False,
+    new_init_scale: float = 0.02,
                      strength_head: bool = False,
                      process_head: bool = False):
     """构造 EntityAZNet（torch 模块）。
@@ -219,6 +223,26 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             self.magnetize_bias = nn.Parameter(torch.zeros(N_HAND, N_BOARD))
             self.move_bias = nn.Parameter(torch.zeros(N_BOARD, N_BOARD))
             # 有向 Move 头（可选）：默认 None = 不构建，state_dict/前向与旧版逐位一致
+            # ---- 2026-11-17 借鉴第三方：①46 阵容条件化 ②311 维卡牌属性 ③磁力双线性查询 ----
+            self.use_z = bool(use_z)
+            self.n_z = int(n_z) if self.use_z else 0
+            if self.use_z:
+                # zcard[z, card, 3]：frozen 表（从第三方 ckpt 读入，卡序已实证对齐）
+                self.register_buffer("zcard", torch.zeros(self.n_z, n_cards, 3))
+                self.z_global = nn.Linear(self.n_z, d, bias=False)
+                self.z_tok = nn.Linear(3, card_dim, bias=False)
+                for m_ in (self.z_global, self.z_tok):
+                    nn.init.normal_(m_.weight, std=float(new_init_scale))
+            self.use_attr = bool(use_attr)
+            if self.use_attr:
+                self.register_buffer("attr", torch.zeros(n_cards, int(attr_f)))
+                self.attr_proj = nn.Linear(int(attr_f), card_dim, bias=False)
+                nn.init.normal_(self.attr_proj.weight, std=float(new_init_scale))
+            # 磁力头：在学习到的 query 上再做一个双线性项，权重零初始化 ⇒ 起点与旧版逐位一致
+            self.mag_query = bool(mag_query)
+            if self.mag_query:
+                self.mag_q = nn.Linear(d, d, bias=False)
+                nn.init.zeros_(self.mag_q.weight)
             self.move_head_split = bool(move_head_split)
             if self.move_head_split:
                 self.move_from = nn.Linear(d, d)   # 源位置 query
@@ -260,56 +284,65 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             i = idx.clamp(0, self.n_cards - 1)
             emb = self.card_id(i) + self.card_static_proj(self.card_static[i]) \
                 + self.card_text_proj(self.card_text[i])
+            # ②311 维卡牌属性（frozen 表，只学投影）——零/小初始化，起点近似旧版
+            if self.use_attr:
+                emb = emb + self.attr_proj(self.attr[i])
+            # ①46 阵容条件化：zcard[z, card, 3] 的 3 个 flag 加进卡嵌入
+            if self.use_z:
+                zz = torch.full((int(i.shape[0]),), self.n_z - 1,
+                                dtype=torch.long, device=i.device) if z is None else z.long()
+                flags = self.zcard[zz[:, None], i]            # [B, n_cards_in, 3]
+                emb = emb + self.z_tok(flags)
             return self.card_to_d(emb)
 
-        def forward(self, features, cards, mask=None):
-            logits, rank, value, _g = self._forward_impl(features, cards, mask)
+        def forward(self, features, cards, mask=None, z=None):
+            logits, rank, value, _g = self._forward_impl(features, cards, mask, z)
             return logits, rank, value
 
-        def forward_aux(self, features, cards, mask=None):
+        def forward_aux(self, features, cards, mask=None, z=None):
             """``(logits, rank, value, seq_logits|None)``：只在训练损失里取 seq logits。
 
             ``seq_head`` 未构建时最后一项为 None（默认关闭 = 全程不调用本方法）。
             """
-            logits, rank, value, g = self._forward_impl(features, cards, mask)
+            logits, rank, value, g = self._forward_impl(features, cards, mask, z)
             seq = None if self.seq_head is None else self.seq_head(g)
             return logits, rank, value, seq
 
-        def forward_bc(self, features, cards, mask=None):
+        def forward_bc(self, features, cards, mask=None, z=None):
             """分层 BC 用的一次前向：``(policy_logits, card_logits|None)``。
 
             只在 ``bc_coef>0`` 的 BC 分支调用；``card_head`` 未构建时第二项为 None。
             """
-            logits, _rank, _value, g = self._forward_impl(features, cards, mask)
+            logits, _rank, _value, g = self._forward_impl(features, cards, mask, z)
             card = None if self.card_head is None else self.card_head(g)
             return logits, card
 
-        def forward_global(self, features, cards, mask=None):
+        def forward_global(self, features, cards, mask=None, z=None):
             """trunk 的 global token ``g``（``[B, d]``）；只给「离线拟合辅助头」用。"""
-            _l, _r, _v, g = self._forward_impl(features, cards, mask)
+            _l, _r, _v, g = self._forward_impl(features, cards, mask, z)
             return g
 
-        def forward_problem(self, features, cards, mask=None):
+        def forward_problem(self, features, cards, mask=None, z=None):
             """场面题一次前向：``(policy_logits, strength_pred[N,2])``。
 
             只在 ``problem_bc_coef>0`` 或 ``strength_aux_coef>0`` 时调用；
             ``strength_head`` 未构建时第二项为 ``None``（默认路径不调用本方法）。
             """
-            logits, _rank, _value, g = self._forward_impl(features, cards, mask)
+            logits, _rank, _value, g = self._forward_impl(features, cards, mask, z)
             pred = None if self.strength_head is None else self.strength_head(g)
             return logits, pred
 
-        def forward_process(self, features, cards, mask=None):
+        def forward_process(self, features, cards, mask=None, z=None):
             """过程价值一次前向：``(policy_logits, process_pred[N,3])``。
 
             只在 ``process_value_coef>0`` 时调用；``process_head`` 未构建时第二项为
             ``None``。**不改变** ``forward()`` 的策略/价值输出（同一 trunk，独立头）。
             """
-            logits, _rank, _value, g = self._forward_impl(features, cards, mask)
+            logits, _rank, _value, g = self._forward_impl(features, cards, mask, z)
             pred = None if self.process_head is None else self.process_head(g)
             return logits, pred
 
-        def _forward_impl(self, features, cards, mask=None):
+        def _forward_impl(self, features, cards, mask=None, z=None):
             B = features.shape[0]
             dev = features.device
             x = features.float()
@@ -328,6 +361,14 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             ob = flat("opp_boards", (N_OPP, N_BOARD, MINION_F))
             glob = torch.cat([x[:, S["global"]], x[:, S["quests"]],
                               x[:, S["pending"]]], dim=-1)
+            _zg = None
+            if self.use_z:
+                zz = (torch.full((B,), self.n_z - 1, dtype=torch.long, device=dev)
+                      if z is None else z.long())
+                if zz.dim() == 0:
+                    zz = zz.expand(B)
+                _zg = self.z_global(torch.nn.functional.one_hot(
+                    zz, self.n_z).to(self.global_proj.weight.dtype))   # [B, d]
 
             # global token + 英雄/技能/饰品/秘密卡牌表示（直接加和到 global）
             g = self.global_proj(glob)
@@ -407,6 +448,9 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             logits[:, 46:126] = self.pointer_scale * play.reshape(B, N_HAND * 8) + self.play_bias.reshape(1, -1)
             # magnetize 126..195: hand 10 × board 7
             mag = torch.einsum("bhd,bjd->bhj", hh, hb)
+            if self.mag_query:
+                # ③ 第三方做法：手牌侧再过一层线性 query 再做双线性；零初始化 ⇒ 起点等价
+                mag = mag + torch.einsum("bhd,bjd->bhj", self.mag_q(hh), hb)
             logits[:, 126:196] = self.pointer_scale * mag.reshape(B, N_HAND * N_BOARD) + self.magnetize_bias.reshape(1, -1)
             # move 196..244: board from × board to
             # 默认（对称）: mv[i,j] = hb_i · hb_j（方向差只剩 move_bias 的反对称部分）
