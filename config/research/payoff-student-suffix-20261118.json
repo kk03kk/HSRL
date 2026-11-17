@@ -1,0 +1,21 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-096/D-097 fixed endpoint conditional skill assessment",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["normal", "complete_gold"],
+  "replicas": 2,
+  "reference": "payoff_student",
+  "models": {
+    "payoff_student": {
+      "checkpoint": "artifacts/runs/nus-payoff-learning-20261118-2/model.pt",
+      "sha256": "89b6dacd44be3d650ec9534a29c93c1545428d8364f094e975ab8f0f1fd26952",
+      "operator": false
+    }
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "All 49 existing development sources, both variants, both futures; no outcome filtering",
+  "comparison": "Reuse sealed parent and growth complete arms only after exact source/initial/future/library/engine/contract checks; target_safe excluded as an entire arm after D-097",
+  "budget": "196 CPU conditional suffixes; fixed 2000-update endpoint only",
+  "limitations": ["Artificial initial components", "Reused exploratory development sources", "Narrow gold gate does not solve natural acquisition", "No formal reserved seeds"]
+}

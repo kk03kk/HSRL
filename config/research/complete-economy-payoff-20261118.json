@@ -1,0 +1,26 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-098: distinguish missing Escapee from golden multipliers",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["complete"],
+  "replicas": 2,
+  "reference": "parent",
+  "models": {
+    "parent": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": false
+    },
+    "growth": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "growth"
+    }
+  },
+  "question": "Does complete ordinary four-component economy already support the growth teacher? Prior normal versus complete_gold differs in Escapee presence as well as golden Brann/Privateer, so it does not isolate golden multipliers.",
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "Same 49 development sources; all outcomes retained; existing complete fixture unchanged",
+  "budget": "196 CPU suffixes; no neural learning, no threshold change",
+  "limitations": ["Explicit endowments, not naturally acquired components", "Exploratory development sources reused", "Paired within complete fixture, not random independent source population"]
+}
