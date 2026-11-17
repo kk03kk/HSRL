@@ -42,6 +42,16 @@ N_PLAYERS = 8
 ELO_SCALE = 400.0  # standard Elo: 400 * log10(score/(1-score))
 
 
+
+def _contract() -> Dict[str, Any]:
+    """动作契约的唯一真值（``hsbg.az.train.eval_policy.TRAINING_CONTRACT``）。
+
+    2026-11-17（D-070）：以前每个评测入口各写一份 ``80/5/2`` 字面量，契约一变就要
+    同步改 4+ 处，漏一处就是"训练用新契约、评测用旧契约"的静默错配。
+    """
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
+    return dict(TRAINING_CONTRACT)
+
 def load_config(path: Path) -> Dict[str, Any]:
     cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     required = ("engine", "latest", "models", "pairs", "games_per_pair", "seed_base",
@@ -79,10 +89,15 @@ def load_config(path: Path) -> Dict[str, Any]:
     games = int(cfg["games_per_pair"])
     if games < 8 or games % 8:
         raise ValueError("games_per_pair must be >=8 and divisible by 8")
-    if int(cfg["max_actions_per_turn"]) != 80:
-        raise ValueError("max_actions_per_turn must be 80")
-    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
-        raise ValueError("move_cap/repeat must be 5/2")
+    _c = _contract()
+    if int(cfg["max_actions_per_turn"]) != int(_c["max_actions_per_turn"]):
+        raise ValueError("max_actions_per_turn must be "
+                         f"{_c['max_actions_per_turn']} (TRAINING_CONTRACT)")
+    if int(cfg["move_cap"]) != int(_c["move_cap"]) \
+            or int(cfg["move_repeat_limit"]) != int(_c["move_repeat_limit"]):
+        raise ValueError("move_cap/move_repeat_limit must be "
+                         f"{_c['move_cap']}/{_c['move_repeat_limit']} "
+                         "(TRAINING_CONTRACT)")
     if int(cfg["bootstrap"]) < 100:
         raise ValueError("bootstrap too small")
     return cfg

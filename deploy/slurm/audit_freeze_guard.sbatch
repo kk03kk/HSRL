@@ -32,8 +32,8 @@ rows = []
 for seat in (0, 7):
     for cap in (0, 1):
         ev = PPOEvaluator(model, device='cuda')
-        policy = PPOGreedyPolicy(ev, max_actions_per_turn=80, move_guard=True,
-                                 move_cap=5, move_repeat_limit=2,
+        policy = PPOGreedyPolicy(ev, max_actions_per_turn=100, move_guard=True,
+                                 move_cap=2, move_repeat_limit=2,
                                  forbid_cancel=True, freeze_cap=cap)
         t = time.time()
         res = evaluate_policy(policy, EvalConfig(

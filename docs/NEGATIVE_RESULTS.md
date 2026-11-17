@@ -51,6 +51,16 @@
 
 ---
 
+## E. 修正（2026-11-17 审计，按 §"加条目"规则的第 3 条：不覆盖原文）
+
+| 原条目 | 修正 | 依据 |
+|---|---|---|
+| §A「**把模型换成更小的第三方权重（7.99M）→ 否，不重试**」 | **修正为"方向可行、当时缺适配层"**。卡序/动作/观测三项已实证对齐，`hsbg/az/train/thirdparty_policy.py` + 评测分支已落地；实测它在我们的引擎上 `mean_rank` 6.6–7.0（还打不动），属"权重与我们的训练分布不匹配"，不是"口径不可互换" | `docs/analysis/THIRDPARTY_PPO_REVIEW_20261117.md`、`workflows/eval_human_gap.py`、`artifacts/runs/tp-combo-20261117/`（服务器） |
+| §D「**分段续训会破坏 anchor 保护期**」（`i = trainer.updates` 是优化步数） | **撤回**：`trainer.updates` 是**累计训练轮数**（`PPOTrainer.update()` 每轮 +1），续训时 β 保护期照常按累计轮数走，**分段续训是安全的**。已被 D-061 正式撤回，本表此前漏同步 | `docs/DECISIONS.md` D-061、`hsbg/az/train/ppo_trainer.py`、`deploy/slurm/stage_arena.sbatch` 头注释 |
+| §A/§B 里所有"名次变好 ⇒ 进步"的判定 | **降级为参考**：用户 2026-11-17 明确不设单一判胜指标，主看逐回合 M1 与增长曲线；且名次在高压场已贴随机（1028 局 mean_rank 4.55、前四 46.7%） | `docs/analysis/AUDIT_20261117.md` §3 |
+
+---
+
 ## 怎么往这张表里加条目
 
 1. 在 `docs/DECISIONS.md` 追加一条 `D-###`，写清**判负的证据**（不是"感觉不行"）；

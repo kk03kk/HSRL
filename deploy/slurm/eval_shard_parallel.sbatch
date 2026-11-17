@@ -63,7 +63,7 @@ for i in $(seq 0 $((nshard-1))); do
     PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
       "${specs[@]}" \
       --games "$per" --seed "$s" --device cuda:0 \
-      --forbid-unfreeze 1 --freeze-cap "${HSAI_GAP_FREEZE_CAP:-2}" \
+      --forbid-unfreeze 1 --freeze-cap "${HSAI_GAP_FREEZE_CAP:-1}" \
       --human-baseline "$baseline" \
       --mirror-snaps "$snaps" \
       --mirror-sample "${HSAI_GAP_MIRROR_SAMPLE:-p50band}" \
@@ -84,7 +84,10 @@ for i in $(seq 0 $((nshard-1))); do
 done
 echo "collected ${#shards[@]}/${nshard} shard panels"
 if [ "${#shards[@]}" -gt 0 ]; then
-  python tools/merge_panels.py "${shards[@]}" --out "$out/panel.json" | tee -a "$out/run.env"
+  # 2026-11-17（审计 P1-6）：缺分片不再静默——`--expect-games` 断言每个模型的名次样本数
+  # 等于本轮计划局数，`--expect-models` 断言模型数；不符则 merge 直接失败（不写盘）。
+  python tools/merge_panels.py "${shards[@]}" --out "$out/panel.json" \
+    --expect-games "$total" --expect-models "${#specs[@]}" 2>&1 | tee -a "$out/run.env"
 fi
 echo "done=$(date -Is) total_elapsed=$(( $(date +%s) - t0 ))s" | tee -a "$out/run.env"
 

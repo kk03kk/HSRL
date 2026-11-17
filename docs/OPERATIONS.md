@@ -61,8 +61,8 @@ HSAI dual-end state  2026-11-12T13:33:21+08:00
 
 ### 1.3 隧道断了怎么办（唯一正确流程）
 
-**本节是权威流程。** 实测数字、日志指纹、历史事故只记在
-[`nus/TUNNEL_FAST_PATH.md`](nus/TUNNEL_FAST_PATH.md)，那里**不再**是独立流程。
+**本节是权威流程。** 实测数字、日志指纹、历史事故已归档到
+`records/archive/docs-20261114/nus/TUNNEL_FAST_PATH.md`（历史证据，**不是**独立流程，也不进 Git）。
 每一步都有硬上界：任何一步超过 ~30 s 没结果就掐掉看现场，禁止盲等。
 
 断了会表现成：`state` 里 `tunnel: DOWN`；`sh/push/pull/jobs/models` 报

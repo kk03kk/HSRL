@@ -169,7 +169,7 @@ def main() -> int:
             evaluator = PPOEvaluator(model, device=args.device,
                                      norm_mean=meta.get("norm_mean"),
                                      norm_std=meta.get("norm_std"))
-            policy = PPOGreedyPolicy(evaluator, max_actions_per_turn=80,
+            policy = PPOGreedyPolicy(evaluator, max_actions_per_turn=100,
                                      move_guard=True, move_cap=5,
                                      move_repeat_limit=2, forbid_cancel=True)
             cfg = EvalConfig(games=int(args.games), seed=int(args.seed),

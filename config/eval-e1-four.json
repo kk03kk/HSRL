@@ -44,8 +44,8 @@
   "seed_base": 310000000,
   "seed_mode": "shared",
   "seat_mode": "ordered56",
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "bootstrap": 10000,
   "bootstrap_seed": 20261111,
@@ -54,5 +54,8 @@
   "elo_l2": 0.01,
   "max_steps": 50000,
   "decode": "greedy",
-  "collect_opponents": false
+  "collect_opponents": false,
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

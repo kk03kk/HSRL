@@ -35,6 +35,7 @@ from .human_board_pool import HumanBoardStats, SOURCE as HUMAN_BOARD_SOURCE
 from .human_board_pool import inject_turn as inject_human_boards
 from .mirror_snapshots import (MirrorStats, inject_turn, mirror_seats,
                                mirror_seats_random)
+from .lobby_filter import make_filtered_game
 from .move_guard import aggregate_move_guard
 from .archetype_bias import aggregate_archetype_bias
 from .reward_shaping import RewardShaper, aggregate_shaping
@@ -112,7 +113,9 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
         E = load_engine()
         policy.reset()
         weak_rng = np.random.default_rng(int(seed) + gi)
-        game = E.Game(seed=int(cfg.seed) + gi)
+        game, _used_seed = make_filtered_game(
+            E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+            learner_seat=int(getattr(cfg, "learner_seat", 0)))
         # 塑形：上一决策的 Φ(s') 复用为本决策的 Φ(s)；局末/截断用 Φ(terminal)=0。
         rec_prev: Optional[int] = None
         phi_prev = 0.0
@@ -498,7 +501,9 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
 
     states: List[Dict[str, Any]] = []
     for gi in range(n):
-        g0 = E.Game(seed=int(cfg.seed) + gi)
+        g0, _used_seed = make_filtered_game(
+            E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+            learner_seat=int(getattr(cfg, "learner_seat", 0)))
         states.append({
             "gi": gi, "gid": int(cfg.game_id_offset) + gi,
             "game": g0,

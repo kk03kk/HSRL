@@ -54,19 +54,34 @@
     }
   ],
   "pairs": [
-    ["league-latest-12311", "milestone-1033972345"],
-    ["league-latest-12311", "milestone-976909004"],
-    ["league-latest-12311", "milestone-867747936"],
-    ["league-latest-12311", "V1.1"]
+    [
+      "league-latest-12311",
+      "milestone-1033972345"
+    ],
+    [
+      "league-latest-12311",
+      "milestone-976909004"
+    ],
+    [
+      "league-latest-12311",
+      "milestone-867747936"
+    ],
+    [
+      "league-latest-12311",
+      "V1.1"
+    ]
   ],
   "games_per_pair": 128,
   "seed_base": 280000000,
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "bootstrap": 5000,
   "bootstrap_seed": 20261110,
   "max_steps": 50000,
   "decode": "greedy",
-  "collect_opponents": false
+  "collect_opponents": false,
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

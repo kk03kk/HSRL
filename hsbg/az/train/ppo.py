@@ -84,6 +84,7 @@ from .move_guard import (MoveGuard, DEFAULT_MOVE_CAP,
                          DEFAULT_MOVE_REPEAT_LIMIT, aggregate_move_guard)
 from .pending_guard import PendingGuard, no_cancel_choose, without_cancel
 from .action_ban import ban_choice_options, has_pending_choice
+from .lobby_filter import make_filtered_game
 from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              engine_card_id_lookup, DEFAULT_TABLE as ARCH_TABLE,
                              DEFAULT_MODEL as ARCH_MODEL)
@@ -345,28 +346,33 @@ class CollectConfig:
     step_penalty: float = 0.0      # 每决策小惩罚（进入 reward）
     #: 单座位单回合决策数上限（超过且 EndTurn 合法则强制结束回合；0=关闭）。
     #: 未训练网络容易陷入 Play/Cancel 循环，默认 40 保证采集/评测能走到终局。
-    max_actions_per_turn: int = 80
+    max_actions_per_turn: int = 100
     #: ── 换位去抖守卫（新训练默认开启；见 docs/MOVE_GUARD.md）──
     #: True=采样前清掉「逆换位 / 重复超限 / 本回合换位超 cap」的 Move 动作位，
     #: 再按剩余合法动作采样。
     move_guard: bool = True
     #: 每回合换位次数上限（>=cap 后屏蔽全部 49 个 Move；0=本回合禁止换位）。
-    move_cap: int = 5
+    move_cap: int = 2
     #: 同一 ``(from,to)`` 本回合出现 >= 该次数后屏蔽（1=不允许重复）。
     move_repeat_limit: int = DEFAULT_MOVE_REPEAT_LIMIT
     #: 完全禁止 Cancel（动作 7）；默认 False 保持旧行为。
     forbid_cancel: bool = True
     #: 商店已全部冻结时屏蔽 Freeze（动作 2）。实机桥接在全冻结时不暴露
     #: 该动作；开启后训练/评测与实机一致，并避免 freeze/unfreeze 空转。
-    forbid_unfreeze: bool = False
+    forbid_unfreeze: bool = True
     #: 每回合最多按几次 Freeze（0 = 不限制）。引擎允许 10 次/回合，且 Freeze 是整体
     #: 切换，买走一张后可以再冻一次，容易变成「买一张→冻一次」的空转，故设上限。
-    freeze_cap: int = 0
+    #: 2026-11-17（D-070）：默认值收到 **1**（Freeze 键每回合只能按一次）。
+    freeze_cap: int = 1
     #: 禁用「加重护手」（BG36_MagicItem_414）等黑名单待选卡（2026-11-17 用户定）。
     #: 在策略取掩码之后、采样之前把那个选项置为非法；**不改模拟器**。见 action_ban.py。
     ban_trinkets: bool = True
     #: 只在"有待选"时禁 Cancel（第三方做法 2026-11-17）；与全局 forbid_cancel 不冲突。
     no_cancel_choose: bool = False
+    #: **lobby 种族排除**（2026-11-17 用户要求「把机械和龙 ban 了」，见 `lobby_filter.py`）。
+    #: 空元组 = 不过滤（逐位等价旧行为）。非空时用**确定性种子过滤**：引擎仍从 10 个
+    #: 类型抽 5 个，但含被禁种族的局会被跳过并换一个派生种子重来。
+    lobby_exclude: Tuple[str, ...] = ()
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -1311,6 +1317,13 @@ class PPOConfig:
     #: 在线缩放教师 DAgger 的 CE 系数（0=关闭，默认）。>0 时需要采集侧产出
     #: ``teacher_action``（``CollectConfig.teacher_bc=True``），CE 只在有标签的样本上算。
     teacher_bc_coef: float = 0.0
+    #: **教师 CE 的归一化分母**（2026-11-17 审计 P2-1）。
+    #: ``"labeled"``（默认，= 改动前语义）：对**有标签行**取平均 ⇒ 有标签的样本越少，
+    #: 单条标签的相对权重越大（相对 PPO 单行可达 ``N/n_t`` 倍，小批量时上百倍）。
+    #: ``"valid"``：改成"求和 / 本微批合法行数"，与策略项同分母 ⇒ 教师项占总损失的
+    #: 比重恒定，等于 ``coef``。**默认不改语义**（属配方变更，需要先跑对照实验）；
+    #: 这里只是把口径显式化 + 让替代方案可测。
+    teacher_loss_normalize: str = "labeled"
     #: 强制升本 DAgger 标签（``CollectConfig.forced_tier_teacher=True``）的 CE 系数。
     #: **必须与 ``teacher_bc_coef`` 分开**：两者共用 ``record["teacher_action"]`` 字段，
     #: 合并成一个系数会让「在线缩放教师」与「强制升本教师」两条标签源互相覆盖且无法
@@ -1453,6 +1466,11 @@ class PPOConfig:
             _v = float(getattr(self, _name) or 0.0)
             if not math.isfinite(_v) or _v < 0.0:
                 raise ValueError(f"{_name} 必须 >= 0，得到 {_v!r}")
+        self.teacher_loss_normalize = str(
+            getattr(self, "teacher_loss_normalize", "labeled") or "labeled").strip().lower()
+        if self.teacher_loss_normalize not in ("labeled", "valid"):
+            raise ValueError("teacher_loss_normalize 只能是 labeled|valid，得到 "
+                             f"{self.teacher_loss_normalize!r}")
         _ruc = float(getattr(self, "rank_utility_coef", 1.0) or 0.0)
         if not math.isfinite(_ruc) or _ruc < 0.0:
             raise ValueError(f"rank_utility_coef 必须 >= 0，得到 {_ruc!r}")
@@ -2245,20 +2263,31 @@ class PPOGreedyPolicy(Policy):
     name = "ppo_net"
     supports_pi = False
 
-    def __init__(self, evaluator: Any, *, max_actions_per_turn: int = 80,
-                 move_guard: bool = True, move_cap: int = 5, move_repeat_limit: int = 2,
+    def __init__(self, evaluator: Any, *, max_actions_per_turn: int = 100,
+                 move_guard: bool = True, move_cap: int = 2, move_repeat_limit: int = 2,
                  pending_guard: bool = False, cancel_cap: int = 2,
                  commit_play: bool = True, forbid_cancel: bool = True,
-                 freeze_cap: int = 0, forbid_unfreeze: bool = False,
+                 freeze_cap: int = 1, forbid_unfreeze: bool = True,
                  ban_trinkets: bool = True,
                  no_cancel_choose_on: bool = False) -> None:
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
-        if (self.max_actions_per_turn != 80 or not bool(move_guard)
-                or int(move_cap) != 5 or int(move_repeat_limit) != 2
-                or not bool(forbid_cancel)):
-            raise ValueError("强制动作规则：max=80, move_guard=1, move_cap=5, "
-                             "move_repeat=2, forbid_cancel=1")
+        # 2026-11-17（D-070）：校验**对着契约表**做，不再写死字面量——否则每次改契约都要
+        # 在 4 个文件里同步改 4 份字面量，漏一处就变成"训练用新值、评测用旧值"的静默错配。
+        from .eval_policy import TRAINING_CONTRACT  # noqa: PLC0415 - 避免循环导入
+        _c = TRAINING_CONTRACT
+        if (self.max_actions_per_turn != int(_c["max_actions_per_turn"])
+                or bool(move_guard) != bool(_c["move_guard"])
+                or int(move_cap) != int(_c["move_cap"])
+                or int(move_repeat_limit) != int(_c["move_repeat_limit"])
+                or bool(forbid_cancel) != bool(_c["forbid_cancel"])):
+            raise ValueError(
+                "强制动作规则与 TRAINING_CONTRACT 不一致："
+                f"max={self.max_actions_per_turn}(契约 {_c['max_actions_per_turn']}), "
+                f"move_guard={int(bool(move_guard))}({int(bool(_c['move_guard']))}), "
+                f"move_cap={int(move_cap)}({_c['move_cap']}), "
+                f"move_repeat={int(move_repeat_limit)}({_c['move_repeat_limit']}), "
+                f"forbid_cancel={int(bool(forbid_cancel))}({int(bool(_c['forbid_cancel']))})")
         self._turn_counts: Dict[tuple, int] = {}
         self._freeze_counts: Dict[tuple, int] = {}
         self.freeze_cap = int(freeze_cap)
@@ -2791,6 +2820,7 @@ def ppo_losses(model: Any, batch: PPOBatch, config: PPOConfig,
     forced_teacher_coef = float(getattr(config, "forced_teacher_coef", 0.0) or 0.0)
     teacher_loss = None
     teacher_n = 0
+    teacher_share = None
     if teacher_bc_coef > 0.0 or forced_teacher_coef > 0.0:
         ta_np = getattr(batch, "teacher_action", None)
         if ta_np is not None:
@@ -2799,7 +2829,19 @@ def ppo_losses(model: Any, batch: PPOBatch, config: PPOConfig,
             has_t = (ta >= 0) & (valid > 0)
             teacher_n = int(has_t.sum().item())
             if teacher_n > 0:
-                teacher_loss = F.cross_entropy(logits[has_t], ta[has_t])
+                # 审计 P2-1：分母是"有标签行数"还是"合法行数"决定了教师项的**相对**
+                # 强度。`labeled` = 改动前语义（默认）；`valid` = 与策略项同分母。
+                _mode = str(getattr(config, "teacher_loss_normalize", "labeled")
+                            or "labeled").strip().lower()
+                if _mode == "valid":
+                    # 无标签行是 -1，不能直接进 cross_entropy ⇒ clamp 到 0 再用
+                    # ``has_t`` 掩掉（乘 0 后梯度严格为 0，不影响数值）。
+                    _ce = F.cross_entropy(logits, ta.clamp_min(0), reduction="none")
+                    teacher_loss = (_ce * has_t.to(_ce.dtype)).sum() \
+                        / valid.sum().clamp_min(1.0)
+                else:
+                    teacher_loss = F.cross_entropy(logits[has_t], ta[has_t])
+                teacher_share = float(teacher_n) / max(float(valid.sum().item()), 1.0)
                 # 两条标签源共用同一个 CE 值，但系数各自记账（合并只发生在总损失里）
                 total = total + (teacher_bc_coef + forced_teacher_coef) * teacher_loss
     # ── 过程价值辅助头（默认 process_value_coef=0 时整段不执行）──────────────
@@ -2983,6 +3025,10 @@ def ppo_losses(model: Any, batch: PPOBatch, config: PPOConfig,
         result["teacher_bc_loss"] = teacher_loss.detach()
         result["teacher_bc_coef"] = torch.as_tensor(float(teacher_bc_coef), device=dev)
         result["teacher_samples"] = torch.as_tensor(float(teacher_n), device=dev)
+        # 教师标签占本微批的比例：`labeled` 口径下教师单行的相对权重 = 1/share。
+        # 写进 history 才能看出"教师项到底有多强"，否则它随采样静默漂移。
+        result["teacher_label_share"] = torch.as_tensor(
+            float(teacher_share or 0.0), device=dev)
     # 过程价值辅助头：只有真的算了 MSE 才出现（默认关闭 -> 结构不变）
     if process_stats:
         result.update(process_stats)
@@ -3543,13 +3589,25 @@ class PPOSelfPlayPolicy(Policy):
         self.config = config or CollectConfig()
         if search_fn is not None:
             raise ValueError("强制动作规则：sims=0，不能传入 search_fn")
-        if (int(self.config.max_actions_per_turn) != 80
+        # 2026-11-17（D-070）：同样对着契约表校验（见 PPOGreedyPolicy 的说明）。
+        from .eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
+        _c = TRAINING_CONTRACT
+        if (int(self.config.max_actions_per_turn) != int(_c["max_actions_per_turn"])
                 or not bool(getattr(self.config, "move_guard", False))
-                or int(getattr(self.config, "move_cap", 0)) != 5
-                or int(getattr(self.config, "move_repeat_limit", 0)) != 2
+                or int(getattr(self.config, "move_cap", 0)) != int(_c["move_cap"])
+                or int(getattr(self.config, "move_repeat_limit", 0))
+                != int(_c["move_repeat_limit"])
                 or not bool(getattr(self.config, "forbid_cancel", False))):
-            raise ValueError("强制动作规则：max=80, move_guard=1, move_cap=5, "
-                             "move_repeat=2, forbid_cancel=1")
+            raise ValueError(
+                "强制动作规则与 TRAINING_CONTRACT 不一致："
+                f"max={int(self.config.max_actions_per_turn)}"
+                f"(契约 {_c['max_actions_per_turn']}), "
+                f"move_cap={int(getattr(self.config, 'move_cap', 0))}"
+                f"({_c['move_cap']}), "
+                f"move_repeat={int(getattr(self.config, 'move_repeat_limit', 0))}"
+                f"({_c['move_repeat_limit']}), forbid_cancel="
+                f"{int(bool(getattr(self.config, 'forbid_cancel', False)))}"
+                f"({int(bool(_c['forbid_cancel']))})")
         # 搜索作为行为策略的混合器（``BehaviorMixer``；None = 关闭，逐位等价旧路径）
         self._mix = behavior_mix
         # 续训 CE checkpoint 时沿用其输入标准化统计（新训练模型为 None = 原始特征）
@@ -4499,7 +4557,9 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
             policy.game_id = gid
             policy.reseed(int(cfg.seed) + gi)
             policy.reset()
-            game = E.Game(seed=int(cfg.seed) + gi)
+            game, _used_seed = make_filtered_game(
+                E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+                learner_seat=int(getattr(cfg, "learner_seat", 0)))
             if _process_on:
                 # consume 计数来自引擎事件日志；只在过程价值开启时打开（默认关闭零影响）
                 game.set_record_log(True)

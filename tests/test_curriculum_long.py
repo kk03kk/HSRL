@@ -55,13 +55,14 @@ def test_greedy_guard_preserves_buy_and_resets_per_game(monkeypatch):
     def evaluator(f,c,m,seat):
         prior=np.zeros(245);prior[197]=10;prior[203]=9;prior[8]=1
         return prior,0
-    guarded=ppo.PPOGreedyPolicy(evaluator,max_actions_per_turn=80,move_guard=True,move_cap=5)
-    # 生产口径 cap=5 / repeat=2：两次 197、两次 203 后都被重复限制屏蔽，回退买牌；
+    guarded=ppo.PPOGreedyPolicy(evaluator,max_actions_per_turn=100,move_guard=True,move_cap=2)
+    # 生产口径 cap=2 / repeat=2（D-070）：197 连用两次即用满 cap（且 203 是 197 的逆换位，
+    # 从第 2 次起就被 inverse 规则挡住）⇒ 之后所有 Move 被清，只能买牌(8)。
     # reset() 清空本局守卫状态后重新允许换位。
-    assert [guarded.decide(game,0).action for _ in range(6)]==[197,197,8,203,203,8]
+    assert [guarded.decide(game,0).action for _ in range(6)]==[197,197,8,8,8,8]
     guarded.reset();assert guarded.decide(game,0).action==197
     with pytest.raises(ValueError, match="强制动作规则"):
-        ppo.PPOGreedyPolicy(evaluator,max_actions_per_turn=80,move_guard=False)
+        ppo.PPOGreedyPolicy(evaluator,max_actions_per_turn=100,move_guard=False)
 
 
 def test_lr_fork_changes_schedule_but_preserves_adam_and_rng():

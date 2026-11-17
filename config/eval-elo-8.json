@@ -81,8 +81,8 @@
   "games_per_pair": 64,
   "seed_base": 88000000,
   "decode": "greedy",
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "max_steps": 50000,
   "collect_opponents": false,
@@ -105,5 +105,8 @@
   "forced_tier_plan": "",
   "mirror_pool": null,
   "human_board_pool": null,
-  "elo_l2": 0.01
+  "elo_l2": 0.01,
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

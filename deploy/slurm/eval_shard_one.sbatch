@@ -51,7 +51,9 @@ ft_args=()
 
 PYTHONPATH=engine/python:. python workflows/eval_human_gap.py \
   "${specs[@]}" --games "$games" --seed "$seed" --device cuda:0 \
-  --forbid-unfreeze 1 --freeze-cap "${HSAI_GAP_FREEZE_CAP:-2}" \
+  --max-actions-per-turn 100 --move-cap 2 --move-repeat-limit 2 \
+  --forbid-unfreeze 1 --freeze-cap "${HSAI_GAP_FREEZE_CAP:-1}" \
+  --lobby-exclude "${HSAI_GAP_LOBBY_EXCLUDE:-}" \
   --human-baseline "$baseline" \
   --mirror-snaps "$snaps" \
   --mirror-sample "${HSAI_GAP_MIRROR_SAMPLE:-p50band}" \

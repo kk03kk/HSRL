@@ -50,7 +50,7 @@ def main(argv=None):
     ap.add_argument("--z", type=int, default=45, help="阵容 id；45 = none")
     ap.add_argument("--forbid-cancel", type=int, default=1)
     ap.add_argument("--keep-start-board", type=int, default=1)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80)
+    ap.add_argument("--max-actions-per-turn", type=int, default=100)
     a = ap.parse_args(argv)
 
     net, ck, res = hsbg_net.load(a.ckpt, device=a.device)

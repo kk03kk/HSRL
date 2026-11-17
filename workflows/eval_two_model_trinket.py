@@ -44,6 +44,16 @@ END_TURN = 0
 TARGET_DEFAULT = "BG36_MagicItem_414"
 
 
+
+def _contract() -> Dict[str, Any]:
+    """动作契约的唯一真值（``hsbg.az.train.eval_policy.TRAINING_CONTRACT``）。
+
+    2026-11-17（D-070）：以前每个评测入口各写一份 ``80/5/2`` 字面量，契约一变就要
+    同步改 4+ 处，漏一处就是"训练用新契约、评测用旧契约"的静默错配。
+    """
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
+    return dict(TRAINING_CONTRACT)
+
 def sha256_text(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
@@ -60,10 +70,15 @@ def load_config(path: Path) -> Dict[str, Any]:
                 "move_repeat_limit"):
         if key not in cfg:
             raise ValueError(f"配置缺少 {key}: {path}")
-    if int(cfg["max_actions_per_turn"]) != 80:
-        raise ValueError("max_actions_per_turn 必须固定为 80")
-    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
-        raise ValueError("move_cap 必须为 5，move_repeat_limit 必须为 2")
+    _c = _contract()
+    if int(cfg["max_actions_per_turn"]) != int(_c["max_actions_per_turn"]):
+        raise ValueError("max_actions_per_turn 必须为 "
+                         f"{_c['max_actions_per_turn']}（TRAINING_CONTRACT）")
+    if int(cfg["move_cap"]) != int(_c["move_cap"]) \
+            or int(cfg["move_repeat_limit"]) != int(_c["move_repeat_limit"]):
+        raise ValueError("move_cap 必须为 "
+                         f"{_c['move_cap']}、move_repeat_limit 必须为 "
+                         f"{_c['move_repeat_limit']}（TRAINING_CONTRACT）")
     for label in ("A", "B"):
         model = cfg["models"].get(label) or {}
         for key in ("id", "path", "file_sha256", "bytes"):

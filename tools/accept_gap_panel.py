@@ -87,20 +87,35 @@ def _pick(mapping: Any, key: Any) -> Optional[float]:
 
 
 def paired_rank_delta(cand: Any, base: Any, n_boot: int = 4000,
-                      seed: int = 20261113) -> Optional[Dict[str, Any]]:
+                      seed: int = 20261113, *,
+                      a_seeds: Any = None, b_seeds: Any = None
+                      ) -> Optional[Dict[str, Any]]:
     """同一批种子的**逐局名次差**（cand − base）与 bootstrap 95% CI。
 
     为什么不能用两个均值直接比：96 局 8 人局的单局名次方差 ≈1.5，均值 SE ≈0.15，
     0.15 的差就是 1 个标准误（见 `docs/analysis/ACCEPTANCE_BASELINE.md` §4.5）。
     面板里各模型用同一个 `--seed`，逐局配对后自由度大得多。
+
+    2026-11-17（审计 P1-6）：有 ``seed_sequence`` 时**按 seed 配对**，缺分片也不会错位；
+    没有 seed 时才退回按下标。返回里带 ``pairing`` 便于上层判断可信度。
     """
     if not isinstance(cand, list) or not isinstance(base, list):
         return None
-    if len(cand) != len(base) or not cand:
+    if not cand or not base:
         return None
+    pairing = "index"
+    if isinstance(a_seeds, list) and isinstance(b_seeds, list) \
+            and len(a_seeds) == len(cand) and len(b_seeds) == len(base):
+        pos = {int(s): i for i, s in enumerate(b_seeds)}
+        pairs = [(i, pos[int(s)]) for i, s in enumerate(a_seeds) if int(s) in pos]
+        pairing = "seed"
+    else:
+        if len(cand) != len(base):
+            return None
+        pairs = list(zip(range(len(cand)), range(len(base))))
     diffs = []
-    for a, b in zip(cand, base):
-        fa, fb = _num(a), _num(b)
+    for i, j in pairs:
+        fa, fb = _num(cand[i]), _num(base[j])
         if fa is None or fb is None or fa < 1 or fb < 1:
             continue
         diffs.append(fa - fb)
@@ -120,6 +135,7 @@ def paired_rank_delta(cand: Any, base: Any, n_boot: int = 4000,
     hi = boots[int(0.975 * (len(boots) - 1))]
     return {"n": n, "mean_delta": round(mean, 4),
             "ci95": [round(lo, 4), round(hi, 4)],
+            "pairing": pairing,
             "better_share": round(sum(1 for d in diffs if d < 0) / n, 3),
             "worse_share": round(sum(1 for d in diffs if d > 0) / n, 3)}
 
@@ -142,7 +158,10 @@ def rank_block(model: Dict[str, Any]) -> Dict[str, Any]:
         "survive_t14": _num(reached.get("14")),
         "max_turn_p50": _num(sv.get("max_turn_p50")),
         "illegal_actions": _num(o.get("illegal_actions")),
+        "truncated_games": _num(o.get("truncated_games")),
         "rank_sequence": model.get("rank_sequence"),
+        # 配对键（审计 P1-6）：有 seed 时按 seed 配对，缺分片也不会错位。
+        "seed_sequence": model.get("seed_sequence"),
     }
 
 
@@ -178,26 +197,46 @@ def coverage_block(panel_models: Dict[str, Dict[str, Any]], human_lib: str,
 
 def judge(cand: Dict[str, Any], base: Dict[str, Any],
           human_p50: Dict[int, float]) -> Dict[str, Any]:
-    """逐项判定；每一项都给出数值依据，不做"综合分"。"""
+    """逐项判定；每一项都给出数值依据，不做"综合分"。
+
+    2026-11-17 审计修正（P2-7）：
+    * ``pass=None``（"未评估"）以前**既不算通过也不算失败** ⇒ 四项全 SKIP 也能
+      ``overall.pass=True``。现在 ``None`` 一律算**未通过**，且 ``overall`` 要求
+      期望的检查项**全部**为 True；
+    * 补上 ``docs/EVAL_PROTOCOL.md`` §5 的**第 0 步有效性门**：``illegal_actions`` 与
+      ``truncated_games`` 必须为 0，否则整轮作废（以前这条验收器完全没有）；
+    * 配对失效（长度不等/有效对太少）不再静默退回点估计比较，而是**判失败**。
+    """
     cr, br = cand["rank"], base["rank"]
     cs, bs = cand["board"]["strength_p50"], base["board"]["strength_p50"]
     ct, bt = cand["tempo"]["tier_mean"], base["tempo"]["tier_mean"]
     checks: Dict[str, Any] = {}
 
+    # 0) 有效性（EVAL_PROTOCOL §5 第 0 步）：不合法动作/截断必须为 0。
+    def _zero(key: str) -> Dict[str, Any]:
+        c, b = _num(cr.get(key)), _num(br.get(key))
+        return {"pass": bool((c or 0) == 0 and (b or 0) == 0),
+                "candidate": c, "base": b}
+    checks["validity_illegal_actions"] = _zero("illegal_actions")
+    checks["validity_truncated_games"] = _zero("truncated_games")
+
     # 1) 排名：不能更差；并且活到 T14 的比例不能掉 >2 个点。
     d_rank = (_num(cr["mean_rank"]) or 9) - (_num(br["mean_rank"]) or 9)
     d_surv = (_num(cr["survive_t14"]) or 0) - (_num(br["survive_t14"]) or 0)
-    paired = paired_rank_delta(cr.get("rank_sequence"), br.get("rank_sequence"))
+    paired = paired_rank_delta(cr.get("rank_sequence"), br.get("rank_sequence"),
+                               a_seeds=cr.get("seed_sequence"),
+                               b_seeds=br.get("seed_sequence"))
     if paired is not None:
         # 有逐局名次 → 用配对 bootstrap：CI 上界 <= +0.02 才算"没变差"。
         rank_ok = bool(paired["ci95"][1] <= 0.02)
     else:
-        rank_ok = bool(d_rank <= 1e-9)
+        # 配对失效（长度不等 / 有效对 <20 / 缺 rank_sequence）→ 不能靠点估计放行。
+        rank_ok = False
     checks["rank"] = {
         "pass": bool(rank_ok and d_surv >= -0.02),
         "mean_rank": cr["mean_rank"], "base_mean_rank": br["mean_rank"],
         "delta_mean_rank": round(d_rank, 4),
-        "paired": paired,
+        "paired": paired, "paired_usable": paired is not None,
         "survive_t14": cr["survive_t14"], "base_survive_t14": br["survive_t14"],
         "delta_survive_t14": round(d_surv, 4),
     }
@@ -258,13 +297,39 @@ def judge(cand: Dict[str, Any], base: Dict[str, Any],
             tempo[str(t)] = round(a - b, 3)
     checks["tempo_delta_vs_base"] = tempo
 
-    passed = [k for k, v in checks.items() if isinstance(v, dict) and v.get("pass") is True]
-    failed = [k for k, v in checks.items() if isinstance(v, dict) and v.get("pass") is False]
-    checks["overall"] = {
-        "pass": bool(not failed),
-        "passed": passed, "failed": failed,
-    }
+    checks["overall"] = _overall(checks)
     return checks
+
+
+#: ``overall`` 必须**全部为 True** 才算通过的检查项（"未评估"= 不通过）。
+REQUIRED_CHECKS = ("validity_illegal_actions", "validity_truncated_games",
+                   "rank", "board", "coverage", "early_game")
+
+
+def _overall(checks: Dict[str, Any]) -> Dict[str, Any]:
+    """汇总：``pass=None`` 视为**未通过**（审计 P2-7：以前 None 不影响 overall）。"""
+    passed, failed, skipped = [], [], []
+    for k, v in checks.items():
+        # 只有带 ``pass`` 键的才是"检查项"；`tempo_delta_vs_base` 这类纯观察项直接跳过。
+        if k == "overall" or not isinstance(v, dict) or "pass" not in v:
+            continue
+        state = v.get("pass")
+        if state is True:
+            passed.append(k)
+        elif state is False:
+            failed.append(k)
+        else:
+            skipped.append(k)
+    missing = [k for k in REQUIRED_CHECKS if k not in passed]
+    return {
+        "pass": bool(not missing),
+        "passed": passed,
+        "failed": failed,
+        # 未评估（None）现在等价于"未通过"，列出来是为了让人知道**为什么**没过。
+        "not_evaluated": skipped,
+        "missing_required": missing,
+        "required": list(REQUIRED_CHECKS),
+    }
 
 
 def main(argv=None) -> int:

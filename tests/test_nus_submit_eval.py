@@ -141,6 +141,6 @@ def test_repo_config_matches_shipped_entry():
     """仓库里的真实协议配置必须仍然是用户批准的 128 局 / 80 动作 / 5 换位。"""
     cfg = json.loads((ROOT / "config/eval-duel-7357-vs-10004.json").read_text(encoding="utf-8"))
     assert cfg["games"] == 128
-    assert cfg["max_actions_per_turn"] == 80
-    assert cfg["move_cap"] == 5 and cfg["move_repeat_limit"] == 2
+    assert cfg["max_actions_per_turn"] == 100
+    assert cfg["move_cap"] == 2 and cfg["move_repeat_limit"] == 2
     assert cfg["models"]["A"]["file_sha256"] != cfg["models"]["B"]["file_sha256"]

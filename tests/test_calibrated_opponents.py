@@ -106,7 +106,13 @@ def test_exposure_is_observational_and_records_real_combats(banks):
     assert economy and 'end_turn_economy' not in plain
     assert len({(r['seed'], r['turn']) for r in economy}) == len(economy)
     assert all(1 <= r['tier'] <= 6 and r['actions'] >= 1 for r in economy)
-    assert all(sum(r['action_counts'].values()) == r['actions']
+    # ``action_counts`` 混了两层：**动作分组**（ACTION_SEGMENTS 的 14 个名字）与
+    # **卡类细分**（buy_minion / play_spell …）。后者是前者的子计数，所以
+    # `sum(values)` 会重复计一遍。这里只用主分组求和（2026-11-17：原断言
+    # `sum(values)==actions` 是卡类细分加入之前的写法，早已不能成立）。
+    from hsbg.az.train.common import ACTION_SEGMENTS
+    primary = {str(k) for k in ACTION_SEGMENTS}
+    assert all(sum(v for k, v in r['action_counts'].items() if k in primary) == r['actions']
                and r['action_counts']['end_turn'] == 1 for r in economy)
     from workflows.report_firestone_learning import by_turn
     turns = by_turn(dict(valid=True, per_seat=[observed]))

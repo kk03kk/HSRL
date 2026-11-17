@@ -25,8 +25,8 @@
   "games": 20,
   "seed": 89000000,
   "decode": "greedy",
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "max_steps": 50000,
   "seat_schedule": "first 10 games A=k%8/B=(k+1)%8; second 10 swapped",
@@ -34,5 +34,8 @@
   "engine": {
     "game_version": "37.0.2.256589",
     "source_hash": "c4c71014e3d41760"
-  }
+  },
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

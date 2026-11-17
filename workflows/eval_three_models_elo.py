@@ -36,6 +36,16 @@ SCHEMA = "hsai.eval_three_model_elo/v1"
 N_PLAYERS = 8
 
 
+
+def _contract() -> Dict[str, Any]:
+    """动作契约的唯一真值（``hsbg.az.train.eval_policy.TRAINING_CONTRACT``）。
+
+    2026-11-17（D-070）：以前每个评测入口各写一份 ``80/5/2`` 字面量，契约一变就要
+    同步改 4+ 处，漏一处就是"训练用新契约、评测用旧契约"的静默错配。
+    """
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
+    return dict(TRAINING_CONTRACT)
+
 def load_config(path: Path) -> Dict[str, Any]:
     cfg = json.loads(path.read_text(encoding="utf-8"))
     required = ("engine", "models", "games_per_pair", "seed_base", "max_actions_per_turn",
@@ -49,10 +59,15 @@ def load_config(path: Path) -> Dict[str, Any]:
     ids = [str(x["id"]) for x in cfg["models"]]
     if len(set(ids)) != 4:
         raise ValueError("model ids must be unique")
-    if int(cfg["max_actions_per_turn"]) != 80:
-        raise ValueError("max-actions-per-turn must be 80")
-    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
-        raise ValueError("move-cap/repeat rules must be 5/2")
+    _c = _contract()
+    if int(cfg["max_actions_per_turn"]) != int(_c["max_actions_per_turn"]):
+        raise ValueError("max-actions-per-turn must be "
+                         f"{_c['max_actions_per_turn']} (TRAINING_CONTRACT)")
+    if int(cfg["move_cap"]) != int(_c["move_cap"]) \
+            or int(cfg["move_repeat_limit"]) != int(_c["move_repeat_limit"]):
+        raise ValueError("move-cap/repeat rules must be "
+                         f"{_c['move_cap']}/{_c['move_repeat_limit']} "
+                         "(TRAINING_CONTRACT)")
     if int(cfg["games_per_pair"]) < 8 or int(cfg["games_per_pair"]) % 8:
         raise ValueError("games_per_pair must be divisible by 8")
     if int(cfg["bootstrap"]) < 100:

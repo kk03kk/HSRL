@@ -111,10 +111,7 @@ python ops/hsai_ops.py tunnel                # 隧道断了时打印重建命令
 | [docs/architecture/TRANSPORT.md](docs/architecture/TRANSPORT.md) | SSH 隧道、git over SSH、GitHub 定位、大文件传输 |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | 当前作业、模型结论、下一步 |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | 决策留痕（`D-###`，只追加） |
-| [docs/LIVE_V1_1_AUDIT.md](docs/LIVE_V1_1_AUDIT.md) | V1.1 实机审计、D 阶段改造与实机验证 |
-| [docs/SIMULATOR_AUDIT_2026-11-09.md](docs/SIMULATOR_AUDIT_2026-11-09.md) | 37.0.2 模拟器规则审计 |
-| [docs/LEADERBOARD.md](docs/LEADERBOARD.md) | 当前唯一排行榜规则与分数 |
-| [docs/EVAL_DUEL.md](docs/EVAL_DUEL.md) | 2 model + 6 bot 对局协议 |
+| [docs/analysis/](docs/analysis/) | 一次性分析与专题审计（历史审计已归档到 `records/archive/docs-20261114/`，不再当"当前路径"用） |
 | [docs/nus/ENVIRONMENT.md](docs/nus/ENVIRONMENT.md) | NUS 环境、Slurm、GPU、恢复 |
 
 ## 项目边界

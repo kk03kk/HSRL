@@ -51,6 +51,8 @@ sys.path.insert(0, str(ROOT))
 SCHEMA = "hsai.eval_duel/v1"
 N_PLAYERS = 8
 END_TURN_ACTION = 0
+#: Freeze 动作下标（与 ``hsbg.env.action_space_std.A_FREEZE`` 一致）。
+FREEZE_ACTION = 2
 CONFIG_DEFAULT = ROOT / "config/eval-duel-7357-vs-10004.json"
 LABELS = ("A", "B")
 
@@ -148,10 +150,22 @@ def load_config(path: Path) -> Dict[str, Any]:
             raise ValueError(f"配置 models.{label} 需要 id/path: {path}")
     if int(cfg["games"]) <= 0:
         raise ValueError("games 必须 > 0")
-    if int(cfg["max_actions_per_turn"]) != 80:
-        raise ValueError("max_actions_per_turn 必须固定为 80")
-    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
-        raise ValueError("move_cap 必须为 5，move_repeat_limit 必须为 2")
+    # 2026-11-17（D-070）：契约校验对着 TRAINING_CONTRACT（唯一真值）做，不再写死字面量。
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT as _C
+    if int(cfg["max_actions_per_turn"]) != int(_C["max_actions_per_turn"]):
+        raise ValueError(f"max_actions_per_turn 必须为 {_C['max_actions_per_turn']}"
+                         f"（TRAINING_CONTRACT）：{path}")
+    if int(cfg["move_cap"]) != int(_C["move_cap"]) \
+            or int(cfg["move_repeat_limit"]) != int(_C["move_repeat_limit"]):
+        raise ValueError(f"move_cap 必须为 {_C['move_cap']}、move_repeat_limit "
+                         f"必须为 {_C['move_repeat_limit']}（TRAINING_CONTRACT）：{path}")
+    # 冻结/解冻/饰品封禁也属于契约（以前 Elo 路径**完全没有**这三项，属审计 P2-2）。
+    for key, want in (("freeze_cap", int(_C["freeze_cap"])),
+                      ("forbid_unfreeze", 1 if _C["forbid_unfreeze"] else 0),
+                      ("ban_trinkets", 1 if _C["ban_trinkets"] else 0)):
+        if key in cfg and int(cfg[key]) != int(want):
+            raise ValueError(f"{key} 必须为 {want}（TRAINING_CONTRACT）：{path}")
+        cfg.setdefault(key, want)
     sha_a = str(cfg["models"]["A"].get("file_sha256") or "")
     sha_b = str(cfg["models"]["B"].get("file_sha256") or "")
     if sha_a and sha_a == sha_b:
@@ -270,24 +284,37 @@ class DuelSeatPolicy:
     合法动作则失败关闭，不生成违反规则的样本。
     """
 
-    def __init__(self, label: str, evaluator: Any, *, max_actions_per_turn: int = 80,
-                 move_cap: int = 5, move_repeat_limit: int = 2,
-                 forbid_cancel: bool = True) -> None:
+    def __init__(self, label: str, evaluator: Any, *, max_actions_per_turn: int = 100,
+                 move_cap: int = 2, move_repeat_limit: int = 2,
+                 forbid_cancel: bool = True, freeze_cap: int = 1,
+                 forbid_unfreeze: bool = True, ban_trinkets: bool = True) -> None:
         from hsbg.az.train.move_guard import MoveGuard, is_move
+        from hsbg.az.train.eval_policy import TRAINING_CONTRACT as _C
 
         self.label = str(label)
         self.evaluator = evaluator
         self.max_actions_per_turn = int(max_actions_per_turn)
         self.forbid_cancel = bool(forbid_cancel)
-        if (self.max_actions_per_turn != 80 or not self.forbid_cancel
-                or int(move_cap) != 5 or int(move_repeat_limit) != 2):
-            raise ValueError("强制动作规则：max=80, move_cap=5, move_repeat=2, "
-                             "forbid_cancel=1")
+        if (self.max_actions_per_turn != int(_C["max_actions_per_turn"])
+                or not self.forbid_cancel
+                or int(move_cap) != int(_C["move_cap"])
+                or int(move_repeat_limit) != int(_C["move_repeat_limit"])):
+            raise ValueError(
+                f"强制动作规则与 TRAINING_CONTRACT 不一致：max={max_actions_per_turn}"
+                f"(契约 {_C['max_actions_per_turn']}), move_cap={move_cap}"
+                f"({_C['move_cap']}), move_repeat={move_repeat_limit}"
+                f"({_C['move_repeat_limit']}), forbid_cancel={int(bool(forbid_cancel))}")
+        # 2026-11-17（D-070）：Freeze 上限 / 解冻 / 饰品封禁此前在 Elo 路径**完全缺失**
+        # （审计 P2-2：评测契约不闭合），现在补齐并与训练同口径。
+        self.freeze_cap = int(freeze_cap)
+        self.forbid_unfreeze = bool(forbid_unfreeze)
+        self.ban_trinkets = bool(ban_trinkets)
         self.guard = MoveGuard(cap=int(move_cap), repeat_limit=int(move_repeat_limit),
                                hard_cap=True)
         self._is_move = is_move
         self.turn_counts: Dict[tuple, int] = {}
         self.turn_moves: Dict[tuple, int] = {}
+        self._freeze_counts: Dict[tuple, int] = {}
         self.stats: Counter = Counter()
         self._guard_snapshot: Dict[str, int] = {}
 
@@ -295,6 +322,7 @@ class DuelSeatPolicy:
         self.guard.clear_state()
         self.turn_counts.clear()
         self.turn_moves.clear()
+        self._freeze_counts.clear()
 
     def take_guard_delta(self) -> Dict[str, int]:
         """取自上局以来的守卫计数增量（守卫累计统计跨局保留）。"""
@@ -311,7 +339,7 @@ class DuelSeatPolicy:
         return delta
 
     def decide(self, game: Any, seat: int) -> tuple[int, Dict[str, Any]]:
-        """守卫(5 换位/2 去抖) → 80 动作上限 → masked softmax + argmax。"""
+        """契约掩码（Cancel / 解冻 / Freeze 上限 / 饰品封禁）→ 换位守卫 → 动作上限 → argmax。"""
         from hsbg.az.train.common import mask_from_bytes, masked_normalize, obs_arrays
 
         seat, turn = int(seat), int(game.turn)
@@ -321,6 +349,31 @@ class DuelSeatPolicy:
             mask = without_cancel(mask)
             if not bool(mask.any()):
                 raise RuntimeError(f"forbid-cancel: no legal non-cancel action seat={seat} turn={turn}")
+        # 2026-11-17（D-070）：与训练同口径的三项（以前 Elo 路径完全没有）。
+        if self.forbid_unfreeze and bool(mask[FREEZE_ACTION]):
+            from hsbg.env.obs_std import GLOBAL_FIELD_INDEX
+            f_now, _c_now = obs_arrays(game.observe(seat))
+            if float(f_now[GLOBAL_FIELD_INDEX["frozen"]]) > 0.5:
+                mask = mask.copy()
+                mask[FREEZE_ACTION] = False
+        if self.freeze_cap > 0 and bool(mask[FREEZE_ACTION]):
+            fk = (seat, turn)
+            if int(self._freeze_counts.get(fk, 0)) >= self.freeze_cap:
+                mask = mask.copy()
+                mask[FREEZE_ACTION] = False
+        if self.ban_trinkets:
+            from hsbg.az.train.action_ban import (ban_choice_options,
+                                                  has_pending_choice)
+            if has_pending_choice(mask):
+                try:
+                    import json as _json
+                    _pj = _json.loads(game.player_json(seat))
+                except BaseException:      # noqa: BLE001 - 解析失败就不遮
+                    _pj = None
+                if _pj is not None:
+                    if not mask.flags.writeable:
+                        mask = mask.copy()
+                    ban_choice_options(_pj, mask)
         guarded, guard_forced = self.guard.guarded_mask(
             mask, game_id=0, seat=seat, turn=turn)
         key = (seat, turn)
@@ -358,6 +411,10 @@ class DuelSeatPolicy:
                 info["move_cap_overflow"] = True
             self.turn_moves[key] = int(self.turn_moves.get(key, 0)) + 1
             self.stats["moves_taken"] += 1
+        if int(action) == FREEZE_ACTION and self.freeze_cap > 0:
+            # 与训练侧同一记账（freeze_cap 的掩码在下一回合生效）。
+            self._freeze_counts[key] = int(self._freeze_counts.get(key, 0)) + 1
+            self.stats["freezes_taken"] += 1
         self.guard.note_action(action, game_id=0, seat=seat, turn=turn)
         return int(action), info
 

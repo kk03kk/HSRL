@@ -17,7 +17,7 @@ def test_parallel_matches_serial_bot():
     model = build_net(16)
     model.eval()
     cfg = CollectConfig(games=2, opponent="bot", behavior="net", seed=123,
-                        max_actions_per_turn=80)
+                        max_actions_per_turn=100)
     b1, _ = collect_ppo_batch(model, cfg, device="cpu", seed=123, progress=False)
     b2, _ = collect_ppo_batch_parallel(model, cfg, workers=2, device="cpu",
                                        seed=123, progress=False)
@@ -146,7 +146,7 @@ def test_lockstep_reports_forced_tier_meta():
     try:
         cfg = CollectConfig(games=4, seed=17, opponent="bot", behavior="net",
                             max_steps=20000, lockstep=True, fast_act=True,
-                            max_actions_per_turn=80,
+                            max_actions_per_turn=100,
                             forced_tier_plan="2:2,5:3", forced_tier_carry=1,
                             forced_tier_prob=1.0, forced_tier_teacher=True)
         records, meta = collect_ppo_lockstep(model, cfg, eval_fn=BatchPPOEvaluator(server),

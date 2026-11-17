@@ -72,7 +72,7 @@ def main() -> int:
                     help="mirror sampling mode: p50/p75/p90/random/max/weak")
     ap.add_argument("--policy-seat", type=int, default=0)
     ap.add_argument("--max-steps", type=int, default=50000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80)
+    ap.add_argument("--max-actions-per-turn", type=int, default=100)
     ap.add_argument("--strict", type=int, default=1)
     ap.add_argument("--forbid-unfreeze", type=int, choices=[0, 1], default=0,
                     help="1=与训练/实机一致，全冻结时屏蔽 Freeze")

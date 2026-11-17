@@ -200,11 +200,11 @@ python workflows/train_entity_sync.py \
   --human-board-ramp "$human_ramp" --human-board-quantile-ramp "$human_q_ramp" \
   --human-board-fidelity full --human-board-fast-inject 1 --human-board-min-turn "$human_min_turn" \
   ${ENTRY_ARGS[@]+"${ENTRY_ARGS[@]}"} \
-  --max-actions-per-turn 80 --snapshot-every 25 --keep-snapshots 2 \
+  --max-actions-per-turn 100 --snapshot-every 25 --keep-snapshots 2 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --pipeline 1 --amp bf16 \
   --gpus 0 --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
-  --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
+  --move-guard 1 --move-cap 2 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --reset-anchor 1 --forbid-unfreeze 1 \
   --comp-target-coef "$comp_coef" --comp-target-min-turn 10 --comp-target-cards config/strategy_cards.json \
   --comp-target-tier-w S:1.0,A:0.6,B:0.3 --comp-target-cap 1.0 --comp-target-min-hits 2 \

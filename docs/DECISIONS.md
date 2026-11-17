@@ -1527,3 +1527,176 @@ CLI：`--win-bonus`（默认 0）；sbatch：`HSAI_ARENA_WIN_BONUS:-0.7`，并�
 - 1 卡 1 进程：1.29 s/局
 - 纯 CPU 8 进程：1.88 s/局（慢 3.3 倍，**否决**）
 ⇒ 提速只能加卡，每卡仍配 8 进程。当前集群只有 3 块 h100-47 空闲，所以用 3 节点。
+
+---
+
+## D-069 · 2026-11-17 · local · **全项目审计 + P0/P1 修复：评测可信性、统计配对、架构兼容、门禁代码化**
+
+用户授权："按审计报告自主制定修复计划并执行；优先 P0 与影响正确性的 P1；修复必须有测试；
+尽量修根因；不破坏现有模型与检查点；训练策略/场地/奖励等重大方向只出研究说明，不擅改。"
+
+**审计结论（详见 `docs/analysis/AUDIT_20261117.md`）**：工程骨架比文档更扎实（PPO 数学、
+GAE、掩码一致性、注入 RNG 配对、续训状态、战斗规则主体均经复核正确），但当时处于
+"测量系统失灵 + 训练信号枯竭"状态：
+1. **主评测入口在 HEAD 上崩溃**（`2acfebf` 删掉了 `PPOEvaluator` 构造却留下
+   `if evaluator is None:` ⇒ 自家 checkpoint 全 `UnboundLocalError`）；
+2. **判胜链路没有 `protocol_sha256`**、面板没记场地（`opponent` 恒为 `"engine_bot x7"`）；
+3. **多模型分片互相覆盖** `rows.jsonl.gz`，补救工具让 `illegal/truncated` 只覆盖 1/24 分片；
+4. **配对按数组下标**（缺中间分片 ⇒ CI 假性跨 0），M1 是存活条件中位数（会把"活得更久"
+   读成"M1 退化"）；
+5. **`pytest tests` 直接 INTERNALERROR**（3 个测试文件模块级 `raise SystemExit`）；
+6. **借鉴的架构开关不可加载**（z-token/属性/磁力查询改变键集却不写 meta、也不推断），
+   且 `z_global` 是**死代码**（算了从未加进 global token）；
+7. **`TRAINING_RECIPE §5` 的红线一条都没实现**（非法动作/截断/非有限损失不会停机）。
+
+**已修（全部带测试，见 AUDIT_20261117 §2 的表）**：`eval_policy.py` 成为唯一策略构造入口；
+面板写全 protocol + 指纹 + 注入统计；按模型名落盘 + 两个 merge 工具跨分片求和/拒绝缺分片；
+`seed_sequence` + 按 seed 配对 + 共同存活子集 M1；`accept_gap_panel` fail-closed；
+三个脚本式测试改成真 pytest；ckpt 架构开关持久化 + 中立槽归零；教师 CE 归一化口径
+（默认不变、可选 `valid`、写 `teacher_label_share`）；`health_gate.py`；
+根目录白名单/大文件门禁 + 三个 `.pt` 移入 `data/thirdparty/`；文档断链与 `--help` 崩溃。
+
+**明确没做（等用户决定）**：训练场强度与重建、λ/信用分配等超参、对手是否"会行动"
+（静态快照 vs 自博弈 vs 联赛）、引擎侧随机待选与单流 RNG、`next_is_ghost` 等观测位、
+`mirror_hard_gates`/`quality_monitor` 接进 operative 链。
+
+**因 Bug 而失效的历史结论（已登记，不改原文）**：
+- **D-068 第 3 项在 v1.3 三轮里完全没生效**：`player_json['pending']` 是 list + 外部标记枚举，
+  旧代码按 dict 判定 ⇒ 恒 False（`action_ban.py` 自述 "r3 仍选中 496 次 / 3.81%"）。
+  修复提交 `5a67150`(10:16) 晚于三轮链结束(09:39)与评测(10:03) ⇒
+  **v1.3 三轮不能用来回答"封禁加重护手有没有用"**。
+- **跨代名次对比不可用**：每代场地都按当时模型重建，且当时面板无协议指纹 ⇒ 不同榜。
+
+**下一阶段建议（用户已同意先研究后决定）**：先跑 10 分钟 `R²(板面→名次)` 门禁 →
+单变量实验（T12–T20 靶 ×1.15）→ 之后再把"后期运营"变成可学信号（金卡 0.97/局 vs 真人 2.55、
+留存增重 +87 vs +690、每格 atk 123 vs 598）。研究报告：
+`docs/analysis/TRAINING_OPPONENT_DESIGN_20261117.md`。
+
+## D-070 · 2026-11-17 · local · **收紧/放宽三个动作上限：max-actions 80→100、换位 cap 5→2、Freeze cap 2→1**
+
+用户决定（原话："回合动作上限到100；换位每回合最多2次；冻结每回合最多一次"），要求
+**立即应用到所有训练、评测**。这属于 `AGENTS.md` §4 的**冻结契约**变更，用户已明确授权。
+
+**1. 实测依据**（`docs/analysis/ACTION_CAP_20261117.md`）
+- `max_actions_per_turn = 80` **几乎从不触发**：评测 r3（1032 局 = 13,031 个回合实例）
+  只有 **3 个回合**撞到（**0.023%**，3 局 / 0.29%）；训练三轮（2.098 亿决策）`forced_end_turns`
+  合计 **1,967**（≈0.015% 的回合）。逐回合动作数 p50=12 / p90=34 / p99=52 / p99.9=67 / max=81。
+  ⇒ 放宽到 100 只是给尾部留余量，**不改变统计行为**（但会换协议指纹）。
+- 真正饱和的是另外两个上限：`move` 每回合**打满 5 次**（评测使用率 100%；训练累计被 cap
+  掩掉 26.8 亿个合法动作位），`freeze` 使用率 **99%**（cap=2 时均值 1.9 次/回合）。
+  ⇒ 收紧它们才是"治动作空转"的方向。
+
+**2. 具体改动**
+| 项 | 旧 | 新 |
+|---|---:|---:|
+| `max_actions_per_turn` | 80 | **100** |
+| `move_cap`（每回合换位次数） | 5 | **2** |
+| `freeze_cap`（每回合按 Freeze 次数） | 2 | **1** |
+| `move_repeat_limit` / `forbid_cancel` / `forbid_unfreeze` / `ban_trinkets` | 2 / 1 / 1 / 1 | **不变** |
+
+**3. 根因式实现（不是改 40 份字面量）**
+- 唯一真值仍是 `hsbg/az/train/eval_policy.py::TRAINING_CONTRACT`；**所有**硬校验改成对着它比：
+  `PPOGreedyPolicy`、`PPOSelfPlayPolicy`、`train_entity_sync` 的 `ap.error`、`DuelSeatPolicy`、
+  `load_config`（duel / round-robin Elo / 3-model Elo / two-model trinket / gauntlet）、
+  `capture_trajectory`、`train_az_ppo`、`build_v1_1_panel`。
+  以前这些地方各写一份 `80/5/2` 字面量，契约一变就要同步 8+ 处，漏一处就是"训练用新契约、
+  评测用旧契约"的静默错配（审计 P2-2 的根因）。
+- 顺手补齐 Elo 路径**完全缺失**的三项（`freeze_cap` / `forbid_unfreeze` / `ban_trinkets` 的掩码），
+  以前 `DuelSeatPolicy` 只有 move-guard + 禁用 Cancel。
+- 默认值同步：`CollectConfig`、`PPOGreedyPolicy`、`MoveGuard.DEFAULT_MOVE_CAP`、训练/评测 CLI、
+  `quality_monitor`（原 40）、`thirdparty_policy`、七个 `config/eval-*.json`。
+
+**4. 影响（必须记住）**
+- **换榜**：契约进 `protocol_sha256` ⇒ 所有旧面板（含 `v1.3_r3` 的 1032 局）与新面板**不可混比**。
+  下一轮评测必须重跑对照。
+- **模型行为会变**：`move`/`freeze` 的动作被掩掉后策略只能改选别的动作，因此 T12 起
+  "搬随从/冻店"的空转会显著减少，`refresh`/`buy` 的分配可能跟着变——这是**预期效果**，也是下一轮
+  要看的主要行为指标。
+- **验证**：全量 `pytest tests` 877 用例通过（含按新契约重写的 move-guard 断言）。
+
+---
+
+## D-071 · 2026-11-17 · local · **lobby 种族排除开关（机械 + 龙）：不改引擎的确定性种子过滤**
+
+用户提出："下一次训练想把机械和龙 ban 了，让模型先学会玩别的阵容。"
+
+**1. 现状（引擎口径）**：每局从 **10 个类型均匀抽 5 个**
+（`flow.rs` optional = 9 个部族 + ABERRATION，`cfg.lobby_races = 5`）。
+`RulesConfig` 只有**强制加入**（`lobby_types`）与 `aberration_forced`，**没有排除列表**；
+`RulesConfig::from_json` 对未知键报错，所以配置层也塞不进去。
+另：**NAGA 不在抽签池里**（11 个 `Races::NAMES` 中 NAGA 只经双种族卡出现），
+所以本引擎的"10"= 9 部族 + Aberration，与真实游戏的 10 个部族不完全一致。
+
+**2. 为什么不改引擎**：`source_hash` = 两个 crate 全部 `.rs` + `cards.json` 的 FNV 指纹
+（当前 `c4c71014e3d41760`）。动一行 Rust 就换指纹 ⇒ 所有模型 manifest 的引擎锚点失效，
+且需要计算节点重编（本机无 MSVC）。**收益不值这个代价**。
+
+**3. 实现**：`hsbg/az/train/lobby_filter.py` —— **确定性种子过滤**
+1. `Game(seed)` 建局（很便宜，不跑模拟）；
+2. 从**观测** global 块最后 11 位读 lobby 种族（`f[42:53]`；已实测与
+   `state_json()["lobby_races"]` 的 bitmask 逐位一致）；
+3. 含被禁种族 → 用 `derive_seed(base, k)`（splitmix64 混合）取下一个候选，重来。
+接受率 = C(8,5)/C(10,5) = **22.2%**（禁 2 个）⇒ 平均建 4.5 局；实测 50 局过滤 < 2 s。
+候选种子只由 `(base, k)` 决定 ⇒ **同一 base 下所有模型面对同一批局**（配对统计仍成立），
+且与其他分片不撞。
+
+**4. 接线（训练 + 评测同口径）**
+- `CollectConfig.lobby_exclude` / `EvalConfig.lobby_exclude`（空 = 不过滤，逐位等价旧行为）；
+- 三处建局全部改走 `make_filtered_game`：串行采集、lockstep 采集、`evaluate.py`；
+- CLI：`--lobby-exclude MECHANICAL,DRAGON`（训练入口与 gap 评测入口都有）；
+- **`seed_sequence` 现在记录实际使用的种子**（过滤会换种子，不能再按 `base+gi` 推）。
+- 测试：`tests/test_lobby_filter.py`（12 条，含真实引擎验证"lobby 里真的没有机械/龙"）、
+  `tests/test_lobby_wiring.py`（5 条，含一次真实评测端到端）。
+
+**5. 风险（用户已知悉并接受为"课程"）**
+- **商店池变浓**：5 抽 8 而不是 5 抽 10 ⇒ 同族卡更容易凑齐（难度感知会变）；
+- **删掉的正是模型现在最强的两条线**：r3 的终局阵容 Top5 里 4 个是龙/机械
+  （希望信使 33.9%、蓄能女沙皇 30.0%、赤红守备巨龙 28.9%、坠落的飞天魔像 27.8%）
+  ⇒ 下一轮**预计会出现性能回落**，这是换取"学习其它阵容"的代价；
+- **与真实分布不一致**（真实是 10 部族全开）⇒ 该轮结果不能当作"实机强度"，
+  只作课程内部对照；恢复时把 `--lobby-exclude` 去掉即可，其余配方不变。
+- **换协议**：环境变了 ⇒ 与 r3 的面板不可混比。
+
+**6. 默认关闭**：当前所有入口的默认值都是"不过滤"。启用只需在提交作业时加
+`HSAI_ARENA_LOBBY_EXCLUDE=MECHANICAL,DRAGON`（`stage_arena.sbatch` 已透传，见下一条）。
+
+---
+
+## D-072 · 2026-11-17 · local · **补上"借鉴结构"的 CLI 入口 + 逐项判断要不要做**
+
+用户给了一张"参考第三方训练模型的 5 项设计"表，问本项目有没有对应改动、有没有必要做。
+
+**1. 现状核对（结论：4/5 在代码里，但 3 个打不开；2 个是空转）**
+
+| # | 第三方设计 | 我们有没有 | 实际状态 |
+|---|---|---|---|
+| ① | 46 阵容条件化 token `z` | 有 `use_z` / `n_z=46` / `zcard` / `z_global` / `z_tok` | **默认关**；`zcard` 是**全零 buffer 且全仓无生产者** ⇒ `z_tok` 半边恒等；`z_global` 原本是死代码（D-069 已修）；**中立槽 45 已强制归零** |
+| ② | 311 维卡牌属性 + id 双路 | 有 `use_attr` / `attr_f=311` / `attr_proj` | **默认关**；`attr` 也是**全零 buffer 无生产者** ⇒ 投影输出恒 0，等于没加 |
+| ③ | magnetize 双线性头 | 有 `mag_query`（零初始化） | **默认关**，但**唯一真正可训**的一项（它有梯度、起点等价旧版） |
+| ④ | 奖励 `[1, .2, 0, 0, 0, 0, -.1, -.2]` | 有 `--rank-utility-table` | **方向一致、形状不同**：现役是 `[1.00, 0.35, −1.00, −1.15, −1.30, −1.45, −1.60, −1.75]`。差别在 3–6 名：他们给 **0**（无梯度），我们保留 0.15 的小梯度（还留着"别死太早"） |
+| ⑤ | `no_cancel_choose` | 有 `pending_guard.no_cancel_choose` | **默认关**，且被我们更强的 `forbid_cancel=1`（全局禁 Cancel）**完全覆盖** ⇒ 加了也等于没加 |
+
+另外发现：这三项结构开关**在训练入口没有任何 CLI**（只有 `build_entity_net` 的参数），
+意味着"实现了"等于"永远打不开"。本轮补上 `--use-z/--n-z/--use-attr/--attr-f/--mag-query`，
+默认全关（逐位等价旧模型），并加 `--help` 回归。
+
+**2. 逐项判断（要不要做 / 有没有条件）**
+- **② 311 维卡牌属性 → 最值得做，且有条件**：不需要上游数据，我们自己能从
+  `engine/crates/hsbg-engine/data/cards.json`（含 `atk/hp/tier/races/keywords/text/kind`）
+  生成 311 维表并灌进 `attr` buffer（写一个 CPU 工具 + `--use-attr 1`）。收益：新卡/冷门卡
+  的泛化更稳。成本：一天内可完成。
+- **③ 磁力双线性 → 零成本可开**：代码已在、零初始化、可训。建议作为下一轮的**第二变量**单独测
+  （不要与场地/奖励改动同轮，否则无法归因）。
+- **① 46 阵容 z → 有条件但**暂不建议**：`zcard` 需要真表（上游权重里才有），而且训练时必须
+  有一个"当前目标阵容"的输入源（课程）。我们现在的瓶颈是"后期乘法成长"，而 z 解决的是
+  "打指定阵容"，**前提是先会玩多个阵容**。等 ②③ 与场地问题解决后再谈。
+- **④ 奖励表 → 不建议改成它**：3–6 名零梯度会让"保前四"完全失去信号；我们保留小梯度更适合
+  "分代比较 + 名次只作参考"的口径。若要更狠的"只奖前二"，把 3–6 的负值加深即可，不必归零。
+- **⑤ no_cancel_choose → 不需要**：`forbid_cancel=1` 更强（全局禁），做了也没有行为差异。
+
+**3. 改动**：`train_entity_sync.py` 新增 5 个默认关的架构开关并透传给 `build_net`；
+文档记录判断；全量测试 877+ 通过。
+
+
+
+

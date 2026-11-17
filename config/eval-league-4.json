@@ -38,8 +38,8 @@
   ],
   "games_per_pair": 512,
   "seed_base": 270000000,
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "bootstrap": 5000,
   "bootstrap_seed": 20261110,
@@ -47,5 +47,8 @@
   "k_factor": 16,
   "max_steps": 50000,
   "decode": "greedy",
-  "collect_opponents": false
+  "collect_opponents": false,
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

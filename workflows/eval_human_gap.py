@@ -55,9 +55,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from hsbg.az.train.common import engine_info  # noqa: E402
+from hsbg.az.train.eval_policy import (  # noqa: E402
+    EvalProtocol,
+    make_eval_policy,
+    protocol_from_args,
+)
 from hsbg.az.train.evaluate import EvalConfig, evaluate_policy  # noqa: E402
-from hsbg.az.train.model import load_checkpoint  # noqa: E402
-from hsbg.az.train.ppo import PPOEvaluator, PPOGreedyPolicy  # noqa: E402
+from hsbg.az.train.lobby_filter import parse_race_list  # noqa: E402
 from hsbg.az.train.thirdparty_policy import is_thirdparty_spec  # noqa: E402
 
 
@@ -411,33 +415,71 @@ def boards_by_turn(rows: List[Dict[str, Any]],
     return out
 
 
-def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
-    # 第三方权重（作者的 tg-ckpt-v1）：只换「策略从哪来」，其余规则与自家模型完全一致。
-    if is_thirdparty_spec(str(path)):
-        from hsbg.az.train.thirdparty_policy import (ThirdPartyGreedyPolicy,
-                                                     split_thirdparty)
-        real = split_thirdparty(str(path))
-        policy = ThirdPartyGreedyPolicy(
-            real, device=args.device,
-            max_actions_per_turn=int(args.max_actions_per_turn),
-            forbid_cancel=bool(int(getattr(args, "tp_forbid_cancel", 0) or 0)),
-            keep_start_board=bool(int(getattr(args, "keep_start_board", 1) or 0)),
-            ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
-            freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
-            forbid_unfreeze=bool(int(args.forbid_unfreeze)),
-        )
-        print(f"[{name}] 第三方权重：{real}  z={policy.z}", flush=True)
-        model, meta, evaluator = policy.net, {}, None
-    else:
-        model, meta = load_checkpoint(str(path), device=args.device)
-    if evaluator is None:                     # 第三方权重：policy 已在上面建好
-        pass
-    else:
-        policy = PPOGreedyPolicy(evaluator,
-                                 max_actions_per_turn=int(args.max_actions_per_turn),
-                                 freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
-                                 forbid_unfreeze=bool(int(args.forbid_unfreeze)),
-                                 ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)))
+def _safe_name(name: str) -> str:
+    """模型名 → 安全文件名片段（只留字母数字与 ``._-``）。"""
+    keep = "".join(ch if (ch.isalnum() or ch in "._-") else "_" for ch in str(name))
+    return keep.strip("._-")[:64]
+
+
+def _field_stats(result: Dict[str, Any], mirror_pool: Any) -> Dict[str, Any]:
+    """对手场是否**真的**生效（审计 P1-3：以前算完就丢，面板无法自证）。
+
+    关键量：``mirror_applied/attempt``（成功注入率）、``missing/rejected``（退回 bot 的
+    座位数）、``pending_resolved``（注入前被动结算的次数）、以及库本身的规模。
+    只要 ``applied/attempt`` 明显低于 1，这一轮的"对手是真人战团"就不成立。
+    """
+    out: Dict[str, Any] = {}
+    mirror = result.get("mirror")
+    if isinstance(mirror, dict):
+        out.update({f"mirror_{k}" if not str(k).startswith("mirror_") else str(k): v
+                    for k, v in mirror.items()})
+    for key in ("mirror_skipped_ended", "mirror_pending_resolved",
+                "mirror_strict_counts", "human_board", "forced_tier",
+                "forced_tier_actions"):
+        if key in result and result[key] is not None:
+            out[key] = result[key]
+    attempt = int(out.get("mirror_attempt") or 0)
+    applied = int(out.get("mirror_applied") or 0)
+    out["mirror_apply_rate"] = (round(applied / attempt, 4) if attempt else None)
+    if mirror_pool is not None:
+        try:
+            stats = mirror_pool.stats()
+            out["library"] = {
+                "root": str(getattr(mirror_pool, "root", "") or ""),
+                "frames": int(stats.get("frames") or 0),
+                "keys": int(stats.get("keys") or 0),
+                "turn_min": stats.get("turn_min"),
+                "turn_max": stats.get("turn_max"),
+                "sample": stats.get("sample"),
+                # 每个 (turn,seat) 桶的帧数中位数：桶太小 → 7 席可能拿到同一帧。
+                "frames_per_key_p50": stats.get("frames_per_key_p50"),
+                "schema_versions": stats.get("schema_versions"),
+            }
+        except Exception as exc:      # noqa: BLE001 - 诊断字段缺失不影响评测
+            out["library"] = {"error": repr(exc)[:200]}
+    return out
+
+
+def run_checkpoint(name: str, path: Path, args,
+                   protocol: Optional[EvalProtocol] = None) -> Dict[str, Any]:
+    """评测一个 checkpoint，返回面板里的单模型条目。
+
+    **策略构造**统一走 :func:`hsbg.az.train.eval_policy.make_eval_policy`：
+    2026-11-17 审计发现这里曾把 ``PPOEvaluator`` 的构造删掉却留下
+    ``if evaluator is None:``，导致**所有自家 checkpoint** 都 ``UnboundLocalError``
+    （P0-1）。根因是"构造策略"这件事散落在 800 行脚本里，现在收敛到那个模块。
+    """
+    if protocol is None:
+        protocol = protocol_from_args(args)
+    # 契约与训练不一致就直接拒绝出分（fail-closed）。第三方权重走的是作者的
+    # 训练契约，契约项同样需要先自检，所以这里对所有 spec 都做。
+    protocol.assert_training_contract()
+
+    built = make_eval_policy(str(path), protocol=protocol, device=args.device)
+    policy, model, meta = built["policy"], built["model"], built["meta"]
+    if built["kind"] == "thirdparty":
+        print(f"[{name}] 第三方权重：{built['real_path']}  z={getattr(policy, 'z', '?')}",
+              flush=True)
     pool = None
     if str(getattr(args, "human_opponents", "") or "").strip():
         from hsbg.az.train.human_board_pool import HumanBoardPool
@@ -467,10 +509,15 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         # 专家先验 G1：Σ(atk+hp) 不是战力，必须同时看**实际战斗胜负**。
         collect_exposure=True,
         forced_tier_plan=str(args.forced_tier_plan or ""),
+        # 2026-11-17（D-071）：与训练同口径的 lobby 种族排除。
+        lobby_exclude=parse_race_list(getattr(args, "lobby_exclude", "")),
         human_board_pool=pool,
         human_board_set_tier=True,
         mirror_pool=mirror_pool,
         mirror_strict=bool(int(getattr(args, "mirror_strict", 0) or 0)),
+        # 记录进协议的这两项必须真的生效（默认 7 / 1.0 = 改动前写死的取值）。
+        mirror_seats=int(getattr(args, "mirror_seats", 7) or 7),
+        mirror_p=float(getattr(args, "mirror_p", 1.0) or 1.0),
     )
     started = time.time()
     result = evaluate_policy(policy, cfg)
@@ -481,32 +528,60 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
     # 2026-11-16：分片并行评测需要「无损合并」。做法是**不重写聚合逻辑**，而是把
     # 喂给它们的原始 rows（以及 outcome/exposure）原样落盘；合并时把各分片的 rows
     # 拼起来，再调用本文件**同一批函数**重算 —— 等价性由构造保证，不靠人工对齐口径。
+    #
+    # 2026-11-17 审计 P0-3：文件名原来固定成 `rows.jsonl.gz` / `extra.json`，一个进程
+    # 跑多个 `--checkpoint` 时**后者覆盖前者**，合并工具只能重建出最后一个模型
+    # （`gap-v1.2-plus3-1024` 的 panel.json 就只剩 v1.3_r3）。现在按模型名分文件；
+    # 旧名（无模型后缀）仍**照写一份**，保证只认旧名的老合并脚本不失效。
+    extra_payload = {
+        "name": name,
+        "outcome": {k: result.get(k) for k in
+                    ("mean_rank", "top4_rate", "win_rate", "illegal_actions",
+                     "truncated_games", "decisions", "decisions_per_game")},
+        "rank_sequence": result.get("rank_sequence"),
+        # 逐局种子（与 rank_sequence 一一对应）——配对统计必须按 seed 配对，
+        # 不能按下标（审计 P2-6：缺一个中间分片就会整体错位）。
+        "seed_sequence": result.get("seed_sequence"),
+        "action_hist": hist,
+        "combat_exposure": result.get("combat_exposure") or [],
+        "seconds": round(time.time() - started, 1),
+        "games": int(args.games),
+        "seed": int(args.seed),
+        "protocol_sha256": protocol.sha256(),
+        # 注入是否真的生效（审计 P1-3：以前算完就丢，面板无法自证对手是真人战团）。
+        "field_stats": _field_stats(result, mirror_pool),
+    }
     if bool(getattr(args, "dump_rows", 1)):
         _d = Path(args.out).parent
+        # 2026-11-17：以前这里假设 dir 已存在（sbatch 里确实会 mkdir），但
+        # `--out <新目录>/panel.json` 直接跑就会 FileNotFoundError 并**静默丢掉**
+        # rows/extra —— 而合并工具依赖这两个文件。自己建一下。
         try:
-            with gzip.open(_d / "rows.jsonl.gz", "wt", encoding="utf-8") as _gz:
-                for _r in rows:
-                    _gz.write(json.dumps(_r, ensure_ascii=False) + "\n")
-            (_d / "extra.json").write_text(json.dumps({
-                "name": name,
-                "outcome": {k: result.get(k) for k in
-                            ("mean_rank", "top4_rate", "win_rate", "illegal_actions",
-                             "truncated_games", "decisions", "decisions_per_game")},
-                "rank_sequence": result.get("rank_sequence"),
-                "action_hist": hist,
-                "combat_exposure": result.get("combat_exposure") or [],
-                "seconds": round(time.time() - started, 1),
-                "games": int(args.games),
-                "seed": int(args.seed),
-            }, ensure_ascii=False), encoding="utf-8")
-        except OSError as exc:      # 落盘失败不能影响评测本身
-            print(f"warn: dump rows failed: {exc!r}", flush=True)
+            _d.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            print(f"warn: cannot create {_d}: {exc!r}", flush=True)
+        _safe = _safe_name(name)
+        # 命名顺序固定：先按模型名的新文件，再写旧名兼容文件。
+        for suffix in ([f"-{_safe}"] if _safe else []) + [""]:
+            rows_path = _d / (f"rows{suffix}.jsonl.gz")
+            extra_path = _d / (f"extra{suffix}.json")
+            try:
+                with gzip.open(rows_path, "wt", encoding="utf-8") as _gz:
+                    for _r in rows:
+                        _gz.write(json.dumps(_r, ensure_ascii=False) + "\n")
+                extra_path.write_text(json.dumps(extra_payload, ensure_ascii=False),
+                                      encoding="utf-8")
+            except OSError as exc:   # 落盘失败不能影响评测本身
+                print(f"warn: dump {rows_path.name} failed: {exc!r}", flush=True)
+                break
     return {
         "name": name,
         "checkpoint": str(path),
         "checkpoint_sha256": sha256_file(path),
         "arch": meta.get("arch"),
         "games": int(args.games),
+        "seed_start": int(args.seed),
+        "seed_end": int(args.seed) + int(args.games) - 1,
         "seconds": round(time.time() - started, 1),
         "outcome": {k: result.get(k) for k in
                     ("mean_rank", "top4_rate", "win_rate", "illegal_actions",
@@ -514,7 +589,12 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         # 逐局名次（同 `--seed` 下各模型打的是同一批种子，所以可以**配对**比较，
         # 显著性强于比两个均值；见 docs/analysis/ACCEPTANCE_BASELINE.md §4.5）。
         "rank_sequence": result.get("rank_sequence"),
+        # 逐局种子：配对的**键**。`compare_panels` 优先按 seed 求交集配对，
+        # 缺失时才退回按下标（并显式告警）。
+        "seed_sequence": result.get("seed_sequence"),
         "action_hist": hist,
+        # 注入/对手场的实际生效证据（applied/attempt/missing/rejected/pool）。
+        "field_stats": extra_payload["field_stats"],
         "survival": survival(rows),
         "curves": economy_curves(rows),
         "action_mix_by_turn": action_mix_by_turn(rows),
@@ -696,6 +776,19 @@ def compare(model: Dict[str, Any], human: Dict[str, Any]) -> Dict[str, Any]:
     return {"per_turn": rows}
 
 
+def _opponent_label(args: Any) -> str:
+    """对手场的**如实**标签（以前用快照库时也写 "engine_bot x7"）。"""
+    if str(getattr(args, "human_opponents", "") or "").strip():
+        return (f"human_board_pool x{int(getattr(args, 'mirror_seats', 7))} "
+                f"({args.human_opponents}, sample={getattr(args, 'human_opponent_sample', 'auto')})")
+    if str(getattr(args, "mirror_snaps", "") or "").strip():
+        return (f"snapshot_library x{int(getattr(args, 'mirror_seats', 7))} "
+                f"({args.mirror_snaps}, sample={getattr(args, 'mirror_sample', '')}, "
+                f"strict={int(getattr(args, 'mirror_strict', 0))}, "
+                f"p={float(getattr(args, 'mirror_p', 1.0))})")
+    return "engine_bot x7"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="human-gap panel")
     ap.add_argument("--checkpoint", action="append", default=[], required=True,
@@ -704,12 +797,28 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=930000)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--max-steps", type=int, default=50000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80)
+    ap.add_argument("--max-actions-per-turn", type=int, default=100)
     ap.add_argument("--forbid-unfreeze", type=int, default=1, choices=[0, 1])
-    ap.add_argument("--freeze-cap", type=int, default=0,
-                    help="每回合最多按几次 Freeze（0=不限制，与实机/训练口径保持一致）")
+    ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
+                    help="冻结契约：全局禁用 Cancel（与训练 --forbid-cancel 1 一致）")
+    ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
+                    help="冻结契约：换位守卫（与训练 --move-guard 1 一致）")
+    ap.add_argument("--move-cap", type=int, default=2)
+    ap.add_argument("--move-repeat-limit", type=int, default=2)
+    ap.add_argument("--no-cancel-choose", type=int, default=0, choices=[0, 1],
+                    help="只在存在待选时禁 Cancel（第三方作者要求；训练默认 0）")
+    ap.add_argument("--freeze-cap", type=int, default=1,
+                    help="每回合最多按几次 Freeze。**默认 1 = 训练口径**"
+                         "（2026-11-17 D-070：2→1，Freeze 键每回合只能按一次）")
     ap.add_argument("--forced-tier-plan", default="",
                     help='e.g. "2:2,5:3,6:4,8:5" — diagnostic only, never for ranking')
+    ap.add_argument("--forced-tier-prob", type=float, default=0.0,
+                    help="诊断用：强制升本的命中概率（训练默认 0 = 纯教师）。"
+                         ">0 时必须与训练一致，否则两侧不可比")
+    ap.add_argument("--mirror-p", type=float, default=1.0,
+                    help="每座位注入概率（与训练 --mirror-p 一致）")
+    ap.add_argument("--mirror-seats", type=int, default=7,
+                    help="注入到几个非学习席（与训练 --mirror-seats 一致）")
     ap.add_argument("--human-baseline", default="")
     #: 把 7 个对手从引擎 bot 换成**真人战团**（`HumanBoardPool`，按回合注入）。
     #: 为什么需要：对 7 个引擎 bot，champion 已经是 `mean_rank 1.177`（饱和），
@@ -735,6 +844,8 @@ def main(argv=None) -> int:
                     help="1=回合开始已在场的随从不可卖（第三方权重要求 keep_start_board=1）")
     ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
                     help="1=禁用加重护手(BG36_MagicItem_414)等黑名单待选卡（默认开）")
+    ap.add_argument("--lobby-exclude", default="",
+                    help="与训练同口径的 lobby 种族排除（如 MECHANICAL,DRAGON；空=不过滤）")
     ap.add_argument("--dump-rows", type=int, default=1, choices=[0, 1],
                     help="把喂给聚合的原始 rows/outcome 落盘（rows.jsonl.gz + extra.json），"
                          "供分片并行评测无损合并；0=关闭")
@@ -761,23 +872,49 @@ def main(argv=None) -> int:
         else:
             print(f"WARN: human baseline missing at {hp}; comparison disabled", file=sys.stderr)
 
+    engine = engine_info()
+    # ── 协议指纹（审计 P0-2）：`docs/EVAL_PROTOCOL.md` §4 规则 5 要求"不同
+    # protocol_sha256 禁止混比"，而这条规则以前在 gap 面板路径上**完全没实现**。
+    # 注意 seed/games 是分片级参数，按设计**不进**指纹（见 eval_policy 的说明）。
+    protocol = protocol_from_args(args, engine=engine, mirror_seats=args.mirror_seats)
+    protocol.assert_training_contract()
+    protocol_payload = protocol.as_dict()
+    protocol_sha = protocol.sha256()
+
     payload: Dict[str, Any] = {
         "schema": "hsai.human_gap_panel/v1",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "engine": engine_info(),
+        "engine": engine,
+        # 协议（可比性的唯一依据）：指纹 + 全部字段，供 compare_panels 校验。
+        "protocol": {**protocol_payload, "protocol_sha256": protocol_sha},
         "panel": {
-            "opponent": (f"human_board_pool x7 ({args.human_opponents}, "
-                         f"sample={args.human_opponent_sample})"
-                         if str(args.human_opponents or "").strip()
-                         else "engine_bot x7"),
+            # 2026-11-17：以前这里恒为 "engine_bot x7"（用快照库时也是），
+            # `docs/EVAL_PROTOCOL.md` §8.6 只能叫读者"别信这个字段"。现在如实填写。
+            "opponent": _opponent_label(args),
             "games": int(args.games),
             "seed": int(args.seed),
+            "seed_end": int(args.seed) + int(args.games) - 1,
             "max_actions_per_turn": int(args.max_actions_per_turn),
             "forbid_unfreeze": bool(int(args.forbid_unfreeze)),
+            "forbid_cancel": bool(int(args.forbid_cancel)),
+            "move_guard": bool(int(args.move_guard)),
+            "move_cap": int(args.move_cap),
+            "move_repeat_limit": int(args.move_repeat_limit),
+            "freeze_cap": int(args.freeze_cap),
+            "ban_trinkets": bool(int(args.ban_trinkets)),
+            "no_cancel_choose": bool(int(args.no_cancel_choose)),
+            "mirror_snaps": str(args.mirror_snaps or ""),
+            "mirror_sample": str(args.mirror_sample or ""),
+            "mirror_strict": int(args.mirror_strict),
+            "mirror_seats": int(args.mirror_seats),
+            "mirror_p": float(args.mirror_p),
             "forced_tier_plan": str(args.forced_tier_plan or ""),
+            "forced_tier_prob": float(args.forced_tier_prob),
+            "protocol_sha256": protocol_sha,
         },
         "caveats": [
-            "humans faced 8 real opponents; models face 7 engine bots - compare curves, not ranks",
+            "humans faced 8 real opponents; models face injected static warbands - "
+            "compare curves, not ranks",
             "human feed is winner-biased (816/995 1st place): a demanding yardstick, not an average",
         ],
         "models": [],
@@ -785,14 +922,15 @@ def main(argv=None) -> int:
 
     for name, path in specs:
         print(f"[{name}] evaluating {args.games} games ...", flush=True)
-        entry = run_checkpoint(name, path, args)
+        entry = run_checkpoint(name, path, args, protocol=protocol)
         if human:
             entry["vs_human"] = compare(entry, human)
         payload["models"].append(entry)
         o = entry["outcome"]
+        fs = entry.get("field_stats") or {}
         print(f"    mean_rank={o.get('mean_rank')} top4={o.get('top4_rate')} "
               f"win={o.get('win_rate')} illegal={o.get('illegal_actions')} "
-              f"{entry['seconds']}s", flush=True)
+              f"inject={fs.get('mirror_apply_rate')} {entry['seconds']}s", flush=True)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

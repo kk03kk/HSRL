@@ -69,11 +69,11 @@ def main() -> int:
     ap.add_argument("--min-frames", type=int, default=2,
                     help="至少多少帧才保留这条轨迹")
     ap.add_argument("--max-steps", type=int, default=20000)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80,
+    ap.add_argument("--max-actions-per-turn", type=int, default=100,
                     help="单座位单回合决策上限，超限强制 EndTurn（与训练一致）")
     ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
                     help="1=模型驱动时启用换位去抖守卫")
-    ap.add_argument("--move-cap", type=int, default=5,
+    ap.add_argument("--move-cap", type=int, default=2,
                     help="每回合换位上限")
     ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
                     help="1=模型驱动时始终移除 Cancel")
@@ -87,9 +87,10 @@ def main() -> int:
                     help="牌面至少几只随从才记录快照（1=空场面不记）")
     ap.add_argument("--out", default="runs/library/traj")
     args = ap.parse_args()
-    if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
-            or int(args.move_cap) != 5 or int(args.forbid_cancel) != 1):
-        ap.error("强制动作规则：max-actions=80, move-guard=1, move-cap=5, forbid-cancel=1")
+    if (int(args.max_actions_per_turn) != 100 or int(args.move_guard) != 1
+            or int(args.move_cap) != 2 or int(args.forbid_cancel) != 1):
+        ap.error("强制动作规则（= TRAINING_CONTRACT，2026-11-17 D-070）："
+                 "max-actions=100, move-guard=1, move-cap=2, forbid-cancel=1")
 
     if not engine_available():
         print("[error] hsbg_engine 不可用", file=sys.stderr)

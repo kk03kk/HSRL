@@ -41,11 +41,11 @@ python -m hsbg.az.train.personal eval \
   --checkpoint "$out/train/model.pt" --library "$lib/dev" --device cuda \
   --games 16 --seed 15000000 --out "$out/final-eval/new.json" \
   --mirror-strict --exposure 1 --economy \
-  --max-actions-per-turn 80 --move-guard 1 --move-cap 5 --move-repeat-limit 2
+  --max-actions-per-turn 100 --move-guard 1 --move-cap 2 --move-repeat-limit 2
 python -m hsbg.az.train.personal eval \
   --checkpoint "$source_state/model.pt" --library "$lib/dev" --device cuda \
   --games 16 --seed 15000000 --out "$out/final-eval/9691.json" \
   --mirror-strict --exposure 1 --economy \
-  --max-actions-per-turn 80 --move-guard 1 --move-cap 5 --move-repeat-limit 2
+  --max-actions-per-turn 100 --move-guard 1 --move-cap 2 --move-repeat-limit 2
 python -m hsbg.az.train.personal board "$out/final-eval/new.json" "$out/final-eval/9691.json" \
   --out "$out/final-eval/leaderboard.json"

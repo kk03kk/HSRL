@@ -569,8 +569,8 @@ def main() -> int:
     p.add_argument("--library", required=True)
     p.add_argument("--device", default="cuda")
     p.add_argument("--temperature", type=float, default=0.0)
-    p.add_argument("--max-actions-per-turn", type=int, default=80)
-    p.add_argument("--move-cap", type=int, default=5)
+    p.add_argument("--max-actions-per-turn", type=int, default=100)
+    p.add_argument("--move-cap", type=int, default=2)
     p.add_argument("--move-repeat-limit", type=int, default=2)
     p.add_argument("--cancel-cap", type=int, default=2)
     p.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1])
@@ -580,11 +580,12 @@ def main() -> int:
     p.add_argument("--act-seed", type=int, default=880000)
     p.add_argument("--sample-seed", type=int, default=20261109)
     a = p.parse_args()
-    if (a.games < 1 or a.temperature < 0 or a.max_actions_per_turn != 80
-            or a.move_cap != 5 or a.move_repeat_limit != 2
+    if (a.games < 1 or a.temperature < 0 or a.max_actions_per_turn != 100
+            or a.move_cap != 2 or a.move_repeat_limit != 2
             or a.forbid_cancel != 1):
-        p.error("强制动作规则：games>=1, temperature>=0, max-actions=80, "
-                "move-cap=5, move-repeat=2, forbid-cancel=1")
+        p.error("强制动作规则（= TRAINING_CONTRACT，2026-11-17 D-070）：games>=1, "
+                "temperature>=0, max-actions=100, move-cap=2, move-repeat=2, "
+                "forbid-cancel=1")
     run(a)
     return 0
 

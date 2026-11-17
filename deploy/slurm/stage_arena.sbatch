@@ -209,9 +209,11 @@ python workflows/train_entity_sync.py \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --amp bf16 \
   --gpus "$actor_gpus" --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
-  --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
+  --move-guard 1 --move-cap 2 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
-  --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-2}" --ban-trinkets "${HSAI_ARENA_BAN_TRINKETS:-1}" \
+  --max-actions-per-turn 100 \
+  --lobby-exclude "${HSAI_ARENA_LOBBY_EXCLUDE:-}" \
+  --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-1}" --ban-trinkets "${HSAI_ARENA_BAN_TRINKETS:-1}" \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
   --tier-bonus "$tier_bonus" \
   --tier-target-table "$tier_table" \

@@ -347,6 +347,14 @@ def save_checkpoint(model: Any, path: str, *, meta: Optional[Dict[str, Any]] = N
     payload["meta"].setdefault("process_head", bool(_proc_head is not None))
     if _proc_head is not None:
         payload["meta"].setdefault("process_head_dim", int(_proc_head.out_features))
+    # 2026-11-17 审计 P0（A2）：z-token / 卡牌属性 / 磁力查询这三项会**改变 state_dict
+    # 的键集与形状**，以前既不写进 meta 也没有加载端推断 ⇒ 带它们训练出的 ckpt
+    # 以 strict=True 重新加载必然失败（unexpected / missing key），checkpoint 等于废掉。
+    # 现在统一写进 meta；加载端优先读 meta，缺失时再按 state_dict 里的键推断。
+    _arch_flags = getattr(model, "arch_flags", None)
+    if callable(_arch_flags):
+        for k, v in dict(_arch_flags()).items():
+            payload["meta"].setdefault(k, v)
     if hasattr(model, "d_model"):
         payload["meta"].setdefault("d_model", int(model.d_model))
         payload["meta"].setdefault("n_layers", int(getattr(model.trunk, "num_layers", 8)))
@@ -386,13 +394,36 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
     # 过程价值辅助头（可选）：meta 声明或 state_dict 里确有 process_head.* 都重建
     has_process_head = bool(meta.get("process_head", False)) or any(
         str(k).startswith("process_head.") for k in state)
+    # 2026-11-17 审计 P0（A1/A2）：z-token / 卡牌属性 / 磁力查询会改变键集与形状。
+    # 优先读 meta（新 ckpt 都写），缺失时按 state_dict 里的键推断（老 ckpt 三个都没有
+    # ⇒ 全 False，与改动前逐位一致）。
+    _borrow = {
+        "use_z": bool(meta.get("use_z", False)) or any(
+            str(k) == "zcard" or str(k).startswith("z_global.")
+            or str(k).startswith("z_tok.") for k in state),
+        "use_attr": bool(meta.get("use_attr", False)) or any(
+            str(k) == "attr" or str(k).startswith("attr_proj.") for k in state),
+        "mag_query": bool(meta.get("mag_query", False)) or any(
+            str(k).startswith("mag_q.") for k in state),
+    }
+    _n_z = int(meta.get("n_z", 0) or 0)
+    if _borrow["use_z"] and _n_z <= 0:
+        _zcard = state.get("zcard")
+        _n_z = int(_zcard.shape[0]) if hasattr(_zcard, "shape") else 46
+    _attr_f = int(meta.get("attr_f", 0) or 0)
+    if _borrow["use_attr"] and _attr_f <= 0:
+        _attr = state.get("attr")
+        _attr_f = int(_attr.shape[1]) if hasattr(_attr, "shape") else 311
     if arch == "entity18m":
         model = build_net(arch="entity18m", seq_head=seq_head,
                           bc_card_head=has_card_head,
                           bc_card_dim=(card_dim or None),
                           move_head_split=has_move_split,
                           strength_head=has_strength_head,
-                          process_head=has_process_head)
+                          process_head=has_process_head,
+                          use_z=_borrow["use_z"], n_z=_n_z,
+                          use_attr=_borrow["use_attr"], attr_f=_attr_f,
+                          mag_query=_borrow["mag_query"])
     elif arch == "entity":
         model = build_net(arch="entity", d_model=int(meta.get("d_model", 384)),
                           n_layers=int(meta.get("n_layers", 8)),
@@ -401,11 +432,18 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
                           bc_card_dim=(card_dim or None),
                           move_head_split=has_move_split,
                           strength_head=has_strength_head,
-                          process_head=has_process_head)
+                          process_head=has_process_head,
+                          use_z=_borrow["use_z"], n_z=_n_z,
+                          use_attr=_borrow["use_attr"], attr_f=_attr_f,
+                          mag_query=_borrow["mag_query"])
     else:
         model = build_net(hidden, seq_head=seq_head, bc_card_head=has_card_head,
                           bc_card_dim=(card_dim or None))
     model.load_state_dict(payload["state_dict"])
+    # 加载外来 zcard 之后，中立槽必须重新归零（否则"默认不启用 z"不再等价于旧模型）。
+    _zero_neutral = getattr(model, "zero_neutral_slot", None)
+    if callable(_zero_neutral):
+        _zero_neutral()
     _norm_meta = meta.get("strength_norm")
     if isinstance(_norm_meta, dict) and _norm_meta:
         try:

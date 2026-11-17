@@ -38,7 +38,7 @@ def read_frames(paths, engine, dropped, expected_rules=None, expected_source_has
             record = json.load(stream)
         if record["engine"] != engine or record["meta"]["driver"] != "bot":
             raise ValueError(f"快照引擎或来源不符 {path}")
-        if record['meta'].get('max_actions_per_turn') != 80 or not record['meta'].get('rules_config'):
+        if record['meta'].get('max_actions_per_turn') != 100 or not record['meta'].get('rules_config'):
             raise ValueError(f'原始快照缺少当前操作预算/规则配置证明 {path}')
         if expected_source_hash is not None and record['meta'].get('engine_source_hash', expected_source_hash) != expected_source_hash:
             raise ValueError(f'原始Bot源码指纹不同 {path}')
@@ -206,7 +206,7 @@ def build(out, workers, smoke=False, profile="legacy-v1", seed_base=3000000,
                                 seed_start=seed, games=offset+batch, smoke=smoke,
                                 curve_sha256=hashlib.sha256(CURVE.read_bytes()).hexdigest(),
                                 calibration_profile=profile if (consistent_profile or split == "train") else "legacy-v1",
-                                source_max_actions_per_turn=80,
+                                source_max_actions_per_turn=100,
                                 rules_config=json.loads(E.Game(seed=0).state_json())["cfg"],
                                 validation=dict(checked=total, accepted=total, quarantined=0))
         write_json(dest / "manifest.json", manifests[split])

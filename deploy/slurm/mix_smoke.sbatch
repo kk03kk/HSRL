@@ -63,11 +63,11 @@ python workflows/train_entity_sync.py \
   --entry-boards data/real_library/firestone-bank-6k/train-m6k.jsonl \
   --entry-p 0.5 --entry-turn-min 8 --entry-turn-max 8 --entry-sample p75 --entry-min-tier 5 \
   --entry-fidelity full --entry-fast-inject 1 --entry-set-health 0 \
-  --max-actions-per-turn 80 --snapshot-every 25 --keep-snapshots 2 \
+  --max-actions-per-turn 100 --snapshot-every 25 --keep-snapshots 2 \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --pipeline 1 --amp bf16 \
   --gpus 0 --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
-  --move-guard 1 --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 \
+  --move-guard 1 --move-cap 2 --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --reset-anchor 1 --forbid-unfreeze 1 \
   --comp-target-coef 0.0 --comp-target-min-turn 10 --comp-target-cards config/strategy_cards.json \
   --comp-target-tier-w S:1.0,A:0.6,B:0.3 --comp-target-cap 1.0 --comp-target-min-hits 2 \

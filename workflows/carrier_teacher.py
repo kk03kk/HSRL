@@ -627,7 +627,7 @@ def main() -> int:
                     help="无载体时第几回合起把法术打出去换身材")
     # 与 s15 采集同口径
     ap.add_argument("--gold", type=int, default=0)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80)
+    ap.add_argument("--max-actions-per-turn", type=int, default=100)
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--record-log", type=int, default=1)
     ap.add_argument("--human-boards",

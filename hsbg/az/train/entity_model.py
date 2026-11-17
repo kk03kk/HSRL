@@ -233,6 +233,11 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
                 self.z_tok = nn.Linear(3, card_dim, bias=False)
                 for m_ in (self.z_global, self.z_tok):
                     nn.init.normal_(m_.weight, std=float(new_init_scale))
+                # **中立槽（z = n_z-1 = 45）必须严格贡献 0**：否则 `z=None` 的默认路径
+                # 就不再等价于"没有 z 特征的旧模型"。上游约定 45 = none，这里把它的
+                # one-hot 列清零即可（normal_ 初始化会把它填成非零）。
+                with torch.no_grad():
+                    self.z_global.weight[:, self.n_z - 1].zero_()
             self.use_attr = bool(use_attr)
             if self.use_attr:
                 self.register_buffer("attr", torch.zeros(n_cards, int(attr_f)))
@@ -279,8 +284,7 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             # log1p(consume 数)]。默认 None = 不构建、前向/checkpoint 与旧版逐位一致。
             self.process_head = nn.Linear(d, 3) if process_head else None
 
-        def _card_repr(self, idx, z=None):
-            # idx [B, ...] long; 返回 [B, ..., d]
+        def _card_repr(self, idx, z=None):            # idx [B, ...] long; 返回 [B, ..., d]
             i = idx.clamp(0, self.n_cards - 1)
             emb = self.card_id(i) + self.card_static_proj(self.card_static[i]) \
                 + self.card_text_proj(self.card_text[i])
@@ -294,6 +298,38 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
                 flags = self.zcard[zz[:, None], i]            # [B, n_cards_in, 3]
                 emb = emb + self.z_tok(flags)
             return self.card_to_d(emb)
+
+        # ---- 架构开关的自我描述 + 中立槽保证（2026-11-17 审计 P0-A1/A2/E）----
+        def arch_flags(self):
+            """返回影响 state_dict 键集/形状的**全部**架构开关。
+
+            ``save_checkpoint`` 把它写进 meta、``load_checkpoint`` 用它重建网络。
+            以前这三项（z/attr/mag）没有记录也没有推断 ⇒ 带它们训练出的 ckpt
+            **无法再加载**（``strict=True`` 直接报 unexpected/missing key）。
+            """
+            return {"use_z": bool(self.use_z), "n_z": int(self.n_z),
+                    "use_attr": bool(self.use_attr),
+                    "attr_f": int(getattr(self, "attr", None).shape[1]) if self.use_attr else 0,
+                    "mag_query": bool(self.mag_query)}
+
+        def zero_neutral_slot(self):
+            """强制 ``zcard[n_z-1]`` 与 ``z_global`` 的中立列全零。
+
+            ``z = n_z-1 = 45`` 是上游约定的"无阵容先验"。只有它严格贡献 0，
+            ``z=None`` 的默认路径才**等价于没有 z 特征的旧模型**。加载外来表
+            （``load_state_dict`` 会覆盖 buffer）之后必须再调一次，否则"默认关"
+            就会静默变成"另一个模型"。
+            """
+            out = {}
+            with torch.no_grad():
+                if self.use_z and getattr(self, "zcard", None) is not None:
+                    before = float(self.zcard[self.n_z - 1].abs().sum())
+                    self.zcard[self.n_z - 1].zero_()
+                    out["zcard_neutral_abs_sum_before"] = before
+                    col = float(self.z_global.weight[:, self.n_z - 1].abs().sum())
+                    self.z_global.weight[:, self.n_z - 1].zero_()
+                    out["z_global_neutral_abs_sum_before"] = col
+            return out
 
         def forward(self, features, cards, mask=None, z=None):
             logits, rank, value, _g = self._forward_impl(features, cards, mask, z)
@@ -362,22 +398,28 @@ def build_entity_net(*, d_model: int = 384, n_layers: int = 8, n_heads: int = 8,
             glob = torch.cat([x[:, S["global"]], x[:, S["quests"]],
                               x[:, S["pending"]]], dim=-1)
             _zg = None
+            _zvec = None
             if self.use_z:
                 zz = (torch.full((B,), self.n_z - 1, dtype=torch.long, device=dev)
                       if z is None else z.long())
-                if zz.dim() == 0:
+                if zz.dim() == 0:                     # 标量 z → 广播成 [B]
                     zz = zz.expand(B)
+                _zvec = zz                            # 归一化后的 z（往下传给 _card_repr）
                 _zg = self.z_global(torch.nn.functional.one_hot(
                     zz, self.n_z).to(self.global_proj.weight.dtype))   # [B, d]
 
             # global token + 英雄/技能/饰品/秘密卡牌表示（直接加和到 global）
             g = self.global_proj(glob)
-            g = g + self._card_repr(c[:, C["powers"]], z).sum(dim=1)
-            g = g + self._card_repr(c[:, C["deity"]], z).sum(dim=1)
-            g = g + self._card_repr(c[:, C["trinkets"]], z).sum(dim=1)
+            if _zg is not None:
+                # 2026-11-17 修：`_zg` 以前算了**但从未加进 g**（死代码，梯度恒 None）。
+                # 中立槽 z=n_z-1 的 one-hot 列被清零 ⇒ 缺省路径仍逐位等价旧模型。
+                g = g + _zg
+            g = g + self._card_repr(c[:, C["powers"]], _zvec).sum(dim=1)
+            g = g + self._card_repr(c[:, C["deity"]], _zvec).sum(dim=1)
+            g = g + self._card_repr(c[:, C["trinkets"]], _zvec).sum(dim=1)
 
             def card_of(name, shape):
-                return self._card_repr(c[:, C[name]].reshape(B, *shape), z)
+                return self._card_repr(c[:, C[name]].reshape(B, *shape), _zvec)
 
             tok = []
             tok.append((g + self.pos_emb(torch.zeros(B, dtype=torch.long, device=dev))

@@ -1,73 +1,143 @@
-#!/usr/bin/env python3
-"""把 N 份「分片评测」的结果合并成一份与串行完全等价的面板。
+#!/usr/bin/env python
+"""把分片评测的原始 rows/extra 合并成一份多模型 ``panel.json``。
 
-设计原则：**不重写任何聚合逻辑**。每个分片用 ``workflows/eval_human_gap.py`` 的
-``--dump-rows 1`` 落盘了 ``rows.jsonl.gz``（喂给聚合的原始 rows）和 ``extra.json``
-（outcome / rank_sequence / combat_exposure）。合并时把这些原始输入拼起来，再调用
-**同一个文件里的同一批函数**重算 —— 等价性由构造保证，不靠人工对齐口径。
+为什么要重写（2026-11-17 审计 P0-3 / P1-6）
+------------------------------------------
+* **旧行为**：``eval_human_gap.py`` 把每个模型的 rows 写到**同一个**
+  ``rows.jsonl.gz``，一个进程跑多个 ``--checkpoint`` 时后者覆盖前者，于是本工具
+  只能重建出**最后一个**模型（``gap-v1.2-plus3-1024`` 的 ``panel.json`` 就只剩
+  ``v1.3_r3``，其它三个模型的数据已被覆盖）。现在落盘按模型名分文件
+  （``rows-<name>.jsonl.gz`` / ``extra-<name>.json``），本工具按名归并。
+  旧命名仍兼容：只有 ``rows.jsonl.gz``/``extra.json`` 的老分片照样能读。
+* **有效性计数必须跨分片求和**：``illegal_actions``/``truncated_games`` 是
+  ``docs/EVAL_PROTOCOL.md`` §5 的"第 0 步"（不为 0 则整轮作废）。旧的多模型合并
+  工具只取第 0 个分片的计数，导致这道门只覆盖 1/24 的局数。
+* **配对键要带上 seed**：``rank_sequence`` 只有顺序，没有种子；分片缺失时按下标配对
+  会整体错位（审计 P1-6）。合并时同时输出 ``seed_sequence``。
+* **协议指纹必须唯一**：所有分片必须同 ``protocol_sha256``，否则拒绝合并
+  （``docs/EVAL_PROTOCOL.md`` §4 规则 5）。合并结果把它提到 ``protocol`` 段。
 
-用法：
-    python tools/merge_panels.py --out <dir>/panel.json <shard0_dir> <shard1_dir> ...
-（每个参数是包含 rows.jsonl.gz 的分片目录；也接受直接给 panel.json，此时只做逐局部分拼接）
+聚合逻辑**不重写**：直接 import ``workflows.eval_human_gap`` 里的同一批函数，
+"分片合并 ≡ 串行跑完"由构造保证。
 """
 from __future__ import annotations
 
 import argparse
 import collections
+import glob
 import gzip
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from workflows.eval_human_gap import (  # noqa: E402
-    _counts_all, _counts_by_turn, _gold_by_turn, _opponents_by_turn, _strength_by_seed,
-    _trace, action_mix_by_turn, boards_by_turn, combat_by_turn, compare,
-    economy_curves, final_boards, mechanics_by_turn, retained_gain_by_turn, survival,
+    _counts_all,
+    _counts_by_turn,
+    _gold_by_turn,
+    _opponents_by_turn,
+    _safe_name,
+    _strength_by_seed,
+    _trace,
+    action_mix_by_turn,
+    boards_by_turn,
+    combat_by_turn,
+    economy_curves,
+    final_boards,
+    mechanics_by_turn,
+    retained_gain_by_turn,
+    survival,
 )
 
+#: 名次类指标（按逐局名次重算）以外的计数（跨分片求和）。第 3 项 ``decisions`` 是求和。
+SUMMED_OUTCOME_KEYS = ("illegal_actions", "truncated_games", "decisions")
 
-def load_rows(shard: Path) -> List[Dict[str, Any]]:
-    p = shard / "rows.jsonl.gz"
-    if not p.is_file():
-        return []
-    out = []
-    with gzip.open(p, "rt", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                out.append(json.loads(line))
+
+# ────────────────────────── 分片读取（多模型 + 旧命名兼容）──────────────────────────
+def _read_json(path: Path) -> Dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def load_shard(shard: Path) -> Dict[str, Dict[str, Any]]:
+    """读一个分片目录 -> ``{模型名: {"rows": [...], "extra": {...}}}``。
+
+    兼容三种落盘布局：
+
+    1. 新：``extra-<name>.json`` + ``rows-<name>.jsonl.gz``（每个模型各一份）；
+    2. 旧单模型：``extra.json`` + ``rows.jsonl.gz``；
+    3. 混合：新文件存在时优先用新的，旧文件只在**同名模型没有新文件**时兜底。
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    rows_by_name: Dict[str, List[Dict[str, Any]]] = {}
+
+    per_model_rows: Dict[str, Path] = {}
+    for p in sorted(shard.glob("rows-*.jsonl.gz")):
+        per_model_rows[p.name[len("rows-"):-len(".jsonl.gz")]] = p
+    legacy_rows = shard / "rows.jsonl.gz"
+
+    extras: List[Dict[str, Any]] = []
+    seen_extra_names: set = set()
+    for p in sorted(glob.glob(str(shard / "extra-*.json"))):
+        d = _read_json(Path(p))
+        if d.get("name"):
+            extras.append(d)
+            seen_extra_names.add(str(d["name"]))
+    legacy_extra = shard / "extra.json"
+    if legacy_extra.is_file():
+        d = _read_json(legacy_extra)
+        # 旧名文件与某个新名文件**同名**时视为重复，不重复计数
+        if d.get("name") and str(d["name"]) not in seen_extra_names:
+            extras.append(d)
+
+    for extra in extras:
+        name = str(extra.get("name"))
+        rows_path = per_model_rows.get(_safe_name(name))
+        if rows_path is None and legacy_rows.is_file() and len(per_model_rows) <= 1:
+            rows_path = legacy_rows
+        rows: List[Dict[str, Any]] = []
+        if rows_path is not None and rows_path.is_file():
+            with gzip.open(rows_path, "rt", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        try:
+                            rows.append(json.loads(line))
+                        except ValueError:
+                            continue
+        rows_by_name[name] = rows
+        out[name] = {"rows": rows, "extra": extra}
     return out
 
 
-def load_extra(shard: Path) -> Dict[str, Any]:
-    p = shard / "extra.json"
-    if not p.is_file():
-        return {}
-    return json.loads(p.read_text(encoding="utf-8"))
-
-
 def merge_outcome(extras: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """按逐局名次重算名次类指标（与 evaluate.py 同口径）；其余计数直接累加。"""
+    """按逐局名次重算名次类指标（与 ``evaluate.py`` 同口径）；计数**跨分片求和**。"""
     ranks: List[int] = []
     for e in extras:
-        for r in e.get("rank_sequence") or []:
+        for r in (e.get("rank_sequence") or []):
             try:
                 ranks.append(int(r))
             except (TypeError, ValueError):
                 pass
     games = sum(int(e.get("games") or 0) for e in extras)
-    decisions = sum(int((e.get("outcome") or {}).get("decisions") or 0) for e in extras)
-    out = {
+    out: Dict[str, Any] = {
         "games": games,
-        "illegal_actions": sum(int((e.get("outcome") or {}).get("illegal_actions") or 0) for e in extras),
-        "truncated_games": sum(int((e.get("outcome") or {}).get("truncated_games") or 0) for e in extras),
-        "decisions": decisions,
-        "decisions_per_game": round(decisions / games, 1) if games else None,
+        "illegal_actions": sum(int((e.get("outcome") or {}).get("illegal_actions") or 0)
+                               for e in extras),
+        "truncated_games": sum(int((e.get("outcome") or {}).get("truncated_games") or 0)
+                               for e in extras),
+        "decisions": sum(int((e.get("outcome") or {}).get("decisions") or 0)
+                         for e in extras),
+        # 截断局（rank=0）**保留**在 rank_sequence 里；名次类指标只用 1..8。
+        "truncated_rank_zero": sum(1 for r in ranks if r == 0),
+        "rank_known": sum(1 for r in ranks if 1 <= r <= 8),
     }
+    out["decisions_per_game"] = (round(out["decisions"] / games, 1) if games else None)
     ok = [r for r in ranks if 1 <= r <= 8]
     if ok:
         out["mean_rank"] = round(sum(ok) / len(ok), 4)
@@ -76,38 +146,83 @@ def merge_outcome(extras: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
-def merge(shard_dirs: List[Path], out_path: Path) -> Dict[str, Any]:
-    rows: List[Dict[str, Any]] = []
-    extras: List[Dict[str, Any]] = []
-    exposure: List[Dict[str, Any]] = []
-    hist: collections.Counter = collections.Counter()
-    ranks: List[int] = []
-    names = set()
-    for d in shard_dirs:
-        rows.extend(load_rows(d))
-        e = load_extra(d)
-        if e:
-            extras.append(e)
-            names.add(str(e.get("name")))
-            exposure.extend(e.get("combat_exposure") or [])
-            for k, v in (e.get("action_hist") or {}).items():
-                hist[str(k)] += int(v)
-            for r in e.get("rank_sequence") or []:
-                try:
-                    ranks.append(int(r))
-                except (TypeError, ValueError):
-                    pass
-    if not rows:
-        raise SystemExit("no rows.jsonl.gz found in any shard dir")
+def _seed_sequence(extras: List[Dict[str, Any]],
+                   ranks: List[int]) -> Optional[List[int]]:
+    """逐局种子（与 ``rank_sequence`` 一一对应）；旧分片没有该字段时返回 None。"""
+    seq: List[int] = []
+    for e in extras:
+        part = e.get("seed_sequence")
+        if not isinstance(part, list):
+            return None
+        seq.extend(int(x) for x in part)
+    if ranks and len(seq) != len(ranks):
+        return None
+    return seq or None
 
-    name = next(iter(names)) if len(names) == 1 else "+".join(sorted(names))
-    entry: Dict[str, Any] = {
+
+def _merge_field_stats(extras: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """注入统计跨分片求和 + 重算成功率（审计 P1-3：注入率必须能被面板自证）。"""
+    acc: Dict[str, Any] = collections.Counter()
+    library: Dict[str, Any] = {}
+    for e in extras:
+        fs = e.get("field_stats") or {}
+        for k, v in fs.items():
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, (int, float)):
+                acc[k] += float(v)
+            elif k == "library" and isinstance(v, dict) and not library:
+                library = dict(v)
+    out: Dict[str, Any] = {k: (int(v) if float(v).is_integer() else round(v, 4))
+                           for k, v in acc.items()}
+    attempt = float(acc.get("mirror_attempt") or 0.0)
+    applied = float(acc.get("mirror_applied") or 0.0)
+    out["mirror_apply_rate"] = round(applied / attempt, 4) if attempt else None
+    if library:
+        out["library"] = library
+    return out
+
+
+def _protocol(extras: List[Dict[str, Any]], shard: Path) -> Dict[str, Any]:
+    """所有分片必须同 ``protocol_sha256``；返回合并后的 ``protocol`` 段。"""
+    shas = {str((e or {}).get("protocol_sha256") or "") for e in extras}
+    shas.discard("")
+    if not shas:
+        raise SystemExit(
+            f"{shard}: 分片没有 protocol_sha256（旧代码产物）。"
+            "该分片的可比性无法证明，请重跑评测；不允许把它并进新榜。")
+    if len(shas) > 1:
+        raise SystemExit(
+            f"{shard}: 同一分片内的模型/分片协议不一致 {sorted(s[:12] for s in shas)}"
+            "——不同协议不能混榜（docs/EVAL_PROTOCOL.md §4 规则 5）。")
+    return {"protocol_sha256": next(iter(shas))}
+
+
+def _model_entry(name: str, shard_map: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    parts = list(shard_map.values())
+    rows = [r for part in parts for r in part["rows"]]
+    extras = [part["extra"] for part in parts]
+    hist: collections.Counter = collections.Counter()
+    exposure: List[Dict[str, Any]] = []
+    ranks: List[int] = []
+    for e in extras:
+        for k, v in (e.get("action_hist") or {}).items():
+            hist[str(k)] += int(v)
+        exposure.extend(e.get("combat_exposure") or [])
+        for r in (e.get("rank_sequence") or []):
+            try:
+                ranks.append(int(r))
+            except (TypeError, ValueError):
+                pass
+    return {
         "name": name,
         "games": len(_strength_by_seed(rows)) or None,
-        "shards": [str(d) for d in shard_dirs],
+        "shards": [str(p["extra"].get("shard") or "") for p in parts],
         "outcome": merge_outcome(extras),
         "rank_sequence": ranks or None,
+        "seed_sequence": _seed_sequence(extras, ranks),
         "action_hist": dict(hist.most_common()) or None,
+        "field_stats": _merge_field_stats(extras),
         "survival": survival(rows),
         "curves": economy_curves(rows),
         "action_mix_by_turn": action_mix_by_turn(rows),
@@ -124,30 +239,83 @@ def merge(shard_dirs: List[Path], out_path: Path) -> Dict[str, Any]:
         "heroes": _counts_all(rows, "hero"),
         "rows": len(rows),
     }
-    doc = {"models": [entry], "merged_from": [str(d) for d in shard_dirs],
-           "merge": {"schema": "hsai.panel.merge/v1", "shards": len(shard_dirs)}}
+
+
+def merge(shard_dirs: List[Path], out_path: Path, *,
+          expect_games: Optional[int] = None,
+          expect_models: Optional[int] = None) -> Dict[str, Any]:
+    """合并分片。``expect_*`` 给出时必须**精确相等**，否则拒绝写盘（缺分片不静默）。"""
+    per_shard = [(d, load_shard(d)) for d in shard_dirs]
+    names: List[str] = []
+    for _d, m in per_shard:
+        for n in m:
+            if n not in names:
+                names.append(n)
+    if not names:
+        raise SystemExit("no models found in any shard (rows-*/extra-* 或旧名缺失)")
+
+    merged_models: List[Dict[str, Any]] = []
+    protocol: Dict[str, Any] = {}
+    for name in names:
+        shard_map = {str(d): m[name] for d, m in per_shard if name in m}
+        if len(shard_map) != len(per_shard):
+            missing = [str(d) for d, m in per_shard if name not in m]
+            raise SystemExit(f"模型 {name!r} 在分片 {missing} 里缺失——拒绝合并（不静默降级）")
+        protocol = _protocol([v["extra"] for v in shard_map.values()],
+                             shard_dirs[0])
+        merged_models.append(_model_entry(name, shard_map))
+
+    total_games = int((merged_models[0].get("outcome") or {}).get("games") or 0)
+    doc = {
+        "models": merged_models,
+        "merged_from": [str(d) for d in shard_dirs],
+        "protocol": protocol,
+        "merge": {"schema": "hsai.panel.merge/v1", "shards": len(shard_dirs),
+                  "models": len(names), "games_per_model": total_games},
+    }
+    if expect_models is not None and len(names) != int(expect_models):
+        raise SystemExit(f"模型数 {len(names)} != 期望 {expect_models}（--expect-models）")
+    if expect_games is not None:
+        for m in merged_models:
+            got = int((m.get("outcome") or {}).get("games") or 0)
+            if got != int(expect_games):
+                raise SystemExit(
+                    f"模型 {m['name']!r} 名次样本 {got} != 期望 {expect_games}："
+                    "分片缺失或 seeds 重叠，拒绝写盘")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    cv = entry["curves"]
-    print("merged %-16s games=%-5s rows=%-6d  T12=%-7s T16=%-7s rank=%s"
-          % (name, entry["games"], len(rows),
-             (cv.get("12") or {}).get("strength_p50"),
-             (cv.get("16") or {}).get("strength_p50"),
-             (entry["outcome"] or {}).get("mean_rank")))
+    for m in merged_models:
+        cv = m["curves"]
+        print("merged %-16s games=%-5s rows=%-6d T12=%-7s T16=%-7s rank=%-6s "
+              "illegal=%-3s trunc=%-3s inject=%s"
+              % (m["name"], m["games"], m["rows"],
+                 (cv.get("12") or {}).get("strength_p50"),
+                 (cv.get("16") or {}).get("strength_p50"),
+                 (m["outcome"] or {}).get("mean_rank"),
+                 (m["outcome"] or {}).get("illegal_actions"),
+                 (m["outcome"] or {}).get("truncated_games"),
+                 (m.get("field_stats") or {}).get("mirror_apply_rate")))
+    print("protocol_sha256 =", protocol.get("protocol_sha256"))
     print("wrote", out_path)
     return doc
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("shards", nargs="+", help="分片目录（含 rows.jsonl.gz）或 panel.json")
+    ap.add_argument("shards", nargs="+",
+                    help="分片目录（含 rows*.jsonl.gz / extra*.json）或 panel.json")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--expect-games", type=int, default=None,
+                    help="每个模型应有的名次样本数；不符即拒绝写盘（防缺分片）")
+    ap.add_argument("--expect-models", type=int, default=None,
+                    help="应有的模型数；不符即拒绝写盘")
     a = ap.parse_args(argv)
     dirs = []
     for s in a.shards:
         p = Path(s)
         dirs.append(p.parent if p.is_file() else p)
-    merge(dirs, Path(a.out))
+    merge(dirs, Path(a.out), expect_games=a.expect_games,
+          expect_models=a.expect_models)
     return 0
 
 

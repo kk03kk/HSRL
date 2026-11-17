@@ -53,6 +53,16 @@ ANCHOR_ID = "m1080772-v7357"
 ELO_SCALE = 400.0 / math.log(10.0)
 
 
+
+def _contract() -> Dict[str, Any]:
+    """动作契约的唯一真值（``hsbg.az.train.eval_policy.TRAINING_CONTRACT``）。
+
+    2026-11-17（D-070）：以前每个评测入口各写一份 ``80/5/2`` 字面量，契约一变就要
+    同步改 4+ 处，漏一处就是"训练用新契约、评测用旧契约"的静默错配。
+    """
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
+    return dict(TRAINING_CONTRACT)
+
 def sha256_text(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
@@ -84,10 +94,15 @@ def load_config(path: Path) -> Dict[str, Any]:
                 raise ValueError(f"模型缺少 {key}: {m}")
     if int(cfg["games_per_pair"]) <= 0:
         raise ValueError("games_per_pair 必须 > 0")
-    if int(cfg["max_actions_per_turn"]) != 80:
-        raise ValueError("max_actions_per_turn 必须固定为 80")
-    if int(cfg["move_cap"]) != 5 or int(cfg["move_repeat_limit"]) != 2:
-        raise ValueError("move_cap 必须为 5，move_repeat_limit 必须为 2")
+    _c = _contract()
+    if int(cfg["max_actions_per_turn"]) != int(_c["max_actions_per_turn"]):
+        raise ValueError("max_actions_per_turn 必须为 "
+                         f"{_c['max_actions_per_turn']}（TRAINING_CONTRACT）")
+    if int(cfg["move_cap"]) != int(_c["move_cap"]) \
+            or int(cfg["move_repeat_limit"]) != int(_c["move_repeat_limit"]):
+        raise ValueError("move_cap 必须为 "
+                         f"{_c['move_cap']}、move_repeat_limit 必须为 "
+                         f"{_c['move_repeat_limit']}（TRAINING_CONTRACT）")
     if int(cfg["bootstrap"]) <= 0:
         raise ValueError("bootstrap 必须 > 0")
     seat_mode = str(cfg.get("seat_mode", "legacy"))

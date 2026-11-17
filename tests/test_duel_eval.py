@@ -59,7 +59,7 @@ def base_cfg(**overrides) -> dict:
             "A": {"id": "model-a", "path": "a/model.pt", "file_sha256": "aa" * 32},
             "B": {"id": "model-b", "path": "b/model.pt", "file_sha256": "bb" * 32},
         },
-        "games": 2, "seed": 73000000, "max_actions_per_turn": 80, "move_cap": 5,
+        "games": 2, "seed": 73000000, "max_actions_per_turn": 100, "move_cap": 2,
         "move_repeat_limit": 2, "max_steps": 50000, "best_games": 2, "top_power_games": 1,
     }
     cfg.update(overrides)
@@ -287,8 +287,8 @@ def test_real_repo_config_is_the_approved_duel():
     path = Path(__file__).resolve().parents[1] / "config/eval-duel-7357-vs-10004.json"
     cfg = load_config(path)
     assert cfg["games"] == 128
-    assert cfg["max_actions_per_turn"] == 80
-    assert cfg["move_cap"] == 5
+    assert cfg["max_actions_per_turn"] == 100
+    assert cfg["move_cap"] == 2
     assert cfg["move_repeat_limit"] == 2
     assert cfg["models"]["A"]["id"] == "entity16m-nus-7357"
     assert cfg["models"]["B"]["id"] == "entity16m-p50-10004-820m"

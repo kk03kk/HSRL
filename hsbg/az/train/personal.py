@@ -661,9 +661,9 @@ def main(argv=None):
     ev.add_argument("--forced-tier-carry", type=int, default=1,
                     help="强制升本的顺延回合数（默认 1）")
     ev.add_argument("--exposure", type=int, choices=[0, 1], default=0)
-    ev.add_argument('--max-actions-per-turn',type=int,default=80)
+    ev.add_argument('--max-actions-per-turn',type=int,default=100)
     ev.add_argument('--move-guard',type=int,choices=[0,1],default=1)
-    ev.add_argument('--move-cap',type=int,default=5)
+    ev.add_argument('--move-cap',type=int,default=2)
     ev.add_argument('--move-repeat-limit',type=int,default=2)
     ev.add_argument("--out", required=True)
     board = sub.add_parser("leaderboard")

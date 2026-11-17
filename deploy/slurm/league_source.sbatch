@@ -21,5 +21,5 @@ export PYTHONUTF8=1 PYTHONUNBUFFERED=1
 python workflows/build_v1_1_panel.py \
   --model "$SRC_MODEL" --games 768 --seed "$SRC_SEED" \
   --out "$SRC_OUT" --library "$SRC_LIB" \
-  --device cuda --temperature 0 --max-actions-per-turn 80 \
-  --move-cap 5 --move-repeat-limit 2 --forbid-cancel 1 --cancel-cap 2
+  --device cuda --temperature 0 --max-actions-per-turn 100 \
+  --move-cap 2 --move-repeat-limit 2 --forbid-cancel 1 --cancel-cap 2

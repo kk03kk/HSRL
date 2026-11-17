@@ -58,6 +58,14 @@ from hsbg.az.train.forced_tier import (  # noqa: E402
     plan_spec_of,
     prob_at,
 )
+from hsbg.az.train.health_gate import (  # noqa: E402
+    HealthLimits,
+    format_failures,
+    hard_collect_failures,
+    hard_update_failures,
+    soft_warnings,
+)
+from hsbg.az.train.lobby_filter import parse_race_list  # noqa: E402
 from hsbg.az.train.model import (  # noqa: E402
     attach_bc_card_head,
     attach_move_head_split,
@@ -400,6 +408,15 @@ def _value_warmup(trainer: Any, batch: Any, *, iters: int, lr: float,
 
 
 def main() -> int:
+    # 2026-11-17：本机控制台是 cp936，help/日志里的非 GBK 字符（如 U+2212 减号、
+    # ⇒）会让 argparse 在打印 help 时直接 UnicodeEncodeError。把两条流改成 UTF-8
+    # 与 `ops/hsai_ops.py` 同一做法；失败就保持原样（不影响训练）。
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            if (_stream.encoding or "").lower().replace("-", "") != "utf8":
+                _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description="Entity PPO（持久 trainer + 进程 pool + 流水线）")
     ap.add_argument("--minutes", type=float, default=30.0)
     ap.add_argument("--stop-at-decisions", type=float, default=0.0,
@@ -424,17 +441,34 @@ def main() -> int:
                     help="1=换位去抖守卫：采样前屏蔽「逆换位 / 同动作超限 / 本回合换位"
                          "超 cap」的 Move 动作位（见 docs/MOVE_GUARD.md）。"
                          "默认 0=关闭（与旧路径逐位等价）")
-    ap.add_argument("--forbid-unfreeze", type=int, default=0, choices=[0, 1],
-                    help="商店全部冻结时屏蔽 Freeze（与实机桥接一致；默认 0）")
-    ap.add_argument("--freeze-cap", type=int, default=0,
+    ap.add_argument("--forbid-unfreeze", type=int, default=1, choices=[0, 1],
+                    help="商店全部冻结时屏蔽 Freeze（与实机桥接一致；默认 1）")
+    ap.add_argument("--freeze-cap", type=int, default=1,
                     help="每回合最多按几次 Freeze（0=不限制，引擎上限 10）。"
-                         "Freeze 是整体切换，买走一张后可再冻，容易空转，建议 2")
+                         "2026-11-17 D-070：默认 2→1（每回合只能按一次冻结键）")
     ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
                     help="1=禁用加重护手(BG36_MagicItem_414)等黑名单待选卡（默认开，不改模拟器）")
+    ap.add_argument("--lobby-exclude", default="",
+                    help="禁掉的 lobby 种族（逗号分隔，如 MECHANICAL,DRAGON；空=不过滤）。"
+                         "用确定性种子过滤实现：含被禁种族的局会被跳过换派生种子，"
+                         "引擎与卡表都不改（见 hsbg/az/train/lobby_filter.py）")
+    # ── 借鉴第三方模型的三项"可选结构"（2026-11-17 D-072；默认全关 = 逐位等价旧模型）──
+    # 以前这三项在 build_entity_net 里存在，但训练入口**没有任何 CLI** ⇒ 永远打不开。
+    ap.add_argument("--use-z", type=int, default=0, choices=[0, 1],
+                    help="1=启用 46 阵容条件化 token（z_global + z_tok/zcard）。"
+                         "注意：需要 zcard 有真表（当前为空 buffer ⇒ 只有 z_global 生效）")
+    ap.add_argument("--n-z", type=int, default=46, help="z 槽位数（默认 46，45=中立）")
+    ap.add_argument("--use-attr", type=int, default=0, choices=[0, 1],
+                    help="1=启用 311 维卡牌属性投影（attr buffer 当前为空 ⇒ 恒等，需先灌表）")
+    ap.add_argument("--attr-f", type=int, default=311, help="卡牌属性维度（默认 311）")
+    ap.add_argument("--mag-query", type=int, default=0, choices=[0, 1],
+                    help="1=磁力头加一条可学双线性项（零初始化 ⇒ 起点等价旧版；**唯一"
+                         "无需外部数据就能训的一项**）")
     ap.add_argument("--forbid-cancel", type=int, default=1, choices=[0, 1],
                     help="1=always remove Cancel action 7; fail if no legal action remains")
-    ap.add_argument("--move-cap", type=int, default=5,
-                    help="每回合换位次数上限：>=cap 后屏蔽全部 Move（默认 3；0=本回合禁止换位）")
+    ap.add_argument("--move-cap", type=int, default=2,
+                    help="每回合换位次数上限：>=cap 后屏蔽全部 Move"
+                         "（2026-11-17 D-070：默认 5→2；0=本回合禁止换位）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
                     help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2；1=不允许重复）")
     # ── 流派（archetype）软偏置（默认关闭；见 docs/ARCHETYPE_BIAS.md）──
@@ -724,7 +758,9 @@ def main() -> int:
     ap.add_argument("--retained-growth-normalizer", type=float, default=690.0,
                     help="归一化基准：每只留存随从每回合增重达该值即拿满该回合（真人实测 690）")
     ap.add_argument("--retained-growth-cap", type=float, default=0.5,
-                    help="每局总奖励上界（默认 0.5 ≈ 名次全距 2.0 的 25%）")
+                    help="每局总奖励上界（默认 0.5 ≈ 名次全距 2.0 的 25%%）。"
+                         "注意 argparse 会对 help 文本做百分号格式化，"
+                         "所以这里必须写成两个百分号。")
     # ---- 阵容覆盖奖励（comp-target，默认关闭；见 hsbg/az/train/comp_target.py）----
     ap.add_argument("--comp-target-coef", type=float, default=0.0,
                     help="阵容覆盖奖励系数；0=关闭（默认，records/GAE 与旧路径逐位等价）。"
@@ -891,7 +927,10 @@ def main() -> int:
                     help="过程价值辅助头系数（0=关闭，默认）：预测 log1p(酒馆永久 buff) / "
                          "log1p(施法数) / log1p(consume 数)")
     ap.add_argument("--entropy-coef", type=float, default=0.005)
-    ap.add_argument("--max-actions-per-turn", type=int, default=80)
+    ap.add_argument("--max-actions-per-turn", type=int, default=100,
+                    help="每回合最多几次决策（超限强制 EndTurn）。"
+                         "2026-11-17 D-070：80→100（原值几乎从不触发，见 "
+                         "docs/analysis/ACTION_CAP_20261117.md）")
     ap.add_argument("--max-steps", type=int, default=20000)
     ap.add_argument("--log-every", type=int, default=10)
     ap.add_argument("--workers", type=int, default=1,
@@ -1025,8 +1064,32 @@ def main() -> int:
     ap.add_argument("--dyn-quality-games", type=int, default=96,
                     help="真实强度口径面板局数（5 席 p0.9，默认 96）")
     ap.add_argument("--trainer-state", default="")
+    # ── 健康门（2026-11-17 审计 P2-11）：把 `TRAINING_RECIPE §5` 的红线变成代码 ──
+    # 硬门（工程错误，fail-closed，默认开）：非法动作/无效局/截断/引擎停止/注入率崩塌/
+    # 非有限损失/非法动作概率泄漏。软警告（只记录）：熵、KL、吞吐。
+    ap.add_argument("--health-gate", type=int, default=1, choices=[0, 1],
+                    help="1=启用健康门（默认）；0=关闭（仅用于对照/复现旧作业）")
+    ap.add_argument("--health-illegal-actions", type=int, default=0)
+    ap.add_argument("--health-invalid-games", type=int, default=0)
+    ap.add_argument("--health-truncated-games", type=int, default=0)
+    ap.add_argument("--health-truncated-combats", type=int, default=0)
+    ap.add_argument("--health-engine-stopped", type=int, default=0)
+    ap.add_argument("--health-mirror-apply-min", type=float, default=0.99,
+                    help="镜像注入成功率下限（0=关闭该项检查；纯 bot 作业应设 0）")
+    ap.add_argument("--health-entropy-warn-below", type=float, default=0.8,
+                    help="策略熵软警告阈值（只记录，不停机）")
+    ap.add_argument("--health-kl-warn-above", type=float, default=0.03,
+                    help="近似 KL 软警告阈值（只记录，不停机）")
+    ap.add_argument("--health-throughput-warn-below", type=float, default=1500.0,
+                    help="吞吐软警告阈值 决策/秒（只记录，不停机；0=关闭）")
+    ap.add_argument("--teacher-loss-normalize", default="labeled",
+                    choices=["labeled", "valid"],
+                    help="教师 CE 的分母：labeled=改动前语义（对有标签行取均值）；"
+                         "valid=与策略项同分母（coef 即恒定权重比）")
     ap.add_argument("--out", default="runs/az_entity_sync")
     args = ap.parse_args()
+    # 健康门阈值：整轮只构造一次（纯数据，无副作用）。
+    health_limits = HealthLimits.from_args(args)
     # 2026-11-16：冠军奖金必须在**任何**策略/训练器构造之前生效——它是原地改写
     # common.RANK_UTILITY，所有 `from .common import RANK_UTILITY` 的模块共享同一数组。
     from hsbg.az.train.common import rank_utility_table, set_rank_utility_table, set_win_bonus
@@ -1044,11 +1107,25 @@ def main() -> int:
             print("[warn] 同时给了 --win-bonus 与 --rank-utility-table：以整表为准", flush=True)
     print(f"[reward] win_bonus={_wb} rank_utility={[round(float(x),3) for x in rank_utility_table()]}",
           flush=True)
-    if (int(args.max_actions_per_turn) != 80 or int(args.move_guard) != 1
-            or int(args.move_cap) != 5 or int(args.move_repeat_limit) != 2
-            or int(args.forbid_cancel) != 1 or int(args.sims) != 0):
-        ap.error("强制动作规则：max-actions=80, move-guard=1, move-cap=5, "
-                 "move-repeat=2, forbid-cancel=1, sims=0")
+    # 2026-11-17（D-070）：校验对着 TRAINING_CONTRACT 做（唯一真值），不再写死字面量。
+    from hsbg.az.train.eval_policy import TRAINING_CONTRACT as _CONTRACT
+    _bad = []
+    if int(args.max_actions_per_turn) != int(_CONTRACT["max_actions_per_turn"]):
+        _bad.append(f"max-actions={args.max_actions_per_turn}"
+                    f"(契约 {_CONTRACT['max_actions_per_turn']})")
+    if int(args.move_guard) != int(bool(_CONTRACT["move_guard"])):
+        _bad.append(f"move-guard={args.move_guard}")
+    if int(args.move_cap) != int(_CONTRACT["move_cap"]):
+        _bad.append(f"move-cap={args.move_cap}(契约 {_CONTRACT['move_cap']})")
+    if int(args.move_repeat_limit) != int(_CONTRACT["move_repeat_limit"]):
+        _bad.append(f"move-repeat={args.move_repeat_limit}")
+    if int(args.forbid_cancel) != int(bool(_CONTRACT["forbid_cancel"])):
+        _bad.append(f"forbid-cancel={args.forbid_cancel}")
+    if int(args.sims) != 0:
+        _bad.append(f"sims={args.sims}")
+    if _bad:
+        ap.error("强制动作规则与 TRAINING_CONTRACT 不一致：" + ", ".join(_bad)
+                 + "（契约见 hsbg/az/train/eval_policy.py）")
     if args.local_batch_inference and (int(args.processes) != 1 or int(args.workers) != 1
                                       or not int(args.lockstep) or int(args.sims) != 0):
         ap.error("local-batch-inference仅支持processes=workers=1、lockstep=1、sims=0")
@@ -1840,6 +1917,13 @@ def main() -> int:
         model = build_net(arch=args.arch, seq_head=seq_enabled,
                           bc_card_head=bc_card_head,
                           move_head_split=bool(int(args.move_head_split)),
+                          # 2026-11-17（D-072）：三项"借鉴结构"以前**没有 CLI 入口**，
+                          # 等于默认关且永远打不开。默认全关 ⇒ 逐位等价旧模型。
+                          use_z=bool(int(getattr(args, "use_z", 0) or 0)),
+                          n_z=int(getattr(args, "n_z", 46) or 46),
+                          use_attr=bool(int(getattr(args, "use_attr", 0) or 0)),
+                          attr_f=int(getattr(args, "attr_f", 311) or 311),
+                          mag_query=bool(int(getattr(args, "mag_query", 0) or 0)),
                           **_size)
         meta = {"arch": args.arch, **_size}
         arch = args.arch
@@ -2248,7 +2332,7 @@ def main() -> int:
                "--human-board-p", "0.9", "--human-board-seats", "5",
                "--human-board-fidelity", "full", "--human-board-sample", "auto",
                "--human-board-set-tier", "1", "--human-board-fast-inject", "1",
-               "--move-guard", "1", "--move-cap", "3", "--move-repeat-limit", "2",
+               "--move-guard", "1", "--move-cap", "2", "--move-repeat-limit", "2",
                "--out", str(out_json)]
         try:
             _t = time.time()
@@ -2610,6 +2694,8 @@ def main() -> int:
             forbid_unfreeze=bool(int(args.forbid_unfreeze)),
             freeze_cap=int(args.freeze_cap),
         ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
+        # 2026-11-17（D-071）：lobby 种族排除（空 = 不过滤，逐位等价旧行为）。
+        lobby_exclude=parse_race_list(getattr(args, "lobby_exclude", "")),
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),
@@ -2897,6 +2983,19 @@ def main() -> int:
                 print(f"[error] batch invalid: {errs}", file=sys.stderr)
                 return 3
 
+            # ── 健康门（采集侧）：审计 P2-11 —— `TRAINING_RECIPE §5` 的红线以前只在文档里。
+            # 硬门 = 工程错误（非法动作/截断/引擎停止/注入率崩塌）⇒ 严格停止并保留现场，
+            # 因为继续训练只会把错标签灌进模型（AGENTS §6）。
+            if int(args.health_gate):
+                _collect_failures = hard_collect_failures(collect_meta, health_limits)
+                if _collect_failures:
+                    print(format_failures(_collect_failures, where=f"collect iter {i}"),
+                          file=sys.stderr, flush=True)
+                    raise RuntimeError(
+                        "健康门（采集侧）触发，已停止以保留现场："
+                        + "; ".join(_collect_failures)
+                        + f"（out={args.out}；快照见 snapshots/）")
+
             # ── 自定义奖励（--upgrade-reward / --win-only-reward / --strength-reward-coef）
             # 必须放在 update 之前：改 rewards 后整批重算 advantages/returns。
             # 三者默认全 0 ⇒ 本块不执行 ⇒ 逐位等价旧路径。
@@ -2981,6 +3080,19 @@ def main() -> int:
                 gpu_memory = dict(allocated_bytes=torch.cuda.memory_allocated(args.device),
                     peak_allocated_bytes=torch.cuda.max_memory_allocated(args.device),
                     reserved_bytes=torch.cuda.memory_reserved(args.device))
+            # ── 健康门（更新侧）：非有限损失 / 非法动作概率泄漏 ⇒ 严格停止。
+            _soft_warn: List[str] = []
+            if int(args.health_gate):
+                _upd_failures = hard_update_failures(stats, health_limits)
+                if _upd_failures:
+                    print(format_failures(_upd_failures, where=f"update iter {i}"),
+                          file=sys.stderr, flush=True)
+                    raise RuntimeError(
+                        "健康门（更新侧）触发，已停止以保留现场："
+                        + "; ".join(_upd_failures))
+                _soft_warn = soft_warnings(stats, collect_meta, health_limits)
+                for _w in _soft_warn:
+                    print(f"[health-warn] iter {i}: {_w}", flush=True)
             if _rw is not None:
                 stats["custom_rewards"] = dict(_rw)
             if _vwarm is not None:
@@ -3036,6 +3148,13 @@ def main() -> int:
                     print(f"[ramp] iter {i} gate event: {_ev}", flush=True)
             rec = {"iter": i, "collect": slim, "ppo": stats,
                    "learner_gpu_memory": gpu_memory,
+                   # 健康门结果（硬门在更早处已经 raise；这里只记录软警告）。
+                   "health": {"soft_warnings": list(_soft_warn),
+                              "gate_on": bool(int(args.health_gate)),
+                              "limits": {"mirror_apply_min": health_limits.mirror_apply_min,
+                                         "entropy_warn_below": health_limits.entropy_warn_below,
+                                         "kl_warn_above": health_limits.kl_warn_above,
+                                         "throughput_warn_below": health_limits.throughput_warn_below}},
                    "pipeline": {"enabled": iteration_pipeline_on, "next_enabled":pipeline_on,
                                 "fallback_zero_step":zero_fallback,"lag": int(lag),
                                 "batch_version": int(batch_version),

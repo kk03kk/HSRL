@@ -83,8 +83,10 @@
 - 观测：**3227 floats + 124 cards**。
 - 模型兼容必须核对词表顺序、动作语义、布局、卡表与指纹，不能只对形状。
 - 训练栈：`hsbg/az`；一个学习席 + 七个严格 EOT 快照席；`sims=0`。
-- **冻结训练契约**：`max-actions-per-turn=80`、`move-guard=1`（cap 5 / repeat 2）、
-  `forbid-cancel=1`。改它需要用户明确授权。
+- **冻结训练契约**（唯一真值 `hsbg/az/train/eval_policy.py::TRAINING_CONTRACT`）：
+  `max-actions-per-turn=100`、`move-guard=1`（cap **2** / repeat 2）、`forbid-cancel=1`、
+  `forbid-unfreeze=1`、`freeze-cap=1`（每回合只能按一次 Freeze）、`ban-trinkets=1`、`sims=0`。
+  **2026-11-17 用户改过 100/2/1（D-070）**：改它需要用户明确授权，且会让 `protocol_sha256` 变（换榜）。
 - 续训/分叉：完整 Trainer（`trainer.pt`，含 Adam/调度器/RNG/anchor）才等于"精确续训"，
   **权重文件不能代替**；但**带 `--trainer-state` 会用 state 里的 `base_lrs` 覆盖 `--lr`**。
   当前配方故意只继承权重、重建 Adam（为了拿到论文的 6e-06），详见 `docs/TRAINING_RECIPE.md` §2.2。
@@ -149,24 +151,33 @@
 - 文档里不把旧路径当"当前路径"；历史路径只作证据。
 - 归档目录不更新、不参与流程。
 
-## 9. 当前阶段（2026-11-15）
+## 9. 当前阶段（**as of 2026-11-17，不再在此复制参数真值**）
 
+> 2026-11-17 审计结论：本节曾经是"配方快照"，但连续漂移了一整代（写着强制升本是
+> `2:2,4:3,5:4,7:5,8:6` / prob 1.0 / 教师关 / lr 1.2e-05，而实际生效的是
+> `2:2,5:3,7:4,8:5,10:6` / prob 0 / 教师全程 / lr 6e-06）。按本节复现会跑出
+> **D-065 已经判负的那套配方**。所以：**参数真值只允许出现在下面这两处**。
+
+- **参数真值的唯一来源**：`.sbatch`/训练器脚本本身 ＋ [`docs/DECISIONS.md`](docs/DECISIONS.md)
+  的**最新一条** `D-###`。要看当前配方，读 [`docs/TRAINING_RECIPE.md`](docs/TRAINING_RECIPE.md)
+  的"指针"段，再看 `deploy/slurm/stage_arena.sbatch` 的实际取值。
 - **研发模式**：用户定方向、Agent 执行/分析/验证；不自主规划多天路线（`docs/CHARTER.md`）。
-- **训练方式**：校准战团场 + **强制升本**（`2:2,4:3,5:4,7:5,8:6`，prob 1.0，教师关）+ 论文 Table 7 超参（lr 已提到 **1.2e-05**）。
-  每轮固定 **3 小时**（165 分钟训练），逐步累积。配方见 `docs/TRAINING_RECIPE.md`。
-- **当前最强模型**：`arena-v6-early6-20261115`（T12 中位战力 **1,344**、T12 tier 5.95、6 本停留 **7.36 回合/局**、吃鸡 45.9%）。
-- **判胜口径**：同场、同 seed、**施加同一强制计划**、512 局；主指标是**逐回合中位战力**（`docs/EVAL_PROTOCOL.md`）。
-- **GPU**：`h100-47` 是 MIG 切片，用 MIG UUID 重定向后不抽签（§3 的例外条款）。
+- **当前最强模型 / 冠军**：以 `docs/DECISIONS.md` 最新条为准；本文件**不再**写模型名。
+- **判胜口径**：用户 2026-11-17 明确"**不用单一指标判胜**"，主看逐回合 M1 与增长曲线，
+  名次只作参考（[`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md)）。
+- **GPU**：`h100-47` 是 MIG 切片，用 MIG UUID 重定向后不抽签（§3 的例外条款，D-063）。
 - **实机**：`real_game_accepted: false`，待 D-026 取证。
 - 服务器侧动态事实以 `python ops/hsai_ops.py state` 的实测输出为准，不抄文档。
+- **历史审计与失效结论**：[`docs/analysis/AUDIT_20261117.md`](docs/analysis/AUDIT_20261117.md)
+  登记了"因 Bug 而不可靠"的历史结论清单（含 D-068 的加重护手封禁在 v1.3 三轮里未生效）。
 
 ## 10. 两端差异速查
 
 | 事项 | 本地 Windows | NUS |
 |---|---|---|
-| Python | `.venv` 3.13.5，torch **cpu** | `.venv` 3.12.3，torch CUDA |
+| Python | `.venv` 3.13.5，torch **cpu**（**已安装 `hsbg_engine` 37.0.2.256589**，`import hsbg_engine` 可用） | `.venv` 3.12.3，torch CUDA |
 | 入口 | `client/live_245.py`（doctor/autoplay/decide/replay） | `workflows/*` + `deploy/slurm/*.sbatch` |
-| 能跑 | 实机、离线回放、`tests/test_live_*` | 模拟器编译与测试、训练、建库、评测、Slurm |
-| 不能跑 | 模拟器开发/编译/审计、训练栈测试、长训、大评测 | 实机、真实游戏输入 |
+| 能跑 | 实机、离线回放、`tests/test_live_*`；**引擎相关测试也能跑**（`pytest tests` 全量 877±，2026-11-17 实测 rc=0，含 `test_calibrated_opponents` 这类真实对局测试）；小规模 CPU 评测 smoke（2 局约 7 s） | 模拟器编译与测试、训练、建库、评测、Slurm |
+| 不能跑 | **编译 Rust**（无 MSVC/`cl.exe`）、训练（torch 是 CPU 版）、长训、大评测 | 实机、真实游戏输入 |
 | 独有证据 | `artifacts/runs/live-*`、`records/evidence` | `artifacts/models/*`、库、评测报告、Slurm 日志 |
 | 运维入口 | `ops/hsai_ops.py` | 无（被 ssh 驱动） |

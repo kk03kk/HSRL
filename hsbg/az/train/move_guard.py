@@ -43,7 +43,8 @@ MOVE_HI = MOVE_LO + int(N_BOARD) * int(N_BOARD)
 N_MOVES = MOVE_HI - MOVE_LO
 
 #: 默认参数（与 CLI ``--move-cap`` / ``--move-repeat-limit`` 一致）。
-DEFAULT_MOVE_CAP = 5
+#: 2026-11-17（D-070）：``DEFAULT_MOVE_CAP`` 5 → **2**（换位每回合最多 2 次）。
+DEFAULT_MOVE_CAP = 2
 DEFAULT_MOVE_REPEAT_LIMIT = 2
 
 

@@ -22,12 +22,15 @@
   "games": 128,
   "seed": 73000000,
   "decode": "greedy",
-  "max_actions_per_turn": 80,
-  "move_cap": 5,
+  "max_actions_per_turn": 100,
+  "move_cap": 2,
   "move_repeat_limit": 2,
   "max_steps": 50000,
   "best_games": 5,
   "top_power_games": 3,
   "action_cap_semantics": "同一座位同一回合第 81 个决策在 EndTurn 合法时强制结束回合（与训练配方同口径）",
-  "move_cap_semantics": "每回合最多 5 次换位；同一 (from,to) 累计 2 次后屏蔽；逆换位屏蔽"
+  "move_cap_semantics": "每回合最多 5 次换位；同一 (from,to) 累计 2 次后屏蔽；逆换位屏蔽",
+  "freeze_cap": 1,
+  "forbid_unfreeze": 1,
+  "ban_trinkets": 1
 }

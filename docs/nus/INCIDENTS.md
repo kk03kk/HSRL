@@ -1,6 +1,7 @@
 # 故障与防复发记录
 
-> 状态：历史故障与防复发参考；当前命令以 [ENVIRONMENT.md](ENVIRONMENT.md) 和 [EVAL_DEPLOYMENT.md](EVAL_DEPLOYMENT.md) 为准。
+> 状态：历史故障与防复发参考；当前命令以 [ENVIRONMENT.md](ENVIRONMENT.md) 为准
+> （评测部署细节已归档到 `records/archive/docs-20261114/nus/EVAL_DEPLOYMENT.md`，不进 Git）。
 
 | 现象 | 已查明原因 | 已采用措施/不可重复的做法 |
 |---|---|---|

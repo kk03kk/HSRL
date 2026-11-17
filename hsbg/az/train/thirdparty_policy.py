@@ -35,10 +35,10 @@ class ThirdPartyGreedyPolicy:
     """把作者发布的 `tg-ckpt-v1` 网络包装成我们的 Policy。"""
 
     def __init__(self, ckpt_path: str, *, device: str = "cuda:0", z: int = 45,
-                 max_actions_per_turn: int = 80, forbid_cancel: bool = True,
+                 max_actions_per_turn: int = 100, forbid_cancel: bool = True,
                  keep_start_board: bool = True, ban_trinkets: bool = True,
-                 freeze_cap: int = 0, forbid_unfreeze: bool = False,
-                 move_cap: int = 5, move_repeat_limit: int = 2) -> None:
+                 freeze_cap: int = 1, forbid_unfreeze: bool = True,
+                 move_cap: int = 2, move_repeat_limit: int = 2) -> None:
         import torch  # 惰性导入（登录节点 import torch 会失败）
         import hsbg_net
         self._torch = torch

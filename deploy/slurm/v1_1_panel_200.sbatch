@@ -27,10 +27,10 @@ python workflows/build_v1_1_panel.py \
   --games 12 --seed 241000000 \
   --out artifacts/runs/v1.1-panel-smoke-pending-guarded-20261109 \
   --library artifacts/libraries/v1.1-eot-smoke-pending-guarded-20261109 \
-  --device cuda --temperature 0 --max-actions-per-turn 80 --move-cap 5 --move-repeat-limit 2 --cancel-cap 2
+  --device cuda --temperature 0 --max-actions-per-turn 100 --move-cap 2 --move-repeat-limit 2 --cancel-cap 2
 python workflows/build_v1_1_panel.py \
   --model artifacts/models/v1.1/model.pt \
   --games 200 --seed 240000000 \
   --out artifacts/runs/v1.1-panel-200-pending-guarded-20261109 \
   --library artifacts/libraries/v1.1-eot-200-pending-guarded-20261109 \
-  --device cuda --temperature 0 --max-actions-per-turn 80 --move-cap 5 --move-repeat-limit 2 --cancel-cap 2
+  --device cuda --temperature 0 --max-actions-per-turn 100 --move-cap 2 --move-repeat-limit 2 --cancel-cap 2

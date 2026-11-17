@@ -37,6 +37,7 @@ from .common import (
 from .human_board_pool import HumanBoardStats, inject_turn
 from .policies import EngineBotPolicy, Policy
 from .forced_tier import ForcedTierTracker
+from .lobby_filter import make_filtered_game  # 2026-11-17 D-071（lobby 种族排除）
 from .mirror_snapshots import MirrorStats, inject_turn as inject_mirror_turn
 
 
@@ -93,6 +94,12 @@ class EvalConfig:
     #: 固定回合末库；与 human_board_pool 互斥。逐座位派生 RNG 保证配对可比。
     mirror_pool: Any = None
     mirror_strict: bool = False
+    #: 注入到几个非学习席 / 每座位注入概率。默认 7 / 1.0 **等于改动前写死的取值**，
+    #: 因此在默认情况下逐位等价；显式给出时才能与训练的
+    #: ``--mirror-seats/--mirror-p`` 口径对齐（2026-11-17 审计：协议里想记录这两个量，
+    #: 就必须让评测真的能吃这两个量，否则记录的是"声称"而不是"事实"）。
+    mirror_seats: int = N_PLAYERS - 1
+    mirror_p: float = 1.0
     collect_economy: bool = False
     #: 逐动作下标直方图（审计/行为分析用；默认关闭，不影响热路径）。
     collect_action_hist: bool = False
@@ -103,6 +110,9 @@ class EvalConfig:
     #: 只用于「规则内」探针；正式 Dev 评测必须保持空，否则棋力不可比。
     forced_tier_plan: str = ""
     forced_tier_carry: int = 1
+    #: **lobby 种族排除**（与训练同口径；空 = 不过滤）。非空时建局会跳过含被禁种族的
+    #: 种子，`seed_sequence` 记录的是**实际使用**的种子（不再等于 base+gi）。
+    lobby_exclude: tuple = ()
 
 
 def _mix_seed(*parts: int) -> int:
@@ -163,6 +173,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                   if ft_plan else None)
     forced_tier_actions = 0
     ranks: List[int] = []
+    used_seeds: List[int] = []
     truncated = 0
     decisions = 0
     illegal = 0
@@ -189,8 +200,11 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         return result
     t0 = time.time()
     for gi in range(int(config.games)):
-        game = E.Game(seed=int(config.seed) + gi)
-        game_seed = int(config.seed) + gi
+        # 2026-11-17（D-071）：可能因 lobby 种族过滤换种子 ⇒ 记录**实际**使用的 seed。
+        game, game_seed = make_filtered_game(
+            E, int(config.seed) + gi, getattr(config, "lobby_exclude", ()),
+            learner_seat=seat0)
+        used_seeds.append(int(game_seed))
         policy.reset()
         steps = 0
         last_turn = -1
@@ -259,28 +273,35 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                         source=frame.source_label, mixture_source=frame.mixture_source,
                         board=describe_board(json.loads(game.player_json(target))['board']) if config.collect_exposure else None)
             elif config.mirror_pool is not None:
-                for target in range(N_PLAYERS):
-                    if target != seat0:
-                        # 若目标已经ended，原生注入必拒绝且不改状态。
-                        # 跳过无效目标，不能把already_ended混进载荷/引用故障。
-                        if bool(json.loads(game.player_json(target)).get("ended_turn")):
-                            mirror_skipped_ended += 1
-                            continue
-                        # 2026-11-16：注入前先把该席位的待选结算完（bot 自己选），
-                        # 否则引擎会以 pending_choice 拒绝、该席位退回 bot 弱板子。
-                        if _resolve_pending_for(game, target):
-                            mirror_pending_resolved += 1
-                        old_applied = mirror_stats.applied
-                        inject_mirror_turn(
-                            game, config.mirror_pool, turn_now, seats=[target],
-                            rng=random.Random(_mix_seed(game_seed, turn_now, target)),
-                            learner_seat=seat0, stats=mirror_stats, advance=False)
-                        if config.collect_exposure and mirror_stats.applied > old_applied:
-                            # 独立重建同一采样，不消耗环境或策略RNG。
-                            frame = config.mirror_pool.get(turn_now, target,
-                                rng=random.Random(_mix_seed(game_seed, turn_now, target)))
-                            injected[(turn_now, target)] = dict(snapshot=frame.path, strength=frame.strength,
-                                source=frame.source_label, mixture_source=frame.mixture_source)
+                # 注入目标：非学习席里前 ``mirror_seats`` 个（默认 7 = 全部），按
+                # ``mirror_p`` 逐座位独立掷概率。默认 7/1.0 ⇒ 与改动前逐位等价。
+                _limit = int(getattr(config, "mirror_seats", N_PLAYERS - 1) or 0)
+                _p = float(getattr(config, "mirror_p", 1.0))
+                _targets = [t for t in range(N_PLAYERS) if t != seat0][:max(0, _limit)]
+                for target in _targets:
+                    if _p < 1.0 and random.Random(
+                            _mix_seed(game_seed, turn_now, target, 7919)).random() >= _p:
+                        continue
+                    # 若目标已经ended，原生注入必拒绝且不改状态。
+                    # 跳过无效目标，不能把already_ended混进载荷/引用故障。
+                    if bool(json.loads(game.player_json(target)).get("ended_turn")):
+                        mirror_skipped_ended += 1
+                        continue
+                    # 2026-11-16：注入前先把该席位的待选结算完（bot 自己选），
+                    # 否则引擎会以 pending_choice 拒绝、该席位退回 bot 弱板子。
+                    if _resolve_pending_for(game, target):
+                        mirror_pending_resolved += 1
+                    old_applied = mirror_stats.applied
+                    inject_mirror_turn(
+                        game, config.mirror_pool, turn_now, seats=[target],
+                        rng=random.Random(_mix_seed(game_seed, turn_now, target)),
+                        learner_seat=seat0, stats=mirror_stats, advance=False)
+                    if config.collect_exposure and mirror_stats.applied > old_applied:
+                        # 独立重建同一采样，不消耗环境或策略RNG。
+                        frame = config.mirror_pool.get(turn_now, target,
+                            rng=random.Random(_mix_seed(game_seed, turn_now, target)))
+                        injected[(turn_now, target)] = dict(snapshot=frame.path, strength=frame.strength,
+                            source=frame.source_label, mixture_source=frame.mixture_source)
                 # learner 已淘汰时，七个 ended 快照可能使全桌结束；显式触发战斗推进。
                 game.apply_turn_snapshots([], True)
                 _record_combats()
@@ -483,6 +504,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
         "mean_utility": float(util.mean()) if n_known else None,
         "rank_counts": rank_counts,
         "rank_sequence": [int(r) for r in ranks],
+        # 逐局种子：与 ``rank_sequence`` **一一对应**。它是配对统计的键——审计 P2-6
+        # 发现按数组下标配对时，缺失一个中间分片就会让两侧整体错位，CI 假性跨 0。
+        "seed_sequence": list(used_seeds),
         "decisions": int(decisions),
         "decisions_per_game": float(decisions / max(config.games, 1)),
         "illegal_actions": int(illegal),

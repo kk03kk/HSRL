@@ -101,7 +101,9 @@
 
 1. **同一引擎**：`hsbg_engine 37.0.2.256589`，源码指纹 `c4c71014e3d41760`；
 2. **同一对手场**：同一份快照库目录（例如 `arena-cal-v3-snap`）+ 同一 `--mirror-sample` / `--mirror-p` / `--mirror-seats`；
-3. **同一冻结契约**：`max-actions-per-turn 80`、`forbid-unfreeze 1`、`forbid-cancel 1`、`move-guard 1`；
+3. **同一冻结契约**（唯一真值 `hsbg/az/train/eval_policy.py::TRAINING_CONTRACT`）：
+   `max-actions-per-turn 100`、`forbid-unfreeze 1`、`forbid-cancel 1`、
+   `move-guard 1`（cap **2** / repeat 2）、`freeze-cap 1`、`ban-trinkets 1`；
 4. **同一 seed 集**（默认 `930000`，512 局）；
 5. **`protocol_sha256` 一致**。不一致就是**不同榜**，禁止混比；
 6. **考试场必须是 held-out**：判"真进步"用的场地**不能是候选训练时用过的战团库**。

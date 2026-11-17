@@ -329,7 +329,7 @@ class _ArenaPolicy:
         import workflows.arena_agent as AA
         self._AA = AA
         self._match = 0
-        self._max_actions_per_turn = 40        # 竞技场 action_limit / 训练同口径
+        self._max_actions_per_turn = 100       # = TRAINING_CONTRACT（2026-11-17 D-070：80→100）
         self._turn_actions: dict = {}
         os.environ["ARENA_MODEL"] = os.path.abspath(args.checkpoint)
         os.environ["ARENA_DEVICE"] = str(args.device)
@@ -377,7 +377,7 @@ def main() -> int:
                          "的部署路径（换位守卫默认开，见 docs/ARENA_GUARD.md）")
     ap.add_argument("--move-guard", type=int, default=1, choices=[0, 1],
                     help="1=评测时也启用换位去抖守卫（默认 0=纯模型行为）")
-    ap.add_argument("--move-cap", type=int, default=5,
+    ap.add_argument("--move-cap", type=int, default=2,
                     help="每回合换位次数上限（仅 --move-guard 1 时生效；默认 3）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
                     help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2）")
