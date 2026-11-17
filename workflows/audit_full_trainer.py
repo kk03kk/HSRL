@@ -45,7 +45,8 @@ def audit(source, expected_version=None, expected_hashes=None, device='cpu'):
     if device.startswith('cuda'):
         if len(state['cuda_rng'])!=torch.cuda.device_count():raise ValueError('CUDA RNG设备数不同，需要显式迁移')
         if any(not torch.equal(a.cpu(),b.cpu()) for a,b in zip(torch.cuda.get_rng_state_all(),state['cuda_rng'])):raise ValueError('CUDA RNG恢复不符')
-    game=E.Game(seed=7302);obs=game.observe(0);mask=np.frombuffer(game.legal_mask(0),dtype=np.uint8).astype(bool)
+    from hsbg.az.train.mechanism_obs import observe, schema_of
+    game=E.Game(seed=7302);obs=observe(game,0,schema_of(model));mask=np.frombuffer(game.legal_mask(0),dtype=np.uint8).astype(bool)
     f=torch.from_numpy(np.frombuffer(obs[0],dtype=np.float32).copy()[None]).to(device)
     c=torch.from_numpy(np.frombuffer(obs[1],dtype=np.int32).copy().astype(np.int64)[None]).to(device)
     with torch.inference_mode():outputs=split_model_outputs(forward_model(model,f,c,torch.from_numpy(mask[None]).to(device)))
