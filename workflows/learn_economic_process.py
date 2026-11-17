@@ -143,8 +143,9 @@ def run(args):
                  'gradient_norm':float(norm),'elapsed':time.monotonic()-started,
                  'labels_dev':assess_rows(model,labels,dev,raw['kinds'])}
             history.append(row);print(json.dumps(row),flush=True)
-            atomic_json(out/'history.json',history)
+            atomic_json(out/'checks'/f'{update:06d}.json',row)
             if row['anchor_policy_kl']>.1:raise RuntimeError('natural policy KL safety budget exceeded')
+    atomic_json(out/'history.json',history)
     meta.update(process_learning={'parent':identity['parent'],'dataset':identity['dataset_manifest'],
                                   'args':vars(args),'research_only':True})
     save_checkpoint(model,str(out/'model.pt'),meta=meta)
