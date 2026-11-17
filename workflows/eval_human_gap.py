@@ -61,7 +61,13 @@ from hsbg.az.train.ppo import PPOEvaluator, PPOGreedyPolicy  # noqa: E402
 from hsbg.az.train.thirdparty_policy import is_thirdparty_spec  # noqa: E402
 
 
-def sha256_file(path: Path) -> str:
+def sha256_file(path) -> str:
+    # `thirdparty:/path` 这种 spec 不是真实路径；哈希要落到真文件上
+    if is_thirdparty_spec(str(path)):
+        from hsbg.az.train.thirdparty_policy import split_thirdparty
+        path = Path(split_thirdparty(str(path)))
+    elif not isinstance(path, Path):
+        path = Path(str(path))
     h = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
