@@ -18,7 +18,7 @@
   },
   "learning": {"updates": 2000, "lr": 0.000003, "seed": 1203801, "per_phase_batch": 32, "anchor_kl_coefficient": 10, "whole_anchor_kl_stop": 0.03, "clip_grad_norm": 1},
   "budget": "CPU one train/one dev source engineering probe, then all 256 sources; one fixed-endpoint GPU BC. Closed-loop evaluation separate after artifact validation. No automatic PPO extension.",
-  "evaluation": "Use same 49 source states and two future replicas, exact initial hashes and paired parent/growth outcomes; also confirm fallback invariance. Formal reserved seeds untouched.",
+  "evaluation": "Use same 49 source states, both normal and complete_gold variants and two future replicas (196 suffixes), exact initial hashes and paired parent/growth outcomes; confirm fallback invariance. Formal reserved seeds untouched.",
   "limitations": ["Only a conditional high-multiplier skill; does not teach natural component acquisition", "Gate is a declared engineering/scientific prior, not learned optimal context selection", "Development cases have informed research decisions; no confirmatory claim", "Student loses heuristic action-history memory; closed-loop performance must verify learnability", "Existing teacher uses broader gate; student fallback after losing a golden component is a separately declared behavior"],
   "promotion": "No automatic champion or live pin change"
 }
