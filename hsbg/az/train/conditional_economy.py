@@ -18,19 +18,26 @@ CORE_GROUPS=(('BG_LOE_077','TB_BaconUps_045'),('BG33_823','BG33_823_G'),
              ('BG33_825','BG33_825_G'))
 
 
-@lru_cache(maxsize=1)
-def current_gate_spec():
+@lru_cache(maxsize=2)
+def current_gate_spec(mode='two_core'):
     import hsbg_engine as E
     ncols,raw=E.card_static();n=len(raw)//(4*ncols)
     vocabulary=['']+[E.card_info(i)[0] for i in range(1,n)]
     indices={cid:i for i,cid in enumerate(vocabulary)}
-    return {'schema':'hsai.conditional-economy-gate/v1',
-        'groups':[list(g) for g in CORE_GROUPS],
-        'embedding_ids':[[indices[c] for c in g] for g in CORE_GROUPS],
+    if mode not in ('two_core','gold_engine'):raise ValueError('unknown conditional gate mode')
+    groups=CORE_GROUPS if mode=='two_core' else (
+        ('TB_BaconUps_045','TB_BaconUps_045'),('BG33_823','BG33_823_G'),
+        ('BG33_825_G','BG33_825_G'),('BG36_523','BG36_523_G'))
+    spec={'schema':'hsai.conditional-economy-gate/v1',
+        'groups':[list(g) for g in groups],
+        'embedding_ids':[[indices[c] for c in g] for g in groups],
         'minimum_distinct_groups':2,'lobby_feature':O.GLOBAL_LOBBY_RACES_START+6,
         'board_slice':[O.SLICE_CARD_BOARD.start,O.SLICE_CARD_BOARD.stop],
         'hand_slice':[O.SLICE_CARD_HAND.start,O.SLICE_CARD_HAND.stop],
         'vocabulary_sha256':hashlib.sha256(json.dumps(vocabulary,separators=(',',':')).encode()).hexdigest()}
+    if mode=='gold_engine':
+        spec.update(schema='hsai.conditional-economy-gate/v2',mode=mode,minimum_distinct_groups=4)
+    return spec
 
 
 class ConditionalEconomy(nn.Module):
@@ -51,7 +58,7 @@ class ConditionalEconomy(nn.Module):
         if any(M.schema_of(c)!=schema or getattr(c,'input_floats',3227)!=self.input_floats for c in (base,specialist)):
             raise ValueError('conditional components disagree with declared observation schema')
         spec=copy.deepcopy(current_gate_spec() if gate_spec is None else gate_spec)
-        if spec!=current_gate_spec():raise ValueError('conditional gate or vocabulary identity differs')
+        if spec!=current_gate_spec(spec.get('mode','two_core')):raise ValueError('conditional gate or vocabulary identity differs')
         self.base=base;self.specialist=specialist
         self.component_meta=copy.deepcopy(component_meta);self.gate_spec=spec
         self.register_buffer('_gate_ids',torch.tensor(spec['embedding_ids'],dtype=torch.long),persistent=False)
@@ -61,7 +68,7 @@ class ConditionalEconomy(nn.Module):
             raise ValueError('conditional observation layout differs')
         owned=torch.cat((cards[:,O.SLICE_CARD_BOARD],cards[:,O.SLICE_CARD_HAND]),dim=1)
         distinct=(owned[:,:,None,None]==self._gate_ids[None,None,:,:]).any(1).any(-1).sum(-1)
-        return (features[:,self.gate_spec['lobby_feature']]>.5)&(distinct>=2)
+        return (features[:,self.gate_spec['lobby_feature']]>.5)&(distinct>=self.gate_spec['minimum_distinct_groups'])
 
     def forward(self,features,cards,mask=None):
         active=self.gate(features,cards)
@@ -81,11 +88,11 @@ class ConditionalEconomy(nn.Module):
                 'mechanism_schema_sha256':M.SCHEMA_SHA256 if self.mechanism_schema else ''}
 
 
-def fork_conditional(base,meta,*,mechanisms=False):
+def fork_conditional(base,meta,*,mechanisms=False,gate_mode='two_core'):
     if mechanisms:
         base=M.enable_mechanisms(copy.deepcopy(base));meta=copy.deepcopy(meta)
         meta.update(base.arch_flags())
-    return ConditionalEconomy(base,copy.deepcopy(base),meta).to(next(base.parameters()).device)
+    return ConditionalEconomy(base,copy.deepcopy(base),meta,current_gate_spec(gate_mode)).to(next(base.parameters()).device)
 
 
 def load_payload(payload,device,load_component):

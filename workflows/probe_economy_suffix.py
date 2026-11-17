@@ -53,6 +53,9 @@ def trial(task):
         'source_seed':case['seed'],'source_turn':case['turn'],'variant':variant,'future_seed':seed,
         'operator_intervention':operator,'scope':'explicitly endowed conditional suffix, not natural performance',
         'interventions':edits,'initial_opponents_preserved':True,'reset_controller':True}
+    from hsbg.az.train import mechanism_obs as M
+    schema=M.schema_of(getattr(policy.evaluator,'model',None))
+    if schema:identity.update(mechanism_schema=schema,mechanism_schema_sha256=M.SCHEMA_SHA256)
     recorder=EconomyRecorder(path/'decisions.jsonl.gz',identity=identity)
     try:
         result=evaluate_policy(policy,EvalConfig(games=1,seed=seed,research_initial_state=initial,

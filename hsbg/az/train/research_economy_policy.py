@@ -18,7 +18,9 @@ class _Evaluator:
         self.base=base;self.model=getattr(base,'model',None)
         self.operator_mode=operator_mode
         self.operator=Operator(operator_mode);self.view=None;self.reason=None;self.enabled=False
+        self.last_mask=None
     def __call__(self,features,cards,mask,seat):
+        self.last_mask=np.asarray(mask,dtype=bool).copy()
         self.enabled=active(self.view);self.reason=None
         if not self.enabled:return self.base(features,cards,mask,seat)
         view={**self.view,'mask':np.asarray(mask,dtype=bool).tolist()}

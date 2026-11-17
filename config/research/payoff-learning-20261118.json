@@ -1,0 +1,24 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-096 under D-081 autonomy",
+  "parent": {"path": "artifacts/models/arena-v1.4-r1/model.pt", "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"},
+  "teacher": "growth public heuristic from D-094; full conditional episodes, no optimality claim",
+  "evidence": "1159803 plus sealed paired analysis 1159824; gold context rank improves 1.18367 [0.71429,1.64286], normal context remains worse",
+  "gate": "gold_engine/v2: Pirates in lobby; own gold Brann, gold Privateer, Rogers, Escapee, each on board or in hand; shop not ownership",
+  "architecture": "conditional_economy_v1 with mechanisms/v1, frozen neutral base policy and critic; train specialist only",
+  "data": {
+    "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+    "source_selection": "Same earliest T8/T9 Pirate states with HP>=15; 207 training sources, 49 development sources; seed%5 isolation",
+    "initial_variant": "complete_gold; no gold/HP/tier changes; synthetic component interventions all retained",
+    "training_future": "12070000 + selected_source_index*100",
+    "development": "Reuse growth/complete_gold/replica0 sealed traces from nus-economic-payoff-20261118-1; replay every native step and teacher decision",
+    "labels": "Only actual unforced teacher actions inside gold_engine gate; original guarded legal mask; no rank/value targets; no outcome filtering",
+    "phase_groups": ["T8_9", "T10_12", "T13_plus"],
+    "anchors": "Existing 2697 natural parent-policy observations, checksum verified"
+  },
+  "learning": {"updates": 2000, "lr": 0.000003, "seed": 1203801, "per_phase_batch": 32, "anchor_kl_coefficient": 10, "whole_anchor_kl_stop": 0.03, "clip_grad_norm": 1},
+  "budget": "CPU one train/one dev source engineering probe, then all 256 sources; one fixed-endpoint GPU BC. Closed-loop evaluation separate after artifact validation. No automatic PPO extension.",
+  "evaluation": "Use same 49 source states and two future replicas, exact initial hashes and paired parent/growth outcomes; also confirm fallback invariance. Formal reserved seeds untouched.",
+  "limitations": ["Only a conditional high-multiplier skill; does not teach natural component acquisition", "Gate is a declared engineering/scientific prior, not learned optimal context selection", "Development cases have informed research decisions; no confirmatory claim", "Student loses heuristic action-history memory; closed-loop performance must verify learnability", "Existing teacher uses broader gate; student fallback after losing a golden component is a separately declared behavior"],
+  "promotion": "No automatic champion or live pin change"
+}

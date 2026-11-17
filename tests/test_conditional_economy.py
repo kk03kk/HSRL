@@ -41,6 +41,27 @@ def test_gate_uses_distinct_owned_core_types_and_public_lobby():
     assert model.gate(f,c).tolist()==[False,True,False,False]
 
 
+def test_gold_engine_gate_owns_all_four_components_and_roundtrips(tmp_path):
+    import hsbg_engine as E
+    from tests.test_economic_tasks import natural_source
+    from workflows.probe_whole_turn_economy import fixture
+    from hsbg.az.train import mechanism_obs as M
+    base,meta=small_parent();model=fork_conditional(base,meta,mechanisms=True,gate_mode='gold_engine').eval()
+    data=[]
+    for variant in ('normal','complete','complete_gold','missing_privateer'):
+        state,_=fixture(natural_source(),variant);game=E.Game.from_json(json.dumps(state))
+        f,c=M.observe(game,0,M.SCHEMA)
+        data.append((np.frombuffer(f,dtype='<f4').copy(),np.frombuffer(c,dtype='<i4').copy()))
+    f=torch.tensor(np.stack([r[0] for r in data]));c=torch.tensor(np.stack([r[1] for r in data]))
+    assert model.gate(f,c).tolist()==[False,False,True,False]
+    # One missing piece disables the option even if the other three are golden.
+    index=(c[2]==model.gate_spec['embedding_ids'][3][0]).nonzero()[0]
+    c[2,index]=0;assert not model.gate(f,c).any()
+    path=tmp_path/'gold.pt';save_checkpoint(model,str(path),meta=meta)
+    restored,_=load_checkpoint(str(path));assert restored.gate_spec==model.gate_spec
+    assert torch.equal(restored.gate(f,c),model.gate(f,c))
+
+
 def test_neutral_fork_specialist_gradient_and_exact_fallback_critic(tmp_path):
     base,meta=small_parent();reference=copy.deepcopy(base);model=fork_conditional(base,meta).eval()
     f,c,mask=inputs();assert model.gate(f,c).tolist()==[False,True]
