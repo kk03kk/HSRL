@@ -38,11 +38,13 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterable, List, Optional, Tuple
 
-#: 默认强制升本计划（回合 → 目标酒馆等级）。T9 以后自由经营，六本不强制。
-DEFAULT_FORCED_TIER_PLAN: Dict[int, int] = {2: 2, 5: 3, 6: 4, 8: 5}
+#: 默认强制升本计划（回合 → 目标酒馆等级）。T9 以后自由经营，**六本不强制**。
+#: 2026-11-17（用户定）：去掉「10→6」一档（教师不再推 6 本），并把「6→4」对齐到
+#: 实际在跑的「7→4」——以前默认值与 `stage_arena.sbatch` 传的值不一致，属隐患。
+DEFAULT_FORCED_TIER_PLAN: Dict[int, int] = {2: 2, 5: 3, 7: 4, 8: 5}
 
 #: 默认计划字符串（CLI / history 用）
-DEFAULT_FORCED_TIER_PLAN_SPEC = "2:2,5:3,6:4,8:5"
+DEFAULT_FORCED_TIER_PLAN_SPEC = "2:2,5:3,7:4,8:5"
 
 #: 默认顺延回合数：目标回合没做到，允许在随后这么多回合内补做（记为 deferred）
 DEFAULT_FORCED_TIER_CARRY = 1

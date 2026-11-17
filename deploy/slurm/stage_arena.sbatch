@@ -30,8 +30,9 @@
 # 规模口径：512 局/轮 ≈ 12.7 万决策 = 论文"一轮约 100 万决策"的 1/8；
 # 所以一次 3 小时作业约等于论文一个 stage 的 1/8 训练量。
 #
-#   HSAI_ARENA_OUT      new run dir (must not exist)
-#   HSAI_ARENA_MINUTES  training minutes for THIS segment (default 150)
+#   HSAI_ARENA_OUT      new run dir (must not exist)   [required]
+#   HSAI_ARENA_CKPT     starting weights               [required, 2026-11-17]
+#   HSAI_ARENA_MINUTES  training minutes for THIS segment (default 165)
 #   HSAI_ARENA_SEGMENTS segments in this job (default 1)
 #   HSAI_ARENA_RESUME   0=fresh fork from --checkpoint, 1=continue this run dir
 #
@@ -56,7 +57,9 @@ out="${HSAI_ARENA_OUT:?必须指定 HSAI_ARENA_OUT（新目录）}"
 minutes="${HSAI_ARENA_MINUTES:-165}"
 segments="${HSAI_ARENA_SEGMENTS:-1}"
 resume="${HSAI_ARENA_RESUME:-0}"
-ckpt="${HSAI_ARENA_CKPT:-artifacts/models/arena-v1.2/model.pt}"
+# 2026-11-17 用户定：**必须显式给**。以前默认是 `arena-v1.2/model.pt`，忘记覆盖就会
+# 静默从旧模型起训（审核发现的隐患 #1）；现在缺参数直接报错，不允许默认值替人做决定。
+ckpt="${HSAI_ARENA_CKPT:?must set HSAI_ARENA_CKPT (starting weights, e.g. artifacts/models/arena-v1.3-r3/model.pt)}"
 snaps="${HSAI_ARENA_SNAPS:-artifacts/libraries/arena-cal-v14-snap}"
 seed="${HSAI_ARENA_SEED:-611071401}"
 lr="${HSAI_ARENA_LR:-6e-06}"
@@ -76,8 +79,10 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #       → 每局期望 −0.177（名次全距 2.0 的 8.9%），旧版是 −0.048（2.4%）⇒ 压力约 3.7 倍
 #       → 最坏情形（三档全错）−0.45 = 22.5%，仍明显小于名次信号 ±1.0
 # -- 升本课程：纯教师 BC（DAgger），完全不强制（2026-11-17 用户定）------------
-# 计划表仍是这五个里程碑，但语义变了：它不再是「强制时间表」，而是「教师时间表」。
-#   2 回合 -> 2 本 / 5 -> 3 / 7 -> 4 / 8 -> 5 / 12 -> 6
+# 计划表是**四个**里程碑（不再是五个），语义是「教师时间表」而不是「强制时间表」：
+#   2 回合 -> 2 本 / 5 -> 3 / 7 -> 4 / 8 -> 5        （**没有 6 本这一档**）
+# 2026-11-17 用户决定：去掉原来的「10 -> 6」。教师不再把模型推向 6 本，
+#   什么时候上 6 由策略自己决定。同时修掉脚本注释与实际值不一致（注释曾写 12、值是 10）。
 # 语义（hsbg/az/train/forced_tier.py）：
 #   prob=0   -> out.force 永不置位，动作 100% 由策略自己采样（不再有 logprob=0 的决策）
 #   teacher  -> 到点且 Upgrade 合法（掩码 mask[3] 已编码「金币够+未满级+不在待选」）时，
@@ -89,7 +94,7 @@ anchor_tail="${HSAI_ARENA_ANCHOR_TAIL:-0.02}"
 #   之后不再写标签 —— 教师只补「到点还没升」的缺口，不惩罚提前升。
 # 注意：教师由 --forced-teacher-until / --forced-teacher-coef 这两个参数开启，
 #   不存在 --forced-tier-teacher 这个 flag。
-forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,5:3,7:4,8:5,10:6}"
+forced_tier_plan="${HSAI_ARENA_FORCED_TIER:-2:2,5:3,7:4,8:5}"
 forced_tier_carry="${HSAI_ARENA_FORCED_TIER_CARRY:-1}"
 forced_tier_prob="${HSAI_ARENA_FORCED_TIER_PROB:-0}"
 forced_teacher_until="${HSAI_ARENA_FORCED_TEACHER_UNTIL:-1B}"

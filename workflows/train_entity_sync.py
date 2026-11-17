@@ -777,7 +777,7 @@ def main() -> int:
                     help="反刷分门槛：命中核心卡数不足就不给分（默认 2）")
     # ---- 强制升本课程（默认关闭，见 docs/FORCED_TIER.md）----
     ap.add_argument("--forced-tier-plan", default="",
-                    help="强制升本计划 turn:tier，逗号分隔（如 2:2,5:3,6:4,8:5）；"
+                    help="强制升本计划 turn:tier，逗号分隔（默认 2:2,5:3,7:4,8:5，不含 6 本）；"
                          "空=关闭（默认，records/GAE 与旧路径逐位等价）")
     ap.add_argument("--forced-tier-carry", type=int, default=1,
                     help="目标回合没做到时允许顺延的回合数（记为 deferred；默认 1）")

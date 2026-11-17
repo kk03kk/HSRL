@@ -29,7 +29,7 @@ from hsbg.az.train.forced_tier import (
 
 def test_default_plan_matches_documented_schedule():
     assert parse_forced_tier_plan(DEFAULT_FORCED_TIER_PLAN_SPEC) == DEFAULT_FORCED_TIER_PLAN
-    assert DEFAULT_FORCED_TIER_PLAN == {2: 2, 5: 3, 6: 4, 8: 5}
+    assert DEFAULT_FORCED_TIER_PLAN == {2: 2, 5: 3, 7: 4, 8: 5}
     assert plan_spec_of(DEFAULT_FORCED_TIER_PLAN) == DEFAULT_FORCED_TIER_PLAN_SPEC
 
 
