@@ -16,6 +16,7 @@ from hsbg.az.train.action_ban import CHOICE_LO
 from hsbg.az.train.common import (set_rank_utility_table, rank_utility_table,
                                   set_win_bonus)
 from hsbg.env.action_space_std import A_CANCEL, A_END, N_TOTAL_ACTIONS
+from hsbg.az.train.common import N_ACTIONS as MODEL_ACTIONS
 
 OK = True
 
@@ -81,7 +82,7 @@ if have_engine:
     B = 2
     f = torch.zeros(B, 3227)
     c = torch.zeros(B, 124, dtype=torch.long)
-    m = torch.zeros(B, N_TOTAL_ACTIONS, dtype=torch.bool); m[:, 0] = True
+    m = torch.zeros(B, int(MODEL_ACTIONS), dtype=torch.bool); m[:, 0] = True
     base.eval(); full.eval()
     with torch.no_grad():
         lb, rb, vb = base(f, c, m)
@@ -89,7 +90,7 @@ if have_engine:
         lf6, _, _ = full(f, c, m, z=torch.full((B,), 6))
         lf_none, _, _ = full(f, c, m)
     check("前向形状正确 logits/rank/value",
-          tuple(lf45.shape) == (B, 245) and tuple(rf.shape) == (B, 8) and tuple(vf45.shape) == (B,))
+          tuple(lf45.shape) == (B, int(MODEL_ACTIONS)) and tuple(rf.shape) == (B, 8) and tuple(vf45.shape) == (B,))
     check("z 缺省 = 45（与显式传 45 一致）", bool(torch.allclose(lf_none, lf45)))
     check("z=6 与 z=45 现在真的不同（z-token 生效）",
           not bool(torch.allclose(lf6, lf45)))
