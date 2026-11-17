@@ -1,0 +1,15 @@
+{
+  "schema": "hsai.reference-assets/v1",
+  "hsbg-ppo": {
+    "directory": "artifacts/references/hsbg-ppo-20261117",
+    "purpose": "Optional external-model compatibility analysis; not part of native training or formal v1.4 evaluation",
+    "provenance_status": "Original repository revision and source-code license scope remain unverified. Preserve locally on NUS; do not redistribute these files through Git.",
+    "files": {
+      "LICENSE": "3a8ffb53f8e0f065b06cb2d2913428d651f5f9df9c32c1f0ea5d5b8aaecbec8c",
+      "hsbg_net/__init__.py": "fe3410752789ad085f9d22eb31eb67846180471fa593b7cb0455ad902c4387c9",
+      "hsbg_net/ckpt.py": "e6a0eaf8f97d3fa0f4feda5ac7090723bf35e9dea2b90a71a779801654202a83",
+      "hsbg_net/net.py": "865b5d5a212ee68fc9053bf2485e32f303258de9ef15910a0a14e271d052b918",
+      "hsbg_net/net_cz46.py": "afe2cb50ce6c2c84161af0c28c001a854be211aec0ab2c78f248df53e626930a"
+    }
+  }
+}

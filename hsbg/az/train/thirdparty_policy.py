@@ -25,12 +25,6 @@ from hsbg.az.train.action_ban import ban_choice_options, has_pending_choice
 from hsbg.az.train.policies import Decision
 from hsbg.env.action_space_std import A_END, A_SELL, N_BOARD
 
-_ROOT = Path(__file__).resolve().parents[3]
-_TP = _ROOT / "thirdparty" / "hsbg_ppo"
-if str(_TP) not in sys.path:
-    sys.path.insert(0, str(_TP))
-
-
 class ThirdPartyGreedyPolicy:
     """把作者发布的 `tg-ckpt-v1` 网络包装成我们的 Policy。"""
 
@@ -40,6 +34,9 @@ class ThirdPartyGreedyPolicy:
                  freeze_cap: int = 1, forbid_unfreeze: bool = True,
                  move_cap: int = 2, move_repeat_limit: int = 2) -> None:
         import torch  # 惰性导入（登录节点 import torch 会失败）
+        from hsbg.runtime.references import reference_directory
+        reference = str(reference_directory('hsbg-ppo'))
+        if reference not in sys.path: sys.path.insert(0, reference)
         import hsbg_net
         self._torch = torch
         self.net, self.ckpt, _ = hsbg_net.load(str(ckpt_path), device=device)

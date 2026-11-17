@@ -26,7 +26,7 @@ def validate(run, model, out):
     generations = []
     for segment in range(2):
         target = out/f'segment{segment}'
-        overrides = dict(iterations=1, minutes=10, games=2, processes=1, workers=1,
+        overrides = dict(iterations=1, minutes=10, games=2, processes=2, workers=1,
                          gpus='0', device='cuda:0', out=str(target),
                          checkpoint=str(previous/'model.pt'), trainer_state=str(previous/'trainer.pt'),
                          reset_anchor=0)

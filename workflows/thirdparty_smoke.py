@@ -18,7 +18,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "thirdparty" / "hsbg_ppo"))
+from hsbg.runtime.references import reference_directory
+sys.path.insert(0, str(reference_directory('hsbg-ppo')))
 
 import numpy as np  # noqa: E402
 

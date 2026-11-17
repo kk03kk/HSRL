@@ -95,6 +95,8 @@ def run(plan, out, *, device='cuda:0'):
     for relative, before in inputs.items():
         if file_identity(ROOT/relative) != before:
             raise ValueError(f'input changed during evaluation: {relative}')
+    if environment_identity() != identity['environment'] or source_identity(ROOT) != identity['source']:
+        raise ValueError('source or package environment changed during evaluation')
     atomic_json(out/'validation.json', checked)
     atomic_json(out/'complete.json', {'valid':True,'panel':file_identity(out/'panel.json'),
                                       'validation':file_identity(out/'validation.json')})
