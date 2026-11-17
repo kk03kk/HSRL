@@ -61,3 +61,32 @@ class ShadowEconomyPolicy:
             shadow_teacher_abstention=self.evaluator.abstention,shadow_gold_context=self.evaluator.active,
             shadow_teacher_executes=False)
         self.previous=(view,int(decision.action));return decision
+
+
+class DeploymentEvaluator(QueryEvaluator):
+    """Causal diagnostic: only deploy an already owned Hooktusk into a free slot."""
+    def __call__(self,features,cards,mask,seat):
+        prior,value=super().__call__(features,cards,mask,seat)
+        self.base_action=int(np.argmax(np.where(mask,prior,-np.inf)));self.repaired=False
+        if (self.active and self.reason=='restore_core' and self.target is not None
+                and 46<=self.target<126
+                and cid(self.view['me']['hand'][(self.target-46)//8])=='BG36_344'):
+            if 46<=self.base_action<126 and cid(self.view['me']['hand'][(self.base_action-46)//8])=='BG36_344':
+                return prior,value
+            pi=np.zeros(len(mask),dtype=np.float32);pi[self.target]=1
+            self.repaired=True
+            return pi,value
+        return prior,value
+
+
+class PayoffDeploymentPolicy(ShadowEconomyPolicy):
+    name='research-hooktusk-deployment-intervention'
+    def __init__(self,base_evaluator,**guard_args):
+        self.evaluator=DeploymentEvaluator(base_evaluator)
+        self.policy=PPOGreedyPolicy(self.evaluator,**guard_args);self.previous=None
+    def decide(self,game,seat):
+        decision=super().decide(game,seat)
+        decision.info.update(research_deployment_intervention=True,
+            original_greedy_action=self.evaluator.base_action,
+            deployment_override_executed=bool(self.evaluator.repaired and decision.action==self.evaluator.target))
+        return decision

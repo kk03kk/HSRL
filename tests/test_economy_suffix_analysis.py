@@ -43,6 +43,10 @@ def test_sealed_study_merge_rejects_identity_changes(tmp_path):
     assert len(merged)==8 and result['paired']['student/normal']['rank_minus_parent']['mean']==1.5
     selected,_,_=merge_studies(roots,['parent'])
     assert len(selected)==4 and {r['name'] for r in selected}=={'parent'}
+    selected,_,_=merge_studies(roots,['parent','student'],['normal'])
+    assert len(selected)==8
+    with pytest.raises(ValueError,match='whole variant missing'):
+        merge_studies(roots,None,['normal','missing'])
     with pytest.raises(ValueError,match='whole policy arm missing'):
         merge_studies(roots,['parent','missing'])
     path=roots[1]/'complete.json';changed=json.loads(path.read_text());changed['rows'][0]['source_seed']=999

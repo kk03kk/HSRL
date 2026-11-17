@@ -18,9 +18,10 @@ _CACHE={}
 
 class EconomyRecorder(DecisionRecorder):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0
+        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0
     def after(self,game,before,decision,executed_action,forced_tier=False):
         self.option_actions+=bool(decision.info.get('research_option_active'))
+        self.deployment_actions+=bool(decision.info.get('deployment_override_executed'))
         if executed_action==0:
             p=before['state_before']['players'][before['seat']]
             self.economy[int(before['turn'])]={'gold_spent':p['stats']['gold_spent_turn'],
@@ -39,7 +40,10 @@ def trial(task):
     if key not in _CACHE:
         built=make_eval_policy(checkpoint,protocol=EvalProtocol(mirror_snaps=library),device=device)
         policy=built['policy']
-        if operator:policy=EconomicOptionPolicy(policy.evaluator,
+        if operator=='deploy_payoff':
+            from hsbg.az.train.shadow_economy import PayoffDeploymentPolicy
+            policy=PayoffDeploymentPolicy(policy.evaluator)
+        elif operator:policy=EconomicOptionPolicy(policy.evaluator,
             operator_mode=operator if isinstance(operator,str) else 'legacy')
         _CACHE[key]=(policy,file_identity(checkpoint))
     if ('pool',library) not in _CACHE:_CACHE[('pool',library)]=MirrorSnapshotPool(library,sample='p50band')
@@ -77,6 +81,7 @@ def trial(task):
         'initial_sha256':hashlib.sha256(json.dumps(initial,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
         'rank':result['rank_sequence'][0],'turns':turns,'operator_actions':recorder.option_actions,
         'trace':trace,'validation':validation}
+    if operator=='deploy_payoff':row['deployment_actions']=recorder.deployment_actions
     atomic_json(path/'result.json',{'summary':row,'evaluation':result});return row
 
 def compare(rows,parent='parent'):

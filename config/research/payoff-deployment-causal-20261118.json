@@ -1,0 +1,22 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-108 causal deployment diagnostic, no optimizer or model promotion",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["complete_gold"],
+  "replicas": 2,
+  "reference": "deploy_payoff",
+  "models": {
+    "deploy_payoff": {
+      "checkpoint": "artifacts/runs/nus-payoff-event-learning-20261118-1/model.pt",
+      "sha256": "4b7958edea4584a3dd0ceca0c59c930ed8486487d08f09200bbd6c2fbed1a610",
+      "operator": "deploy_payoff"
+    }
+  },
+  "intervention": "Only inside the gold gate, when the public growth teacher suggests playing an already owned Hooktusk into an existing free slot and the student is not already playing any Hooktusk, execute that legal deployment. No purchase, sale protection, target repair, upgrade, new gold or new component. All normal guards and the turn action cap remain.",
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "comparison": "Reuse all 98 complete_gold event-student suffixes as the matched control; exact initial/source/future/engine/library/contract identity. Parent arm descriptive only.",
+  "selection": "All 49 fixed development sources and both futures; no filtering by whether the intervention triggers",
+  "budget": "98 complete suffixes; no second variant or intermediate checkpoint",
+  "limitations": ["Explicit golden initial components", "Repeated exploratory development sources", "Deploying one card need not fix retention or full operation", "Hand-coded policy intervention, not a newly trained neural capability"]
+}
