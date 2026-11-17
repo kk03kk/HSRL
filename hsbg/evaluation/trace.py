@@ -145,6 +145,8 @@ def validate_trace(path, *, replay=0):
                     features, cards = game.observe(row['seat'])
                     if bytes(features) != base64.b64decode(obs['floats_f32le']) or bytes(cards) != base64.b64decode(obs['cards_i32le']):
                         raise ValueError('recorded observation differs from engine state')
+                    if list(bytes(game.legal_mask(row['seat']))) != row['legal_mask']:
+                        raise ValueError('recorded legal mask differs from engine state')
                     game.step(row['seat'], row['action'])
                     if json.loads(game.state_json()) != row['state_after']:
                         raise ValueError(f'native step replay diverged at {current}/{index}')

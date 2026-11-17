@@ -9,7 +9,7 @@ from hsbg.runtime.artifacts import file_identity
 from tests.test_decision_recording import EndTurnPolicy
 
 
-@pytest.mark.parametrize('mutation', ['footer_count', 'rank', 'trailing_event', 'game_index', 'manifest_incomplete'])
+@pytest.mark.parametrize('mutation', ['footer_count', 'rank', 'trailing_event', 'game_index', 'manifest_incomplete', 'native_mask'])
 def test_trace_rejects_semantically_corrupt_evidence_even_with_updated_hash(tmp_path, mutation):
     pytest.importorskip('hsbg_engine')
     path = tmp_path/'decisions.jsonl.gz'
@@ -23,8 +23,12 @@ def test_trace_rejects_semantically_corrupt_evidence_even_with_updated_hash(tmp_
     if mutation == 'trailing_event': rows.append({'event':'unknown'})
     if mutation == 'game_index': next(r for r in rows if r['event']=='action')['game'] = 99
     if mutation == 'manifest_incomplete': manifest['complete'] = False
+    if mutation == 'native_mask':
+        row = next(r for r in rows if r['event'] == 'action')
+        index = next(i for i in range(245) if i != row['action'])
+        row['legal_mask'][index] = 1 - row['legal_mask'][index]
     with gzip.open(path, 'wt', encoding='utf-8') as stream:
         for row in rows: stream.write(json.dumps(row)+'\n')
     manifest.update(file_identity(path))
     recorder.manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
-    with pytest.raises(ValueError): validate_trace(path)
+    with pytest.raises(ValueError): validate_trace(path, replay=1 if mutation == 'native_mask' else 0)
