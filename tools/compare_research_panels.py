@@ -53,10 +53,21 @@ def compare(panels,reference):
     return report
 
 
+def load_sealed_panel(path):
+    path=Path(path)
+    candidates=(path.parent/'complete.json',path.with_name(path.stem+'-complete.json'))
+    for candidate in candidates:
+        if candidate.exists():
+            complete=json.loads(candidate.read_text(encoding='utf-8'))
+            if complete.get('valid') is True and complete.get('panel')==file_identity(path):
+                return json.loads(path.read_text(encoding='utf-8'))
+    raise ValueError('missing matching successful completion record: '+str(path))
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('panels',nargs='+')
     p.add_argument('--reference',required=True);p.add_argument('--out',required=True)
-    a=p.parse_args();r=compare([json.loads(Path(x).read_text(encoding='utf-8')) for x in a.panels],a.reference)
+    a=p.parse_args();r=compare([load_sealed_panel(x) for x in a.panels],a.reference)
     r['inputs']={x:file_identity(x) for x in a.panels};atomic_json(a.out,r)
     for name,m in r['models'].items():
         print(json.dumps({'name':name,'rank_delta':m['rank_delta_candidate_minus_reference'],
