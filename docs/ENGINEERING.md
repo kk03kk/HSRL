@@ -47,8 +47,19 @@ history、Trainer 代数和张量，再复制成不可覆盖的候选模型目�
 `model.pt + trainer.pt + manifest.json + checkpoint.json + validation.json + MODEL_CARD.md`。
 原始运行目录保留。登记 candidate 不表示晋升冠军或改变线上 pin。
 
+历史资产采用显式盘点而不是补造元数据：
+`tools/inventory_assets.py --workspace <workspace> --out <new-inventory.json>` 只扫描文件和
+小型顶层 JSON，列出旧模型缺少的 manifest/checkpoint/MODEL_CARD；跳过 symlink，避免越界遍历和
+重复计数，不加载历史权重、不推断兼容性、不改写任何资产。NUS 扫描放在计算节点。
+已有 Windows 历史恢复副本继续保留；“新产物按角色放置”不表示允许删除历史恢复资产。
+
 历史 v1.4-r1 的 `latest.json` 停留在周期版本 741，而最终平面文件是 745。该历史证据不改写；
 已验证、登记的最终模型取 745，恢复源码另行保留。这也解释了为何仅检查 latest 不足以验收旧运行。
+
+本次另有 Windows 冷恢复副本 `artifacts/archives/recovery-v14-r1-20261117/`，由
+`RECOVERY.json` 绑定 model/Trainer、启动记录、校验报告及环境清单的 SHA。该目录不作为活动
+模型或 Trainer；恢复使用计算节点、新输出目录和已登记完整配置。版本清单不等于所有依赖轮子
+的离线镜像，冷备份也不包含全部训练库。完整库与逐动作证据仍以服务器封存资产为准。
 
 ## 4. 唯一正式评测执行器
 
@@ -60,8 +71,9 @@ history、Trainer 代数和张量，再复制成不可覆盖的候选模型目�
 不同权重或协议、缺行数据、非法/截断对局、输入在运行中变化，均不能产生 `complete.json`。
 每模型保留独立逐回合 rows 与完整动作 trace；合并器从原始行重算统计，不能平均各分片 P50。
 
-完整 trace 校验可以按文件分配到有界 CPU 子进程，保持输出与串行相同；并发不超过 8、分片数
-和分配的 CPU 数。`tools/seal_evaluation.py` 在成功完成后给全部运行文件建立内容清单，分析
+完整 trace 校验可以按文件分配到 CPU 子进程，保持输出与串行相同；统一评测执行器选择的并发
+不超过 8、分片数和分配的 CPU 数。独立校验 CLI 的 `--workers` 由调用者指定，应不超过作业配额。
+`tools/seal_evaluation.py` 在成功完成后给全部运行文件建立内容清单，分析
 产物另放目录。模型下载默认只列顶层普通文件，`reports/` 等子目录不会被误当成权重文件下载。
 
 正式评测目录的证据层次：
@@ -70,7 +82,7 @@ history、Trainer 代数和张量，再复制成不可覆盖的候选模型目�
 2. `shard*/command.json/process.log/exit.json`：实际命令与退出状态。
 3. 每模型 `rows-*.jsonl.gz` 与 `decisions-*.jsonl.gz`（具体文件名由面板引用）。
 4. `panel.json`：聚合结果、逐 seed 名次和逐回合数据、trace 清单。
-5. `validation.json`：全记录完整性校验；原生步骤回放由 `--replay` 显式启用并记录抽样数，不能把结构校验等同于全量重新模拟。
+5. `validation.json`：全记录完整性校验；面板 CLI/执行器默认每个 trace 均匀抽取 16 步原生回放，可由 `--replay` 或计划的 `replay_steps_per_trace` 设置，0 表示关闭。新版报告记录实际回放数量，不能把抽样回放等同于全量重新模拟。
 6. `complete.json`：仅在所有验收完成后写入，绑定 panel/validation 文件 SHA。
 
 逐动作记录包括 game/seed/turn/seat/动作序号、实际动作与提议动作、强制标志、完整前后引擎
