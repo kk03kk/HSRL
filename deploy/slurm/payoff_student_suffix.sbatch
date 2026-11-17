@@ -14,5 +14,5 @@ set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:?}"
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUTF8=1 PYTHONUNBUFFERED=1
 exec .venv/bin/python workflows/probe_economy_suffix.py \
-  --plan config/research/payoff-student-suffix-20261118.json \
+  --plan "${HSAI_SUFFIX_PLAN:-config/research/payoff-student-suffix-20261118.json}" \
   --out "${HSAI_SUFFIX_OUT:?}" --device cuda:0 --workers 4

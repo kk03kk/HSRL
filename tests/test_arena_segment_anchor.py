@@ -33,9 +33,9 @@ python() { printf '%s\\n' "$@" > "$out/args-$i.txt"; }
         'tier_table tier_gate_k tier_gate_ref tier_penalty win_bonus rank_utility_table actor_gpus').split()
     script+='\n'.join(f'{name}=0' for name in variables)+'\n'+body
     env={**os.environ,'CAPTURE_ROOT':out.as_posix(),'CAPTURE_RESUME':str(resume)}
-    subprocess.run([bash_binary(),'-c',script],env=env,check=True,capture_output=True,text=True)
+    subprocess.run([bash_binary(),'-c',script],env=env,check=True,capture_output=True,text=True,encoding='utf-8')
     for segment,reset in enumerate(expected,1):
-        args=(out/f'args-{segment}.txt').read_text().splitlines()
+        args=(out/f'args-{segment}.txt').read_text(encoding='utf-8').splitlines()
         assert args.count('--reset-anchor')==1
         assert args[args.index('--reset-anchor')+1]==str(reset)
         assert ('--trainer-state' in args)==(resume==1 or segment>1)

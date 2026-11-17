@@ -25,9 +25,9 @@ def action_card(action,cards):
 @torch.no_grad()
 def main(args):
     torch.set_num_threads(1);root=Path(args.dataset);out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
-    plan=json.loads(Path('config/research/payoff-student-suffix-20261118.json').read_text())
+    plan=json.loads(Path(args.plan).read_text())
     identity=file_identity(args.checkpoint)
-    if identity['sha256']!=plan['models']['payoff_student']['sha256']:raise ValueError('fixed endpoint changed')
+    if identity['sha256']!=plan['models'][args.policy]['sha256']:raise ValueError('fixed endpoint changed')
     manifest=json.loads((root/'manifest.json').read_text())
     if file_identity(root/'labels.npz')!=manifest['files']['labels.npz']:raise ValueError('labels changed')
     with np.load(root/'labels.npz',allow_pickle=False) as raw:
@@ -68,4 +68,6 @@ def main(args):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--checkpoint',required=True)
     p.add_argument('--dataset',required=True);p.add_argument('--out',required=True);p.add_argument('--device',default='cuda:0')
+    p.add_argument('--plan',default='config/research/payoff-student-suffix-20261118.json')
+    p.add_argument('--policy',default='payoff_student')
     main(p.parse_args())
