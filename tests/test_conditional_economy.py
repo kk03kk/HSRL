@@ -69,3 +69,33 @@ def test_neutral_fork_specialist_gradient_and_exact_fallback_critic(tmp_path):
     with pytest.raises(ValueError,match='identity differs'):load_checkpoint(str(bad))
     with pytest.raises(ValueError,match='external normalization'):
         save_checkpoint(model,str(tmp_path/'normalized.pt'),norm_mean=np.zeros(3227))
+
+
+@pytest.mark.parametrize('section,prefix',[
+    ('model','base.'),('model','specialist.'),
+    ('anchor_model','base.'),('anchor_model','specialist.')])
+def test_trainer_audit_rejects_each_corrupted_component_table(section,prefix):
+    from types import SimpleNamespace
+    from workflows.audit_full_trainer import audit_card_tables
+    tables=SimpleNamespace(static=np.zeros((2,3),dtype=np.float32),
+                           text=np.ones((2,4),dtype=np.float32))
+    weights={p+n:torch.from_numpy(t.copy()) for p in ('base.','specialist.')
+             for n,t in [('card_static',tables.static),('card_text',tables.text)]}
+    state={'model':weights,'anchor_model':copy.deepcopy(weights)}
+    assert len(audit_card_tables(state,'conditional_economy_v1',tables))==8
+    state[section][prefix+'card_static'][0,0]=9
+    with pytest.raises(ValueError,match='card table differs'):
+        audit_card_tables(state,'conditional_economy_v1',tables)
+
+
+def test_trainer_audit_still_checks_single_entity_tables():
+    from types import SimpleNamespace
+    from workflows.audit_full_trainer import audit_card_tables
+    tables=SimpleNamespace(static=np.zeros((2,3),dtype=np.float32),
+                           text=np.ones((2,4),dtype=np.float32))
+    state={'model':{'card_static':torch.from_numpy(tables.static),
+                    'card_text':torch.from_numpy(tables.text)},'anchor_model':None}
+    assert audit_card_tables(state,'entity',tables)==['model.card_static','model.card_text']
+    del state['model']['card_text']
+    with pytest.raises(ValueError,match='card table differs'):
+        audit_card_tables(state,'entity',tables)

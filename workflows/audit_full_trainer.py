@@ -4,6 +4,24 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 
+def audit_card_tables(state, arch, tables):
+    """Check every declared component, including the persisted anchor."""
+    import torch
+    prefixes=('base.','specialist.') if arch=='conditional_economy_v1' else ('',)
+    checked=[]
+    for section in ('model','anchor_model'):
+        weights=state.get(section)
+        if weights is None:
+            if section=='model':raise ValueError('missing model state')
+            continue
+        for prefix in prefixes:
+            for name,table in [('card_static',tables.static),('card_text',tables.text)]:
+                key=prefix+name
+                if key not in weights or not torch.equal(weights[key],torch.from_numpy(table)):
+                    raise ValueError('card table differs: '+section+'.'+key)
+                checked.append(section+'.'+key)
+    return checked
+
 def audit(source, expected_version=None, expected_hashes=None, device='cpu'):
     import numpy as np
     import torch
@@ -36,8 +54,7 @@ def audit(source, expected_version=None, expected_hashes=None, device='cpu'):
     for v in state['optimizer']['state'].values():
         if not bool((v['exp_avg_sq']>=0).all()):raise ValueError('Adam二阶矩非法')
     tables=load_card_tables()
-    for key,table in [('card_static',tables.static),('card_text',tables.text)]:
-        if not torch.equal(state['model'][key],torch.from_numpy(table)):raise ValueError('卡表buffer与当前引擎不符:'+key)
+    checked_tables=audit_card_tables(state,meta.get('arch'),tables)
     cfg=PPOConfig(**state['config']);cfg.device=device;cfg.compile_train=0
     trainer=PPOTrainer(model,cfg,state=state)
     if trainer.scheduler.state_dict()!=state['scheduler'] or trainer.rng.bit_generator.state!=state['rng']:raise ValueError('调度器或采样RNG恢复不符')
@@ -52,7 +69,7 @@ def audit(source, expected_version=None, expected_hashes=None, device='cpu'):
     with torch.inference_mode():outputs=split_model_outputs(forward_model(model,f,c,torch.from_numpy(mask[None]).to(device)))
     if any(not bool(torch.isfinite(x).all()) for x in outputs if isinstance(x,torch.Tensor)):raise ValueError('前向非有限')
     steps=[float(v['step']) for v in state['optimizer']['state'].values()]
-    return dict(passed=True,version=state['updates'],cum_decisions=state['extra']['cum_decisions'],sha256=hashes,parameters=sum(p.numel() for p in model.parameters()),adam_states=len(steps),adam_step_min=min(steps),adam_step_max=max(steps),actual_lr=trainer.optimizer.param_groups[0]['lr'],scheduler=state['scheduler'],finite_tensors=count,cuda_rng_states=len(state['cuda_rng']),cuda_rng_verified=device.startswith('cuda'),fingerprint=fingerprint(),device=device,config=state['config'],extra_keys=sorted(state['extra']),scope='full_state_restore_and_forward_no_optimizer_update')
+    return dict(passed=True,version=state['updates'],cum_decisions=state['extra']['cum_decisions'],sha256=hashes,parameters=sum(p.numel() for p in model.parameters()),adam_states=len(steps),adam_step_min=min(steps),adam_step_max=max(steps),actual_lr=trainer.optimizer.param_groups[0]['lr'],scheduler=state['scheduler'],finite_tensors=count,checked_card_tables=checked_tables,cuda_rng_states=len(state['cuda_rng']),cuda_rng_verified=device.startswith('cuda'),fingerprint=fingerprint(),device=device,config=state['config'],extra_keys=sorted(state['extra']),scope='full_state_restore_and_forward_no_optimizer_update')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--source',required=True,type=Path);p.add_argument('--version',type=int);p.add_argument('--out',required=True,type=Path);p.add_argument('--device',default='cpu');a=p.parse_args()
