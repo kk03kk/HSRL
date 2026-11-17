@@ -23,11 +23,11 @@
     },
     {
       "name": "curriculum_natural_2m",
-      "checkpoint": "artifacts/runs/nus-curriculum-natural-20261118-5182001/train/model.pt"
+      "checkpoint": "artifacts/runs/nus-curriculum-natural-20261118-5182001-2/train/model.pt"
     },
     {
       "name": "curriculum_endowed_2m",
-      "checkpoint": "artifacts/runs/nus-curriculum-endowed-20261118-5182001/train/model.pt"
+      "checkpoint": "artifacts/runs/nus-curriculum-endowed-20261118-5182001-2/train/model.pt"
     }
   ],
   "evaluation": {
@@ -50,5 +50,6 @@
   "expected_protocol_sha256": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
   "replay_steps_per_trace": 64,
   "stop_rule": "One complete valid assessment; no extra runs selected based on outcome",
-  "checkpoint_identity": "Paths predeclared while training pending. Slurm afterok dependencies require all training complete; evaluate_suite hashes and seals exact model inputs before any games, then checks unchanged."
+  "checkpoint_identity": "Paths predeclared while training pending. Slurm afterok dependencies require all training complete; evaluate_suite hashes and seals exact model inputs before any games, then checks unchanged.",
+  "engineering_retry": "Original curriculum submissions 1158986/1158987 rejected stop-at-decisions=2M at CLI parsing before collection. Same declared 2000000 budget retried in new -2 output directories; no scientific parameter change."
 }
