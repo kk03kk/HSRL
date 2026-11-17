@@ -20,7 +20,7 @@ VARIANTS=('normal','complete','complete_gold','missing_privateer')
 
 
 def fixture(source,variant):
-    if variant not in VARIANTS:raise ValueError(variant)
+    if variant not in (*VARIANTS,'complete_privateer_gold'):raise ValueError(variant)
     state,edits=endow(source)
     game=E.Game.from_json(json.dumps(state))
     def edit(cmd,**kw):
@@ -30,8 +30,10 @@ def fixture(source,variant):
         candidates=[i for i,x in enumerate(board) if cid(x) not in CORES]
         if len(board)>=7:edit('remove',zone='board',index=min(candidates,key=lambda i:strength(board[i])))
         edit('add_minion',zone='board',card='BG36_523')
-    if variant=='complete_gold':
-        for card,golden in [('BG_LOE_077','TB_BaconUps_045'),('BG33_825','BG33_825_G')]:
+    if variant in ('complete_gold','complete_privateer_gold'):
+        upgrades=([('BG_LOE_077','TB_BaconUps_045'),('BG33_825','BG33_825_G')]
+            if variant=='complete_gold' else [('BG33_825','BG33_825_G')])
+        for card,golden in upgrades:
             board=json.loads(game.view(0))['me']['board']
             edit('remove',zone='board',index=next(i for i,x in enumerate(board) if cid(x)==card))
             edit('add_minion',zone='board',card=golden)

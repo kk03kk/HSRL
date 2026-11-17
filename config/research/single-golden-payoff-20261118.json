@@ -1,0 +1,18 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-103: test a more reachable single golden Privateer economy",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["complete_privateer_gold"],
+  "replicas": 2,
+  "reference": "parent",
+  "models": {
+    "parent": {"checkpoint": "artifacts/models/arena-v1.4-r1/model.pt", "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1", "operator": false},
+    "growth": {"checkpoint": "artifacts/models/arena-v1.4-r1/model.pt", "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1", "operator": "growth"}
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "question": "Can golden Privateer with ordinary Brann/Rogers/Escapee earn a full-suffix benefit? Ordinary complete economy improves surviving growth but worsens rank; double-golden economy improves both. Privateer is Pirate-targetable, unlike neutral Brann.",
+  "budget": "196 CPU suffixes, same 49 sources and two futures, no new learning",
+  "selection": "All fixed development sources; no win/loss filtering",
+  "limitations": ["Initial single golden component is endowed, not naturally acquired", "Exploratory repeated sources", "No claim that golden Privateer purchase is always correct"]
+}
