@@ -34,7 +34,7 @@ def scan(spec):
     if file_identity(path)!={k:expected[k] for k in ('bytes','sha256')}:
         raise ValueError('sealed trace changed')
     evaluator=RecordedEvaluator();guard=PPOGreedyPolicy(evaluator);operator=Operator('growth')
-    previous=None;counts=Counter();by_reason=defaultdict(Counter);deaths=[];examples=[]
+    previous=None;counts=Counter();by_reason=defaultdict(Counter);deaths=[];examples=[];abstentions=[]
     with gzip.open(path,'rt',encoding='utf-8') as stream:
         for line in stream:
             row=json.loads(line)
@@ -61,15 +61,29 @@ def scan(spec):
             if active(view):
                 guarded={**view,'mask':evaluator.mask.tolist()}
                 no_cycle=copy.deepcopy(operator);no_cycle.cycled.clear()
-                teacher,reason=operator.act(guarded)
-                without_cycle,without_reason=no_cycle.act(guarded)
+                try:teacher,reason=operator.act(guarded)
+                except ValueError as exc:
+                    if is_teacher or str(exc)!='destructive teacher target has no safe continuation':raise
+                    counts['teacher_unavailable']+=1
+                    counts['teacher_unavailable_gold_gate']+=int(within and not decision.info['forced'])
+                    if len(abstentions)<5:
+                        abstentions.append({'turn':row['turn'],'action_index':row['action_index'],
+                            'executed_action':row['action'],'reason':str(exc),'gold_gate':within,
+                            'casting':view['me'].get('casting'),'last_play':operator.last_play})
+                    previous=(view,int(row['action']))
+                    continue
+                try:without_cycle,without_reason=no_cycle.act(guarded)
+                except ValueError as exc:
+                    if str(exc)!='destructive teacher target has no safe continuation':raise
+                    without_cycle=None;without_reason=str(exc)
+                    counts['memory_ablation_unavailable']+=1
                 if not evaluator.mask[teacher]:raise ValueError('teacher suggestion violates shared guarded mask')
                 if is_teacher and not decision.info['forced'] and (teacher!=row['action'] or reason!=row['policy_info']['research_operator_reason']):
                     raise ValueError('sealed teacher cannot be reproduced from public history')
                 if within and not decision.info['forced']:
                     counts['eligible']+=1;counts['agreement']+=int(teacher==row['action'])
                     by_reason[reason]['rows']+=1;by_reason[reason]['agreement']+=int(teacher==row['action'])
-                    dependent=teacher!=without_cycle
+                    dependent=without_cycle is not None and teacher!=without_cycle
                     counts['cycle_memory_changes_action']+=int(dependent)
                     by_reason[reason]['cycle_memory_changes_action']+=int(dependent)
                     if dependent and len(examples)<3:
@@ -79,7 +93,8 @@ def scan(spec):
             previous=(view,int(row['action']))
     if counts['actions']!=expected['actions']:raise ValueError('trace action coverage differs')
     return {'path':str(path),'identity':file_identity(path),'counts':dict(counts),
-        'reasons':{k:dict(v) for k,v in by_reason.items()},'recruit_deaths':deaths,'memory_examples':examples}
+        'reasons':{k:dict(v) for k,v in by_reason.items()},'recruit_deaths':deaths,'memory_examples':examples,
+        'teacher_abstention_examples':abstentions}
 
 
 def main(args):
@@ -108,11 +123,13 @@ def main(args):
         for d in detail:
             counts.update(d['counts'])
             for k,v in d['reasons'].items():reasons[k].update(v)
-        rows.append({'name':name,'sources':49,'counts':dict(counts),'reasons':{k:dict(v) for k,v in reasons.items()},'trials':detail})
+        panel={'name':name,'sources':49,'counts':dict(counts),'reasons':{k:dict(v) for k,v in reasons.items()},'trials':detail}
+        atomic_json(out/(name+'.json'),panel);rows.append(panel)
         inputs.append({'root':str(root),'complete':file_identity(root/'complete.json'),'run':complete['run']})
     result={'inputs':inputs,'rows':rows,'source':source_identity(Path(__file__).resolve().parents[1]),
         'scope':'Read-only shadow teacher on sealed visited states; no new ability samples or labels admitted to training',
         'limitations':['Teacher suggestions are heuristic, not optimal actions',
+            'Explicit unsafe-target abstentions remain counted; they are never replaced by invented labels',
             'Clearing private cycled memory is a controller ablation, not proof of reachable aliased environment histories',
             'Teacher/student visited-state distributions differ; agreement differences are descriptive']}
     atomic_json(out/'complete.json',result)

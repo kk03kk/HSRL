@@ -5,7 +5,7 @@ from hsbg.runtime.artifacts import file_identity
 from hsbg.az.train.research_economy_policy import EconomicOptionPolicy
 from tests.test_economic_tasks import natural_source
 from workflows.probe_whole_turn_economy import fixture
-from tools.audit_payoff_closed_loop import scan
+from tools.audit_payoff_closed_loop import scan,RecordedEvaluator
 
 
 def test_shadow_reconstructs_native_teacher_history_and_guards(tmp_path):
@@ -28,3 +28,28 @@ def test_shadow_reconstructs_native_teacher_history_and_guards(tmp_path):
     assert result['counts']['agreement']==result['counts']['eligible']
     assert result['counts']['cycle_memory_changes_action']>0
     assert not result['recruit_deaths']
+
+
+def test_student_only_unsafe_target_is_explicit_abstention(tmp_path):
+    from hsbg.az.train.economic_tasks import debug
+    from hsbg.az.train.ppo import PPOGreedyPolicy
+    game=E.Game.from_json(json.dumps(fixture(natural_source(),'complete_gold')[0]))
+    debug(game,'clear_zone',zone='hand');debug(game,'clear_zone',zone='shop')
+    # Retain exactly the protected four cores: no alternative safe target.
+    debug(game,'clear_zone',zone='board')
+    for card in ('TB_BaconUps_045','BG33_825_G','BG33_823','BG36_523'):
+        debug(game,'add_minion',zone='board',card=card)
+    debug(game,'add_spell',zone='hand',card='BG30_804')
+    evaluator=RecordedEvaluator();policy=PPOGreedyPolicy(evaluator)
+    path=tmp_path/'unsafe.jsonl.gz'
+    with gzip.open(path,'wt',encoding='utf-8') as stream:
+        for i in range(2):
+            evaluator.action=46 if i==0 else next(a for a in range(30,46) if bytes(game.legal_mask(0))[a])
+            before=json.loads(game.state_json());turn=game.turn;decision=policy.decide(game,0)
+            game.step(0,decision.action)
+            stream.write(json.dumps({'event':'action','state_before':before,'state_after':json.loads(game.state_json()),
+                'seat':0,'turn':turn,'action':decision.action,'action_index':i,'policy_info':decision.info})+'\n')
+    result=scan((str(path),{**file_identity(path),'actions':2},False))
+    assert result['counts']['teacher_unavailable']==1
+    assert result['counts']['teacher_unavailable_gold_gate']==1
+    assert result['teacher_abstention_examples'][0]['action_index']==1
