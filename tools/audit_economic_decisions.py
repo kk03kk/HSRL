@@ -10,7 +10,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from hsbg.runtime.artifacts import atomic_json,file_identity
 from tools.compare_research_panels import load_sealed_panel
 
-CORE=('BG33_823','BG33_825','BG_LOE_077','BG33_821','BG36_364')
+CORE=('BG33_823','BG33_825','BG_LOE_077','BG33_821','BG36_364',
+      'BGS_123','BGS_116','BGS_115','BG36_701','BG36_352','BG36_523')
 
 
 def audit_trace(ref):
@@ -37,6 +38,29 @@ def audit_trace(ref):
             p=r['state_before']['players'][seat];q=r['state_after']['players'][seat]
             board=[item(x) for x in p['board']];hand=[item(x) for x in p['hand']]
             legal=r['legal_mask'];key=(seed,turn)
+            selected=hand[(a-46)//8] if 46<=a<126 else None
+            for i,slot in enumerate(p['shop'][:8]):
+                if item(slot)=='BGS_123' and 'BG_LOE_077' in board and legal[8+i]:
+                    cases['brann_tempest_buy_available'].add(seed)
+                    if a==8+i:cases['brann_tempest_bought'].add(seed)
+            for i,c in enumerate(board):
+                if c=='BG36_701' and 'BGS_123' in board and legal[23+i]:
+                    cases['kelp_tempest_activation_available'].add(seed)
+                    if a==23+i:cases['kelp_tempest_activation_started'].add(seed)
+                    if 'BG_LOE_077' in board:
+                        cases['brann_kelp_tempest_activation_available'].add(seed)
+                        if a==23+i:cases['brann_kelp_tempest_activation_started'].add(seed)
+            anomaly_slots=[i for i,c in enumerate(hand) if c=='BGS_116']
+            if (p['free_refreshes']==0 and legal[1]
+                    and any(any(legal[46+8*i+j] for j in range(8)) for i in anomaly_slots)):
+                cases['anomaly_before_paid_refresh_available'].add(seed)
+                if selected=='BGS_116':cases['anomaly_before_paid_refresh_played'].add(seed)
+                if a==1:cases['paid_refresh_with_anomaly_playable'].add(seed)
+            if 'BG36_352' in board:
+                for i,c in enumerate(hand):
+                    if c in ('BGS_115','BGS_115t','BGS_116') and any(legal[46+8*i+j] for j in range(8)):
+                        cases['unbound_elemental_cycle_available'].add(seed)
+                        if selected==c:cases['unbound_elemental_cycle_played'].add(seed)
             tr=turns.setdefault(key,{'seed':seed,'turn':turn,'income':0,'actions':0,'max_gold':p['gold']})
             tr['actions']+=1;tr['max_gold']=max(tr['max_gold'],p['gold'])
             # EndTurn can advance to the next turn; never count its gold reset as income.
@@ -68,6 +92,7 @@ def audit_trace(ref):
                     'action':a,'board':board,'hand':hand,'gold':p['gold']})
             if 8<=a<16:kind='buy';chosen=item(p['shop'][a-8])
             elif 16<=a<23:kind='sell';chosen=board[a-16]
+            elif 23<=a<30:kind='activate';chosen=board[a-23]
             elif 46<=a<126:kind='play';chosen=hand[(a-46)//8]
             else:continue
             if chosen in CORE or chosen.startswith('BG33_81'):counts[kind+':'+chosen]+=1
@@ -79,10 +104,13 @@ def audit_trace(ref):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('panels',nargs='+')
     p.add_argument('--out',required=True);p.add_argument('--workers',type=int,default=4)
+    p.add_argument('--model',action='append',default=[])
     args=p.parse_args();refs=[]
     for path in args.panels:
         panel=load_sealed_panel(path)
-        refs.extend(r for m in panel['models'] for r in m['decision_traces'])
+        refs.extend(r for m in panel['models'] for r in m['decision_traces']
+                    if not args.model or r['identity']['name'] in args.model)
+    if not refs:raise ValueError('no matching sealed model traces')
     merged={}
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         for r in pool.map(audit_trace,refs):
