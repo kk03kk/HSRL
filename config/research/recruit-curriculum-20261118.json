@@ -1,0 +1,33 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "purpose": "Isolate economic-core exposure from merely starting later: paired natural vs endowed whole-state starts",
+  "prerequisite_job": 1158909,
+  "parent": {
+    "checkpoint": "artifacts/runs/nus-process-base-20261118-2/model.pt",
+    "sha256": "26225c90da0d2b10442f8635360917d90944834f2afbfc2ee295a18d30dc820a"
+  },
+  "training_seed": 5182001,
+  "budget_decisions_per_arm": 2000000,
+  "start_probability_per_episode": 0.3,
+  "source_games_per_bank": 207,
+  "banks": {
+    "natural": {
+      "path": "artifacts/runs/nus-recruit-curriculum-20261118-2/natural",
+      "data_sha256": "bc6e0708bcb60ea422e5e8a5633006c68c6934b4b6afff19f28cf5008c758baf"
+    },
+    "endowed": {
+      "path": "artifacts/runs/nus-recruit-curriculum-20261118-2/endowed",
+      "data_sha256": "65a86bec763e4df7c675ad5aa7f5999577b727f36b9d2adc5ffd7a3106b8a2b1"
+    }
+  },
+  "shared_recipe": "stage_arena.sbatch defaults, 512 games/iteration, 8 actors, fresh Adam; reward, opponents, anchor and action contract unchanged",
+  "assessment": {
+    "development_seed": 1118100,
+    "development_games": 64,
+    "mechanism_probe": "Broad source-bank held-out source_seed % 5 == 0: first-turn economics, all native actions, no protected-core mask",
+    "natural_evaluation": "Full games from turn one on v14hold; no core endowment or state reset",
+    "formal_reserve": "1119000..1119511 remains sealed until selecting a candidate"
+  },
+  "interpretation": "This pair tests the endowment within a shared late-start curriculum. It does not alone identify the effect of late starts vs no curriculum, and short training plus 64 development games cannot establish a breakthrough.",
+  "stop_rule": "Fixed sample threshold rounded up to complete batches; any engineering quality failure stops. Inspect mechanism and natural-game results before extending. Never train from probe weights."
+}
