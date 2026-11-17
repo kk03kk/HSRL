@@ -28,8 +28,11 @@ def configure_parameters(model, mode):
     if mode not in ('all', 'heads'):
         raise ValueError(mode)
     selected = []
+    conditional=getattr(model,'arch','')=='conditional_economy_v1'
+    if conditional and mode!='all':raise ValueError('conditional imitation only trains its specialist')
     for name, parameter in model.named_parameters():
-        parameter.requires_grad_(mode == 'all' or name.startswith(HEAD_PREFIXES))
+        parameter.requires_grad_(name.startswith('specialist.') if conditional else
+                                 mode == 'all' or name.startswith(HEAD_PREFIXES))
         if parameter.requires_grad:
             selected.append(name)
     return selected
@@ -98,7 +101,7 @@ def anchor_check(model, reference, anchors):
 
 
 def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
-        closed_loop_fn=closed_loop, learning_tag='cycle_learning'):
+        closed_loop_fn=closed_loop, learning_tag='cycle_learning', model_transform=None):
     torch.set_num_threads(1)
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
@@ -116,6 +119,7 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
     model, meta = load_checkpoint(args.checkpoint, device=args.device)
     if meta.get('norm_mean') is not None or meta.get('norm_std') is not None:
         raise ValueError('internally normalized entity model required')
+    if model_transform is not None:model=model_transform(model,meta)
     reference = copy.deepcopy(model).eval()
     for parameter in reference.parameters():
         parameter.requires_grad_(False)
@@ -123,6 +127,14 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
     raw = np.load(root / 'labels.npz', allow_pickle=False)
     labels = tensors(raw, model, args.device)
     anchors = tensors(np.load(root / 'anchors.npz', allow_pickle=False), model, args.device)
+    gate_coverage=None
+    if getattr(model,'arch','')=='conditional_economy_v1':
+        with torch.no_grad():
+            active=model.gate(labels['features'],labels['cards'])
+            anchor_active=model.gate(anchors['features'],anchors['cards'])
+        gate_coverage={'demonstration_rows':len(active),'active_demonstration_rows':int(active.sum()),
+                      'anchor_rows':len(anchor_active),'active_anchor_rows':int(anchor_active.sum())}
+        if not bool(active.all()):raise ValueError('some demonstrations fall outside the declared conditional gate')
     dev = np.flatnonzero(raw['dev'])
     groups = {k: np.flatnonzero((~raw['dev']) & (raw['kinds'] == k)) for k in sorted(set(raw['kinds']))}
     if not len(dev) or any(not len(v) for v in groups.values()):
@@ -132,6 +144,8 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
     identity = {'args': vars(args), 'source': source_identity(Path(__file__).resolve().parents[1]),
                 'environment': environment_identity(), 'parent': file_identity(args.checkpoint),
                 'dataset_manifest': file_identity(root / 'manifest.json'), 'trainable': trainable}
+    if gate_coverage is not None:
+        identity['conditional_gate']=model.gate_spec;identity['gate_coverage']=gate_coverage
     if identity['source']['tracked_dirty']:
         raise RuntimeError('committed source required')
     atomic_json(out / 'run.json', identity)
@@ -177,6 +191,11 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
         for name, value in model.state_dict().items():
             if name not in trainable and not torch.equal(value, prior_state[name]):
                 raise RuntimeError('frozen parameter/buffer changed: ' + name)
+    if gate_coverage is not None:
+        prior_state=reference.state_dict()
+        for name,value in model.state_dict().items():
+            if name.startswith('base.') and not torch.equal(value,prior_state[name]):
+                raise RuntimeError('conditional fallback/critic changed during imitation: '+name)
     meta[learning_tag]={'parent': identity['parent'], 'dataset': identity['dataset_manifest'],
                        'args': vars(args), 'research_only': True}
     save_checkpoint(model, str(out / 'model.pt'), meta=meta)
@@ -194,6 +213,8 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
               'anchor': anchor_check(restored, reference, anchors),
               'model': file_identity(out / 'model.pt'), 'bc_state': file_identity(out / 'bc_state.pt'),
               'roundtrip_exact': True}
+    if gate_coverage is not None:
+        result['gate_coverage']=gate_coverage;result['fallback_and_critic_exact']=True
     atomic_json(out / 'result.json', result)
     print(json.dumps({'final': result['closed_loop']['kinds'], 'anchor': result['anchor']}), flush=True)
 

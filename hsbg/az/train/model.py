@@ -312,6 +312,11 @@ def save_checkpoint(model: Any, path: str, *, meta: Optional[Dict[str, Any]] = N
     torch = _torch()
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
     metadata = dict(meta or {})
+    custom_metadata = getattr(model, "checkpoint_metadata", None)
+    if callable(custom_metadata):
+        metadata.update(custom_metadata())
+        if metadata.get('arch')=='conditional_economy_v1' and (norm_mean is not None or norm_std is not None):
+            raise ValueError('conditional gate does not support external normalization')
     # 加载器会把norm转回numpy供推理使用；再次保存时恢复纯列表，保持weights_only可读取。
     for key in ("norm_mean", "norm_std"):
         if isinstance(metadata.get(key), np.ndarray):
@@ -376,9 +381,18 @@ def load_checkpoint(path: str, device: str = "cpu") -> tuple[Any, Dict[str, Any]
         payload = torch.load(path, map_location=device, weights_only=True)
     except TypeError:  # torch < 2.0 无 weights_only 形参
         payload = torch.load(path, map_location=device)
+    return _load_checkpoint_payload(payload, device)
+
+
+def _load_checkpoint_payload(payload, device):
+    """Rebuild a trusted checkpoint payload, including explicit compositions."""
+    torch = _torch()
     meta = dict(payload.get("meta") or {})
     hidden = int(meta.get("hidden", 256))
     arch = str(meta.get("arch", "tiny"))
+    if arch == "conditional_economy_v1":
+        from .conditional_economy import load_payload
+        return load_payload(payload, device, _load_checkpoint_payload)
     seq_head = bool(meta.get("seq_head", False))
     # 卡牌身份头（分层 BC）：meta 声明或 state_dict 里确有 card_head.* 都重建
     state = payload.get("state_dict") or {}

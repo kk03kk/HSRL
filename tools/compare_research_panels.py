@@ -30,7 +30,11 @@ def compare(panels,reference):
     bs=base['strength_by_seed']
     report={'protocol':protocol,'reference':reference,'models':{},
             'scope':'Development evidence; paired bootstrap conditional on tested seeds, not promotion',
-            'survivor_warning':'Strength and growth contrasts condition on common surviving games'}
+            'survivor_warning':'Strength and growth contrasts condition on common surviving games',
+            'quantile_conventions':{'all_survivor_p50':'unchanged legacy panel nearest order statistic: sorted[round(0.5*(n-1))]',
+                'all_survivor_median':'standard sample median, averaging the two central values for even n',
+                'common_candidate_p50':'standard sample median',
+                'common_reference_p50':'standard sample median'}}
     for name,m in models.items():
         rank=dict(zip(m['seed_sequence'],m['rank_sequence']))
         if rank.keys()!=br.keys():raise ValueError('nonidentical seed cohort')
@@ -40,9 +44,12 @@ def compare(panels,reference):
         ss=m['strength_by_seed']
         for turn in (7,8,9,10,11,12,13,14):
             key=str(turn);curve=m['curves'].get(key,{})
+            all_values=[by_turn[key] for by_turn in ss.values() if key in by_turn]
             common=sorted(s for s in ss if key in ss[s] and key in bs.get(s,{}))
             rows=[np.log1p(ss[s][key])-np.log1p(bs[s][key]) for s in common]
             summary['turns'][key]={'all_survivor_n':curve.get('n',0),'all_survivor_p50':curve.get('strength_p50'),
+                'all_survivor_median_n':len(all_values),
+                'all_survivor_median':float(np.median(all_values)) if all_values else None,
                 'common_n':len(common),'common_candidate_p50':float(np.median([ss[s][key] for s in common])) if common else None,
                 'common_reference_p50':float(np.median([bs[s][key] for s in common])) if common else None,
                 'common_log_strength_difference':bootstrap(rows)}
