@@ -18,6 +18,7 @@
     },
     "student": {
       "checkpoint": "artifacts/runs/nus-conditional-economy-20261118-2/model.pt",
+      "sha256": "6e01d1d16d2f7909767298a39c742efdceee10e25cdb4a31ae9178d51990d807",
       "operator": false
     }
   },
