@@ -43,14 +43,28 @@ def select_sources(bank):
     return [groups[k] for k in sorted(groups)]
 
 
-def run_turn(policy,state,ids):
+class ProtectCoresView:
+    """Explicit diagnostic policy constraint; never changes native game rules."""
+    def __init__(self,game,ids):self.game=game;self.ids=ids
+    def __getattr__(self,name):return getattr(self.game,name)
+    def legal_mask(self,seat):
+        mask=bytearray(self.game.legal_mask(seat))
+        for i,m in enumerate(json.loads(self.game.player_json(seat))['board']):
+            if item(m,self.ids) in CORES:mask[16+i]=0
+        return bytes(mask)
+
+
+def run_turn(policy,state,ids,*,protect_cores=False):
     game=engine.Game.from_json(json.dumps(state));policy.reset()
+    policy_game=ProtectCoresView(game,ids) if protect_cores else game
     initial=own(game);initial_turn=game.turn;steps=[];counts=Counter();income=0
     for index in range(256):
         before=json.loads(game.state_json());p=before['players'][0]
         legal=list(bytes(game.legal_mask(0)))
-        action=int(policy.decide(game,0).action)
+        policy_mask=list(bytes(policy_game.legal_mask(0)))
+        action=int(policy.decide(policy_game,0).action)
         if not 0<=action<len(legal) or not legal[action]:raise ValueError('illegal diagnostic action')
+        if not policy_mask[action]:raise ValueError('diagnostic policy constraint failed')
         if action==0:
             end_intent={'action':0,'executed':False,'reason':'probe stops before EndTurn','legal_mask':legal}
             break
@@ -63,7 +77,8 @@ def run_turn(policy,state,ids):
         if game.turn!=initial_turn or any(game.diagnostic_counts()):raise ValueError('unclean turn boundary')
         after=json.loads(game.state_json());q=after['players'][0]
         income+=max(0,q['gold']-p['gold'])
-        steps.append({'action':action,'executed':True,'legal_mask':legal,'before':before,'after':after})
+        steps.append({'action':action,'executed':True,'legal_mask':legal,
+                      'policy_constraint_mask':policy_mask,'before':before,'after':after})
     else:raise ValueError('policy failed to finish recruit turn')
     final=own(game)
     strength=lambda p:sum(m['atk']+m['hp'] for m in p['board'])
@@ -84,6 +99,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--bank',required=True);p.add_argument('--out',required=True)
     p.add_argument('--checkpoint',action='append',required=True);p.add_argument('--device',default='cpu')
+    p.add_argument('--protect-cores',action='store_true',help='Diagnostic intervention, not a learned policy')
     args=p.parse_args();torch.set_num_threads(1)
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
     sources=select_sources(args.bank);tasks=[]
@@ -103,7 +119,7 @@ def main():
         built=make_eval_policy(path,protocol=proto,device=args.device);rows=[]
         with gzip.open(out/(name+'-trace.jsonl.gz'),'xt',encoding='utf-8',compresslevel=3) as f:
             for task in tasks:
-                metrics,trace=run_turn(built['policy'],task['initial'],ids)
+                metrics,trace=run_turn(built['policy'],task['initial'],ids,protect_cores=args.protect_cores)
                 row={'source_seed':task['source_seed'],'variant':task['variant'],**metrics};rows.append(row)
                 f.write(json.dumps({'result':row,'interventions':task['interventions'],**trace},separators=(',',':'))+'\n')
         summaries={}
@@ -116,6 +132,7 @@ def main():
         atomic_json(out/(name+'.json'),results[name]);del built
         print(json.dumps({'model':name,'summary':summaries}),flush=True)
     atomic_json(out/'complete.json',{'models':results,'engine':engine_info(),'contract':proto.contract_dict(),
+        'policy_intervention':'forbid selling the three economic cores' if args.protect_cores else 'none',
         'bank':file_identity(Path(args.bank)/'manifest.json'),'tasks':file_identity(out/'tasks.jsonl.gz'),
         'scope':'Held-out-source first-recruit-turn synthetic diagnostic, not placement performance; no training labels'})
 

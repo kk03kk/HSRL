@@ -4,6 +4,8 @@ from hsbg.runtime.artifacts import atomic_json,file_identity
 from tests.test_economic_tasks import natural_source
 from tools.probe_economic_starts import run_turn,canonical_items,select_sources
 from workflows.build_recruit_curriculum import endow
+from tools.probe_economic_starts import ProtectCoresView
+import hsbg_engine as engine
 
 
 class Script:
@@ -41,3 +43,13 @@ def test_diagnostic_only_uses_source_game_holdout(tmp_path):
         for r in rows:f.write(json.dumps(r)+'\n')
     atomic_json(tmp_path/'manifest.json',{'data':file_identity(tmp_path/'states.jsonl.gz')})
     assert [r['seed'] for r in select_sources(tmp_path)]==[11800000]
+
+
+def test_core_constraint_changes_only_policy_sale_mask():
+    state,_=endow(natural_source(11800001))
+    game=engine.Game.from_json(json.dumps(state));before=game.state_json()
+    native=bytes(game.legal_mask(0));filtered=ProtectCoresView(game,canonical_items()).legal_mask(0)
+    changed=[i for i,(a,b) in enumerate(zip(native,filtered)) if a!=b]
+    end=len(state['players'][0]['board'])
+    assert changed==list(range(16+end-3,16+end))
+    assert game.state_json()==before and bytes(game.legal_mask(0))==native
