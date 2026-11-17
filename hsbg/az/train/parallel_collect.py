@@ -36,6 +36,7 @@ from .human_board_pool import inject_turn as inject_human_boards
 from .mirror_snapshots import (MirrorStats, inject_turn, mirror_seats,
                                mirror_seats_random)
 from .lobby_filter import make_filtered_game
+from .contract_meta import contract_meta
 from .move_guard import aggregate_move_guard
 from .archetype_bias import aggregate_archetype_bias
 from .reward_shaping import RewardShaper, aggregate_shaping
@@ -193,19 +194,8 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
     meta.update(tracker.stats())
     meta.update(policy.move_guard_meta())
     meta.update(policy.archetype_bias_meta())
-    # 动作契约/规则限制：让每轮的 meta 自证"当时用的是哪套限制"。
-    # 2026-11-17（smoke 审计）：这些以前只存在于命令行，pool 路径完全不记录。
-    for _k, _v in (("max_actions_per_turn", int(cfg.max_actions_per_turn)),
-                   ("move_guard", bool(getattr(cfg, "move_guard", False))),
-                   ("move_cap", int(getattr(cfg, "move_cap", 0) or 0)),
-                   ("move_repeat_limit", int(getattr(cfg, "move_repeat_limit", 0) or 0)),
-                   ("freeze_cap", int(getattr(cfg, "freeze_cap", 0) or 0)),
-                   ("forbid_cancel", bool(getattr(cfg, "forbid_cancel", False))),
-                   ("forbid_unfreeze", bool(getattr(cfg, "forbid_unfreeze", False))),
-                   ("ban_trinkets", bool(getattr(cfg, "ban_trinkets", False))),
-                   ("lobby_exclude", list(getattr(cfg, "lobby_exclude", ()) or ())),
-                   ("sims", int(getattr(cfg, "sims", 0) or 0))):
-        meta[_k] = _v
+    # 动作契约/规则限制：单一来源（contract_meta.py），让每轮 meta 自证限制。
+    meta.update(contract_meta(cfg))
     _ft_game = policy.forced_tier_game_meta()
     if _ft_game:
         meta["forced_tier_game"] = _ft_game
@@ -1439,6 +1429,8 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
             "truncated_games": int(truncated),
             "games_meta": metas, "forced_end_turns": int(policy.forced_actions),
             "action_hist": {str(k): int(v) for k, v in sorted(policy.action_hist.items())}}
+    # 动作契约/规则限制：lockstep（pool）路径有自己的 meta 组装点，同样要走单一来源。
+    meta.update(contract_meta(cfg))
     # 回合末快照镜像是「每座位每回合」事件：逐局计数后汇总写入 meta。
     mstats = MirrorStats()
     for st in states:

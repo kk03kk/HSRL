@@ -85,6 +85,7 @@ from .move_guard import (MoveGuard, DEFAULT_MOVE_CAP,
 from .pending_guard import PendingGuard, no_cancel_choose, without_cancel
 from .action_ban import ban_choice_options, has_pending_choice
 from .lobby_filter import make_filtered_game
+from .contract_meta import contract_meta
 from .archetype_bias import (ArchetypeBias, aggregate_archetype_bias,
                              engine_card_id_lookup, DEFAULT_TABLE as ARCH_TABLE,
                              DEFAULT_MODEL as ARCH_MODEL)
@@ -4691,17 +4692,8 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
         "search_calls": int(policy.search_calls),
         "search_failures": int(policy.search_failures),
         "forced_end_turns": int(policy.forced_actions),
-        "max_actions_per_turn": int(cfg.max_actions_per_turn),
-        "forbid_cancel": bool(getattr(cfg, "forbid_cancel", False)),
-        "move_guard": bool(getattr(cfg, "move_guard", False)),
-        "move_cap": int(getattr(cfg, "move_cap", DEFAULT_MOVE_CAP)),
-        "move_repeat_limit": int(getattr(cfg, "move_repeat_limit", DEFAULT_MOVE_REPEAT_LIMIT)),
-        # 2026-11-17（smoke 审计发现）：下面这几项**以前只在命令行里**，训练产物里查不到，
-        # 等于"跑完之后无法自证当时用的是哪套限制"。现在逐轮落进 collect meta。
-        "freeze_cap": int(getattr(cfg, "freeze_cap", 0) or 0),
-        "forbid_unfreeze": bool(getattr(cfg, "forbid_unfreeze", False)),
-        "ban_trinkets": bool(getattr(cfg, "ban_trinkets", False)),
-        "lobby_exclude": list(getattr(cfg, "lobby_exclude", ()) or ()),
+        # 动作契约/规则限制：单一来源（见 contract_meta.py），四处组装点共用。
+        **contract_meta(cfg),
         "search_enabled": bool(search_fn is not None),
         "features_normalized": bool(norm_mean is not None),
         "elapsed_s": float(time.time() - t0),
