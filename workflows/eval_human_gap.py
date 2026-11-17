@@ -420,7 +420,7 @@ def run_checkpoint(name: str, path: Path, args) -> Dict[str, Any]:
         policy = ThirdPartyGreedyPolicy(
             real, device=args.device,
             max_actions_per_turn=int(args.max_actions_per_turn),
-            forbid_cancel=True,
+            forbid_cancel=bool(int(getattr(args, "tp_forbid_cancel", 0) or 0)),
             keep_start_board=bool(int(getattr(args, "keep_start_board", 1) or 0)),
             ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
             freeze_cap=int(getattr(args, "freeze_cap", 0) or 0),
@@ -729,6 +729,8 @@ def main(argv=None) -> int:
     ap.add_argument("--mirror-strict", type=int, default=0, choices=[0, 1],
                     help="1=活席必须使用库，禁止 bot 回退")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--tp-forbid-cancel", type=int, default=0, choices=[0, 1],
+                    help="仅对第三方权重生效：是否全局禁用 Cancel（作者只要求 no_cancel_choose）")
     ap.add_argument("--keep-start-board", type=int, default=1, choices=[0, 1],
                     help="1=回合开始已在场的随从不可卖（第三方权重要求 keep_start_board=1）")
     ap.add_argument("--ban-trinkets", type=int, default=1, choices=[0, 1],
