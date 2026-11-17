@@ -1,0 +1,28 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-104: a fixed-budget test of rare process event dilution",
+  "parent": "artifacts/models/arena-v1.4-r1/model.pt",
+  "parent_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+  "baseline_fixed_endpoint_sha256": "89b6dacd44be3d650ec9534a29c93c1545428d8364f094e975ab8f0f1fd26952",
+  "dataset": "artifacts/runs/nus-payoff-dataset-20261118-1",
+  "dataset_manifest_sha256": "006175b0310401ff3d2f3e1d6b0aad025d8c0a9fe2c1a27faddda5ab63e769ea",
+  "architecture": "Same neutral mechanisms/v1 plus gold_engine conditional fork; frozen base and critic",
+  "optimizer": "Fresh Adam, same parent and seed as baseline; never continue the baseline's 2000 updates",
+  "updates": 2000,
+  "learning_rate": 0.000003,
+  "seed": 1203801,
+  "demonstrations_per_update": 96,
+  "sampling": {
+    "phase": "16 from each T8_9, T10_12, T13_plus = 48",
+    "event": "8 from each progression, resources, play, liquidation, search, finish = 48",
+    "source": "All training-source rows only; fixed mapping in learn_payoff_process.EVENTS; no new demonstration or outcome filtering"
+  },
+  "anchors_per_update": 192,
+  "anchor_kl_coefficient": 10,
+  "anchor_kl_stop": 0.03,
+  "gradient_clip": 1,
+  "trigger": "Baseline whole suffix is worse by 0.551 ranks, T12 only 66/90 survivors at Tier6 versus teacher 97/97; teacher-state upgrade agreement 16/84 despite 85.745% overall",
+  "assessment": "Fixed final endpoint only; same 196 development suffixes, matched source-clustered rank and common-survivor growth. Reuse sealed baseline and parent/growth, never add duplicate games as independent samples.",
+  "budget": "One 2000-update BC comparison and one closed-loop assessment; no PPO extension without benefit",
+  "limitations": ["Exploratory reused development sources", "Event grouping is an explicit training prior", "No natural acquisition or promotion claim"]
+}

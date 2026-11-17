@@ -101,7 +101,8 @@ def anchor_check(model, reference, anchors):
 
 
 def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
-        closed_loop_fn=closed_loop, learning_tag='cycle_learning', model_transform=None):
+        closed_loop_fn=closed_loop, learning_tag='cycle_learning', model_transform=None,
+        sampling_plan_fn=None):
     torch.set_num_threads(1)
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
@@ -137,6 +138,14 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
         if not bool(active.all()):raise ValueError('some demonstrations fall outside the declared conditional gate')
     dev = np.flatnonzero(raw['dev'])
     groups = {k: np.flatnonzero((~raw['dev']) & (raw['kinds'] == k)) for k in sorted(set(raw['kinds']))}
+    sample_sizes={k:args.per_kind_batch for k in groups}
+    if sampling_plan_fn is not None:
+        groups,sample_sizes=sampling_plan_fn(raw)
+        if set(groups)!=set(sample_sizes) or any(int(n)!=n or n<=0 for n in sample_sizes.values()):
+            raise ValueError('invalid sampling batch plan')
+        used=np.concatenate(list(groups.values()))
+        if raw['dev'][used].any() or set(used.tolist())!=set(np.flatnonzero(~raw['dev']).tolist()):
+            raise ValueError('sampling must cover all training rows and no development row')
     if not len(dev) or any(not len(v) for v in groups.values()):
         raise ValueError('missing source split')
     with gzip.open(root / 'tasks.jsonl.gz', 'rt', encoding='utf-8') as stream:
@@ -144,6 +153,7 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
     identity = {'args': vars(args), 'source': source_identity(Path(__file__).resolve().parents[1]),
                 'environment': environment_identity(), 'parent': file_identity(args.checkpoint),
                 'dataset_manifest': file_identity(root / 'manifest.json'), 'trainable': trainable}
+    identity['sampling_groups']={str(k):{'rows':len(v),'batch':int(sample_sizes[k])} for k,v in groups.items()}
     if gate_coverage is not None:
         identity['conditional_gate']=model.gate_spec;identity['gate_coverage']=gate_coverage
     if identity['source']['tracked_dirty']:
@@ -160,7 +170,7 @@ def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
     optimizer = torch.optim.Adam(parameters, lr=args.lr)
     started = time.monotonic()
     for update in range(1, args.updates + 1):
-        ix = np.concatenate([rng.choice(v, size=args.per_kind_batch, replace=True) for v in groups.values()])
+        ix = np.concatenate([rng.choice(v, size=sample_sizes[k], replace=True) for k,v in groups.items()])
         ai = rng.integers(len(anchors['features']), size=len(ix) * 2)
         logits, _ = forward(model, labels, ix)
         skill = process_loss(logits, labels['masks'][ix], labels['targets'][ix])

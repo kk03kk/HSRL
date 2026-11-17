@@ -44,6 +44,26 @@ def separate_assessment(model,tasks,device,path):
     return {'kinds':{},'tasks':len(tasks),'status':'not run here',
         'scope':'Closed-loop ability must be assessed by a separate sealed full-suffix job; label agreement is insufficient'}
 
+EVENTS={
+    'progression':('unlock_growth_payoff','complete_engine','restore_core','space_for_core','triple_core','invest_core_pair'),
+    'resources':('wealth','friendly_pirates','friendly_fallback','buy_economy','buy_bounty','pirate_majority_space'),
+    'play':('cycle_hand','spell','pending'),
+    'liquidation':('liquidate_cycle','keep_stronger_cycle','space_for_cycle','remove_health_risk'),
+    'search':('search',),
+    'finish':('fill_board','end'),
+}
+
+def mixed_event_sampling(raw):
+    import numpy as np
+    train=~raw['dev'];reasons=raw['reasons'];groups={};sizes={}
+    if set(reasons)-{r for rs in EVENTS.values() for r in rs}:raise ValueError('unknown demonstrator event')
+    for phase in ('T8_9','T10_12','T13_plus'):
+        key='phase/'+phase;groups[key]=np.flatnonzero(train&(raw['kinds']==phase));sizes[key]=16
+    for event,reasons_in_group in EVENTS.items():
+        key='event/'+event;groups[key]=np.flatnonzero(train&np.isin(reasons,reasons_in_group));sizes[key]=8
+    if any(not len(v) for v in groups.values()):raise ValueError('empty predeclared sampling group')
+    return groups,sizes
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--checkpoint',required=True)
     p.add_argument('--dataset',required=True);p.add_argument('--out',required=True)
@@ -51,7 +71,10 @@ if __name__=='__main__':
     p.add_argument('--updates',type=int,default=2000);p.add_argument('--lr',type=float,default=3e-6)
     p.add_argument('--anchor-kl',type=float,default=10.);p.add_argument('--per-kind-batch',type=int,default=32)
     p.add_argument('--validate-only',action='store_true')
+    p.add_argument('--sampling',choices=('phase','mixed_events'),default='phase')
     p.add_argument('--seed',type=int,default=1203801);args=p.parse_args()
+    if args.sampling=='mixed_events' and args.per_kind_batch!=32:
+        p.error('mixed_events fixes the total demonstration batch at 96; retain --per-kind-batch 32')
     args.dataset_validation=validate_dataset(args.dataset,args.checkpoint)
     if args.validate_only:
         atomic_json(Path(args.out)/'complete.json',args.dataset_validation)
@@ -59,4 +82,5 @@ if __name__=='__main__':
         sys.exit(0)
     run(args,expected_schema='hsai.payoff-process-dataset/v1',closed_loop_fn=separate_assessment,
         learning_tag='gold_payoff_learning',
-        model_transform=lambda model,meta:fork_conditional(model,meta,mechanisms=True,gate_mode='gold_engine'))
+        model_transform=lambda model,meta:fork_conditional(model,meta,mechanisms=True,gate_mode='gold_engine'),
+        sampling_plan_fn=mixed_event_sampling if args.sampling=='mixed_events' else None)
