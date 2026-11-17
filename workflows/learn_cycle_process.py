@@ -97,7 +97,8 @@ def anchor_check(model, reference, anchors):
             'rank_kl': float(np.mean(rank_kl)), 'policy_kl_p95': float(np.quantile(kl, .95))}
 
 
-def run(args):
+def run(args, *, expected_schema='hsai.cycle-process-dataset/v1',
+        closed_loop_fn=closed_loop, learning_tag='cycle_learning'):
     torch.set_num_threads(1)
     torch.manual_seed(args.seed)
     rng = np.random.default_rng(args.seed)
@@ -105,7 +106,7 @@ def run(args):
     out.mkdir(parents=True, exist_ok=False)
     root = Path(args.dataset)
     manifest = json.loads((root / 'manifest.json').read_text())
-    if manifest['schema'] != 'hsai.cycle-process-dataset/v1':
+    if manifest['schema'] != expected_schema:
         raise ValueError('wrong task schema')
     if manifest.get('mechanism_schema_sha256') != M.SCHEMA_SHA256:
         raise ValueError('dataset observation schema differs')
@@ -136,7 +137,7 @@ def run(args):
     atomic_json(out / 'run.json', identity)
     model.eval()
     baseline = {'labels': assess_rows(model, labels, dev, raw['kinds']),
-                'closed_loop': closed_loop(model, tasks, args.device, out / 'before.jsonl.gz')}
+                'closed_loop': closed_loop_fn(model, tasks, args.device, out / 'before.jsonl.gz')}
     atomic_json(out / 'baseline.json', baseline)
     print(json.dumps({'baseline': baseline['closed_loop']['kinds']}), flush=True)
     if args.updates == 0:
@@ -176,10 +177,11 @@ def run(args):
         for name, value in model.state_dict().items():
             if name not in trainable and not torch.equal(value, prior_state[name]):
                 raise RuntimeError('frozen parameter/buffer changed: ' + name)
-    meta.update(cycle_learning={'parent': identity['parent'], 'dataset': identity['dataset_manifest'],
-                                'args': vars(args), 'research_only': True})
+    meta[learning_tag]={'parent': identity['parent'], 'dataset': identity['dataset_manifest'],
+                       'args': vars(args), 'research_only': True}
     save_checkpoint(model, str(out / 'model.pt'), meta=meta)
-    torch.save({'schema': 'hsai.cycle-bc-state/v1', 'optimizer': optimizer.state_dict(),
+    torch.save({'schema': 'hsai.cycle-bc-state/v1', 'learning_tag':learning_tag,
+                'optimizer': optimizer.state_dict(),
                 'torch_rng': torch.get_rng_state(), 'numpy_rng': rng.bit_generator.state,
                 'updates': args.updates, 'model': file_identity(out / 'model.pt'),
                 'note': 'Not a PPO Trainer; any PPO fork must declare a fresh optimizer'}, out / 'bc_state.pt')
@@ -188,7 +190,7 @@ def run(args):
         if not all(torch.equal(a, b) for a, b in zip(forward(model, labels, dev[:16]), forward(restored, labels, dev[:16]))):
             raise RuntimeError('cycle checkpoint roundtrip differs')
     result = {'labels': assess_rows(restored, labels, dev, raw['kinds']),
-              'closed_loop': closed_loop(restored, tasks, args.device, out / 'after.jsonl.gz'),
+              'closed_loop': closed_loop_fn(restored, tasks, args.device, out / 'after.jsonl.gz'),
               'anchor': anchor_check(restored, reference, anchors),
               'model': file_identity(out / 'model.pt'), 'bc_state': file_identity(out / 'bc_state.pt'),
               'roundtrip_exact': True}
