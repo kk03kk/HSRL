@@ -1,0 +1,54 @@
+{
+  "schema": "hsai.eval-plan/v1",
+  "purpose": "Predeclared development assessment of both 10M transfer seeds and the fixed 2M paired state curricula; no promotion",
+  "games": 64,
+  "shards": 4,
+  "seed": 1118100,
+  "models": [
+    {
+      "name": "transfer_control_s1",
+      "checkpoint": "artifacts/runs/nus-transfer-control-20261118-1181811/train/model.pt"
+    },
+    {
+      "name": "transfer_process_s1",
+      "checkpoint": "artifacts/runs/nus-transfer-process-20261118-1181811/train/model.pt"
+    },
+    {
+      "name": "transfer_control_s2",
+      "checkpoint": "artifacts/runs/nus-transfer-control-20261118-2181811/train/model.pt"
+    },
+    {
+      "name": "transfer_process_s2",
+      "checkpoint": "artifacts/runs/nus-transfer-process-20261118-2181811/train/model.pt"
+    },
+    {
+      "name": "curriculum_natural_2m",
+      "checkpoint": "artifacts/runs/nus-curriculum-natural-20261118-5182001/train/model.pt"
+    },
+    {
+      "name": "curriculum_endowed_2m",
+      "checkpoint": "artifacts/runs/nus-curriculum-endowed-20261118-5182001/train/model.pt"
+    }
+  ],
+  "evaluation": {
+    "mirror-snaps": "artifacts/libraries/arena-cal-v14hold-snap",
+    "mirror-sample": "p50band",
+    "mirror-strict": 0,
+    "mirror-seats": 7,
+    "mirror-p": 1,
+    "lobby-exclude": "",
+    "max-actions-per-turn": 100,
+    "move-guard": 1,
+    "move-cap": 2,
+    "move-repeat-limit": 2,
+    "freeze-cap": 1,
+    "forbid-cancel": 1,
+    "forbid-unfreeze": 1,
+    "ban-trinkets": 1,
+    "human-baseline": "artifacts/runs/human-baseline-20261112/baseline.json"
+  },
+  "expected_protocol_sha256": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+  "replay_steps_per_trace": 64,
+  "stop_rule": "One complete valid assessment; no extra runs selected based on outcome",
+  "checkpoint_identity": "Paths predeclared while training pending. Slurm afterok dependencies require all training complete; evaluate_suite hashes and seals exact model inputs before any games, then checks unchanged."
+}
