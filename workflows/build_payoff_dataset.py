@@ -12,6 +12,7 @@ import numpy as np
 from hsbg.az.train import mechanism_obs as M
 from hsbg.az.train.conditional_economy import current_gate_spec
 from hsbg.evaluation.trace import DecisionRecorder,validate_trace
+from hsbg.evaluation.quality import suffix_quality
 from hsbg.runtime.artifacts import atomic_json,file_identity
 from hsbg.runtime.provenance import source_identity,environment_identity
 from workflows.probe_whole_turn_economy import fixture
@@ -79,6 +80,7 @@ def task(spec):
     if split=='dev':
         case=old['case'];root=Path(args['development'])
         path=root/'trials/growth'/f'case-{case:03d}-complete_gold-r00'/'decisions.jsonl.gz'
+        suffix_quality(json.loads((path.parent/'result.json').read_text())['evaluation'])
         if file_identity(path)!={k:old['trace'][k] for k in ('bytes','sha256')}:raise ValueError('sealed teacher trace differs')
         labels=[];actions=0
         with gzip.open(path,'rt',encoding='utf-8') as stream:
@@ -111,7 +113,7 @@ def task(spec):
             result=evaluate_policy(policy,EvalConfig(games=1,seed=future_seed,research_initial_state=state,
                 collect_economy=True,decision_recorder=recorder,mirror_pool=pool,
                 mirror_strict=False,mirror_seats=7,mirror_p=1.))
-            if result['illegal_actions'] or result['truncated_games']:raise ValueError('demonstration quality failure')
+            suffix_quality(result)
             trace=recorder.finish(result);validation=validate_trace(dest/'decisions.jsonl.gz',replay=16)
         except BaseException:
             recorder.abort();raise
