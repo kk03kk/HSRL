@@ -26,6 +26,8 @@ def test_parallel_validation_matches_serial_with_real_steps(tmp_path):
     panel=tmp_path/'panel.json'
     panel.write_text(json.dumps({'protocol':payload,'models':models}),encoding='utf-8')
     serial=validate_panel(panel,replay=3)
+    assert serial['replayed_actions'] == 6
+    assert serial['replay_steps_per_trace'] == 3
     assert validate_panel(panel,replay=3,workers=2) == serial
     models[1]['rank_sequence']=[1 if models[1]['rank_sequence'][0]!=1 else 2]
     panel.write_text(json.dumps({'protocol':payload,'models':models}),encoding='utf-8')

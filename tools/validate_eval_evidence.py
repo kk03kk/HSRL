@@ -51,7 +51,7 @@ def validate_panel(path, *, replay=16, workers=1):
     checked = iter(validated)
     results = []
     for model,traces in zip(panel['models'],groups):
-        games = actions = 0
+        games = actions = replayed = 0
         seeds = []
         ranks = []
         for reference in traces:
@@ -62,6 +62,7 @@ def validate_panel(path, *, replay=16, workers=1):
             result = next(checked)
             games += result['games']
             actions += result['actions']
+            replayed += result['replayed']
             seeds.extend(result['seeds'])
             ranks.extend(result['ranks'])
         if seeds != model['seed_sequence'] or len(set(seeds)) != games:
@@ -72,9 +73,12 @@ def validate_panel(path, *, replay=16, workers=1):
             raise ValueError('panel ranks differ from terminal game evidence')
         if any(model['outcome'].get(k, 0) for k in ('illegal_actions', 'truncated_games')):
             raise ValueError('invalid evaluation outcome')
-        results.append({'name':model['name'],'games':games,'actions':actions,'trace_files':len(traces)})
+        results.append({'name':model['name'],'games':games,'actions':actions,
+                        'trace_files':len(traces),'replayed_actions':replayed})
     return {'schema':'hsai.eval-evidence-validation/v1', 'valid':True,
-            'protocol_sha256':protocol, 'panel':file_identity(path), 'models':results}
+            'protocol_sha256':protocol, 'panel':file_identity(path), 'models':results,
+            'replay_steps_per_trace':replay,
+            'replayed_actions':sum(r['replayed_actions'] for r in results)}
 
 
 if __name__ == '__main__':
