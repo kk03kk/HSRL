@@ -24,7 +24,7 @@ def create_release(workspace, commit, name):
     target.parent.mkdir(parents=True, exist_ok=True)
     git('worktree', 'add', '--detach', str(target), commit)
     mounts = {}
-    for name in ('.venv', 'artifacts', 'data', 'records'):
+    for name in ('.venv', 'artifacts'):
         source = workspace/name
         if source.exists():
             dest = target/name
@@ -32,6 +32,18 @@ def create_release(workspace, commit, name):
                 raise FileExistsError(dest)
             dest.symlink_to(source, target_is_directory=True)
             mounts[name] = str(source)
+    # data/ and records/ contain a small tracked catalog as well as large local
+    # assets. Keep the commit's tracked files; mount only absent descendants.
+    def attach_missing(source, dest):
+        if not dest.exists():
+            dest.symlink_to(source, target_is_directory=source.is_dir())
+            mounts[str(dest.relative_to(target))] = str(source)
+        elif source.is_dir() and dest.is_dir():
+            for child in source.iterdir():
+                attach_missing(child, dest/child.name)
+    for name in ('data', 'records'):
+        source = workspace/name
+        if source.exists(): attach_missing(source, target/name)
     # Optional reference code is deliberately not imported or implicitly linked.
     # Any third-party model release needs its own content-verified source manifest.
     manifest = {'schema': 'hsai.source-release/v1', 'commit': commit,

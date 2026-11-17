@@ -53,7 +53,7 @@ def check_sources(root=ROOT):
 #: 由 `.gitignore` 管）。
 ROOT_ALLOWED_FILES=frozenset({
     'README.md','AGENTS.md','pyproject.toml','requirements.txt',
-    '.gitignore','.gitattributes',
+    '.gitignore','.gitattributes','.git',  # worktree .git is a pointer file
 })
 #: 单个文件进 Git 的上限（`AGENTS.md` §2）
 BIG_FILE_LIMIT=5*1024*1024
