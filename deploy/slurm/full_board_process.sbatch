@@ -13,4 +13,4 @@ exec .venv/bin/python tools/probe_full_board_process.py \
   --dataset artifacts/runs/nus-economic-dataset-20261118-1 \
   --checkpoint control=artifacts/runs/nus-input-base-20261118-1/train/model.pt \
   --checkpoint process=artifacts/runs/nus-process-base-20261118-2/model.pt \
-  --out artifacts/runs/nus-fullboard-process-20261118-1 --device cpu
+  --out "${HSAI_FULLBOARD_OUT:?set a new diagnostic output}" --device cpu
