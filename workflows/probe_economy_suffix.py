@@ -18,7 +18,7 @@ _CACHE={}
 
 class EconomyRecorder(DecisionRecorder):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0;self.gate_retention_actions=0
+        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0;self.gate_retention_actions=0;self.bridge_actions=0
     def after(self,game,before,decision,executed_action,forced_tier=False):
         if getattr(self,'history_policy',None) is not None:
             if forced_tier:raise ValueError('history residual study does not permit external forced tiers')
@@ -26,6 +26,7 @@ class EconomyRecorder(DecisionRecorder):
         self.option_actions+=bool(decision.info.get('research_option_active'))
         self.deployment_actions+=bool(decision.info.get('deployment_override_executed'))
         self.gate_retention_actions+=bool(decision.info.get('gate_retention_override_executed'))
+        self.bridge_actions+=bool(decision.info.get('bridge_first_action'))
         if executed_action==0:
             p=before['state_before']['players'][before['seat']]
             self.economy[int(before['turn'])]={'gold_spent':p['stats']['gold_spent_turn'],
@@ -112,6 +113,9 @@ def trial(task):
         'trace':trace,'validation':validation}
     if operator=='deploy_payoff':row['deployment_actions']=recorder.deployment_actions
     if operator=='retain_gate':row['gate_retention_actions']=recorder.gate_retention_actions
+    if operator in ('bridge_parent_buy','bridge_growth_buy'):
+        if recorder.bridge_actions!=1:raise ValueError('bridge must execute exactly one declared first action')
+        row['bridge_first_actions']=recorder.bridge_actions
     atomic_json(path/'result.json',{'summary':row,'evaluation':result});return row
 
 def compare(rows,parent='parent'):

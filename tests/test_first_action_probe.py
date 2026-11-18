@@ -43,3 +43,16 @@ def test_first_buy_teacher_keeps_actual_history_and_guard_failure_is_loud():
     game,action=fixture();policy.reset();policy.configure(action)
     teacher.policy._turn_counts[(0,game.turn)]=100
     with pytest.raises(ValueError,match='ordinary guard'):policy.decide(game,0)
+
+
+def test_bridge_interaction_preserves_all_paired_sources():
+    from tools.analyze_native_bridge import rank_interaction
+    rows=[{'case':case,'replica':r,'name':name,'source_seed':case,'future_seed':100+case*2+r,
+        'initial_sha256':str(case),'variant':'privateer_bridge','rank':rank,'bridge_first_actions':1}
+        for case in (0,1) for r in (0,1)
+        for name,rank in (('parent',5),('parent_buy',5),('growth',4),('growth_buy',2))]
+    result=rank_interaction(rows)
+    assert result['mean']==-2 and result['ci95']==[-2,-2] and result['sources']==2 and result['paired_replicates']==4
+    with pytest.raises(ValueError,match='incomplete'):rank_interaction(rows[:-1])
+    rows[-1]['future_seed']+=1
+    with pytest.raises(ValueError,match='identity'):rank_interaction(rows)
