@@ -1,0 +1,10 @@
+{
+  "decision": "D-132",
+  "sources": "Indices 0..255, 128 fit (even, v14) and 128 test (odd, v14hold). Per-field windows cycle T7-8, T9-10, T11-12. First eligible parent-versus-plan trade disagreement in each independent block 81100000+300*i+j. Count all screened games. Seal all sources before any outcomes.",
+  "interventions": ["parent throughout", "first proposed action only", "recompute proposals until end of the next recruit turn"],
+  "budget": {"sources":256,"future_streams_per_source":8,"arms":3,"maximum_completed_suffixes":6144,"future_seed":"81300000+8*i+rep"},
+  "proposal": "Use the history head. Raw original order, fixed parent card representations, standard net-payment trade rows, current and preceding recruit actions, next-turn board presence auxiliary weight 0.25. Human split is whole-game with all demon-tagged games held out. Matched history-masked head is descriptive. Natural intervention only changes legal within-type minion trades with per-logit adjustment clipped at +/-1.5; parent may resume at every decision.",
+  "selector": "Two prespecified state-value-difference ridge fits, 112 of 128 fit sources sampled without replacement by NumPy RNG seeds 13211 and 13229. Standardize on each training subset, intercept unpenalized, ridge 30. Target is mean paired original rank utility of the two-turn plan minus parent. Accept if predicted difference >0. Parent is always available. First-only arm is diagnostic and unused for selecting.",
+  "gate": "Equal-weight mean effect of the two fixed selectors on all 128 held-out sources. Lower limit of paired 95% source-bootstrap interval vs parent >0 AND mean > always using the two-turn plan. No outcome-based reselection. Report both selectors, mechanism/health splits and conditional availability.",
+  "natural_if_pass": "Only if both requirements pass: both fixed selectors and parent on 512 new paired natural v14hold seeds 81500000..81500511. For each seed use same preassigned window distribution as source study; at most one start per game. Apply the five D-128 scaling tests, report common growth and all-game survival/rank/utility."
+}
