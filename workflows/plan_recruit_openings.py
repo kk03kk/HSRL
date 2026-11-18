@@ -3,6 +3,7 @@ import gzip
 import json
 import os
 import pickle
+import shutil
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
@@ -27,7 +28,8 @@ from workflows.d132_trade_plan import provenance
 from workflows.probe_investment_timing import TimingPolicy, MODEL, FIELDS
 from workflows.replicate_investment_returns import GUARDS, Captured
 
-ROOT = Path('artifacts/runs/nus-opening-plans-20261118-1')
+ORIGINAL = Path('artifacts/runs/nus-opening-plans-20261118-1')
+ROOT = Path('artifacts/runs/nus-opening-plans-20261118-2')
 CACHE = {}
 ROLES = ('upgrade','refresh','tempo','invest')
 
@@ -171,21 +173,27 @@ class Opening(TimingPolicy):
         return result,value
 
 
-def capture(i):
+class IneligibleOpening(Exception):
+    pass
+
+
+def screen(i,offset):
     from hsbg.az.train.common import mask_from_bytes
     field='development' if i%2==0 else 'transfer'
     turn=7+(i//2)%5
     w=Opening(field)
     def before(game,seat):
-        if int(game.turn)!=turn or not game.needs_action(seat):
+        if int(game.turn)!=turn:
             return
+        if not game.needs_action(seat):
+            raise IneligibleOpening()
         p=json.loads(game.player_json(seat))
         mask=mask_from_bytes(game.legal_mask(seat))
         if p['pending'] or not mask[0] or p['gold']<3:
-            return
+            raise IneligibleOpening()
         routes=proposals(p,mask,w.info)
         if len(routes)<3:
-            return
+            raise IneligibleOpening()
         require_clean_engine(game)
         cnt=Counter(t for m in p['board'] for t in w.info[m['card']]['races'] if t!='ALL')
         top=cnt.most_common(2)
@@ -194,20 +202,52 @@ def capture(i):
                         field=field,turn=turn,family=family,hero=p['hero'],prefix=w.actions[:],routes=routes,
                         features=[route_features(p,r) for r in routes])
         raise Captured()
-    for offset in range(120):
-        seed=82100000+i*200+offset
-        try:
-            check(evaluate_policy(w,EvalConfig(games=1,seed=seed,mirror_pool=w.pool,research_before_opponents=before)))
-        except Captured:
+    seed=82100000+i*200+offset if offset<200 else 82700000+i*1000+offset-200
+    try:
+        check(evaluate_policy(w,EvalConfig(games=1,seed=seed,mirror_pool=w.pool,research_before_opponents=before)))
+    except IneligibleOpening:
+        return None
+    except Captured:
+        return dict(**w.captured,i=i,seed=seed,screened=offset+1)
+    return None
+
+
+def describe_source(src,path):
+    return dict(**{k:src[k] for k in ('i','seed','turn','field','routes','family','screened')},file=file_identity(path))
+
+
+def recover(pool):
+    missing=[i for i in range(64) if not (ORIGINAL/f'{i}-state.pkl.gz').exists()]
+    if missing!=[55] or (ORIGINAL/'sources.json').exists() or list(ORIGINAL.glob('search-*.jsonl')):
+        raise ValueError('unexpected original screening evidence')
+    result=[]
+    for i in range(64):
+        if i in missing:
+            continue
+        old=ORIGINAL/f'{i}-state.pkl.gz'
+        path=ROOT/old.name
+        shutil.copyfile(old,path)
+        if file_identity(path)!=file_identity(old):
+            raise ValueError('copied opening changed')
+        with gzip.open(path,'rb') as f:
+            src=pickle.load(f)
+        if src['i']!=i:
+            raise ValueError('wrong recovered source')
+        result.append(describe_source(src,path))
+    i=missing[0]
+    for start in range(120,600,16):
+        offsets=range(start,start+16)
+        batch=list(pool.map(screen,[i]*len(offsets),offsets))
+        src=next((row for row in batch if row is not None),None)
+        if src is not None:
             break
     else:
-        raise ValueError('no eligible opening in assigned seed block')
-    src=dict(**w.captured,i=i,seed=seed,screened=offset+1)
+        raise ValueError('supplementary source block exhausted')
     path=ROOT/f'{i}-state.pkl.gz'
     with gzip.open(path,'xb') as stream:
         pickle.dump(src,stream)
-    return dict(i=i,seed=seed,turn=turn,field=field,routes=src['routes'],family=src['family'],
-                screened=offset+1,file=file_identity(path))
+    result.append(describe_source(src,path))
+    return sorted(result,key=lambda r:r['i'])
 
 
 def restore(i):
@@ -328,7 +368,7 @@ if __name__=='__main__':
     else:
         with ProcessPoolExecutor(int(os.environ.get('SLURM_CPUS_PER_TASK',4))) as pool:
             if stage=='capture':
-                atomic_json(ROOT/'sources.json',list(pool.map(capture,range(64))))
+                atomic_json(ROOT/'sources.json',recover(pool))
             elif stage in ('search','test'):
                 shard=int(sys.argv[2])
                 if not 0<=shard<8:
