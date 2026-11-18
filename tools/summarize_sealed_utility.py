@@ -20,6 +20,9 @@ def main(args):
             and (variants is None or r['variant'] in variants))
         sources.append({'path':str(path),'identity':file_identity(path)})
     result=summarize(rows,args.references,[float(s) for s in args.utility.split(',')])
+    if analysis.get('source_scope'):
+        result['source_scope']=analysis['source_scope']
+        result['limitations']=list(analysis['outcomes']['limitations'])
     result.update(admitted_analysis=file_identity(args.analysis),inputs=sources,
         declaration='This is an explicit supplementary scoring transform of sealed final ranks, not a new formal promotion criterion')
     atomic_json(args.out,result)
