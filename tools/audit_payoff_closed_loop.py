@@ -30,12 +30,14 @@ def scan(spec):
     from hsbg.az.train.research_economy_policy import active
     from hsbg.az.train import mechanism_obs as M
     from workflows.build_payoff_dataset import gate
+    from hsbg.az.train.conditional_economy import current_gate_spec
     path,expected,is_teacher=spec;path=Path(path)
     if file_identity(path)!={k:expected[k] for k in ('bytes','sha256')}:
         raise ValueError('sealed trace changed')
     evaluator=RecordedEvaluator();guard=PPOGreedyPolicy(evaluator);operator=Operator('growth')
     previous=None;counts=Counter();by_reason=defaultdict(Counter);by_card=defaultdict(Counter)
     deaths=[];examples=[];abstentions=[];disagreement_examples=defaultdict(list)
+    previous_gate=None;gate_edges=[];gate_groups=current_gate_spec('gold_engine')['groups']
     with gzip.open(path,'rt',encoding='utf-8') as stream:
         for line in stream:
             row=json.loads(line)
@@ -53,6 +55,18 @@ def scan(spec):
             f,c=M.observe(game,seat,M.SCHEMA)
             within=gate(np.frombuffer(f,dtype='<f4'),np.frombuffer(c,dtype='<i4'))
             counts['gold_gate_actions']+=int(within)
+            if previous_gate is not None and previous_gate['active']!=bool(within):
+                counts['observed_gate_entries' if within else 'observed_gate_exits']+=1
+                owned={x['id'] for x in view['me']['board']+view['me']['hand']}
+                missing=[group[0] for group in gate_groups if not owned.intersection(group)]
+                if not within:
+                    for card in missing:counts['gate_exit_missing/'+card]+=1
+                    if 16<=previous_gate['action']<23:counts['gate_exits_following_sell']+=1
+                if len(gate_edges)<8:
+                    gate_edges.append({'previous':previous_gate,'now_turn':row['turn'],
+                        'now_action_index':row['action_index'],'now_active':bool(within),'missing_groups':missing})
+            previous_gate={'active':bool(within),'turn':row['turn'],'action_index':row['action_index'],
+                'action':row['action']}
             before_player=row['state_before']['players'][seat];after_player=row['state_after']['players'][seat]
             if before_player['alive'] and not after_player['alive'] and row['action']!=0:
                 deaths.append({'turn':row['turn'],'action_index':row['action_index'],'action':row['action'],
@@ -112,7 +126,7 @@ def scan(spec):
     return {'path':str(path),'identity':file_identity(path),'counts':dict(counts),
         'reasons':{k:dict(v) for k,v in by_reason.items()},'recruit_deaths':deaths,'memory_examples':examples,
         'teacher_cards':{k:dict(v) for k,v in by_card.items()},'disagreement_examples':dict(disagreement_examples),
-        'teacher_abstention_examples':abstentions}
+        'teacher_abstention_examples':abstentions,'gate_transition_examples':gate_edges}
 
 
 def main(args):
@@ -151,6 +165,7 @@ def main(args):
         'limitations':['Teacher suggestions are heuristic, not optimal actions',
             'Explicit unsafe-target abstentions remain counted; they are never replaced by invented labels',
             'Same action group and card ignores position, stats and target identity; not an equivalence or optimality test',
+            'Gate transitions are between recorded learner decisions; terminal deaths have no subsequent decision',
             'Clearing private cycled memory is a controller ablation, not proof of reachable aliased environment histories',
             'Teacher/student visited-state distributions differ; agreement differences are descriptive']}
     atomic_json(out/'complete.json',result)

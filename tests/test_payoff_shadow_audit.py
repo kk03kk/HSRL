@@ -83,3 +83,23 @@ def test_student_only_unsafe_target_is_explicit_abstention(tmp_path):
     assert result['counts']['teacher_unavailable']==1
     assert result['counts']['teacher_unavailable_gold_gate']==1
     assert result['teacher_abstention_examples'][0]['action_index']==1
+
+
+def test_shadow_records_gold_gate_exit_after_a_core_sale(tmp_path):
+    from hsbg.az.train.ppo import PPOGreedyPolicy
+    game=E.Game.from_json(json.dumps(fixture(natural_source(),'complete_gold')[0]))
+    board=json.loads(game.view(0))['me']['board']
+    sell=16+next(i for i,m in enumerate(board) if m['id']=='TB_BaconUps_045')
+    evaluator=RecordedEvaluator();policy=PPOGreedyPolicy(evaluator)
+    path=tmp_path/'gate-exit.jsonl.gz'
+    with gzip.open(path,'wt',encoding='utf-8') as stream:
+        for i,action in enumerate((sell,0)):
+            evaluator.action=action;before=json.loads(game.state_json());turn=game.turn
+            decision=policy.decide(game,0);game.step(0,decision.action)
+            stream.write(json.dumps({'event':'action','state_before':before,'state_after':json.loads(game.state_json()),
+                'seat':0,'turn':turn,'action':decision.action,'action_index':i,'policy_info':decision.info})+'\n')
+    result=scan((str(path),{**file_identity(path),'actions':2},False))
+    assert result['counts']['gold_gate_actions']==1
+    assert result['counts']['observed_gate_exits']==1
+    assert result['counts']['gate_exits_following_sell']==1
+    assert result['gate_transition_examples'][0]['missing_groups']==['TB_BaconUps_045']
