@@ -14,7 +14,7 @@
     "HSAI_ARENA_CKPT": "artifacts/models/arena-v1.4-r1/model.pt",
     "HSAI_ARENA_SNAPS": "artifacts/libraries/human-turn-3702-20261118/train",
     "HSAI_ARENA_MINUTES": "340",
-    "HSAI_ARENA_STOP_DECISIONS": "120000000",
+    "HSAI_ARENA_STOP_DECISIONS": "48000000",
     "HSAI_ARENA_ITERATIONS": "0",
     "HSAI_ARENA_SEGMENTS": "1",
     "HSAI_ARENA_RESUME": "0",
@@ -51,5 +51,5 @@
     "cpus": 32,
     "mem": "96G"
   },
-  "endpoint": "First complete rollout at 120M decisions per arm. Stop an arm after 340 training minutes if earlier; a time-limited partial budget is reported separately. Fixed seeds and split, no endpoint selection."
+  "endpoint": "First complete rollout at 48M decisions per arm. Stop an arm after 340 training minutes if earlier; a time-limited partial budget is reported separately. Fixed seeds and split, no endpoint selection."
 }
