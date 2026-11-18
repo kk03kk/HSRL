@@ -124,6 +124,15 @@ def test_exposure_is_observational_and_records_real_combats(banks):
     assert any(r['mirror_applied'] for r in observed['combat_exposure'])
 
 
+def test_item_action_labels_follow_native_slots():
+    from hsbg.az.train.evaluate import item_action_label
+    spell = {'item': {'Spell': {'card': 5, 'data': 3}}}
+    minion = {'item': {'Minion': {'card': 6}}}
+    player = {'shop': [minion, spell], 'hand': [spell, minion]}
+    assert [item_action_label(player, action) for action in (8, 9, 46, 54, 133, 1)] == [
+        'buy_minion', 'buy_spell', 'play_spell', 'play_minion', 'magnetize_minion', None]
+
+
 def test_native_calibration_audits_separate_references(tmp_path):
     import hsbg_engine as E
     from hsbg.az.train.mirror_snapshots import capture_eot, write_snapshot_file

@@ -41,6 +41,26 @@ from .lobby_filter import make_filtered_game  # 2026-11-17 D-071（lobby 种族�
 from .mirror_snapshots import MirrorStats, inject_turn as inject_mirror_turn
 
 
+def item_action_label(player, action):
+    """Classify an executed action from the native pre-action Player record."""
+    if 8 <= action < 16:
+        verb, entry = 'buy', player['shop'][action - 8]
+    elif 46 <= action < 126:
+        verb, entry = 'play', player['hand'][(action - 46) // 8]
+    elif 126 <= action < 196:
+        verb, entry = 'magnetize', player['hand'][(action - 126) // 7]
+    else:
+        return None
+    if 'item' in entry:
+        kind, = entry['item']
+        kind = kind.lower()
+    else:
+        kind = entry['type'].lower()
+    if kind not in ('minion', 'spell'):
+        raise ValueError(f'unknown card type {kind!r} for {verb}')
+    return f'{verb}_{kind}'
+
+
 def _resolve_pending_for(game: Any, seat: int) -> bool:
     """把席位 ``seat`` 的待选链（三选一/发现/饰品）用**引擎 bot 自己的选择**结算掉。
 
@@ -382,32 +402,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                         gold_before = int(_pj['gold'])
                         turn_actions += 1
                         action_counts[group_of(action)] += 1
-                        # 按**卡类**再拆一层（随从 / 法术）——真人库的 action_counts 就是
-                        # 这个粒度（buy_minion / play_spell …），拆开才能同口径比较。
-                        # 编码（actions.rs）：buy=8+slot（slot<8）、play=46+slot*8+pos（slot<10）、
-                        # magnetize=126+slot*7+pos；手牌/商店项的 `type` 为 "minion"|"spell"。
-                        _a = int(action)
-                        _item = None
-                        if 8 <= _a < 16:
-                            _shop = _pj.get("shop") or []
-                            _i = _a - 8
-                            if _i < len(_shop) and isinstance(_shop[_i], dict):
-                                _item = ("buy", _shop[_i])
-                        elif 46 <= _a < 126:
-                            _hand = _pj.get("hand") or []
-                            _i = (_a - 46) // 8
-                            if _i < len(_hand) and isinstance(_hand[_i], dict):
-                                _item = ("play", _hand[_i])
-                        elif 126 <= _a < 196:
-                            _hand = _pj.get("hand") or []
-                            _i = (_a - 126) // 7
-                            if _i < len(_hand) and isinstance(_hand[_i], dict):
-                                _item = ("magnetize", _hand[_i])
-                        if _item is not None:
-                            _verb, _it = _item
-                            _kind = str(_it.get("type") or "").lower()
-                            _suffix = "spell" if _kind == "spell" else "minion"
-                            action_counts[f"{_verb}_{_suffix}"] += 1
+                        label = item_action_label(_pj, action)
+                        if label:
+                            action_counts[label] += 1
                         upgrade_legal_steps += int(mask[ACTION_SEGMENTS["upgrade"][0]])
                         repeated_actions += action == previous_action
                         previous_action = action
