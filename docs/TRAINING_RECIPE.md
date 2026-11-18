@@ -1,5 +1,7 @@
 # 训练配方（冻结版）
 
+2026-11-18 的真人场长训使用 D-140 [独立配方](../config/research/human-turn-3702-ppo.json)和[冻结入口与续训操作](analysis/HUMAN_OVERNIGHT_AUDIT_20261118.md)。下文记录 v1.4 基线。
+
 状态：**当前生效并冻结**（2026-11-14 用户确认）。入口脚本：[`deploy/slurm/stage_arena.sbatch`](../deploy/slurm/stage_arena.sbatch)。
 
 **2026-11-17 D-081更新**：用户授权Agent自主研究和改变科学配方。本文及现役stage脚本保留为
