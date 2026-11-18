@@ -1,0 +1,9 @@
+{
+  "model": "frozen arena-v1.4-r1, source safeguards and asset hashes from natural12m-20261118",
+  "field": "64 independent T7..11 natural recruit openings, 32 v14 and 32 v14hold. First eligible source in sealed seed blocks 82100000+200*i+j. No fixed cards, tribes, hero or state injection for source generation.",
+  "actions": "Parent, upgrade (or refresh), immediate combat buy, investment buy of a distinct card. Fill an empty slot with refresh when possible. At most four routes. React to new public information for at most two turns, then ordinary parent. Parent is always an option.",
+  "futures": "Separate random streams for the eight selection and eight validation replicas at every source. Capture before opponent preparation; redraw current and future snapshot opponents. Arms share stream within each replica. Rank utility is the original eight-position reward.",
+  "learning": "Return regression on whole-route differences for 48 other sources, four grouped cross-fitting folds, ridge penalty 50. Predict relative to parent; tie breaks to parent. No validation outcomes for fitting or plan selection.",
+  "primary": "For each opening choose the route with the best mean first-eight original utility. Test on independent second-eight. Advance when source-paired bootstrap lower 95% of mean test improvement over parent is strictly positive. Decompose first step versus follow-through for the selected plan; pooled regressor descriptive.",
+  "budget": "At most 4096 completed suffixes. Deduplicate identical control conditions. No direct long PPO. If primary succeeds, transfer to student and test its natural games on fresh seeds."
+}

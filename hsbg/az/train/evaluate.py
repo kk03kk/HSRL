@@ -138,6 +138,10 @@ class EvalConfig:
     # Existing opponents in this actionable recruit state have already been
     # prepared; preserve them until the next turn. Caller must record provenance.
     research_initial_state: Any = None
+    # Capture a recruit opening before the usual opponent draw. A restored
+    # opening can then draw the current opponents independently in each future.
+    research_before_opponents: Any = None
+    research_restore_opening: bool = False
 
 
 def _mix_seed(*parts: int) -> int:
@@ -183,6 +187,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     """评测一个策略（固定 seeds，seat0 vs 7 引擎 bot / 可选人类战团注入）。"""
     E = load_engine()
     initial_state = getattr(config, 'research_initial_state', None)
+    restore_opening = getattr(config, 'research_restore_opening', False)
+    if restore_opening and (initial_state is None or config.mirror_pool is None):
+        raise ValueError('opening restore needs a sealed state and opponent pool')
     if initial_state is not None:
         if int(config.games) != 1 or config.mirror_strict or config.human_board_pool is not None or config.lobby_exclude:
             raise ValueError('research suffix requires one game, no strict/human/lobby override')
@@ -248,7 +255,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
             config.decision_recorder.begin_game(game, gi, game_seed, seat0)
         policy.reset()
         steps = 0
-        last_turn = -1 if initial_state is None else int(game.turn)
+        last_turn = -1 if initial_state is None or restore_opening else int(game.turn)
         state: Dict[str, int] = {"turns": 0}
         injected = {}
         combat_seen = set()
@@ -306,6 +313,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                 # 引擎 turn=0 是开局准备帧（人类数据从 turn=1 起，且该帧注入会被
                 # 引擎以 not_recruit 拒绝）；直接从 turn=1 开始注入。
                 return
+            if config.research_before_opponents is not None:
+                config.research_before_opponents(game, seat0)
             if strict is not None:
                 strict.prepare(game)
                 for target, frame in strict.frames.items():

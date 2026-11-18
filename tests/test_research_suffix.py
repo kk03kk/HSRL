@@ -56,3 +56,20 @@ def test_suffix_preserves_current_turn_opponents(monkeypatch):
         games=1, seed=state['seed'], research_initial_state=state, mirror_pool=object()))
     assert result['games_finished'] == 1
     assert seen and min(seen) > state['turn']
+
+
+def test_research_opening_restores_before_first_opponent_draw(monkeypatch):
+    import hsbg.az.train.evaluate as module
+    state = source_state()
+    events = []
+    def inject(game, pool, turn, **kwargs):
+        events.append(('draw', turn))
+    def before(game, seat):
+        events.append(('opening', int(game.turn)))
+        if len(events) == 1:
+            assert json.loads(game.state_json()) == state
+    monkeypatch.setattr(module, 'inject_mirror_turn', inject)
+    evaluate_policy(EngineBotPolicy(), EvalConfig(
+        games=1, seed=state['seed'], research_initial_state=state, mirror_pool=object(),
+        research_restore_opening=True, research_before_opponents=before))
+    assert events[:2] == [('opening', 8), ('draw', 8)]
