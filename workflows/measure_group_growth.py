@@ -1,6 +1,8 @@
 """Compare terminal and growth preferences among sampled paths from identical openings."""
 from itertools import combinations
+from concurrent.futures import ProcessPoolExecutor
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -11,6 +13,11 @@ from hsbg.env.obs_std import GLOBAL_FIELD_INDEX, MINION_ATK, MINION_F, MINION_HP
 from hsbg.runtime.artifacts import atomic_json
 from workflows.assess_purchase_consequences import interval
 from workflows.group_relative_recruit import ROOT, SHARDS, output
+from workflows.group_relative_recruit import GroupPolicy
+from hsbg.az.train.evaluate import EvalConfig,evaluate_policy
+from tools.assess_investment_timing import UTILITY
+from workflows.d132_paired_plans import check
+from workflows.probe_investment_timing import MODEL
 
 
 def main():
@@ -57,5 +64,23 @@ def main():
                 same_rank_absolute_growth_gap=interval(within_tie),rank_growth_concordance=interval(concordance)))
 
 
+def greedy(r):
+    w=GroupPolicy('development',MODEL,7)
+    result=evaluate_policy(w,EvalConfig(games=1,seed=r['seed'],mirror_pool=w.pool))
+    check(result)
+    rank=result['rank_sequence'][0]
+    utility=np.array(UTILITY)[np.array(r['ranks'])-1]
+    return dict(seed=r['seed'],base=rank,sampled_mean=float(utility.mean()-UTILITY[rank-1]),
+                hindsight_best=float(utility.max()-UTILITY[rank-1]),wins=int(sum(utility>UTILITY[rank-1])))
+
+
 if __name__=='__main__':
-    main()
+    if sys.argv[1:] == ['greedy']:
+        groups=[r for a in (0,1) for s in range(SHARDS) for r in
+                json.loads((output(a,0)/f'rollout-{s:02}'/'groups.json').read_text())]
+        with ProcessPoolExecutor(int(os.environ.get('SLURM_CPUS_PER_TASK',4))) as pool:
+            result=list(pool.map(greedy,groups))
+        atomic_json(ROOT/'sampling-gap.json',dict(rows=result,mean=interval([r['sampled_mean'] for r in result]),
+                    best=interval([r['hindsight_best'] for r in result]),better_paths=sum(r['wins'] for r in result)))
+    else:
+        main()
