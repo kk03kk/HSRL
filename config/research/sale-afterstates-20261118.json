@@ -1,0 +1,6 @@
+{
+  "hypothesis": "Changing which unit is sold affects board synergies, later purchases, combat and the next recruit. Model those effects with native recruit continuations and the parent rank critic, then test decisions with real terminal outcomes.",
+  "source": "768 disjoint natural v14 games, fixed turn 7+i%6 and first parent sale with >=3 legal units. All eligible sales, three shared independent future streams per source. Existing current opponent is already drawn. Evaluate only at next recruit or actual terminal; labels use parent rank logits mapped to original rank utility. Candidate student has no opponent snapshot, future draw or simulator search input.",
+  "student": "Two independent interleaved blocks of 384 games each, centered per-state regression of sale option successor values, ridge 64. Features include visible mechanisms, stats, relative importance, alternatives and incumbency. Change at most the first multi-unit sale per turn T7-12, if predicted benefit over original is >0.035; all other choices remain with parent.",
+  "assessment": "256 common independent natural v14hold seeds 86700000..86700255, fixed endpoints and parent; record all ranks, turns, actual changed choices and P50 with n. Only if D-128's five gates pass confirm on fresh 512 natural seeds before recommending a large run."
+}
