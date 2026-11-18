@@ -13,8 +13,8 @@
     "HSAI_ACTION_PROFILE": "human-turn-3702",
     "HSAI_ARENA_CKPT": "artifacts/models/arena-v1.4-r1/model.pt",
     "HSAI_ARENA_SNAPS": "artifacts/libraries/human-turn-3702-20261118/train",
-    "HSAI_ARENA_MINUTES": "340",
-    "HSAI_ARENA_STOP_DECISIONS": "48000000",
+    "HSAI_ARENA_MINUTES": "180",
+    "HSAI_ARENA_STOP_DECISIONS": "0",
     "HSAI_ARENA_ITERATIONS": "0",
     "HSAI_ARENA_SEGMENTS": "1",
     "HSAI_ARENA_RESUME": "0",
@@ -34,22 +34,15 @@
     "HSAI_ARENA_LOBBY_EXCLUDE": "",
     "HSAI_RECRUIT_START_P": "0"
   },
-  "arms": {
-    "A": {
-      "HSAI_ARENA_SEED": "82361001",
-      "HSAI_ARENA_OUT": "artifacts/runs/nus-human-turn-ppo-a-20261118-1"
-    },
-    "B": {
-      "HSAI_ARENA_SEED": "82362001",
-      "HSAI_ARENA_OUT": "artifacts/runs/nus-human-turn-ppo-b-20261118-1"
-    }
-  },
+  "seed": 93000000,
+  "series": "artifacts/runs/nus-human-turn-overnight-20261118-1",
+  "deadline": "2026-11-19T10:00:00+08:00",
   "slurm": {
-    "partition": "gpu-long",
-    "time": "06:00:00",
+    "partition": "gpu,gpu-long",
+    "time": "03:00:00",
     "gres": "gpu:h100-47:2",
     "cpus": 32,
     "mem": "96G"
   },
-  "endpoint": "First complete rollout at 48M decisions per arm. Stop an arm after 340 training minutes if earlier; a time-limited partial budget is reported separately. Fixed seeds and split, no endpoint selection."
+  "endpoint": "Final verified segment at the Singapore deadline. Use the full Trainer between segments. The one paired evaluation uses all 512 fixed held-out seeds."
 }

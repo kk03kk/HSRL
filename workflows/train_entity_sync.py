@@ -1599,7 +1599,7 @@ def main() -> int:
         norm_std = np.asarray(trainer.extra["norm_std"], dtype=np.float32)
     trainer.extra["norm_mean"] = (None if norm_mean is None else norm_mean.tolist())
     trainer.extra["norm_std"] = (None if norm_std is None else norm_std.tolist())
-    start_i = int(trainer.updates)
+    start_i = int(trainer.extra.get("next_rollout_index", trainer.updates))
     print(f"[resume] start_iter={start_i} updates={trainer.updates}", flush=True)
 
     # ---- KL anchor（AutoTavern Table 7：β=0.1，仅前 100 个 iteration）----
@@ -2268,6 +2268,8 @@ def main() -> int:
 
     t0 = time.time()
     deadline = t0 + float(args.minutes) * 60.0
+    if os.environ.get("HSAI_ARENA_STOP_EPOCH"):
+        deadline = min(deadline, float(os.environ["HSAI_ARENA_STOP_EPOCH"]))
     cum_decisions = int(trainer.extra.get("cum_decisions", 0))
     next_eval = (int(args.eval_every_decisions)
                  if int(args.eval_every_decisions) > 0 else 10 ** 18)
@@ -2615,6 +2617,7 @@ def main() -> int:
 
             # 版本化快照：trainer 为权威，model 为导出；manifest 最后原子发布
             trainer.extra["cum_decisions"] = cum_decisions + int(slim.get("decisions", 0))
+            trainer.extra["next_rollout_index"] = i + 1
             ver = int(trainer.updates)
             do_snap = (int(args.snapshot_every) <= 1) or ((i % int(args.snapshot_every)) == 0)
             if do_snap:

@@ -6,12 +6,8 @@
   "seed": 82370000,
   "models": [
     {
-      "name": "human_ppo_a",
-      "checkpoint": "artifacts/runs/nus-human-turn-ppo-a-20261118-1/train/model.pt"
-    },
-    {
-      "name": "human_ppo_b",
-      "checkpoint": "artifacts/runs/nus-human-turn-ppo-b-20261118-1/train/model.pt"
+      "name": "human_ppo_overnight",
+      "checkpoint": "artifacts/runs/nus-human-turn-overnight-20261118-1/latest-complete/model.pt"
     }
   ],
   "evaluation": {

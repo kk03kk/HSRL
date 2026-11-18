@@ -158,8 +158,8 @@ cvd_orig="${CUDA_VISIBLE_DEVICES:-}"
 mig_used=""
 nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
 if [[ "${HSAI_ARENA_MIG_REWRITE:-1}" == "1" && "$nvis" -lt 2 ]]; then
-  mig_ids="$(nvidia-smi -L 2>/dev/null | grep -o 'MIG-[0-9a-f-]*' | head -2 | paste -sd, -)"
-  if [[ -n "$mig_ids" ]]; then
+  mig_ids="$(nvidia-smi -L 2>/dev/null | grep -o 'MIG-[0-9a-f-]*' | paste -sd, -)"
+  if [[ -n "$mig_ids" && "$mig_ids" != *,*,* ]]; then
     export CUDA_VISIBLE_DEVICES="$mig_ids"
     mig_used="$mig_ids"
     nvis="$(python -c 'import torch;print(torch.cuda.device_count())' 2>/dev/null || echo 0)"
@@ -185,7 +185,12 @@ if [[ "$resume" != "1" && -e "$out" ]]; then echo "output exists: $out" >&2; exi
 if [[ "$resume" == "1" && ! -f "$out/train/trainer.pt" ]]; then
   echo "resume 需要已有的 $out/train/trainer.pt" >&2; exit 2
 fi
-mkdir -p "$out"
+if [[ "$resume" == "1" ]]; then
+  mkdir -p "$out"
+else
+  mkdir -p "$(dirname "$out")"
+  mkdir "$out"
+fi
 {
   echo "start=$(date -Is)"
   echo "job=${SLURM_JOB_ID:-local} node=$(hostname)"
@@ -211,6 +216,9 @@ mkdir -p "$out"
 # 段 2+ = 接着本目录的 model.pt + trainer.pt 续训。
 # A fresh weight fork creates an anchor; every Trainer continuation preserves it.
 first_args=(--checkpoint "$ckpt" --reset-anchor 1)
+if [[ -n "${HSAI_ARENA_PARENT_TRAINER:-}" ]]; then
+  first_args=(--checkpoint "$ckpt" --trainer-state "$HSAI_ARENA_PARENT_TRAINER" --reset-anchor 0)
+fi
 cont_args=(--checkpoint "$out/train/model.pt" --trainer-state "$out/train/trainer.pt" --reset-anchor 0)
 if [[ "$resume" == "1" ]]; then first_args=("${cont_args[@]}"); fi
 
