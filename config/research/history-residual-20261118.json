@@ -1,0 +1,17 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-113 controlled public-history residual ablation",
+  "base": "artifacts/runs/nus-payoff-query-replay-20261118-1/model.pt",
+  "base_sha256": "242430b6207bf867951d1e3b47fe40ba851e4e1980db29a0e0224a6651085c01",
+  "teacher_parent": "artifacts/models/arena-v1.4-r1/model.pt",
+  "dataset": "artifacts/runs/nus-payoff-dataset-20261118-1",
+  "dataset_manifest_sha256": "006175b0310401ff3d2f3e1d6b0aad025d8c0a9fe2c1a27faddda5ab63e769ea",
+  "history": "artifacts/runs/nus-payoff-history-annotations-20261118-1",
+  "updates": 4000,
+  "learning_rate": 0.001,
+  "seed": 12403801,
+  "design": "Frozen replay specialist plus bounded 565237-parameter residual. Identical initial tensors, original teacher data, mixed-event 96-row sampler, optimizer and budget. Only seven public played-this-turn marks are enabled versus zeroed.",
+  "assessment": "Fixed endpoints only, all 49 existing development sources x 2 futures x normal/complete_gold = 196 suffixes per arm. Compare history minus no_history and versus frozen replay. No formal reserved seeds or natural champion claim.",
+  "limitations": ["Single initialization", "Repeated exploratory development sources", "Heuristic teacher is not optimal", "Artificial gold endowment", "Residual is a composite asset, not a standalone model or PPO Trainer"],
+  "stop": "No further hyperparameter sweep in this window; nonfinite failures preserve the run. No automatic PPO continuation. Jobs may finish after the 10:30 SGT handoff."
+}

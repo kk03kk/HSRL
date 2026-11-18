@@ -20,6 +20,9 @@ class EconomyRecorder(DecisionRecorder):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0;self.gate_retention_actions=0
     def after(self,game,before,decision,executed_action,forced_tier=False):
+        if getattr(self,'history_policy',None) is not None:
+            if forced_tier:raise ValueError('history residual study does not permit external forced tiers')
+            self.history_policy.record_actual(before['state_before'],json.loads(game.state_json()),before['seat'],executed_action)
         self.option_actions+=bool(decision.info.get('research_option_active'))
         self.deployment_actions+=bool(decision.info.get('deployment_override_executed'))
         self.gate_retention_actions+=bool(decision.info.get('gate_retention_override_executed'))
@@ -37,11 +40,17 @@ def trial(task):
     from hsbg.az.train.research_economy_policy import EconomicOptionPolicy
     torch.set_num_threads(1)
     case,variant,replica,name,checkpoint,operator,root,device,library=task
-    key=(name,checkpoint,operator,device)
+    key=(name,checkpoint,json.dumps(operator,sort_keys=True) if isinstance(operator,dict) else operator,device)
     if key not in _CACHE:
         built=make_eval_policy(checkpoint,protocol=EvalProtocol(mirror_snaps=library),device=device)
         policy=built['policy']
-        if operator=='retain_gate':
+        if isinstance(operator,dict):
+            if operator.get('kind')!='history_residual':raise ValueError('unknown composite research operator')
+            from hsbg.az.train.history_residual import load_adapter,HistoryResidualPolicy
+            if file_identity(operator['adapter'])['sha256']!=operator['sha256']:raise ValueError('residual identity differs')
+            adapter=load_adapter(operator['adapter'],file_identity(checkpoint),device)
+            policy=HistoryResidualPolicy(policy.evaluator,adapter)
+        elif operator=='retain_gate':
             from hsbg.az.train.gate_retention_probe import GateRetentionPolicy
             policy=GateRetentionPolicy(policy.evaluator)
         elif operator=='deploy_payoff':
@@ -64,13 +73,18 @@ def trial(task):
     from hsbg.az.train import mechanism_obs as M
     schema=M.schema_of(getattr(policy.evaluator,'model',None))
     if schema:identity.update(mechanism_schema=schema,mechanism_schema_sha256=M.SCHEMA_SHA256)
+    if isinstance(operator,dict):
+        identity.update(residual_asset=file_identity(operator['adapter']),residual_schema=policy.evaluator.adapter.spec)
     recorder=EconomyRecorder(path/'decisions.jsonl.gz',identity=identity)
+    if isinstance(operator,dict):
+        recorder.history_policy=policy
     try:
         result=evaluate_policy(policy,EvalConfig(games=1,seed=seed,research_initial_state=initial,
             collect_economy=True,decision_recorder=recorder,mirror_pool=_CACHE[('pool',library)],
             mirror_strict=False,mirror_seats=7,mirror_p=1.))
         from hsbg.evaluation.quality import suffix_quality
         suffix_quality(result)
+        if isinstance(operator,dict) and policy.awaiting:raise ValueError('unrecorded final history transition')
         trace=recorder.finish(result);validation=validate_trace(path/'decisions.jsonl.gz',replay=16)
     except BaseException:
         recorder.abort();raise
@@ -149,6 +163,9 @@ def main(args):
             if not args.probe or n in plan.get('probe_models',('parent','operator'))}
     if not models:raise ValueError('no study models selected')
     identities={n:file_identity(m['checkpoint']) for n,m in models.items()}
+    adapters={n:file_identity(m['operator']['adapter']) for n,m in models.items() if isinstance(m['operator'],dict)}
+    for n,item in adapters.items():
+        if item['sha256']!=models[n]['operator']['sha256']:raise ValueError('residual asset differs: '+n)
     for n,m in models.items():
         if m.get('sha256') and identities[n]['sha256']!=m['sha256']:raise ValueError('model identity differs: '+n)
     library=Path(plan['library']);library_identity={p.name:file_identity(p) for p in sorted(library.glob('snap_*.json.gz'))}
@@ -162,6 +179,7 @@ def main(args):
         'source_manifest':file_identity(Path(plan['bank'])/'manifest.json'),
         'cases':file_identity(out/'cases.jsonl.gz'),'source':source_identity(Path(__file__).resolve().parents[1]),
         'environment':environment_identity(),'snapshot_files':library_identity}
+    if adapters:run['residual_assets']=adapters
     if run['source']['tracked_dirty']:raise ValueError('committed source required')
     atomic_json(out/'run.json',run)
     tasks=[(s,v,r,n,m['checkpoint'],m['operator'],str(out),args.device,str(library))
@@ -172,9 +190,11 @@ def main(args):
             rows.append(row)
             if len(rows)%16==0:print(json.dumps({'finished':len(rows),'total':len(tasks)}),flush=True)
     if {n:file_identity(m['checkpoint']) for n,m in models.items()}!=identities:raise ValueError('models changed')
+    if {n:file_identity(models[n]['operator']['adapter']) for n in adapters}!=adapters:raise ValueError('residual assets changed')
     if {p.name:file_identity(p) for p in sorted(library.glob('snap_*.json.gz'))}!=library_identity:raise ValueError('library changed')
     result={'valid':True,'probe':args.probe,'run':file_identity(out/'run.json'),
         'rollouts':len(rows),'models':identities,'comparison':compare(rows,plan.get('reference','parent')),'rows':rows}
+    if adapters:result['residual_assets']=adapters
     atomic_json(out/'complete.json',result);print(json.dumps(result['comparison']),flush=True)
 
 if __name__=='__main__':

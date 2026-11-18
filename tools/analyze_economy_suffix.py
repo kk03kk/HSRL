@@ -26,9 +26,12 @@ def merge_studies(roots, policies=None, variants=None):
         if set(models)&set(complete['models']):raise ValueError('duplicate policy name')
         models.update(complete['models'])
         if complete['rollouts']!=len(complete['rows']):raise ValueError('rollout count differs')
+        if complete.get('residual_assets',{})!=run.get('residual_assets',{}):raise ValueError('residual asset manifest differs')
         for row in complete['rows']:
             if row['trace']['identity']['checkpoint_sha256']!=complete['models'][row['name']]['sha256']:
                 raise ValueError('row model identity differs')
+            if row['trace']['identity'].get('residual_asset')!=complete.get('residual_assets',{}).get(row['name']):
+                raise ValueError('row residual asset identity differs')
             if (policies is None or row['name'] in policies) and (variants is None or row['variant'] in variants):rows.append(row)
         identities.append({'directory':str(root),'complete':file_identity(root/'complete.json'),'run':complete['run']})
     # compare verifies all arms, paired seeds, and exact initial engine state.
