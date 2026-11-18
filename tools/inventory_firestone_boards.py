@@ -207,9 +207,7 @@ def bucket(day):
     return "nov17" if day == "2026-11-17" else "after"
 
 
-def assess(args):
-    feed = read(args.dir / "feed.json")
-    latest = {r.get("originalReviewId") or r["reviewId"] for r in feed}
+def collect_sources(args):
     games, aliases = {}, {}
     def add(record):
         (gid, review, day, build, tag), rows = record
@@ -230,6 +228,13 @@ def assess(args):
             root = args.data / "firestone_replays" / name
             for row in pool.map(unpack, tasks(root/catalog, root/"pms", "downloaded", root/"index.json"), chunksize=8):
                 add(row)
+    return games, aliases
+
+
+def assess(args):
+    feed = read(args.dir / "feed.json")
+    latest = {r.get("originalReviewId") or r["reviewId"] for r in feed}
+    games, aliases = collect_sources(args)
     joint = {}
     hold = set()
     historic_train = set()
