@@ -45,6 +45,8 @@ def main():
     if args.segment < 1:
         parser.error("segment numbers start at 1")
     recipe = json.loads(args.recipe.read_bytes())
+    if "segments" in recipe and args.segment > recipe["segments"]:
+        parser.error("segment exceeds the planned series length")
     # Inherited staging flags must not silently change a frozen arm.
     for key in list(os.environ):
         if key.startswith(("HSAI_ARENA_", "HSAI_RECRUIT_START_")):
@@ -87,6 +89,7 @@ def main():
         raise FileExistsError(out)
     identity = {"commit": source["commit"], "recipe_sha256": sha256(args.recipe), "seed": seed}
     previous_decisions = 0
+    previous_version = 0
     if args.segment > 1:
         previous = series / f"segment-{args.segment - 1:02d}"
         seal = json.loads((previous / "complete.json").read_bytes())
@@ -95,20 +98,23 @@ def main():
             raise ValueError("previous segment provenance mismatch")
         os.environ.update(HSAI_ARENA_CKPT=manifest["model"], HSAI_ARENA_PARENT_TRAINER=manifest["trainer"])
         previous_decisions = manifest["cum_decisions"]
+        previous_version = manifest["version"]
     print(json.dumps({"segment":args.segment,"source":source,"parent":os.environ["HSAI_ARENA_CKPT"],
                       "parameters":checked["parameters"], "forward_ok":checked["forward_ok"],
                       "library_digests":recipe["library_digests"],
                       "protocol":plan["expected_protocol_sha256"]}),flush=True)
     if args.train:
         from hsbg.runtime.artifacts import atomic_json
-        cutoff = min(allocation_end(), datetime.fromisoformat(recipe["deadline"]).timestamp())
+        cutoff = allocation_end()
+        if recipe.get("deadline"):
+            cutoff = min(cutoff, datetime.fromisoformat(recipe["deadline"]).timestamp())
         stop_epoch = int(cutoff - 90)
         if stop_epoch - time.time() < 90:
             raise RuntimeError("insufficient time for a complete training rollout and final save")
         os.environ["HSAI_ARENA_STOP_EPOCH"] = str(stop_epoch)
         subprocess.run(["bash", recipe["entrypoint"]], check=True)
         manifest = verified_generation(out, seed)
-        if manifest["cum_decisions"] <= previous_decisions:
+        if manifest["cum_decisions"] <= previous_decisions or manifest["version"] <= previous_version:
             raise ValueError("segment made no training progress")
         atomic_json(out / "complete.json", {"identity": identity, "checkpoint": manifest,
                     "previous_decisions": previous_decisions, "stop_epoch": stop_epoch})

@@ -36,7 +36,7 @@
   },
   "seed": 93000000,
   "series": "artifacts/runs/nus-human-turn-overnight-20261118-1",
-  "deadline": "2026-11-19T10:00:00+08:00",
+  "segments": 4,
   "slurm": {
     "partition": "gpu,gpu-long",
     "time": "03:00:00",
@@ -44,5 +44,5 @@
     "cpus": 32,
     "mem": "96G"
   },
-  "endpoint": "Final verified segment at the Singapore deadline. Use the full Trainer between segments. The one paired evaluation uses all 512 fixed held-out seeds."
+  "endpoint": "Final verified fourth segment. Each segment uses its own allocation end time. Restore the full Trainer between segments. Evaluate once on the 512 fixed held-out seeds."
 }
