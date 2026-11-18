@@ -32,12 +32,12 @@ GROUPS = 16
 MEMBERS = 4
 
 
-def output(arm, iteration):
-    return ROOT / f'arm-{arm}' / f'update-{iteration}'
+def output(arm, iteration, root=ROOT):
+    return root / f'arm-{arm}' / f'update-{iteration}'
 
 
-def checkpoint(arm, iteration):
-    return str(output(arm, iteration-1) / 'model.pt') if iteration else MODEL
+def checkpoint(arm, iteration, root=ROOT):
+    return str(output(arm, iteration-1,root) / 'model.pt') if iteration else MODEL
 
 
 @lru_cache(maxsize=4)
@@ -125,20 +125,20 @@ def collect(arm, iteration, shard):
     atomic_json(directory/'groups.json', rows)
 
 
-def update(arm, iteration):
+def update(arm, iteration, root=ROOT, trajectories_per_group=MEMBERS):
     dev = 'cuda'
     torch.manual_seed(182000 + arm*100 + iteration)
     torch.set_num_threads(2)
-    model, meta = load_checkpoint(checkpoint(arm, iteration), dev)
+    model, meta = load_checkpoint(checkpoint(arm, iteration,root), dev)
     reference, _ = load_checkpoint(MODEL, dev)
     reference.eval()
     model.eval()  # evaluation-mode dropout matches the sampling distribution; gradients stay enabled
-    state_dir = output(arm, iteration)
+    state_dir = output(arm, iteration,root)
     if (state_dir/'model.pt').exists():
         raise FileExistsError('fixed iteration already published')
     opt = torch.optim.AdamW(model.parameters(), lr=1.2e-5, weight_decay=0.)
     if iteration:
-        opt.load_state_dict(torch.load(output(arm, iteration-1)/'adam.pt', weights_only=True, map_location=dev))
+        opt.load_state_dict(torch.load(output(arm, iteration-1,root)/'adam.pt', weights_only=True, map_location=dev))
     samples = {}
     groups = []
     for s in range(SHARDS):
@@ -195,7 +195,7 @@ def update(arm, iteration):
     save_checkpoint(model, str(state_dir/'model.pt'), meta=meta,
                     norm_mean=meta.get('norm_mean'), norm_std=meta.get('norm_std'))
     torch.save(opt.state_dict(), state_dir/'adam.pt')
-    atomic_json(state_dir/'complete.json', dict(groups=len(groups), trajectories=MEMBERS*len(groups),
+    atomic_json(state_dir/'complete.json', dict(groups=len(groups), trajectories=trajectories_per_group*len(groups),
                 choices=len(batch['a']), differing_ranks=sum(len(set(r['ranks']))>1 for r in groups),
                 mean_policy_and_kl=np.mean(diagnostics,axis=0).tolist(), weights=file_identity(state_dir/'model.pt')))
 
