@@ -116,6 +116,12 @@ def validate_trace(path, *, replay=0):
     ended = False
     game_index = None
     stride = max(1, int(manifest['actions']) // max(1, replay))
+    history = None
+    if 'residual_asset' in manifest['identity']:
+        from hsbg.az.train.public_turn_history import PublicTurnHistory, SCHEMA_SHA256 as HISTORY_SHA, project_own_record
+        if manifest['identity'].get('residual_schema', {}).get('history_schema_sha256') != HISTORY_SHA:
+            raise ValueError('unknown residual history schema')
+        history = PublicTurnHistory()
     with gzip.open(path, 'rt', encoding='utf-8') as stream:
         for line in stream:
             row = json.loads(line)
@@ -132,11 +138,23 @@ def validate_trace(path, *, replay=0):
                 game_index = row['game']
                 if game_index != len(seeds): raise ValueError('noncontiguous game sequence')
                 seeds.append(current)
+                if history is not None: history.reset()
             elif event == 'action':
                 if current is None or row['seed'] != current or row['game'] != game_index or row['action_index'] != index:
                     raise ValueError('noncontiguous action sequence')
                 if len(row['legal_mask']) != 245 or not 0 <= row['action'] < 245 or not row['legal_mask'][row['action']]:
                     raise ValueError('illegal recorded action')
+                if history is not None:
+                    before = project_own_record(row['state_before'], row['seat'])
+                    after = project_own_record(row['state_after'], row['seat'])
+                    marks, count = history.before(before)
+                    info = row['policy_info']
+                    if (info.get('public_play_history') != marks.tolist()
+                            or info.get('public_history_actions') != count
+                            or info.get('history_schema_sha256') != HISTORY_SHA
+                            or info.get('history_residual_uses_marks') != manifest['identity']['residual_schema']['use_history']):
+                        raise ValueError('recorded public history differs from actual actions')
+                    history.after(before, after, row['action'])
                 obs = row['observation']
                 from hsbg.az.train.mechanism_obs import SCHEMA, SCHEMA_SHA256, OBS_FLOATS, observe
                 schema = manifest['identity'].get('mechanism_schema', '')

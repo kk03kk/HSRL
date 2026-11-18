@@ -63,3 +63,33 @@ def test_native_policy_requires_actual_action_feedback():
     assert not policy.awaiting and policy.history.actions==1
     assert not any(game.diagnostic_counts())
     policy.reset();assert policy.history.actions==0
+
+
+def test_complete_native_game_records_and_reconstructs_actual_history(tmp_path):
+    import gzip
+    from hsbg.az.train.evaluate import EvalConfig,evaluate_policy
+    from workflows.probe_economy_suffix import EconomyRecorder
+    from hsbg.evaluation.trace import validate_trace
+    from hsbg.runtime.artifacts import file_identity
+    base,meta=small_parent();base=fork_conditional(base,meta,mechanisms=True,gate_mode='gold_engine').eval()
+    adapter=HistoryResidual(current_spec(True))
+    policy=HistoryResidualPolicy(PPOEvaluator(base,device='cpu'),adapter)
+    game,_,_,_=sample();path=tmp_path/'trace.jsonl.gz'
+    identity={'residual_asset':{'sha256':'test','bytes':1},'residual_schema':adapter.spec,
+        'mechanism_schema':M.SCHEMA,'mechanism_schema_sha256':M.SCHEMA_SHA256}
+    recorder=EconomyRecorder(path,identity=identity);recorder.history_policy=policy
+    state=json.loads(game.state_json())
+    try:
+        result=evaluate_policy(policy,EvalConfig(games=1,seed=state['seed'],decision_recorder=recorder,
+            research_initial_state=state))
+    except BaseException:
+        recorder.abort();raise
+    manifest=recorder.finish(result);checked=validate_trace(path,replay=16)
+    assert checked['valid'] and not policy.awaiting and checked['actions']>10
+    # Hash-valid but semantically wrong history must still fail admission.
+    with gzip.open(path,'rt',encoding='utf-8') as stream:rows=[json.loads(s) for s in stream]
+    next(r for r in rows if r['event']=='action')['policy_info']['public_history_actions']+=1
+    with gzip.open(path,'wt',encoding='utf-8') as stream:
+        for row in rows:stream.write(json.dumps(row)+'\n')
+    manifest.update(file_identity(path));recorder.manifest_path.write_text(json.dumps(manifest),encoding='utf-8')
+    with pytest.raises(ValueError,match='public history'):validate_trace(path)

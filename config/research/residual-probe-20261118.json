@@ -1,0 +1,44 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-113 composite execution probe",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": [
+    "complete_gold"
+  ],
+  "replicas": 2,
+  "reference": "residual_no_history",
+  "models": {
+    "residual_no_history": {
+      "checkpoint": "artifacts/runs/nus-payoff-query-replay-20261118-1/model.pt",
+      "sha256": "242430b6207bf867951d1e3b47fe40ba851e4e1980db29a0e0224a6651085c01",
+      "operator": {
+        "kind": "history_residual",
+        "adapter": "artifacts/runs/nus-history-residual-learning-20261118-1/no_history/model.pt",
+        "sha256": "eaf6bc1010998b3cc620d018764c4fcfda73ee77bd86a0f9c0168871674a31f3"
+      }
+    },
+    "residual_history": {
+      "checkpoint": "artifacts/runs/nus-payoff-query-replay-20261118-1/model.pt",
+      "sha256": "242430b6207bf867951d1e3b47fe40ba851e4e1980db29a0e0224a6651085c01",
+      "operator": {
+        "kind": "history_residual",
+        "adapter": "artifacts/runs/nus-history-residual-learning-20261118-1/history/model.pt",
+        "sha256": "704fe097a2e026383134c479a6e38e9e82d688529a08e7d3f73e573b49995d0f"
+      }
+    }
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "All 49 existing development sources and both futures; no outcome filtering",
+  "budget": "196 complete suffixes, fixed final 2000 additional updates only",
+  "comparison": "Same parent/event starting checkpoint as aggregation arm; compare full endpoints, never intermediate classification checkpoints",
+  "limitations": [
+    "Artificial gold components",
+    "Repeated exploratory sources",
+    "No natural-game promotion claim"
+  ],
+  "probe_models": [
+    "residual_no_history",
+    "residual_history"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-113 fixed history residual endpoint",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": [
+    "complete_gold",
+    "normal"
+  ],
+  "replicas": 2,
+  "reference": "residual_history",
+  "models": {
+    "residual_history": {
+      "checkpoint": "artifacts/runs/nus-payoff-query-replay-20261118-1/model.pt",
+      "sha256": "242430b6207bf867951d1e3b47fe40ba851e4e1980db29a0e0224a6651085c01",
+      "operator": {
+        "kind": "history_residual",
+        "adapter": "artifacts/runs/nus-history-residual-learning-20261118-1/history/model.pt",
+        "sha256": "704fe097a2e026383134c479a6e38e9e82d688529a08e7d3f73e573b49995d0f"
+      }
+    }
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "All 49 existing development sources and both futures; no outcome filtering",
+  "budget": "196 complete suffixes; fixed final 4000 updates",
+  "comparison": "Same parent/event starting checkpoint as aggregation arm; compare full endpoints, never intermediate classification checkpoints",
+  "limitations": [
+    "Artificial gold components",
+    "Repeated exploratory sources",
+    "No natural-game promotion claim"
+  ]
+}
