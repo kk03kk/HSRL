@@ -1,0 +1,11 @@
+{
+  "parent_plan": "config/research/natural12m-20261118.json",
+  "development": {"first_seed": 74210000, "games_per_arm": 112, "field": "v14"},
+  "transfer": {"first_seed": 75210000, "games_per_arm": 112, "field": "v14hold"},
+  "arms": ["parent", "upgrade", "delay", "retain"],
+  "interventions": "At most one target per game. Even seeds test a missed T7/T8 tier milestone; odd seeds test an optional 5-to-6 upgrade on T9/T10. Separately, retain the first incumbent that the parent would sell from a full board T8-T12 until turn end; other sales remain legal. Parent continuation throughout.",
+  "estimand": "Whole-game original rank utility, rank, T12 reach and common T9-to-T12 log growth. Unit is one paired natural game seed. Trigger identification and prefix must agree. No resampling of favourable games.",
+  "selector": "Use all triggered development rows to regress investment-minus-alternative original rank utility. Per-family and leave-other-family fits: ridge with centered feature standardization, penalty 20, unpenalized intercept, features turn, health+armor, gold, hand size, board size, log1p(board strength); no card, hero or lineup identity. Choose invest on positive prediction. For tier invest=upgrade, alternative=delay; for sale invest=retain, alternative=parent sale. Untouched seeds with no trigger use parent. Compare on transfer to parent and both constants.",
+  "scale_gate": "Before a large run require positive held-out utility relative to the parent and both constants, transfer across both decision families, and no clinically relevant loss of T12 reach (>3 percentage points). Exploratory one-stream-per-state outcomes are not individual training labels. If negative, no large-job submission.",
+  "scope": "CPU decision diagnostic only. No teacher, reward, deployment or action contract is changed."
+}
