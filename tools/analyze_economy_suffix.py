@@ -84,9 +84,11 @@ def analyze(roots, policies=None, variants=None, extra_references=()):
             'means':{k:float(np.mean([r[k] for r in items])) for k in items[0]},
             'medians':{k:float(np.median([r[k] for r in items])) for k in items[0]},
             'card_occurrences':dict(cards[key].most_common())}
+    from tools.suffix_outcomes import summarize
+    outcomes=summarize(rows,tuple(dict.fromkeys(('parent',*extra_references))))
     return {'inputs':identities,'selected_whole_policy_arms':policies,'selected_whole_variants':variants,
         'selection_scope':'Whole declared policy arms/variants only; no outcome, source, or replica filtering',
-        'comparison':comparison,'additional_comparisons':additional,'boards':boards,
+        'comparison':comparison,'additional_comparisons':additional,'outcomes':outcomes,'boards':boards,
         'quality':{'passed':True,'trials':len(quality),
             **{k:sum(r[k] for r in quality) for k in ('games','actions','mirror_attempt','mirror_applied','mirror_skipped_ended')}},
         'scope':'Descriptive matched endowed suffixes, not natural performance or causal attribution of board features'}

@@ -26,6 +26,23 @@ def test_suffix_comparison_rejects_unpaired_or_changed_seed():
     with pytest.raises(ValueError,match='initial state'):compare(data)
 
 
+def test_supplementary_outcomes_keep_pairing_and_stable_intervals():
+    from tools.suffix_outcomes import summarize
+    data=rows()
+    for r in data:r['rank']=1 if r['name']=='student' else 5
+    result=summarize(data)
+    win=result['paired']['student-parent/normal']['win_rate']
+    assert win=={'mean':1.0,'ci95':[1.0,1.0],'sources':2,'paired_replicates':4}
+    assert result['summary']['student/normal']['rank_counts']=={1:4}
+    added=[{**r,'name':'third'} for r in data if r['name']=='parent']
+    assert summarize(data+added)['paired']['student-parent/normal']==result['paired']['student-parent/normal']
+    with pytest.raises(ValueError,match='unpaired'):summarize(data[:-1])
+    broken=copy.deepcopy(data);broken[0]['initial_sha256']='changed'
+    with pytest.raises(ValueError,match='identity'):summarize(broken)
+    broken=copy.deepcopy(data);broken[0]['rank']=0
+    with pytest.raises(ValueError,match='invalid final rank'):summarize(broken)
+
+
 def test_sealed_study_merge_rejects_identity_changes(tmp_path):
     import json
     from hsbg.runtime.artifacts import atomic_json,file_identity
