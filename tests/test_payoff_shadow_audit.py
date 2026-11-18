@@ -8,6 +8,36 @@ from workflows.probe_whole_turn_economy import fixture
 from tools.audit_payoff_closed_loop import scan,RecordedEvaluator
 
 
+def test_cycle_memory_ablation_is_explicit_and_preserves_other_history():
+    from hsbg.az.train.research_economy_policy import _Evaluator
+    from hsbg.az.train.research_economy import Operator
+    game=E.Game.from_json(json.dumps(fixture(natural_source(),'complete_gold')[0]))
+    def fallback(features,cards,mask,seat):raise AssertionError('unexpected fallback')
+    regular=EconomicOptionPolicy(fallback,operator_mode='growth')
+    found=False
+    for _ in range(80):
+        decision=regular.decide(game,0)
+        operator=regular.evaluator.operator
+        if decision.info['research_operator_reason'] in ('liquidate_cycle','keep_stronger_cycle'):
+            import copy
+            altered=_Evaluator(fallback,'growth_no_cycle_memory')
+            altered.operator=copy.deepcopy(operator);altered.view=regular.evaluator.view
+            last_play=altered.operator.last_play
+            expected=copy.deepcopy(operator);expected.cycled.clear()
+            action,reason=expected.act({**altered.view,'mask':regular.evaluator.last_mask.tolist()})
+            prior,_=altered(None,None,regular.evaluator.last_mask,0)
+            assert int(prior.argmax())==action and altered.reason==reason
+            assert not altered.operator.cycled and altered.operator.last_play==last_play
+            assert operator.cycled and action!=decision.action
+            found=True;break
+        game.step(0,decision.action)
+        if decision.action==0:break
+    assert found
+    policy=EconomicOptionPolicy(fallback,operator_mode='growth_no_cycle_memory')
+    policy.reset();assert policy.evaluator.operator.mode=='growth'
+    assert not any(game.diagnostic_counts())
+
+
 def test_shadow_reconstructs_native_teacher_history_and_guards(tmp_path):
     def fallback(features,cards,mask,seat):
         prior=np.asarray(mask,dtype=np.float32);return prior/prior.sum(),0.

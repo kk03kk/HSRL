@@ -17,12 +17,15 @@ class _Evaluator:
     def __init__(self,base,operator_mode='legacy'):
         self.base=base;self.model=getattr(base,'model',None)
         self.operator_mode=operator_mode
-        self.operator=Operator(operator_mode);self.view=None;self.reason=None;self.enabled=False
+        self.operator=self.new_operator();self.view=None;self.reason=None;self.enabled=False
         self.last_mask=None
+    def new_operator(self):
+        return Operator('growth' if self.operator_mode=='growth_no_cycle_memory' else self.operator_mode)
     def __call__(self,features,cards,mask,seat):
         self.last_mask=np.asarray(mask,dtype=bool).copy()
         self.enabled=active(self.view);self.reason=None
         if not self.enabled:return self.base(features,cards,mask,seat)
+        if self.operator_mode=='growth_no_cycle_memory':self.operator.cycled.clear()
         view={**self.view,'mask':np.asarray(mask,dtype=bool).tolist()}
         action,self.reason=self.operator.act(view)
         if not mask[action]:raise ValueError('economic option violates evaluation guard')
@@ -37,7 +40,7 @@ class EconomicOptionPolicy:
         self.policy=PPOGreedyPolicy(self.evaluator,**guard_args)
         self.previous=None
     def reset(self):
-        self.policy.reset();self.evaluator.operator=Operator(self.evaluator.operator_mode);self.previous=None
+        self.policy.reset();self.evaluator.operator=self.evaluator.new_operator();self.previous=None
     @property
     def forced_actions(self):return self.policy.forced_actions
     def pending_guard_meta(self):return self.policy.pending_guard_meta()
@@ -48,7 +51,7 @@ class EconomicOptionPolicy:
             before,action=self.previous
             if before['turn']==view['turn']:
                 self.evaluator.operator.note(before,view,action)
-            else:self.evaluator.operator=Operator(self.evaluator.operator_mode)
+            else:self.evaluator.operator=self.evaluator.new_operator()
         self.evaluator.view=view
         decision=self.policy.decide(game,seat)
         decision.info.update(research_option_active=self.evaluator.enabled,

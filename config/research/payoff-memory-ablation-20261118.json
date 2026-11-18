@@ -1,0 +1,24 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-109 isolated public-action cycle-memory ablation",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["complete_gold"],
+  "replicas": 2,
+  "reference": "growth_no_memory",
+  "models": {
+    "growth_no_memory": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "growth_no_cycle_memory"
+    }
+  },
+  "selection": "All 49 existing development sources and two fixed futures, 98 complete suffixes; no outcome filtering",
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "intervention": "Clear only the teacher cycled-entity set immediately before each active decision. Keep current public state, guard, last-play source memory, core protection, acquisition, upgrade and all other rules unchanged.",
+  "reference_evidence": "All 98 sealed growth complete_gold suffixes in nus-economic-payoff-20261118-1, admitted with exact initial/source/future/library identities",
+  "purpose": "Estimate whether removing the specific history-dependent liquidation preference preserves the teacher's long-horizon advantage before considering a more learnable teacher. Not a neural-memory ablation and not evidence that a stateless student must succeed.",
+  "budget": "98 CPU suffixes, 8 workers, 30 minutes; no new learning or formal reserved games",
+  "stop": "One isolated comparison; no automatic teacher replacement or dataset regeneration",
+  "limitations": ["Same exploratory development sources", "Artificial golden endowment", "Last-play memory is deliberately retained for target safety", "Does not identify the optimal teacher or measure a neural memory architecture"]
+}
