@@ -38,5 +38,30 @@ def main():
                 repeatable_fraction=np.mean(covariance)/np.mean(variance)))
 
 
+def held_out_future():
+    rows = [r for s in range(16) for r in json.loads((ROOT/f'source-{s:02}'/'complete.json').read_text())['rows']]
+    source_gain, rates = [], []
+    for r in rows:
+        if not r['opportunity']:
+            continue
+        y = np.asarray(r['outcomes'])
+        base = r['sales'].index(r['default'])
+        gains, changes = [], []
+        for held in range(3):
+            fit = np.delete(y, held, axis=0).mean(axis=0)
+            best = int(fit.argmax())
+            if fit[best] - fit[base] <= .035:
+                best = base
+            gains.append(y[held, best] - y[held, base])
+            changes.append(best != base)
+        source_gain.append(np.mean(gains))
+        rates.append(np.mean(changes))
+    atomic_json(ROOT/'planner-signal.json', dict(held_critic=interval(source_gain), switch=interval(rates),
+                                                future='same current opponents; new RNG; next-state frozen rank critic'))
+
+
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:] == ['held']:
+        held_out_future()
+    else:
+        main()
