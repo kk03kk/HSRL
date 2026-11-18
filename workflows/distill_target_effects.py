@@ -23,7 +23,7 @@ from workflows.learn_retained_targets import Durability, ROOT as TEACHERS, unit_
 from workflows.plan_recruit_openings import native
 
 
-ROOT=Path('artifacts/runs/nus-target-distillation-20261118-1')
+ROOT=Path('artifacts/runs/nus-target-distillation-20261118-2')
 TERMS=('double','give','health','attack','until','permanent','blood gem','each','set ','steal','consume',
        'golden','gain','highest','lowest','other','copy','triple','start of','end of','bonus','random')
 
@@ -31,7 +31,7 @@ TERMS=('double','give','health','attack','until','permanent','blood gem','each',
 @lru_cache(maxsize=1)
 def heads():
     p=TEACHERS/'heads.json'
-    if file_identity(p)['sha256'] != '9c0a8487719673b08c0defd39daf9ce7170f5f35085311d7c7116a767c1e5b2b':
+    if file_identity(p)['sha256'] != '3f6432b8dc72a3c3a0680c123ea9ca4e8b52bb01a6e3bd87519d84126c5e4cbc':
         raise ValueError('durability teacher changed')
     return json.loads(p.read_text())
 
