@@ -1,0 +1,64 @@
+{
+  "purpose": "D-128 fixed-endpoint natural PPO scaling experiment",
+  "authorization": "awaiting user confirmation; no jobs submitted",
+  "release_name": "natural12m-ready-20261118",
+  "training_code_revision": "5b1c59d8a85acc70fb6224c053831ad54dc4832f",
+  "entrypoint": "deploy/slurm/stage_arena.sbatch",
+  "asset_sha256": {
+    "artifacts/models/arena-v1.4-r1/model.pt": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+    "artifacts/models/arena-v1.4-r1/manifest.json": "6d19c409997e82b94d8e2d59fda398003a46d6be1211ebc6bf546596e2cfe32e",
+    "artifacts/libraries/arena-cal-v14-snap/manifest.json": "a0e98742c5c0acd5f826abba38a7f38e28bbdb9fe1effd5901131b627a03faf6",
+    "artifacts/libraries/arena-cal-v14-snap/snap_cal.json.gz": "c5384f08e70cd04dcdf723f5dde76c87c2aa996d44849d64b4029bc8da253be1",
+    "artifacts/libraries/arena-cal-v14hold-snap/manifest.json": "503614e8768d7f67e16d1e0bbef050c2313dedc933334850af008aa948fedd8e",
+    "artifacts/libraries/arena-cal-v14hold-snap/snap_cal.json.gz": "4707eafee6e1453e784bb585bacf3e863aae0a7d62d95ab6ef3579cf575f26b0"
+  },
+  "engine_lock": "config/engine-upstream-lock.json",
+  "engine_fingerprint": "c4c71014e3d41760",
+  "live_pin_sha256": "ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7",
+  "shared_environment": {
+    "HSAI_ARENA_CKPT": "artifacts/models/arena-v1.4-r1/model.pt",
+    "HSAI_ARENA_SNAPS": "artifacts/libraries/arena-cal-v14-snap",
+    "HSAI_ARENA_STOP_DECISIONS": "12000000",
+    "HSAI_ARENA_MINUTES": "165",
+    "HSAI_ARENA_ITERATIONS": "0",
+    "HSAI_ARENA_SEGMENTS": "1",
+    "HSAI_ARENA_RESUME": "0",
+    "HSAI_ARENA_LR": "6e-06",
+    "HSAI_ARENA_GAMES": "512",
+    "HSAI_ARENA_PROCS": "8",
+    "HSAI_ARENA_EPOCHS": "1",
+    "HSAI_ARENA_TARGET_KL": "0.05",
+    "HSAI_ARENA_ENTROPY": "0.002",
+    "HSAI_ARENA_ANCHOR": "0.1",
+    "HSAI_ARENA_ANCHOR_ITERS": "100",
+    "HSAI_ARENA_ANCHOR_TAIL": "0.02",
+    "HSAI_ARENA_RANK_UTILITY": "1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75",
+    "HSAI_ARENA_FORCED_TIER": "2:2,5:3,7:4,8:5",
+    "HSAI_ARENA_FORCED_TIER_CARRY": "1",
+    "HSAI_ARENA_FORCED_TIER_PROB": "0",
+    "HSAI_ARENA_FORCED_TEACHER_COEF": "0.1",
+    "HSAI_ARENA_FORCED_TEACHER_UNTIL": "1B",
+    "HSAI_RECRUIT_START_P": "0",
+    "HSAI_ARENA_TIER_COEF": "0",
+    "HSAI_ARENA_WIN_BONUS": "0",
+    "HSAI_ARENA_REQUIRE_DUAL": "1"
+  },
+  "arm_environment": [
+    {"HSAI_ARENA_SEED": "31818001", "HSAI_ARENA_OUT": "artifacts/runs/nus-natural12m-a-20261118-1"},
+    {"HSAI_ARENA_SEED": "47818001", "HSAI_ARENA_OUT": "artifacts/runs/nus-natural12m-b-20261118-1"}
+  ],
+  "assessment": {
+    "plan": "config/evaluation/natural12m-endpoints-20261118.json",
+    "protocol_sha256": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+    "endpoint": "First completed rollout at or above 12M in each arm. An undersized or invalid run is incomplete.",
+    "scale_gate": {
+      "common_T9_T12_growth_difference_each_arm_gt": 0,
+      "mean_of_two_growth_differences_paired_bootstrap_lower95_gt": 0,
+      "T12_survival_rate_difference_each_arm_gte": -0.03,
+      "mean_of_two_rank_differences_paired_bootstrap_upper95_lt": 0.20,
+      "original_rank_utility_difference_each_arm_gte": 0
+    },
+    "bootstrap": "10000 draws with replacement of 512 game-seed indices, RNG seed 118128. Use identical draws for all three policies. For each draw recompute each arm's mean on its own common survivors for growth, on all games for rank, then average the two arm estimates with equal weights. Use percentile intervals. An empty common cohort makes the gate inconclusive.",
+    "scope": "Development decision on further compute only. Shared parent, two rollout seeds. No automatic extension or promotion."
+  }
+}
