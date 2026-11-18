@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
@@ -71,6 +72,12 @@ TRAINING_CONTRACT: Dict[str, Any] = {
 }
 
 #: 参与协议指纹的契约键（顺序固定，写进报告便于人读）。
+_profile = os.environ.get("HSAI_ACTION_PROFILE", "v14")
+if _profile == "human-turn-3702":
+    TRAINING_CONTRACT = dict(TRAINING_CONTRACT, move_cap=4, freeze_cap=2,
+                             forbid_unfreeze=False, ban_trinkets=False)
+elif _profile != "v14":
+    raise ValueError(f"Unknown HSAI_ACTION_PROFILE: {_profile}")
 EVAL_CONTRACT_KEYS: Tuple[str, ...] = tuple(TRAINING_CONTRACT)
 
 

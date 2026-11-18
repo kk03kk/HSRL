@@ -1,0 +1,32 @@
+{
+  "schema": "hsai.eval-plan/v1",
+  "purpose": "Fixed parent baseline against turn-matched Firestone boards using the human-turn-3702 action profile",
+  "games": 512,
+  "shards": 8,
+  "seed": 82370000,
+  "models": [
+    {
+      "name": "parent",
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"
+    }
+  ],
+  "evaluation": {
+    "mirror-snaps": "artifacts/libraries/human-turn-3702-20261118/hold",
+    "mirror-sample": "random",
+    "mirror-strict": 1,
+    "mirror-seats": 7,
+    "mirror-p": 1,
+    "lobby-exclude": "",
+    "max-actions-per-turn": 100,
+    "move-guard": 1,
+    "move-cap": 4,
+    "move-repeat-limit": 2,
+    "freeze-cap": 2,
+    "forbid-cancel": 1,
+    "forbid-unfreeze": 0,
+    "ban-trinkets": 0
+  },
+  "expected_protocol_sha256": "3af5631bb2190a5dd862298fe7b2f1974f052c9e3b1e460975b5d097386a03ae",
+  "replay_steps_per_trace": 64
+}

@@ -119,6 +119,25 @@ win_bonus="${HSAI_ARENA_WIN_BONUS:-0}"
 #   2 名→3 名断崖 1.35（原设计 0.286 的 4.7 倍）；3–8 名之间只留 0.15 梯度。
 rank_utility_table="${HSAI_ARENA_RANK_UTILITY:-1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75}"
 
+move_cap=2
+unfreeze_ban=1
+freeze_cap="${HSAI_ARENA_FREEZE_CAP:-1}"
+ban_trinkets="${HSAI_ARENA_BAN_TRINKETS:-1}"
+mirror_strict=0
+mirror_sample=p50band
+if [[ "${HSAI_ACTION_PROFILE:-v14}" == human-turn-3702 ]]; then
+  move_cap=4
+  unfreeze_ban=0
+  freeze_cap=2
+  ban_trinkets=0
+  mirror_strict=1
+  mirror_sample=random
+  forced_tier_plan=""
+  forced_tier_carry=0
+  forced_tier_prob=0
+  forced_teacher_coef=0
+  forced_teacher_until=0
+fi
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
 # --- GPU 落位：MIG UUID 重定向（2026-11-15 用户授权）---------------------------
 # 背景：本站 h100-47 是 MIG 3g.47gb 切片（46.4 GiB/片），每节点 4 片，映射固定为
@@ -174,14 +193,14 @@ mkdir -p "$out"
   echo "gpu_placement=slurm_job_gpus=${SLURM_JOB_GPUS:-} cvd_orig=${cvd_orig} mig_rewrite=${mig_used:-none} visible=${nvis} actor_gpus=${actor_gpus}"
   echo "git=$(git rev-parse HEAD)"
   echo "resume=$resume ckpt=$ckpt seed=$seed lr=$lr win_bonus=$win_bonus rank_utility=$rank_utility_table"
-  echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict 0, sample p50band, max-turn 0)"
+  echo "field=SNAPSHOT $snaps (mirror-p 1, seats 7, strict $mirror_strict, sample $mirror_sample, max-turn 0)"
   echo "games=$games procs=$procs epochs=$epochs minutes=$minutes segments=$segments"
   echo "budget iterations=$iterations stop_decisions=$stop_decisions"
   echo "anchor beta=$anchor_beta iters=$anchor_iters tail=$anchor_tail reset=fresh_only"
   echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry prob=$forced_tier_prob"
   echo "teacher until=$forced_teacher_until coef=$forced_teacher_coef"
   # 动作契约 / 规则限制：让 run.env 自证"这一轮用的是哪套限制"（2026-11-17 审计）
-  echo "contract max_actions=100 move_guard=1 move_cap=2 move_repeat=2 freeze_cap=${HSAI_ARENA_FREEZE_CAP:-1} forbid_cancel=1 forbid_unfreeze=1 ban_trinkets=${HSAI_ARENA_BAN_TRINKETS:-1} lobby_exclude=${HSAI_ARENA_LOBBY_EXCLUDE:-<none>} sims=0"
+  echo "contract max_actions=100 move_guard=1 move_cap=$move_cap move_repeat=2 freeze_cap=$freeze_cap forbid_cancel=1 forbid_unfreeze=$unfreeze_ban ban_trinkets=$ban_trinkets lobby_exclude=${HSAI_ARENA_LOBBY_EXCLUDE:-<none>} sims=0"
   echo "KPI = T12 median board strength (M1). tier soft-reward coef=$tier_coef (0=off, forced tier replaces it)"
   echo "reward: terminal placement utility ONLY + tier_target coef=$tier_coef penalty=$tier_penalty bonus=0.15 table=$tier_table gate_k=$tier_gate_k gate_ref=$tier_gate_ref"
   echo "all other shaping = 0 (spell/comp/retained/shaping/terminal_strength)"
@@ -200,8 +219,8 @@ python workflows/train_entity_sync.py \
   "$@" \
   --device cuda --out "$out/train" \
   --opponent bot --behavior net --pipeline 1 --rust-collector 0 --lockstep 1 \
-  --mirror-snaps "$snaps" --mirror-seats 7 --mirror-p 1 --mirror-sample p50band \
-  --mirror-strict 0 --mirror-max-turn 0 \
+  --mirror-snaps "$snaps" --mirror-seats 7 --mirror-p 1 --mirror-sample "$mirror_sample" \
+  --mirror-strict "$mirror_strict" --mirror-max-turn 0 \
   --human-board-p 0 --human-boards "" \
   --entry-p 0 \
   --recruit-start-bank "${HSAI_RECRUIT_START_BANK:-}" --recruit-start-p "${HSAI_RECRUIT_START_P:-0}" \
@@ -221,12 +240,12 @@ python workflows/train_entity_sync.py \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --amp bf16 \
   --gpus "$actor_gpus" --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
-  --move-guard 1 --move-cap 2 --move-repeat-limit 2 --forbid-cancel 1 \
-  --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
+  --move-guard 1 --move-cap "$move_cap" --move-repeat-limit 2 --forbid-cancel 1 \
+  --pipeline-zero-step-fallback 1 --forbid-unfreeze "$unfreeze_ban" \
   --max-actions-per-turn 100 \
   --lobby-exclude "${HSAI_ARENA_LOBBY_EXCLUDE:-}" \
   --lobby-filter-probability "${HSAI_ARENA_LOBBY_FILTER_PROBABILITY:-1}" \
-  --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-1}" --ban-trinkets "${HSAI_ARENA_BAN_TRINKETS:-1}" \
+  --freeze-cap "$freeze_cap" --ban-trinkets "$ban_trinkets" \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
   --tier-bonus "$tier_bonus" \
   --tier-target-table "$tier_table" \
