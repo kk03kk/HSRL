@@ -18,10 +18,11 @@ _CACHE={}
 
 class EconomyRecorder(DecisionRecorder):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0
+        super().__init__(*args,**kwargs);self.economy={};self.option_actions=0;self.deployment_actions=0;self.gate_retention_actions=0
     def after(self,game,before,decision,executed_action,forced_tier=False):
         self.option_actions+=bool(decision.info.get('research_option_active'))
         self.deployment_actions+=bool(decision.info.get('deployment_override_executed'))
+        self.gate_retention_actions+=bool(decision.info.get('gate_retention_override_executed'))
         if executed_action==0:
             p=before['state_before']['players'][before['seat']]
             self.economy[int(before['turn'])]={'gold_spent':p['stats']['gold_spent_turn'],
@@ -40,7 +41,10 @@ def trial(task):
     if key not in _CACHE:
         built=make_eval_policy(checkpoint,protocol=EvalProtocol(mirror_snaps=library),device=device)
         policy=built['policy']
-        if operator=='deploy_payoff':
+        if operator=='retain_gate':
+            from hsbg.az.train.gate_retention_probe import GateRetentionPolicy
+            policy=GateRetentionPolicy(policy.evaluator)
+        elif operator=='deploy_payoff':
             from hsbg.az.train.shadow_economy import PayoffDeploymentPolicy
             policy=PayoffDeploymentPolicy(policy.evaluator)
         elif operator:policy=EconomicOptionPolicy(policy.evaluator,
@@ -82,6 +86,7 @@ def trial(task):
         'rank':result['rank_sequence'][0],'turns':turns,'operator_actions':recorder.option_actions,
         'trace':trace,'validation':validation}
     if operator=='deploy_payoff':row['deployment_actions']=recorder.deployment_actions
+    if operator=='retain_gate':row['gate_retention_actions']=recorder.gate_retention_actions
     atomic_json(path/'result.json',{'summary':row,'evaluation':result});return row
 
 def compare(rows,parent='parent'):

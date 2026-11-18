@@ -1,0 +1,24 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-110 isolated gate-breaking sale constraint",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["complete_gold"],
+  "replicas": 2,
+  "reference": "gate_retention",
+  "models": {
+    "gate_retention": {
+      "checkpoint": "artifacts/runs/nus-payoff-query-aggregate-20261118-1/model.pt",
+      "sha256": "8dbc2b7b1a16a20163e49d6a3214090fb3eef54cbd2f989488c16d48834db3aa",
+      "operator": "retain_gate"
+    }
+  },
+  "selection": "All 49 existing development sources and two futures; 98 complete suffixes, no outcome or trigger filtering",
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "intervention": "Only while the gold gate is active, zero the frozen model probability for legal Sell actions whose sold entity is the last owned member of a required gate group. Renormalize remaining probabilities; no other teacher action, buying, deployment, resource, or native-rule intervention.",
+  "control": "Sealed query_aggregate complete_gold arm from nus-payoff-query-aggregate-suffix-20261118-1",
+  "hypothesis": "Test whether the observed repeated gate-breaking sales materially explain residual closed-loop failure after improved recovery-label agreement",
+  "budget": "98 full suffixes on one H100-47 slice, 4 workers, at most 45 minutes",
+  "stop": "One causal policy constraint; no automatic permanent prohibition, new data aggregation, neural training, promotion or formal reserved evaluation",
+  "limitations": ["Explicit hand-coded change to policy support, not learned ability", "Does not prevent spells, triples, or later transitions from changing the gate", "Owned includes hand and board, so duplicates can still be sold", "Same exploratory sources and artificial gold components"]
+}
