@@ -72,3 +72,15 @@ def test_sealed_study_merge_rejects_identity_changes(tmp_path):
     changed['rows'][0]['source_seed']=0;changed['rows'][0]['trace']['identity']['checkpoint_sha256']='wrong'
     atomic_json(path,changed,replace=True)
     with pytest.raises(ValueError,match='model identity'):merge_studies(roots)
+
+
+def test_explicit_utility_is_supplementary_and_rejects_invalid_tables():
+    from tools.suffix_outcomes import summarize
+    data=rows()
+    for r in data:r['rank']=2 if r['name']=='student' else 3
+    table=[1,.35,-1,-1.15,-1.3,-1.45,-1.6,-1.75]
+    old=summarize(data);result=summarize(data,rank_utility=table)
+    assert result['paired']['student-parent/normal']['win_rate']==old['paired']['student-parent/normal']['win_rate']
+    effect=result['paired']['student-parent/normal']['frozen_rank_utility']
+    assert effect['mean']==pytest.approx(1.35) and result['rank_utility_table']==table
+    with pytest.raises(ValueError,match='utility'):summarize(data,rank_utility=[1,0])

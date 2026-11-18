@@ -13,6 +13,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',required=True);p.add_argument('--games',type=int,default=512)
     p.add_argument('--shards',type=int,default=4);p.add_argument('--seed',type=int,default=11802000)
+    p.add_argument('--assessment-only',action='store_true',help='Seal all collected sources against any training use')
     args=p.parse_args()
     if args.shards<1 or args.games<1 or args.games%args.shards:raise ValueError('require equal nonempty shards')
     out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=False)
@@ -46,10 +47,13 @@ def main():
     if seeds!=list(range(args.seed,args.seed+args.games)):raise ValueError('source game seed coverage mismatch')
     if environment_identity()!=environment or source_identity(Path.cwd())!=source:
         raise ValueError('source/environment changed during collection')
-    atomic_json(out/'manifest.json',{'schema':'hsai.recruit-state-bank/v1','checkpoint':parent,
+    manifest={'schema':'hsai.recruit-state-bank/v1','checkpoint':parent,
         'checkpoint_path':checkpoint,'args':vars(args),'states':states,'seeds':seeds,'ranks':ranks,
         'data':file_identity(out/'states.jsonl.gz'),'shards':identities,'source':source,
-        'environment':environment,'engine':engine_info(),'purpose':'Independent natural training/development source, never formal assessment'})
+        'environment':environment,'engine':engine_info(),'purpose':'Independent natural training/development source, never formal assessment'}
+    if args.assessment_only:
+        manifest.update(assessment_only=True,purpose='Independent conditional assessment-only source; never training or natural-game promotion')
+    atomic_json(out/'manifest.json',manifest)
     print(json.dumps({'games':args.games,'states':states,'out':str(out)}))
 
 

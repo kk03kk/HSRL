@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 import numpy as np
 
 
-def summarize(rows, references=('parent',)):
+def summarize(rows, references=('parent',), rank_utility=None):
     indexed=defaultdict(dict)
     names={r['name'] for r in rows}
     if not rows or not set(references)<=names:
@@ -28,6 +28,10 @@ def summarize(rows, references=('parent',)):
                 raise ValueError('outcome identity differs')
     summary={};paired={}
     metrics={'win_rate':lambda rank:float(rank==1), 'top4_rate':lambda rank:float(rank<=4)}
+    if rank_utility is not None:
+        utility=np.asarray(rank_utility,dtype=float)
+        if utility.shape!=(8,) or not np.isfinite(utility).all():raise ValueError('explicit finite eight-rank utility required')
+        metrics['frozen_rank_utility']=lambda rank:float(utility[rank-1])
     for variant in sorted({r['variant'] for r in rows}):
         for name in sorted(names):
             rr=[r for r in rows if r['name']==name and r['variant']==variant]
@@ -50,8 +54,12 @@ def summarize(rows, references=('parent',)):
                     estimates[metric]={'mean':float(x.mean()),'ci95':np.quantile(boot,[.025,.975]).tolist(),
                         'sources':len(x),'paired_replicates':sum(map(len,groups.values()))}
                 paired[name+'-'+reference+'/'+variant]=estimates
-    return {'summary':summary,'paired':paired,
+    result={'summary':summary,'paired':paired,
         'scope':'Supplementary exploratory win/top4 outcomes, not new promotion rules',
         'method':'Average paired future replicas within source, then 5000 source-cluster bootstrap samples',
         'limitations':['Artificial endowments','Repeated exploratory development sources',
             'Multiple exploratory contrasts; intervals are not multiplicity-adjusted']}
+    if rank_utility is not None:
+        result['rank_utility_table']=utility.tolist()
+        result['scope']='Supplementary outcomes and explicitly supplied rank utility; no changed evaluation or training rule'
+    return result

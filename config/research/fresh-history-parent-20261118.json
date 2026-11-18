@@ -1,0 +1,33 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-115 independent-source fixed residual assessment",
+  "bank": "artifacts/runs/nus-fresh-history-bank-20261118-1",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": [
+    "complete_gold"
+  ],
+  "replicas": 2,
+  "reference": "parent",
+  "models": {
+    "parent": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": false
+    }
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "All Pirate T8/T9 states with health >=15 from the 128 sealed assessment-only games; one earliest eligible state per game, no modulo train split and no outcome selection",
+  "budget": "Two future RNG replicas per eligible source; fixed endpoints, no training or checkpoint selection",
+  "comparison": "Fresh-source parent and both frozen residual arms; source-paired rank, growth, win/top4. Not natural formation or promotion.",
+  "limitations": [
+    "Artificial gold components",
+    "Repeated exploratory sources",
+    "No natural-game promotion claim"
+  ],
+  "source_split": "all_assessment",
+  "fresh_source_seeds": {
+    "start": 12602000,
+    "games": 128
+  },
+  "source_checkpoint_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"
+}

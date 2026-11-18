@@ -80,6 +80,7 @@ def main():
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
     bank=Path(args.bank)
     manifest=json.loads((bank/'manifest.json').read_text())
+    if manifest.get('assessment_only'):raise ValueError('assessment-only bank cannot produce training data')
     assert file_identity(bank/'states.jsonl.gz')==manifest['data']
     with gzip.open(bank/'states.jsonl.gz','rt',encoding='utf-8') as f:sources=[json.loads(x) for x in f]
     # One representative turn per source game; partition all variants by source seed.

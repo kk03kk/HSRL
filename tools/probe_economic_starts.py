@@ -29,14 +29,17 @@ def item(value,ids):
     return ids[value['card']]
 
 
-def select_sources(bank):
+def select_sources(bank,*,source_split='development'):
     bank=Path(bank);manifest=json.loads((bank/'manifest.json').read_text())
+    if source_split not in ('development','all_assessment'):raise ValueError('unknown source split')
+    if source_split=='all_assessment' and manifest.get('assessment_only') is not True:
+        raise ValueError('all-source selection requires an assessment-only bank')
     if file_identity(bank/'states.jsonl.gz')!=manifest['data']:raise ValueError('source checksum differs')
     groups={}
     with gzip.open(bank/'states.jsonl.gz','rt',encoding='utf-8') as stream:
         for line in stream:
             r=json.loads(line);p=r['state']['players'][0]
-            if r['seed']%5!=0 or r['seat']!=0 or not r['state']['lobby_races'] & (1<<6):continue
+            if (source_split=='development' and r['seed']%5!=0) or r['seat']!=0 or not r['state']['lobby_races'] & (1<<6):continue
             if not 8<=r['turn']<=9 or p['health']<15 or p['pending'] or p['ended_turn']:continue
             if r['seed'] not in groups or r['turn']<groups[r['seed']]['turn']:groups[r['seed']]=r
     if not groups:raise ValueError('no held-out economic source games')

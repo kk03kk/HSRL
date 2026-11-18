@@ -1,0 +1,37 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-115 independent-source fixed residual assessment",
+  "bank": "artifacts/runs/nus-fresh-history-bank-20261118-1",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": [
+    "complete_gold"
+  ],
+  "replicas": 2,
+  "reference": "residual_history",
+  "models": {
+    "residual_history": {
+      "checkpoint": "artifacts/runs/nus-payoff-query-replay-20261118-1/model.pt",
+      "sha256": "242430b6207bf867951d1e3b47fe40ba851e4e1980db29a0e0224a6651085c01",
+      "operator": {
+        "kind": "history_residual",
+        "adapter": "artifacts/runs/nus-history-residual-learning-20261118-1/history/model.pt",
+        "sha256": "704fe097a2e026383134c479a6e38e9e82d688529a08e7d3f73e573b49995d0f"
+      }
+    }
+  },
+  "future_rng": "11960000 + source_case_index * 100 + replica",
+  "selection": "All Pirate T8/T9 states with health >=15 from the 128 sealed assessment-only games; one earliest eligible state per game, no modulo train split and no outcome selection",
+  "budget": "Two future RNG replicas per eligible source; fixed endpoints, no training or checkpoint selection",
+  "comparison": "Fresh-source parent and both frozen residual arms; source-paired rank, growth, win/top4. Not natural formation or promotion.",
+  "limitations": [
+    "Artificial gold components",
+    "Repeated exploratory sources",
+    "No natural-game promotion claim"
+  ],
+  "source_split": "all_assessment",
+  "fresh_source_seeds": {
+    "start": 12602000,
+    "games": 128
+  },
+  "source_checkpoint_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"
+}

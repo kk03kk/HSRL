@@ -169,7 +169,14 @@ def compare(rows,parent='parent'):
 def main(args):
     plan_path=Path(args.plan);plan=json.loads(plan_path.read_text())
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
-    sources=select_sources(plan['bank'])
+    source_split=plan.get('source_split','development')
+    if source_split=='all_assessment':
+        bank_manifest=json.loads((Path(plan['bank'])/'manifest.json').read_text())
+        expected=plan['fresh_source_seeds']
+        if bank_manifest['seeds']!=list(range(expected['start'],expected['start']+expected['games'])):
+            raise ValueError('fresh assessment source seed range differs')
+        if bank_manifest['checkpoint']['sha256']!=plan['source_checkpoint_sha256']:raise ValueError('fresh source collector differs')
+    sources=select_sources(plan['bank'],source_split=source_split)
     exclusions=[]
     if 'source_filter' in plan:
         if plan['source_filter']!={'tier_min':5,'gold_min':3} or plan['variants']!=['privateer_bridge']:

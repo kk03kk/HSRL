@@ -111,6 +111,7 @@ def main(args):
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False);plan_path=Path(args.plan)
     plan=json.loads(plan_path.read_text());original=Path(plan['original_dataset']);bank=Path(plan['bank'])
     manifest=json.loads((original/'manifest.json').read_text());bank_meta=json.loads((bank/'manifest.json').read_text())
+    if bank_meta.get('assessment_only'):raise ValueError('assessment-only bank cannot produce training data')
     if file_identity(original/'manifest.json')['sha256']!=plan['original_manifest_sha256']:raise ValueError('original data changed')
     for name,identity in manifest['files'].items():
         if file_identity(original/name)!=identity:raise ValueError('original file changed: '+name)

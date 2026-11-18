@@ -43,6 +43,12 @@ def test_diagnostic_only_uses_source_game_holdout(tmp_path):
         for r in rows:f.write(json.dumps(r)+'\n')
     atomic_json(tmp_path/'manifest.json',{'data':file_identity(tmp_path/'states.jsonl.gz')})
     assert [r['seed'] for r in select_sources(tmp_path)]==[11800000]
+    import pytest
+    with pytest.raises(ValueError,match='assessment-only'):select_sources(tmp_path,source_split='all_assessment')
+    atomic_json(tmp_path/'manifest.json',{'data':file_identity(tmp_path/'states.jsonl.gz'),'assessment_only':True},replace=True)
+    assert [r['seed'] for r in select_sources(tmp_path,source_split='all_assessment')]==[11800000,11800001]
+    from workflows.build_recruit_curriculum import build
+    with pytest.raises(ValueError,match='cannot produce training'):build(tmp_path,tmp_path/'forbidden-training')
 
 
 def test_core_constraint_changes_only_policy_sale_mask():

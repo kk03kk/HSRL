@@ -125,6 +125,7 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     bank = Path(args.bank)
     manifest = json.loads((bank / 'manifest.json').read_text())
+    if manifest.get('assessment_only'):raise ValueError('assessment-only bank cannot produce training data')
     if file_identity(bank / 'states.jsonl.gz') != manifest['data']:
         raise ValueError('source bank identity differs')
     groups = {}

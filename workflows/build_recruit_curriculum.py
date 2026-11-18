@@ -39,6 +39,7 @@ def endow(source):
 def build(bank,out):
     bank=Path(bank);out=Path(out);out.mkdir(parents=True,exist_ok=False)
     manifest=json.loads((bank/'manifest.json').read_text())
+    if manifest.get('assessment_only'):raise ValueError('assessment-only bank cannot produce training data')
     if file_identity(bank/'states.jsonl.gz')!=manifest['data']:raise ValueError('source identity differs')
     groups={}
     with gzip.open(bank/'states.jsonl.gz','rt',encoding='utf-8') as stream:
