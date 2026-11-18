@@ -15,4 +15,5 @@ exec .venv/bin/python tools/analyze_economy_suffix.py \
     artifacts/runs/nus-fresh-history-candidate-20261118-2 \
   --policies parent residual_no_history residual_history \
   --variants complete_gold --extra-reference residual_no_history \
+  --assessment-bank artifacts/runs/nus-fresh-history-bank-20261118-2 \
   --out "${HSAI_FRESH_HISTORY_ANALYSIS_OUT:?}/complete.json"

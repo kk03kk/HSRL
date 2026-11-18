@@ -21,6 +21,11 @@ def main(args):
     names=args.policies
     if names[0]!='parent' or len(names)!=len(set(names)):raise ValueError('unique arms beginning with parent required')
     if any(n+'/'+variant not in c['curves'] for n in names):raise ValueError('missing complete arm')
+    cohort=data['outcomes']['summary']['parent/'+variant]
+    games,sources=cohort['games'],cohort['sources']
+    if games%sources:raise ValueError('plot requires equal future replicas per source')
+    replicas=games//sources
+    fresh=data.get('source_scope',{}).get('role')=='assessment_only'
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
     plt.rcParams.update({'font.size':10,'axes.spines.top':False,'axes.spines.right':False,'svg.fonttype':'none'})
     fig,axes=plt.subplots(2,2,figsize=(13.8,10))
@@ -40,12 +45,13 @@ def main(args):
         axes[1,1].plot(turns,[curve[str(t)]['n'] for t in turns],color=COLORS[n],marker='o',markersize=3,label=LABELS[n])
     axes[1,0].set_title('Survivor median total attack + health (P50)',fontsize=11)
     axes[1,1].set_title('Number of surviving future-RNG replicas',fontsize=11)
-    axes[1,0].set_ylabel('Total attack + health');axes[1,1].set_ylabel('n (maximum 98; not independent games)')
+    axes[1,0].set_ylabel('Total attack + health');axes[1,1].set_ylabel(f'n (maximum {games}; not independent games)')
     for ax in axes[1]:ax.set_xlabel('Turn');ax.set_xticks(range(8,15));ax.grid(alpha=.2)
-    axes[1,0].legend(fontsize=8,loc='upper left');axes[1,1].set_ylim(0,103)
+    axes[1,0].legend(fontsize=8,loc='upper left');axes[1,1].set_ylim(0,games*1.06)
     fig.suptitle('Complete-suffix assessment: fixed gold-engine starts',fontweight='bold',fontsize=16)
-    fig.text(.02,.025,'49 source games x 2 future RNG replicas per arm. Full final-rank pairs; growth uses common T9/T12 survivors.\n'
-        'Median curves have changing survivor cohorts. Exploratory reused sources, artificial components, no natural-game promotion claim.',fontsize=9,color='#52525b')
+    cohort_label='Fresh assessment-only sources' if fresh else 'Exploratory development sources'
+    fig.text(.02,.025,f'{sources} source games x {replicas} future RNG replicas per arm. Full final-rank pairs; growth uses common T9/T12 survivors.\n'
+        f'{cohort_label}. Changing survivor cohorts; artificial components; no natural-game promotion claim.',fontsize=9,color='#52525b')
     fig.tight_layout(rect=(0,.085,1,.95),h_pad=2.5,w_pad=3)
     for ext in ('png','svg'):fig.savefig(out/('stage-results.'+ext),dpi=180)
     plt.close(fig)
