@@ -67,6 +67,12 @@ class StrictMirror:
         if self.frame_rng is not None:
             rng = self.frame_rng(turn, seat)
         frame = self.library.sample(turn, seat, rng, self.counts)
+        if (frame is not None and os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3702"
+                and (frame.turn != turn or getattr(frame, "source_turn", 0) not in (0, turn))):
+            # Terminal placement is already fixed for an eliminated learner.
+            if self.learner_active:
+                raise ValueError(f"no exact human opponent for active learner at turn {turn}")
+            self.counts["tail_after_learner_placement"] += 1
         self.frames[seat] = frame
         return frame
 

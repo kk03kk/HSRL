@@ -1,6 +1,7 @@
 {
   "entrypoint": "deploy/slurm/stage_arena.sbatch",
   "evaluation": "config/evaluation/human-turn-3702-parent.json",
+  "endpoint_evaluation": "config/evaluation/human-turn-3702-endpoints.json",
   "engine_source_hash": "c4c71014e3d41760",
   "checkpoint_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
   "model_manifest_sha256": "6d19c409997e82b94d8e2d59fda398003a46d6be1211ebc6bf546596e2cfe32e",

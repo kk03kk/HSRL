@@ -143,3 +143,20 @@ def test_native_panic_keeps_evidence_but_user_interrupt_propagates(tmp_path, mon
     with pytest.raises(expected, match='native-panic'):
         mirror.prepare(InterruptedGame())
     assert len(list((tmp_path/'states').glob('*.json.gz'))) == int(error_type is NativePanicForAudit)
+def test_human_turn_tail_requires_fixed_learner_placement(monkeypatch):
+    from collections import Counter
+    from types import SimpleNamespace
+    import pytest
+    from hsbg.az.train.strict_mirror import StrictMirror
+
+    monkeypatch.setenv("HSAI_ACTION_PROFILE", "human-turn-3702")
+    frame = SimpleNamespace(turn=18, source_turn=18)
+    library = SimpleNamespace(sample=lambda *args: frame)
+    mirror = StrictMirror(library, 0, None, None)
+    mirror.learner_active = True
+    assert mirror.get(18, 1, None) is frame
+    with pytest.raises(ValueError, match="active learner"):
+        mirror.get(19, 1, None)
+    mirror.learner_active = False
+    assert mirror.get(19, 1, None) is frame
+    assert mirror.counts == Counter(tail_after_learner_placement=1)
