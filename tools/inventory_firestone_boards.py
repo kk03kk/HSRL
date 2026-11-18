@@ -132,6 +132,12 @@ def template(turn):
 
 
 FIELDS = ["card", "atk", "hp", "kw", "bonus_kw", "golden", "shield_max"]
+QUARANTINED = {"Gentle Djinni", "The Last One Standing"}
+
+
+@lru_cache(None)
+def policy_ids():
+    return {i for i, row in cards().values() if row["name"] in QUARANTINED}
 
 
 def probe_game(item):
@@ -151,6 +157,9 @@ def probe_game(item):
                 verdict[key] = val
                 continue
             tier, units, unlisted = val
+            if any(u[0] in policy_ids() for u in units):
+                verdict[key] = "official_temporary_ban"
+                continue
             sandbox = E.Game.from_json(template(turn))
             board = [dict(zip(FIELDS, u)) for u in units]
             try:
@@ -174,6 +183,12 @@ def probe_game(item):
                 continue
             ready.append(key)
         if ready:
+            if len(ready) == 1:
+                # A missing/quarantined opposing board gives no combat exercise.
+                other = 1 - int(ready[0]) % 2
+                ref_id = cards()["BG28_633"][0]
+                install_board(receiver, other, {"tier": 1, "board_detail": [
+                    {"card": ref_id, "atk": 3, "hp": 3}]}, detail=False)
             result = json.loads(receiver.debug('{"cmd":"combat_preview","a":0,"b":1,"n":1,"details":true}'))
             trial, = result["trials"]
             for key in ready:
@@ -264,6 +279,9 @@ def assess(args):
                 split = split_game(gid)
             role = "trainable" if split in ("train","historic_train") else "reserved"
             labels = ["all", patch, patch+"/"+split, patch+"/"+role, "role/"+role]
+            if role == "reserved":
+                labels.append(patch+("/reserved_also_in_joint_train" if gid in historic_train
+                                     else "/reserved_outside_joint_train"))
             for origin, yes in [("old",bool({"downloaded","local_archive"} & g["tags"])), ("latest",gid in latest),
                                 ("increment",g["tags"]=={"new"})]:
                 if yes:
