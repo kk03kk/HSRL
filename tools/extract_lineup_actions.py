@@ -15,7 +15,7 @@ from tools.compare_research_panels import load_sealed_panel
 
 def reduce_trace(ref):
     import hsbg_engine as engine
-    cards = json.loads((ROOT / "engine/crates/hsbg-engine/data/cards.json").read_text())["cards"]
+    cards = json.loads((ROOT / "engine/crates/hsbg-engine/data/cards.json").read_text(encoding="utf-8"))["cards"]
     ids = [engine.card_info(i+1)[0] for i in range(len(cards))]
     def item(slot):
         kind, value = next(iter(slot["item"].items()))
