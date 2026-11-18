@@ -23,7 +23,7 @@ def read(path):
 @lru_cache(None)
 def cards():
     rows = read(ROOT / "engine/crates/hsbg-engine/data/cards.json")["cards"]
-    return {r["id"]: (i, r) for i, r in enumerate(rows, 1)}
+    return {r["id"]: (i, r) for i, r in enumerate(rows)}
 
 
 def visible(raw):
@@ -37,6 +37,7 @@ def visible(raw):
     if type(tier) is not int or not 1 <= tier <= 6:
         return "tier_outside_1_6"
     result = []
+    unlisted = False
     for unit in units:
         key = unit.get("cardId")
         if key not in cards():
@@ -45,7 +46,7 @@ def visible(raw):
         if card["kind"] != "minion" or card["name"] == "Expert Aviator":
             return "non_minion_or_removed"
         if not card["reachable"] and not cards().get(card["normal"], (0, {}))[1].get("reachable"):
-            return "reachability_unconfirmed"
+            unlisted = True
         attack, hp = unit.get("attack"), unit.get("health")
         if (unit.get("definitelyDead") or type(attack) is not int or type(hp) is not int
                 or attack < 0 or hp <= 0 or attack + hp > 100000):
@@ -61,7 +62,7 @@ def visible(raw):
         result.append([cid, attack, hp, kw, kw & ~printed, bool(card["normal"]), 1])
     if sum(u[1] + u[2] for u in result) > 250000:
         return "board_stat_limit"
-    return [tier, result]
+    return [tier, result, unlisted]
 
 
 def unpack(task):
@@ -101,9 +102,9 @@ def local(args):
     for folder in sorted(args.data.glob("*/pms")):
         index = folder.parent / "index.json"
         if index.exists():
-            jobs.extend(tasks(index, folder, "downloaded"))
+            jobs.extend(tasks(index, folder, "local_archive"))
     jobs.extend(tasks(args.dir / "feed.json", args.dir / "latest-pms", "new"))
-    with gzip.open(args.dir / "local.jsonl.gz", "xt", encoding="utf8", compresslevel=3) as out:
+    with gzip.open((args.out or args.dir) / "local.jsonl.gz", "xt", encoding="utf8", compresslevel=3) as out:
         with ProcessPoolExecutor(args.workers) as pool:
             for row in pool.map(unpack, jobs, chunksize=10):
                 out.write(json.dumps(row, separators=(",", ":")) + "\n")
@@ -118,7 +119,8 @@ def template(turn):
         raise ValueError("wrong native engine")
     if turn == 0:
         for key, (i, _) in cards().items():
-            if E.card_info(i)[0] != key:
+            # card_info accepts embedding indices, inject_board uses native CardId.
+            if E.card_info(i + 1)[0] != key:
                 raise ValueError("native card index disagreement")
         state = json.loads(_drive_to_turn(E.Game(seed=730000), 1).state_json())
         for player in state["players"]:
@@ -148,10 +150,16 @@ def probe_game(item):
             if isinstance(val, str):
                 verdict[key] = val
                 continue
-            tier, units = val
+            tier, units, unlisted = val
             sandbox = E.Game.from_json(template(turn))
             board = [dict(zip(FIELDS, u)) for u in units]
-            install_board(sandbox, side, {"tier": tier, "board_detail": board})
+            try:
+                install_board(sandbox, side, {"tier": tier, "board_detail": board})
+            except RuntimeError as exc:
+                if "applied" not in str(exc) or "False" not in str(exc):
+                    raise
+                verdict[key] = "native_injection_rejected"
+                continue
             player = json.loads(sandbox.player_json(side))
             for field in ("hand", "shop", "hand_queue", "hand_queue_marks"):
                 player[field] = []
@@ -169,7 +177,8 @@ def probe_game(item):
             result = json.loads(receiver.debug('{"cmd":"combat_preview","a":0,"b":1,"n":1,"details":true}'))
             trial, = result["trials"]
             for key in ready:
-                verdict[key] = "combat_truncated" if trial["truncated"] else "pass"
+                verdict[key] = "combat_truncated" if trial["truncated"] else (
+                    "pass_unlisted" if slots[key][2] else "pass")
     return gid, verdict
 
 
@@ -223,6 +232,16 @@ def assess(args):
         joint[part] = dict(games=len(ids), sources=kinds, rows_without_pms_slot=extra,
                            games_without_pms=len(ids-games.keys()))
         (hold if part == "eval" else historic_train).update(ids)
+    for dirname, name in [("firestone-bank-6k", "eval-m6k.jsonl"), ("firestone-bank-1000", "eval.jsonl")]:
+        with (args.data/"real_library"/dirname/name).open() as file:
+            for line in file:
+                row = json.loads(line)
+                gid = row["game_id"]
+                hold.add(aliases.get(gid, gid))
+    # The local early archive previously used SHA-based splits on original review IDs.
+    for gid, g in games.items():
+        if "local_archive" in g["tags"] and split_game(gid) != "train":
+            hold.add(gid)
     if not latest <= games.keys():
         raise ValueError("latest replay coverage incomplete")
     stats = defaultdict(lambda: dict(games=0, games_with_pass=0, statuses=Counter(), turns=Counter()))
@@ -245,7 +264,7 @@ def assess(args):
                 split = split_game(gid)
             role = "trainable" if split in ("train","historic_train") else "reserved"
             labels = ["all", patch, patch+"/"+split, patch+"/"+role, "role/"+role]
-            for origin, yes in [("old","downloaded" in g["tags"]), ("latest",gid in latest),
+            for origin, yes in [("old",bool({"downloaded","local_archive"} & g["tags"])), ("latest",gid in latest),
                                 ("increment",g["tags"]=={"new"})]:
                 if yes:
                     labels.extend([origin,origin+"/"+patch,origin+"/"+patch+"/"+role])
