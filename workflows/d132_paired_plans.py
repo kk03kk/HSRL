@@ -205,6 +205,11 @@ def suffix(i):
         src=pickle.load(f)
     t=src['event']['turn']
     rows=[]
+    ledger=ROOT/f'{i:03}-suffixes.jsonl'
+    # Write each completed trajectory immediately, including if a later arm fails.
+    # Exclusive creation also prevents accidentally rerunning a partially completed source.
+    with ledger.open('x',encoding='utf8'):
+        pass
     for rep in range(8):
         future=81300000+8*i+rep
         rng=json.loads(engine.Game(seed=future).state_json())
@@ -217,6 +222,8 @@ def suffix(i):
             if w.actions[0]!=src['event']['choices'][int(mode!='parent')]:
                 raise ValueError('first action differs')
             arms.append(dict(rank=r['rank_sequence'][0],actions=w.actions,eot=w.eot,changes=w.changes))
+            with ledger.open('a',encoding='utf8') as stream:
+                stream.write(json.dumps(dict(future=future,mode=mode,result=arms[-1]),separators=(',',':'))+'\n')
         if len(arms[2]['changes'])==1 and (arms[1]['actions'],arms[1]['rank'])!=(arms[2]['actions'],arms[2]['rank']):
             raise ValueError('identical interventions diverged')
         rows.append(arms)
