@@ -1,0 +1,54 @@
+{
+  "entrypoint": "deploy/slurm/stage_arena.sbatch",
+  "evaluation": "config/evaluation/human-turn-3702-parent.json",
+  "engine_source_hash": "c4c71014e3d41760",
+  "checkpoint_sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+  "model_manifest_sha256": "6d19c409997e82b94d8e2d59fda398003a46d6be1211ebc6bf546596e2cfe32e",
+  "library_digests": {
+    "train": "3b18d4d5eceaf458990c7031098df76e9dea042c083dc1d95d306d379b721e81",
+    "hold": "5efd7b1394c84ffa40eeaba40bf1d87cc5c10cf0d5cec8954ebfc286d25f12d9"
+  },
+  "environment": {
+    "HSAI_ACTION_PROFILE": "human-turn-3702",
+    "HSAI_ARENA_CKPT": "artifacts/models/arena-v1.4-r1/model.pt",
+    "HSAI_ARENA_SNAPS": "artifacts/libraries/human-turn-3702-20261118/train",
+    "HSAI_ARENA_MINUTES": "340",
+    "HSAI_ARENA_STOP_DECISIONS": "120000000",
+    "HSAI_ARENA_ITERATIONS": "0",
+    "HSAI_ARENA_SEGMENTS": "1",
+    "HSAI_ARENA_RESUME": "0",
+    "HSAI_ARENA_GAMES": "512",
+    "HSAI_ARENA_PROCS": "8",
+    "HSAI_ARENA_EPOCHS": "1",
+    "HSAI_ARENA_LR": "6e-06",
+    "HSAI_ARENA_TARGET_KL": "0.05",
+    "HSAI_ARENA_ENTROPY": "0.002",
+    "HSAI_ARENA_ANCHOR": "0.1",
+    "HSAI_ARENA_ANCHOR_ITERS": "100",
+    "HSAI_ARENA_ANCHOR_TAIL": "0.02",
+    "HSAI_ARENA_RANK_UTILITY": "1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75",
+    "HSAI_ARENA_TIER_COEF": "0",
+    "HSAI_ARENA_WIN_BONUS": "0",
+    "HSAI_ARENA_REQUIRE_DUAL": "1",
+    "HSAI_ARENA_LOBBY_EXCLUDE": "",
+    "HSAI_RECRUIT_START_P": "0"
+  },
+  "arms": {
+    "A": {
+      "HSAI_ARENA_SEED": "82361001",
+      "HSAI_ARENA_OUT": "artifacts/runs/nus-human-turn-ppo-a-20261118-1"
+    },
+    "B": {
+      "HSAI_ARENA_SEED": "82362001",
+      "HSAI_ARENA_OUT": "artifacts/runs/nus-human-turn-ppo-b-20261118-1"
+    }
+  },
+  "slurm": {
+    "partition": "gpu-long",
+    "time": "06:00:00",
+    "gres": "gpu:h100-47:2",
+    "cpus": 32,
+    "mem": "96G"
+  },
+  "endpoint": "First complete rollout at 120M decisions per arm. Stop an arm after 340 training minutes if earlier; a time-limited partial budget is reported separately. Fixed seeds and split, no endpoint selection."
+}
