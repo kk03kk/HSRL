@@ -13,15 +13,8 @@ from hsbg.az.train.engine_quality import require_clean_engine
 from hsbg.runtime.artifacts import atomic_json,file_identity
 from tools.compare_research_panels import load_sealed_panel
 
-ROOT=Path('artifacts/runs/nus-recruit-order-20261118-1')
+ROOT=Path('artifacts/runs/nus-recruit-order-20261118-2')
 PANEL=Path('artifacts/runs/nus-natural12m-eval-20261118-1/panel.json')
-
-
-def hand_key(item):
-    if 'Minion' in item:
-        return ('entity',item['Minion']['eid'])
-    spell=item['Spell']
-    return ('spell',spell['card'],spell['data'])
 
 
 def describe(p,a):
@@ -31,11 +24,12 @@ def describe(p,a):
         return ('sell' if a<23 else 'activate',p['board'][(a-16)%7]['eid'])
     if 46<=a<126:
         hand,pos=divmod(a-46,8)
-        anchor=p['board'][pos]['eid'] if pos<len(p['board']) and 'Minion' in p['hand'][hand] else None
-        return ('play',hand_key(p['hand'][hand]),anchor)
+        h=p['hand'][hand]
+        anchor=p['board'][pos]['eid'] if pos<len(p['board']) and 'Minion' in h['item'] else None
+        return ('play',h['hid'],anchor)
     if 126<=a<196:
         hand,pos=divmod(a-126,7)
-        return ('magnet',hand_key(p['hand'][hand]),p['board'][pos]['eid'])
+        return ('magnet',p['hand'][hand]['hid'],p['board'][pos]['eid'])
     return None
 
 
@@ -47,12 +41,12 @@ def resolve(p,key):
         return 8+ids.index(key[1]) if key[1] in ids else None
     if kind in ('sell','activate'):
         return (16 if kind=='sell' else 23)+board.index(key[1]) if key[1] in board else None
-    items=[hand_key(x) for x in p['hand']]
+    items=[h['hid'] for h in p['hand']]
     if items.count(key[1])!=1:
         return None
     hand=items.index(key[1])
     if key[2] is None:
-        return 46+8*hand+(len(board) if 'Minion' in p['hand'][hand] else 0)
+        return 46+8*hand+(len(board) if 'Minion' in p['hand'][hand]['item'] else 0)
     if key[2] not in board:
         return None
     pos=board.index(key[2])
