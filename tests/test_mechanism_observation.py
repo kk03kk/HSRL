@@ -119,5 +119,9 @@ def test_native_target_source_alias_is_ignored_by_legacy_entity():
     model=build_net(arch='entity',d_model=16,n_layers=1,n_heads=2).eval()
     f=torch.tensor(np.stack([np.frombuffer(fa,dtype='<f4'),np.frombuffer(fb,dtype='<f4')]))
     c=torch.tensor(np.stack([np.frombuffer(ca,dtype='<i4'),np.frombuffer(cb,dtype='<i4')]),dtype=torch.long)
-    with torch.no_grad():outputs=model(f,c)
-    assert all(torch.equal(o[0],o[1]) for o in outputs)
+    # Compare each example at the same batch position. CPU batched reductions
+    # can round two otherwise identical rows differently; that is not evidence
+    # that the legacy model reads the omitted pending-source card.
+    same_source=c.clone();same_source[1,4]=same_source[0,4]
+    with torch.no_grad():outputs=model(f,c);control=model(f,same_source)
+    assert all(torch.equal(a,b) for a,b in zip(outputs,control))
