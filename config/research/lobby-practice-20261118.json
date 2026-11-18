@@ -1,0 +1,13 @@
+{
+  "reference": "config/research/natural12m-20261118.json",
+  "purpose": "Small paired curriculum pilot, no large training authorized",
+  "training_seeds": [18341001, 18342001],
+  "rollouts_per_arm": 16,
+  "games_per_rollout": 512,
+  "arms": ["natural", "mixed"],
+  "natural": "Unfiltered source games throughout",
+  "mixed": "Before seeing each game select 25% deterministically for a lobby without MECHANICAL or DRAGON; other games follow the natural seed. Use normal shops, heroes, trinkets, rewards, snapshots, upgrades and prices in every game.",
+  "controls": "Both natural controls are trained from the same parent with the same source revision, rollout seed, budget and teacher as their mixed partner. Independent new Adam per run. The original schedule has no forced upgrade; coefficient 0.1, no six target.",
+  "assessment": "One frozen endpoint per arm, unrestricted strictness-0 v14hold protocol matching D-128, 192 new shared seeds from 76210000. Report common T9-T12 log growth, rank, original utility and T12 reach for all seeds, neither tribe, and at least one tribe. Pair within seed and training replica. Preserve both replicas. Parent is an additional comparison.",
+  "advance": "Both mixed arms must improve original utility and common growth over matched controls on the weak lobby stratum. In all natural lobbies both must retain T12 reach within 3 percentage points and average original utility must not drop. On lobbies with either tribe, joint original utility lower 95% bound must exceed -0.15. No endpoint selection or follow-up training based on an isolated positive."
+}

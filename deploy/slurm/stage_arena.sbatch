@@ -225,6 +225,7 @@ python workflows/train_entity_sync.py \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze 1 \
   --max-actions-per-turn 100 \
   --lobby-exclude "${HSAI_ARENA_LOBBY_EXCLUDE:-}" \
+  --lobby-filter-probability "${HSAI_ARENA_LOBBY_FILTER_PROBABILITY:-1}" \
   --freeze-cap "${HSAI_ARENA_FREEZE_CAP:-1}" --ban-trinkets "${HSAI_ARENA_BAN_TRINKETS:-1}" \
   --tier-target-coef "$tier_coef" --tier-penalty "$tier_penalty" \
   --tier-bonus "$tier_bonus" \

@@ -418,6 +418,10 @@ def main() -> int:
             pass
     from hsbg.az.train.cli import build_parser
     args = build_parser().parse_args()
+    if not 0 <= args.lobby_filter_probability <= 1:
+        raise ValueError("invalid lobby filter probability")
+    if args.lobby_filter_probability < 1 and (args.rust_collector or not args.lobby_exclude):
+        raise ValueError("mixed lobby practice requires the Python collector and an exclusion set")
     # 健康门阈值：整轮只构造一次（纯数据，无副作用）。
     health_limits = HealthLimits.from_args(args)
     # 2026-11-16：冠军奖金必须在**任何**策略/训练器构造之前生效——它是原地改写
@@ -2040,6 +2044,7 @@ def main() -> int:
         ban_trinkets=bool(int(getattr(args, "ban_trinkets", 1) or 0)),
         # 2026-11-17（D-071）：lobby 种族排除（空 = 不过滤，逐位等价旧行为）。
         lobby_exclude=parse_race_list(getattr(args, "lobby_exclude", "")),
+        lobby_filter_probability=args.lobby_filter_probability,
             move_cap=int(args.move_cap),
             archetype_bias_coef=float(args.archetype_bias_coef),
             archetype_min_prob=float(args.archetype_min_prob),
@@ -2218,6 +2223,12 @@ def main() -> int:
                 terminal_strength_coef=float(args.terminal_strength_coef))
         # 动态难度闭环：用本轮**实测**的到达率 / 战斗胜率更新下一轮的难度档位并落盘。
         # 放在 collect 之后、update 之前：下一轮采集才会用到新档位（与 ramp 同相位）。
+        if c_cfg.lobby_filter_probability < 1:
+            from hsbg.az.train.lobby_filter import is_excluded
+            _, first = np.unique(batch.episode_ids, return_index=True)
+            collect_meta["practice_games_observed"] = len(first)
+            collect_meta["practice_games_without_races"] = sum(
+                not is_excluded(batch.features[j], c_cfg.lobby_exclude) for j in first)
         if arena is not None:
             try:
                 collect_meta.update(arena.update(_arena_stats_from_meta(collect_meta)))

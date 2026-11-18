@@ -178,6 +178,7 @@ class LobbyFilterStats:
 
 def make_filtered_game(engine: Any, seed: int, exclude: Sequence[str] = (), *,
                        learner_seat: int = 0, max_tries: int = 96,
+                       probability: float = 1.0,
                        stats: Optional[LobbyFilterStats] = None
                        ) -> Tuple[Any, int]:
     """建一局**lobby 不含被禁种族**的游戏，返回 ``(game, 实际 seed)``。
@@ -185,6 +186,11 @@ def make_filtered_game(engine: Any, seed: int, exclude: Sequence[str] = (), *,
     ``exclude`` 为空时等价于 ``engine.Game(seed)``（逐位不变，零开销）。
     ``max_tries`` 用完仍找不到就抛错（不要静默用一局含禁族的对局顶上去）。
     """
+    if not 0 <= probability <= 1:
+        raise ValueError("lobby filter probability must be between zero and one")
+    # A separate hash stream assigns the practice condition before seeing the lobby.
+    if probability < 1 and derive_seed(seed, 719) >= probability * (1 << 63):
+        exclude = ()
     if not exclude:
         if stats is not None:
             stats.applied += 1

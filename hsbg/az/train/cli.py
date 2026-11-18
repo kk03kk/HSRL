@@ -38,6 +38,8 @@ def build_parser():
                     help="禁掉的 lobby 种族（逗号分隔，如 MECHANICAL,DRAGON；空=不过滤）。"
                          "用确定性种子过滤实现：含被禁种族的局会被跳过换派生种子，"
                          "引擎与卡表都不改（见 hsbg/az/train/lobby_filter.py）")
+    ap.add_argument("--lobby-filter-probability", type=float, default=1.0,
+                    help="Training fraction assigned the lobby exclusion before observing the game.")
     # ── 借鉴第三方模型的三项"可选结构"（2026-11-17 D-072；默认全关 = 逐位等价旧模型）──
     # 以前这三项在 build_entity_net 里存在，但训练入口**没有任何 CLI** ⇒ 永远打不开。
     ap.add_argument("--use-z", type=int, default=0, choices=[0, 1],

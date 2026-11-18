@@ -374,6 +374,7 @@ class CollectConfig:
     #: 空元组 = 不过滤（逐位等价旧行为）。非空时用**确定性种子过滤**：引擎仍从 10 个
     #: 类型抽 5 个，但含被禁种族的局会被跳过并换一个派生种子重来。
     lobby_exclude: Tuple[str, ...] = ()
+    lobby_filter_probability: float = 1.0
     #: worker 侧采样（L2）：sims=0 + behavior=net 时跳过 245 维 prior 回传。
     fast_act: bool = True
     #: lock-step 批量 actor：每 worker 内 N 局同步推进（每轮一次批量前向）。
@@ -4607,6 +4608,7 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
             policy.reset()
             game, _used_seed = make_filtered_game(
                 E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+                probability=cfg.lobby_filter_probability,
                 learner_seat=int(getattr(cfg, "learner_seat", 0)))
             if _process_on:
                 # consume 计数来自引擎事件日志；只在过程价值开启时打开（默认关闭零影响）

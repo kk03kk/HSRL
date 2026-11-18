@@ -1,0 +1,22 @@
+{
+  "schema":"hsai.eval-plan/v1",
+  "purpose":"D-132 mixed natural lobby practice fixed short endpoints",
+  "games":192, "shards":8, "seed":76210000,
+  "models":[
+    {"name":"parent","checkpoint":"artifacts/models/arena-v1.4-r1/model.pt","sha256":"5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"},
+    {"name":"natural_a","checkpoint":"artifacts/runs/nus-practice-natural-a-20261118-1/train/model.pt"},
+    {"name":"mixed_a","checkpoint":"artifacts/runs/nus-practice-mixed-a-20261118-1/train/model.pt"},
+    {"name":"natural_b","checkpoint":"artifacts/runs/nus-practice-natural-b-20261118-1/train/model.pt"},
+    {"name":"mixed_b","checkpoint":"artifacts/runs/nus-practice-mixed-b-20261118-1/train/model.pt"}
+  ],
+  "evaluation":{
+    "mirror-snaps":"artifacts/libraries/arena-cal-v14hold-snap","mirror-sample":"p50band","mirror-strict":0,
+    "mirror-seats":7,"mirror-p":1,"lobby-exclude":"","max-actions-per-turn":100,
+    "move-guard":1,"move-cap":2,"move-repeat-limit":2,"freeze-cap":1,
+    "forbid-cancel":1,"forbid-unfreeze":1,"ban-trinkets":1,
+    "human-baseline":"artifacts/runs/human-baseline-20261112/baseline.json"
+  },
+  "expected_protocol_sha256":"7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+  "replay_steps_per_trace":32,
+  "stop_rule":"One valid research panel. No further training or promotion."
+}

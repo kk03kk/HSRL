@@ -117,3 +117,16 @@ def test_filter_cost_is_negligible():
         LF.make_filtered_game(engine, seed, ("MECHANICAL", "DRAGON"))
     dt = time.time() - t0
     assert dt < 2.0, f"过滤 50 局用了 {dt:.2f}s"
+
+
+def test_partial_practice_uses_the_same_game_as_its_assigned_condition():
+    exclude = ("MECHANICAL", "DRAGON")
+    assigned = set()
+    for seed in range(43600, 43680):
+        selected = LF.derive_seed(seed, 719) < 0.25 * (1 << 63)
+        assigned.add(selected)
+        mixed, actual = LF.make_filtered_game(engine, seed, exclude, probability=0.25)
+        reference, expected = LF.make_filtered_game(engine, seed, exclude if selected else ())
+        assert actual == expected and mixed.state_json() == reference.state_json()
+        assert LF.make_filtered_game(engine, seed, exclude, probability=0)[1] == seed
+    assert assigned == {False, True}

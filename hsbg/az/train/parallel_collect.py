@@ -116,6 +116,7 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
         weak_rng = np.random.default_rng(int(seed) + gi)
         game, _used_seed = make_filtered_game(
             E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+            probability=cfg.lobby_filter_probability,
             learner_seat=int(getattr(cfg, "learner_seat", 0)))
         # 塑形：上一决策的 Φ(s') 复用为本决策的 Φ(s)；局末/截断用 Φ(terminal)=0。
         rec_prev: Optional[int] = None
@@ -509,6 +510,7 @@ def collect_ppo_lockstep(model: Any, cfg: CollectConfig, *, eval_fn: Any,
     for gi in range(n):
         g0, _used_seed = make_filtered_game(
             E, int(cfg.seed) + gi, getattr(cfg, "lobby_exclude", ()),
+            probability=cfg.lobby_filter_probability,
             learner_seat=int(getattr(cfg, "learner_seat", 0)))
         start_info=None
         if start_p:
