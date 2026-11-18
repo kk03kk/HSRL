@@ -74,7 +74,7 @@ def trial(task):
     if operator in ('bridge_parent_buy','bridge_growth_buy'):
         if first_action is None:raise ValueError('first-action policy requires the declared bridge fixture')
         policy.configure(first_action)
-    seed=11960000+case['case']*100+replica
+    seed=case.get('future_seed_base',11960000)+case['case']*100+replica
     fresh=json.loads(E.Game(seed=seed).state_json());initial['seed']=fresh['seed'];initial['rng']=fresh['rng']
     path=Path(root)/'trials'/name/f"case-{case['case']:03d}-{variant}-r{replica:02d}"
     path.mkdir(parents=True,exist_ok=False)
@@ -189,7 +189,9 @@ def main(args):
         sources=eligible
         if not sources:raise ValueError('no eligible bridge sources')
     if args.probe:sources=sources[:1]
-    for i,s in enumerate(sources):s['case']=i
+    for i,s in enumerate(sources):
+        s['case']=i
+        if 'future_seed_base' in plan:s['future_seed_base']=int(plan['future_seed_base'])
     variants=plan['variants'][:1] if args.probe else plan['variants']
     replicas=1 if args.probe else plan['replicas']
     models={n:m for n,m in plan['models'].items()

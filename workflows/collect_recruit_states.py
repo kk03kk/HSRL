@@ -36,6 +36,14 @@ class StateBank:
     def end_game(self,*args,**kwargs):pass
 
 
+def validate_source_namespace(seed,games,assessment_only=False):
+    """Keep fresh assessment sources disjoint from the teaching namespace."""
+    lower,upper=(12602000,12602128) if assessment_only else (11800000,11810000)
+    if games<1 or not lower<=seed<seed+games<=upper:
+        label='assessment-only' if assessment_only else 'training-source'
+        raise ValueError('use the separate '+label+' seed namespace')
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--checkpoint',required=True)
@@ -44,9 +52,9 @@ def main():
     p.add_argument('--seed',type=int,default=11800000)
     p.add_argument('--device',default='cuda')
     p.add_argument('--mirror-snaps',default='artifacts/libraries/arena-cal-v14-snap')
+    p.add_argument('--assessment-only',action='store_true')
     args=p.parse_args()
-    if not (args.seed>=11800000 and args.seed+args.games<=11810000):
-        raise ValueError('use the separate training-source seed namespace')
+    validate_source_namespace(args.seed,args.games,args.assessment_only)
     torch.set_num_threads(1)
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
     proto=EvalProtocol(mirror_snaps=args.mirror_snaps)
@@ -64,7 +72,9 @@ def main():
         'checkpoint':file_identity(args.checkpoint),'checkpoint_path':args.checkpoint,
         'args':vars(args),'states':bank.n,'data':file_identity(out/'states.jsonl.gz'),
         'seeds':result['seed_sequence'],'ranks':result['rank_sequence'],
-        'purpose':'training/development source, never a formal evaluation'})
+        'assessment_only':args.assessment_only,
+        'purpose':('Conditional assessment-only source; never training or natural-game promotion'
+                   if args.assessment_only else 'training/development source, never a formal evaluation')})
     print(json.dumps({'states':bank.n,'games':args.games,'mean_rank':result['mean_rank']}))
 
 

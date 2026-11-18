@@ -59,3 +59,15 @@ def test_core_constraint_changes_only_policy_sale_mask():
     end=len(state['players'][0]['board'])
     assert changed==list(range(16+end-3,16+end))
     assert game.state_json()==before and bytes(game.legal_mask(0))==native
+
+
+def test_collection_namespaces_are_explicit_disjoint_and_bounded():
+    import pytest
+    from workflows.collect_recruit_states import validate_source_namespace
+    validate_source_namespace(11800000,10000)
+    validate_source_namespace(12602000,128,True)
+    validate_source_namespace(12602112,16,True)
+    for seed,games,assessment in ((12602000,128,False),(11800000,16,True),
+                                  (12602000,129,True),(12602000,0,True)):
+        with pytest.raises(ValueError,match='namespace'):
+            validate_source_namespace(seed,games,assessment)
