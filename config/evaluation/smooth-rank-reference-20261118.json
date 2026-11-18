@@ -1,0 +1,44 @@
+{
+  "schema": "hsai.eval-plan/v1",
+  "purpose": "D-127 natural terminal utility pilot, held-out field, fixed endpoints",
+  "games": 256,
+  "shards": 8,
+  "seed": 15600000,
+  "models": [
+    {
+      "name": "parent",
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1"
+    },
+    {
+      "name": "control_a",
+      "checkpoint": "artifacts/runs/nus-input-base-20261118-1/train/model.pt",
+      "sha256": "bfd248d1a4e0a8bd6979507a871abaca3c4a9e5d2e4ad5daa01a3040b2b1ae90"
+    },
+    {
+      "name": "control_b",
+      "checkpoint": "artifacts/runs/nus-delay-control-b-20261118-1/train/model.pt",
+      "sha256": "c6e000cb67b58a30a6a46165cd6a990a46375972bb694651e34b489523fffc8d"
+    }
+  ],
+  "evaluation": {
+    "mirror-snaps": "artifacts/libraries/arena-cal-v14hold-snap",
+    "mirror-sample": "p50band",
+    "mirror-strict": 0,
+    "mirror-seats": 7,
+    "mirror-p": 1,
+    "lobby-exclude": "",
+    "max-actions-per-turn": 100,
+    "move-guard": 1,
+    "move-cap": 2,
+    "move-repeat-limit": 2,
+    "freeze-cap": 1,
+    "forbid-cancel": 1,
+    "forbid-unfreeze": 1,
+    "ban-trinkets": 1,
+    "human-baseline": "artifacts/runs/human-baseline-20261112/baseline.json"
+  },
+  "expected_protocol_sha256": "7e15f114d0f9290a80e64d8c2e2706c424594adc5ef1a9c44e8e3d59dcb5b56c",
+  "replay_steps_per_trace": 64,
+  "stop_rule": "One complete valid assessment; no extra runs selected based on outcome"
+}
