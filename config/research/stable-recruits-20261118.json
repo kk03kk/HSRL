@@ -1,0 +1,5 @@
+{
+  "hypothesis": "The broad terminal-utility trained actors showed positive point estimates but one lost T12 survival. Test accepting only greedy deviations already preferred by the preceding update of the same training arm.",
+  "deployment": "Same legal actions, frozen parent and T7-12 window. Use iteration 4 only when its argmax also equals iteration 3 argmax, else choose parent. No checkpoint choice, threshold tuning or separate fitting.",
+  "panel": "256 previously unused v14hold seeds 89600000..89600255, one run each for parent, agreement A/B and unrestricted iteration-4 A/B. Same D-128 five gates for the agreement family, plus same-seed direct comparison against unrestricted for attribution. Unrestricted is a simultaneous control. Fresh 512-seed confirmation required before recommending broad training."
+}
