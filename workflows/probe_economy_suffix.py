@@ -40,6 +40,11 @@ def trial(task):
     from hsbg.az.train.research_economy_policy import EconomicOptionPolicy
     torch.set_num_threads(1)
     case,variant,replica,name,checkpoint,operator,root,device,library=task
+    first_action=None
+    if variant=='privateer_bridge':
+        from workflows.payoff_bridge import privateer_triple
+        initial,edits,first_action=privateer_triple(case['state'])
+    else:initial,edits=fixture(case['state'],variant)
     key=(name,checkpoint,json.dumps(operator,sort_keys=True) if isinstance(operator,dict) else operator,device)
     if key not in _CACHE:
         built=make_eval_policy(checkpoint,protocol=EvalProtocol(mirror_snaps=library),device=device)
@@ -50,6 +55,10 @@ def trial(task):
             if file_identity(operator['adapter'])['sha256']!=operator['sha256']:raise ValueError('residual identity differs')
             adapter=load_adapter(operator['adapter'],file_identity(checkpoint),device)
             policy=HistoryResidualPolicy(policy.evaluator,adapter)
+        elif operator in ('bridge_parent_buy','bridge_growth_buy'):
+            from hsbg.az.train.first_action_probe import FirstActionPolicy
+            if operator=='bridge_growth_buy':policy=EconomicOptionPolicy(policy.evaluator,operator_mode='growth')
+            policy=FirstActionPolicy(policy)
         elif operator=='retain_gate':
             from hsbg.az.train.gate_retention_probe import GateRetentionPolicy
             policy=GateRetentionPolicy(policy.evaluator)
@@ -61,7 +70,9 @@ def trial(task):
         _CACHE[key]=(policy,file_identity(checkpoint))
     if ('pool',library) not in _CACHE:_CACHE[('pool',library)]=MirrorSnapshotPool(library,sample='p50band')
     policy,checkpoint_identity=_CACHE[key]
-    initial,edits=fixture(case['state'],variant)
+    if operator in ('bridge_parent_buy','bridge_growth_buy'):
+        if first_action is None:raise ValueError('first-action policy requires the declared bridge fixture')
+        policy.configure(first_action)
     seed=11960000+case['case']*100+replica
     fresh=json.loads(E.Game(seed=seed).state_json());initial['seed']=fresh['seed'];initial['rng']=fresh['rng']
     path=Path(root)/'trials'/name/f"case-{case['case']:03d}-{variant}-r{replica:02d}"
@@ -155,6 +166,17 @@ def main(args):
     plan_path=Path(args.plan);plan=json.loads(plan_path.read_text())
     out=Path(args.out);out.mkdir(parents=True,exist_ok=False)
     sources=select_sources(plan['bank'])
+    exclusions=[]
+    if 'source_filter' in plan:
+        if plan['source_filter']!={'tier_min':5,'gold_min':3} or plan['variants']!=['privateer_bridge']:
+            raise ValueError('unknown predeclared source filter')
+        eligible=[]
+        for s in sources:
+            p=s['state']['players'][0]
+            if 5<=p['tier']<=6 and p['gold']>=3:eligible.append(s)
+            else:exclusions.append({'seed':s['seed'],'tier':p['tier'],'gold':p['gold'],'reason':'pre-outcome bridge eligibility'})
+        sources=eligible
+        if not sources:raise ValueError('no eligible bridge sources')
     if args.probe:sources=sources[:1]
     for i,s in enumerate(sources):s['case']=i
     variants=plan['variants'][:1] if args.probe else plan['variants']
@@ -180,6 +202,7 @@ def main(args):
         'cases':file_identity(out/'cases.jsonl.gz'),'source':source_identity(Path(__file__).resolve().parents[1]),
         'environment':environment_identity(),'snapshot_files':library_identity}
     if adapters:run['residual_assets']=adapters
+    if 'source_filter' in plan:run['source_filter']={'definition':plan['source_filter'],'excluded':exclusions,'included_sources':len(sources)}
     if run['source']['tracked_dirty']:raise ValueError('committed source required')
     atomic_json(out/'run.json',run)
     tasks=[(s,v,r,n,m['checkpoint'],m['operator'],str(out),args.device,str(library))

@@ -1,0 +1,40 @@
+{
+  "schema": "hsai.research-plan/v1",
+  "authority": "D-114 one-step native acquisition bridge, fixed four-arm continuation contrast",
+  "bank": "artifacts/runs/nus-recruit-bank-20261118-2",
+  "library": "artifacts/libraries/arena-cal-v14-snap",
+  "variants": ["privateer_bridge"],
+  "source_filter": {"tier_min": 5, "gold_min": 3},
+  "replicas": 2,
+  "reference": "parent",
+  "probe_models": ["parent", "parent_buy", "growth", "growth_buy"],
+  "models": {
+    "parent": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": false
+    },
+    "parent_buy": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "bridge_parent_buy"
+    },
+    "growth": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "growth"
+    },
+    "growth_buy": {
+      "checkpoint": "artifacts/models/arena-v1.4-r1/model.pt",
+      "sha256": "5058768bf90e989a943c6e21800a0767095a81a2034f4d4bf8d3d603028896a1",
+      "operator": "bridge_growth_buy"
+    }
+  },
+  "source_selection": "All existing 49 development starts with native tier 5 or 6 and gold >=3, eligibility before outcomes. Record every exclusion. No outcome or teacher-success filtering.",
+  "fixture": "Explicit gold Brann/Rogers/Escapee setup, one normal Privateer on board, one in hand, a third legally purchasable in the shop. Original gold/health/tier/opponents retained. Native Buy pays the cost and creates the golden triple.",
+  "intervention": "Buy arms replace only the first guarded legal action with this native purchase. Then use the SAME parent or growth continuation as the corresponding no-forced-buy arm. Guard counts and teacher actual-action history remain continuous. Control may buy later naturally.",
+  "future_rng": "11960000 + filtered_source_case_index * 100 + replica",
+  "analysis": "All complete suffixes. Paired first-buy effect separately under parent and growth; source-clustered rank-effect interaction. Report growth-versus-parent continuation contrast separately. No automatic demonstration labels.",
+  "budget": "At most 49 sources x 2 future RNG x 4 arms = 392 complete suffixes; one study only",
+  "limitations": ["Explicit artificial precursor, not natural formation frequency", "Strong prior components already supplied", "Heuristic continuation not optimal", "Repeated exploratory sources", "No neural model promotion or automatic PPO continuation"]
+}

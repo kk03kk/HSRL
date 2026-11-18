@@ -13,6 +13,7 @@ from hsbg.az.train.public_turn_history import PublicTurnHistory,SCHEMA_SHA256 as
 from hsbg.az.train.conditional_economy import current_gate_spec
 from hsbg.az.train.shadow_economy import gold_context
 from hsbg.az.train.ppo import PPOGreedyPolicy,masked_probs_np,value_from_rank_logits_np
+from hsbg.runtime.artifacts import file_identity
 
 SCHEMA='hsai.history-logit-residual/v1'
 
@@ -61,6 +62,21 @@ def load_adapter(path,base,device='cpu'):
         raise ValueError('residual asset or base identity differs')
     model=HistoryResidual(payload['spec']);model.load_state_dict(payload['state_dict'],strict=True)
     return model.to(device).eval()
+
+
+def restore_bc_state(adapter_path,state_path,base,device='cpu'):
+    """Restore this residual's Adam and sampling RNG; not a PPO resume API."""
+    state=torch.load(state_path,map_location='cpu',weights_only=True)
+    if (state.get('schema')!='hsai.history-residual-bc-state/v1'
+            or state.get('model')!=file_identity(adapter_path)
+            or type(state.get('updates')) is not int or state['updates']<0):
+        raise ValueError('residual BC recovery identity differs')
+    model=load_adapter(adapter_path,base,device)
+    optimizer=torch.optim.Adam(model.parameters())
+    optimizer.load_state_dict(state['optimizer'])
+    rng=np.random.default_rng();rng.bit_generator.state=state['numpy_rng']
+    torch.set_rng_state(state['torch_rng'])
+    return model,optimizer,rng,state['updates']
 
 
 class HistoryResidualEvaluator:

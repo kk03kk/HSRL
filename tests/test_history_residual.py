@@ -93,3 +93,29 @@ def test_complete_native_game_records_and_reconstructs_actual_history(tmp_path):
         for row in rows:stream.write(json.dumps(row)+'\n')
     manifest.update(file_identity(path));recorder.manifest_path.write_text(json.dumps(manifest),encoding='utf-8')
     with pytest.raises(ValueError,match='public history'):validate_trace(path)
+
+
+def test_residual_adam_and_sampling_resume_matches_uninterrupted_updates(tmp_path):
+    from hsbg.az.train.history_residual import restore_bc_state
+    from hsbg.runtime.artifacts import file_identity
+    torch.manual_seed(24);torch.set_num_threads(1)
+    model=HistoryResidual(current_spec(True));opt=torch.optim.Adam(model.parameters(),lr=.001)
+    rng=np.random.default_rng(24);base={'sha256':'frozen-base','bytes':1}
+    f=torch.randn(8,3282);c=torch.zeros(8,124,dtype=torch.long);prior=torch.randn(8,245)
+    h=torch.randint(0,2,(8,7));target=torch.arange(8)
+    def step(net,optimizer,random):
+        ix=random.integers(8,size=4);p=prior[ix]+net(f[ix],c[ix],prior[ix],h[ix])
+        loss=torch.nn.functional.cross_entropy(p,target[ix]);optimizer.zero_grad();loss.backward();optimizer.step()
+    step(model,opt,rng);path=tmp_path/'model.pt';save_adapter(path,model,base,{})
+    state=tmp_path/'bc_state.pt'
+    torch.save({'schema':'hsai.history-residual-bc-state/v1','optimizer':opt.state_dict(),
+        'torch_rng':torch.get_rng_state(),'numpy_rng':rng.bit_generator.state,'updates':1,'model':file_identity(path)},state)
+    step(model,opt,rng);step(model,opt,rng)
+    restored,other,random,updates=restore_bc_state(path,state,base)
+    assert updates==1 and other.param_groups[0]['lr']==.001
+    step(restored,other,random);step(restored,other,random)
+    assert all(torch.equal(v,restored.state_dict()[k]) for k,v in model.state_dict().items())
+    assert rng.bit_generator.state==random.bit_generator.state
+    with torch.no_grad():restored.output.bias.add_(1)
+    save_adapter(path,restored,base,{})
+    with pytest.raises(ValueError,match='recovery identity'):restore_bc_state(path,state,base)
