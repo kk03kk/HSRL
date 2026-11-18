@@ -1,5 +1,35 @@
 # D-140 真人场长训前审计
 
+## 正式运行交接
+
+D-141，2026-11-18 新加坡时间。用户批准连续四个 3 小时段，原定 10:00 截止已取消。实际冻结发布为 `artifacts/releases/human-turn-four-segments-20261118`，源码 `c47b0469529f00c957e148229fd6eea52f501490`。下文 D-140 调度示例只记录提交前方案。
+
+| 作业 | 编号 | 开始条件 |
+|---|---:|---|
+| 训练 1 | 1163891 | 已于 23:34:59 在 xgpi16 启动，获配至次日 02:34:59 |
+| 训练 2 | 1163892 | 1163891 成功 |
+| 训练 3 | 1163893 | 1163892 成功 |
+| 训练 4 | 1163894 | 1163893 成功 |
+| 512 局终点评测 | 1163895 | 1163894 成功 |
+
+四段申请完整的 3 小时、2 个 H100-47 切片、32 CPU 和 96 GB。作业在自己的获配结束前预留 90 秒用于关闭和落盘。Slurm 的 afterok 依赖、无效依赖取消和独立输出目录共同保护接力。后段核对前段成功清单和同一代两个文件的 SHA-256，经校验后恢复完整 Trainer。作业全部在服务器共享盘与 Slurm 执行。按首段开工加 12 小时推算，11 月 19 日 11:35 左右是无额外排队的粗略参考；提前收尾和排队均会改变实际时间。
+
+23:36:07 实查两批各 512 局，96,849 + 95,139 个样本全部进入 PPO；每批 12 次优化器更新，83,442 次快照注入均成功，非法动作、丢弃、截断和注入错误均为 0。第二批流水线延迟 1 个策略版本，保护器正常。首个已发布的滚动检查点为版本 1，模型 67,864,316 字节、Trainer 254,313,001 字节。首段正常结束后才创建该段的完成清单。正式棋力结果待评测。
+
+在服务器项目根目录查看：
+
+```bash
+sacct -X -j 1163891,1163892,1163893,1163894,1163895 -o JobID,JobName,State,Start,End,Elapsed,ExitCode
+cd ~/projects/HSAI/artifacts/runs
+ls nus-human-turn-overnight-20261118-1/segment-*/complete.json
+readlink -f nus-human-turn-overnight-20261118-1/latest-complete
+ls nus-human-turn-overnight-eval-20261119-1/{complete,panel,validation}.json
+```
+
+服务器训练根目录含 `jobs.txt`。每段的 `train.log` 和 `train/history.jsonl` 可在运行期间查看。`latest-complete/model.pt` 与 `latest-complete/trainer.pt` 指向最后完整封存的一代。评测目录中的 `complete.json` 表示整套留出面板已通过校验。
+
+## 提交前的审计记录
+
 截至 2026-11-18 23:23（新加坡时间），两次短验证均已结算，正式训练等待确认。执行版本为服务器冻结发布 `artifacts/releases/human-turn-overnight-20261118`，Git 提交 `0135a6a`。
 
 ## 训练目标与边界
