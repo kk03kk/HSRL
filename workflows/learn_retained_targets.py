@@ -117,16 +117,24 @@ class Durability(TimingPolicy):
                 magnitude = float(max(np.abs(dnow).sum(), np.abs(dperm).sum()))
                 by_action[a] = (score,magnitude,cons)
             estimates.append(by_action)
+        callback=getattr(self,'observe_comparison',None)
         if any(default not in e for e in estimates):
+            if callback:
+                callback(c,prior,opts,default,default,retention,{})
             return prior,value
         # Require the conservative improvement in both reseeded simulations.
         best,best_margin=default,0.
+        scores={}
         for a in opts:
             if any(a not in e or e[a][2]!=e[default][2] for e in estimates):
                 continue
             margin=min(e[a][0]-e[default][0]-max(2., .20*max(e[a][1],e[default][1])) for e in estimates)
+            if callback:
+                scores[a]=min((e[a][0]-e[default][0])/max(10.,e[a][1],e[default][1])-.20 for e in estimates)
             if margin>best_margin:
                 best,best_margin=a,margin
+        if callback:
+            callback(c,prior,opts,default,best,retention,scores)
         if best==default:
             return prior,value
         self.counter['changed']+=1
