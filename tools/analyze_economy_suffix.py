@@ -55,8 +55,11 @@ def board_stats(board):
             and bool(ids&{'BG33_823','BG33_823_G'}) and bool(ids&{'BG36_523','BG36_523_G'}))}
 
 
-def analyze(roots, policies=None, variants=None):
+def analyze(roots, policies=None, variants=None, extra_references=()):
     rows,identities,comparison=merge_studies(roots,policies,variants)
+    names={r['name'] for r in rows}
+    if not set(extra_references)<=names:raise ValueError('additional reference arm missing')
+    additional={name:compare(rows,name) for name in extra_references}
     grouped=defaultdict(list);cards=defaultdict(Counter);sources=defaultdict(set);quality=[]
     for root in map(Path,roots):
         complete=json.loads((root/'complete.json').read_text())
@@ -83,7 +86,7 @@ def analyze(roots, policies=None, variants=None):
             'card_occurrences':dict(cards[key].most_common())}
     return {'inputs':identities,'selected_whole_policy_arms':policies,'selected_whole_variants':variants,
         'selection_scope':'Whole declared policy arms/variants only; no outcome, source, or replica filtering',
-        'comparison':comparison,'boards':boards,
+        'comparison':comparison,'additional_comparisons':additional,'boards':boards,
         'quality':{'passed':True,'trials':len(quality),
             **{k:sum(r[k] for r in quality) for k in ('games','actions','mirror_attempt','mirror_applied','mirror_skipped_ended')}},
         'scope':'Descriptive matched endowed suffixes, not natural performance or causal attribution of board features'}
@@ -93,7 +96,8 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--runs',nargs='+',required=True)
     p.add_argument('--policies',nargs='+',help='Explicit whole arms; never filters individual outcomes')
     p.add_argument('--variants',nargs='+',help='Explicit whole fixture variants; never filters individual outcomes')
+    p.add_argument('--extra-reference',nargs='+',default=[],help='Additional matched contrasts from the same admitted full arms')
     p.add_argument('--out',required=True);args=p.parse_args()
     if Path(args.out).exists():raise FileExistsError(args.out)
-    result=analyze(args.runs,args.policies,args.variants);atomic_json(args.out,result)
+    result=analyze(args.runs,args.policies,args.variants,args.extra_reference);atomic_json(args.out,result)
     print(json.dumps(result['comparison']['paired']),flush=True)
