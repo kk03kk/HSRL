@@ -199,6 +199,13 @@ if __name__ == '__main__':
     stage = sys.argv[1]
     if stage == 'train':
         train()
+    elif stage == 'assess':
+        from workflows.learn_recruit_residual import paired_endpoints
+        rows = []
+        for shard in range(8):
+            cases = json.loads((ROOT / f'panel-{shard:02}' / 'complete.json').read_text())['rows']
+            rows.extend(r for case in cases for r in case)
+        atomic_json(ROOT / 'assessment.json', paired_endpoints(rows, 86700000, 256))
     elif stage in ('source', 'panel'):
         shard = int(sys.argv[2])
         n = 48 if stage == 'source' else 32

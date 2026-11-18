@@ -136,10 +136,15 @@ def assessment():
     rows=[]
     for shard in range(8):
         rows.extend(json.loads((ROOT/f'eval-{shard}/games.json').read_text()))
-    if len(rows)!=3*256:
+    atomic_json(ROOT/'complete.json', paired_endpoints(rows, 83500000, 256))
+
+
+def paired_endpoints(rows, first_seed, n):
+    if len(rows)!=3*n:
         raise ValueError('incomplete natural panel')
     seeds=[r['seed'] for r in rows]
-    assert all(seeds[3*i:3*i+3]==[83500000+i]*3 for i in range(256))
+    if not all(seeds[3*i:3*i+3]==[first_seed+i]*3 for i in range(n)):
+        raise ValueError('mismatched natural seeds')
     data=[]
     for arm in range(3):
         games=rows[arm::3]
@@ -165,14 +170,14 @@ def assessment():
         report.append(summary)
     # Bootstrap the same game seeds jointly and recompute each arm's common-survivor mean.
     rng=np.random.default_rng(118128)
-    index=rng.integers(256,size=(10000,256))
+    index=rng.integers(n,size=(10000,n))
     joint={}
     for name,values in zip(('utility','rank','reach','growth'),diffs):
         estimates=np.stack([np.nanmean(v[index],axis=1) for v in values]).mean(0)
         joint[name]=dict(mean=float(np.mean([np.nanmean(v) for v in values])),ci95=np.quantile(estimates,[.025,.975]).tolist())
     gate=(all(r['growth_diff']['mean']>0 and r['utility_diff']['mean']>=0 and r['reach_diff']['mean']>=-.03 for r in report[1:])
           and joint['growth']['ci95'][0]>0 and joint['rank']['ci95'][1]<.20)
-    atomic_json(ROOT/'complete.json',dict(advance=bool(gate),report=report,joint=joint,paired_seeds=256))
+    return dict(advance=bool(gate),report=report,joint=joint,paired_seeds=n)
 
 
 if __name__=='__main__':
