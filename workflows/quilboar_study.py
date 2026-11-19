@@ -89,10 +89,10 @@ class Recorder:
         self.lobby=int(json.loads(game.state_json())['lobby_races'])
         self.events=[]
 
-    def before(self,game,seat):
+    def before(self,game,seat,*,player=None):
         if not self.lobby & 128 or int(game.turn)<3:
             return None
-        p=json.loads(game.player_json(seat))
+        p=json.loads(game.player_json(seat)) if player is None else player
         table=roles()[0]
         riders={m['eid'] for m in p['board'] if table[m['card']+1,0]}
         if not riders:

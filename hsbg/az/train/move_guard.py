@@ -156,29 +156,29 @@ class MoveGuard:
         self.stats.decisions += 1
         st = self._state(game_id, seat, turn)
 
-        legal_off = np.flatnonzero(m[MOVE_LO:MOVE_HI])
-        if legal_off.size == 0:
+        legal_moves = int(np.count_nonzero(m[MOVE_LO:MOVE_HI]))
+        if not legal_moves:
             return out, False
 
         cap_hit = len(st.moves) >= self.cap
-        inverse = -1
-        if is_move(st.last_action):
-            src, dst = decode_move(st.last_action)
-            if src != dst:                      # 恒等换位本就不合法，防御性跳过
-                inverse = encode_move(dst, src)
-
         n_inv = n_rep = n_cap = 0
-        for off in legal_off:
-            a = MOVE_LO + int(off)
-            if cap_hit:
-                out[a] = False
-                n_cap += 1
-            elif a == inverse:
-                out[a] = False
-                n_inv += 1
-            elif self.repeat_limit > 0 and st.counts.get(a, 0) >= self.repeat_limit:
-                out[a] = False
-                n_rep += 1
+        if cap_hit:
+            out[MOVE_LO:MOVE_HI] = False
+            n_cap = legal_moves
+        else:
+            if MOVE_LO <= st.last_action < MOVE_HI:
+                src, dst = decode_move(st.last_action)
+                inverse = encode_move(dst, src)
+                if src != dst and out[inverse]:
+                    out[inverse] = False
+                    n_inv = 1
+            if self.repeat_limit > 0:
+                for action, count in st.counts.items():
+                    if count >= self.repeat_limit and out[action]:
+                        out[action] = False
+                        n_rep += 1
+            if not (n_inv or n_rep):
+                return out, False
 
         if not out.any():
             if cap_hit and self.hard_cap:
@@ -200,8 +200,7 @@ class MoveGuard:
         self.stats.blocked_cap += n_cap
         # 「剩余只剩 EndTurn」= 守卫实际上强制结束了本回合：同样按确定性约束记
         # forced（掩码退化为单点，采样分布恒为 EndTurn），并写 move_guard_forced。
-        rest = np.flatnonzero(out)
-        if rest.size == 1 and int(rest[0]) == 0:
+        if out[0] and not out[1:].any():
             self.stats.forced += 1
             return out, True
         return out, False

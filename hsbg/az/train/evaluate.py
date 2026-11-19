@@ -246,6 +246,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
             card_id, name = card_names[index]
             result.append({**minion, 'position':position, 'card_id':card_id, 'name':name})
         return result
+    recorder = config.decision_recorder
+    before_with_player = getattr(recorder, "before_with_player", None)
     t0 = time.time()
     for gi in range(int(config.games)):
         # 2026-11-17（D-071）：可能因 lobby 种族过滤换种子 ⇒ 记录**实际**使用的 seed。
@@ -389,8 +391,13 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                             raise RuntimeError('cannot fork before strict opponent preparation')
                         capture(game, policy, strict)
                         capture = None
-                    _trace_before = (config.decision_recorder.before(game, seat)
-                                     if config.decision_recorder is not None else None)
+                    _need_pj = (ft_tracker is not None) or bool(config.collect_economy)
+                    _pj = None
+                    if _need_pj and before_with_player is not None:
+                        _pj = json.loads(game.player_json(seat))
+                        _trace_before = before_with_player(game, seat, _pj)
+                    else:
+                        _trace_before = recorder.before(game, seat) if recorder is not None else None
                     mask = mask_from_bytes(game.legal_mask(seat))
                     dec = policy.decide(game, seat)
                     action = int(dec.action)
@@ -398,8 +405,8 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                     # 2026-11-16 性能：以前强制升本和经济采集**各自** json.loads 一次
                     # player_json，等于每决策解析两遍完整状态（评测的热点）。
                     # 两处都在 game.step 之前读，所以一次解析就够，语义完全等价。
-                    _need_pj = (ft_tracker is not None) or bool(config.collect_economy)
-                    _pj = json.loads(game.player_json(seat)) if _need_pj else None
+                    if _need_pj and _pj is None:
+                        _pj = json.loads(game.player_json(seat))
                     if ft_tracker is not None:
                         _fd = ft_tracker.decide(
                             game_id=gi, seat=seat, turn=int(game.turn),
@@ -438,8 +445,9 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                         repeated_actions += action == previous_action
                         previous_action = action
                         if action == 0:
-                            player = json.loads(game.player_json(seat))
+                            player = _pj
                             board = player["board"]
+                            described_board = describe_board(board)
                             from .mirror_snapshots import capture_eot
                             eot = capture_eot(game, seat)
                             eot_board = eot['player']['board'] if eot is not None else None
@@ -452,7 +460,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 consecutive_repeats=repeated_actions,
                                 upgrade_legal_steps=upgrade_legal_steps,
                                 forced=bool(dec.info.get("forced", False)),
-                                board=describe_board(board), board_stage='before_end_turn',
+                                board=described_board, board_stage='before_end_turn',
                                 eot_available=eot_board is not None,
                                 eot_board=describe_board(eot_board) if eot_board is not None else None,
                                 eot_attack=sum(int(m['atk']) for m in eot_board) if eot_board is not None else None,
@@ -463,7 +471,7 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                                 # ②"不循环"是没钱买，还是手里没牌可打
                                 board_stats={str(m.get('card_id') or m.get('card')):
                                              [int(m.get('atk') or 0), int(m.get('hp') or 0)]
-                                             for m in describe_board(board)},
+                                             for m in described_board},
                                 hand_n=(len(player.get('hand') or [])
                                         if isinstance(player.get('hand'), list) else None),
                                 gold_events=list(gold_events),

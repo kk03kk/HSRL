@@ -18,11 +18,13 @@ class ReturnRecorder(Recorder):
         super().begin_game(game,index,seed,seat)
         self.measured=[]
 
-    def before(self,game,seat):
-        previous=super().before(game,seat)
+    def before(self,game,seat,*,player=None):
+        if player is None and self.lobby & 128 and int(game.turn)>=3:
+            player=json.loads(game.player_json(seat))
+        previous=super().before(game,seat,player=player)
         if previous is None:
             return None
-        p=json.loads(game.player_json(seat))
+        p=player
         size=[1+p["stats"][k] for k in ("gem_atk","gem_hp")]
         return previous,{m["eid"]:m["atk"]+m["hp"] for m in p["board"]},size
 

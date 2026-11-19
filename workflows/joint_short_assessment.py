@@ -67,11 +67,11 @@ class Mechanisms(ReturnRecorder):
         self.hope_growth=set()
         self.previous_hope={}
 
-    def before(self,game,seat):
-        b=super().before(game,seat)
+    def before(self,game,seat,*,player=None):
         if game.turn<6:
-            return b,None
-        p=C.own(game,seat)
+            return super().before(game,seat,player=player),None
+        p=C.own(game,seat) if player is None else player
+        b=super().before(game,seat,player=p)
         ids=C.card_ids()
         if self.lobby&4:
             for m in p["board"]:
@@ -87,6 +87,9 @@ class Mechanisms(ReturnRecorder):
                 if mask[8+i] and card in (ids[AZ],ids[RIDER]):
                     self.offers.add("element" if card==ids[AZ] else "pig")
         return b,p
+
+    def before_with_player(self,game,seat,player):
+        return self.before(game,seat,player=player)
 
     def after(self,game,before,decision,a,forced):
         b,p=before

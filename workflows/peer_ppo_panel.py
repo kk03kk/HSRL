@@ -37,14 +37,21 @@ class Scores:
             raise RuntimeError("start-board sell restriction emptied the legal mask")
         inp = [torch.as_tensor(x, device=self.device)[None] for x in (f, c, legal)]
         logits, value = self.net(*inp)
-        if not torch.isfinite(logits[0]).all() or not torch.isfinite(value).all():
+        # Transfer the result once so Python does not synchronize CUDA separately
+        # for the finite checks, the argmax, and the value.
+        valid = torch.isfinite(logits[0]).all() & torch.isfinite(value).all()
+        score = value[0]
+        choice, baseline, finite = torch.stack(
+            (logits[0].argmax().to(score.dtype), score, valid.to(score.dtype))
+        ).tolist()
+        if not finite:
             raise RuntimeError("nonfinite external inference")
-        chosen = int(logits[0].argmax())
+        chosen = int(choice)
         if not legal[chosen]:
             raise ValueError("illegal network argmax")
         pi = np.zeros_like(f[:245])
         pi[chosen] = 1
-        return pi, float(value[0])
+        return pi, baseline
 
 
 class Peer(PPOGreedyPolicy):
