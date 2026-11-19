@@ -1,0 +1,21 @@
+{
+  "pilot_selection": {
+    "start_seed": 189430000,
+    "games": 384,
+    "positive_terminal_utility": true,
+    "min_paired_utility_ci_lower": -0.05,
+    "min_common_t12_log_body_ci_lower": -0.12
+  },
+  "independent_confirmation": {
+    "start_seed": 190260000,
+    "games": 512,
+    "same_parent_prefixes": 256,
+    "comparison": "Same pilot endpoint against the calibrated native actor, greedy play.",
+    "decision": "Require positive independent utility, positive pooled utility lower 95% bound, independent paired T12 log-body lower 95% bound >= -0.12, and a positive pooled point estimate for T9-to-T12 growth or T14 log body. Review reach, original mechanisms, same-state low-health behavior, and exact-field utility bounds before spending the overnight budget."
+  },
+  "long_endpoint": {
+    "start_seed": 191570000,
+    "games": 512,
+    "same_parent_prefixes": 256
+  }
+}
