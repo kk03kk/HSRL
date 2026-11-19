@@ -118,8 +118,9 @@ class Recorder:
         pass
 
 
-def play(policy,pool,seed):
-    rec=Recorder()
+def play(policy,pool,seed,rec=None):
+    if rec is None:
+        rec=Recorder()
     r=evaluate_policy(policy,EvalConfig(games=1,seed=seed,mirror_pool=pool,mirror_strict=True,
                                         decision_recorder=rec,collect_economy=True))
     if (r['games_finished']!=1 or r['seed_sequence']!=[seed] or any(r[k] for k in
