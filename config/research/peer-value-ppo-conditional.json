@@ -1,0 +1,12 @@
+{
+  "requires": "Both rank-result.json and fork-result.json passed in nus-peer-value-20261119-1",
+  "seed": 256100000,
+  "batches": 60,
+  "games_per_batch": 256,
+  "arms": ["data-matched compact critic", "rich critic"],
+  "actor": "Same unchanged original peer action weights, native D-152 action-head PPO, no behavior teacher or stat reward. The two value heads are selected on training-library validation seeds.",
+  "evaluation_seed": 257100000,
+  "evaluation_games": 512,
+  "evaluation_arms": ["unchanged original greedy peer", "compact PPO endpoint", "rich PPO endpoint"],
+  "large_run_decision": "For a recommendation, require positive paired utility with a 95% lower bound above zero versus equal-budget compact PPO, a positive point estimate versus the original peer, and no material loss in reach or common-seed T12/T14 growth and original mechanisms. Review tail bounds and sample size. A recommendation never submits an overnight job."
+}
