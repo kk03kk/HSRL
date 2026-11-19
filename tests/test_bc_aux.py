@@ -115,6 +115,14 @@ def test_replay_purchase_slots_and_observed_resource_versions(tmp_path):
         parser.set_tag("2","25","0")
         assert parser.gold == 2
     assert remaining_health({"45":"30","44":"22"})==8
+    modern.bob_ctrl = "2"
+    modern.ent.update({s:{"last":int(s)} for s in ("11","12","13")})
+    modern._cards = lambda zone,ctrl,kinds: [
+        {"eid":"11","position":3,"card_id":"old"},
+        {"eid":"12","position":3,"card_id":"observed"},
+        {"eid":"13","position":7,"card_id":"seventh"},
+    ] if (zone,ctrl)==("1","2") else []
+    assert [(m["position"],m["card_id"]) for m in modern._shop()]==[(3,"observed"),(7,"seventh")]
     for slot,expected in ((0,8),(3,11),(7,15),(None,None),(8,None)):
         row = {"action_type":"buy_spell","shop_slot":slot}
         assert modern._action_index(row)==expected

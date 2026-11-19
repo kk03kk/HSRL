@@ -373,6 +373,20 @@ class XmlReplay:
         out.sort(key=lambda m: (m["position"], m["eid"]))
         return out
 
+    def _shop(self):
+        if self.bob_ctrl is None:
+            return []
+        by_position = {}
+        for item in self._cards(ZONE_PLAY, self.bob_ctrl, CARD_KINDS):
+            pos = item["position"]
+            if not 1 <= pos <= 8:
+                continue
+            eid = item["eid"]
+            order = (self.ent[eid]["last"], int(eid))
+            if pos not in by_position or order > by_position[pos][0]:
+                by_position[pos] = (order, item)
+        return [by_position[pos][1] for pos in sorted(by_position)]
+
     def snapshot(self, reason="attack"):
         if self.main_ctrl is None:
             return None
@@ -403,18 +417,7 @@ class XmlReplay:
             "hero_armor": self.hero_armor,
             "opp_hero_card": opp_hero,
         }
-        if self.bob_ctrl is not None:
-            shop = []
-            seen = set()
-            for zone in (ZONE_PLAY, ZONE_SETASIDE):
-                for m in self._cards(zone, self.bob_ctrl, CARD_KINDS):
-                    key = (m["position"], m["card_id"])
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    shop.append(m)
-            shop.sort(key=lambda m: (m["position"], m["eid"]))
-            snap["shop"] = shop[:8]
+        snap["shop"] = self._shop()
         self.snapshots.append(snap)
         self.snapped_turns.add(int(self.round))
         return snap
@@ -498,21 +501,12 @@ class XmlReplay:
                     "hero_max_hp": self.hero_hp, "hero_armor": self.hero_armor,
                     "shop_slot": None, "board_slot": None,
                     "hand_slot": None, "play_pos": None,
-                    "board_cards": [m["card_id"] for m in self._board(self.main_ctrl)],
-                    "hand_cards": [m["card_id"] for m in self._cards(ZONE_HAND, self.main_ctrl, HAND_KINDS)],
-                    "shop_cards": [],
                 }
-                if self.bob_ctrl is not None:
-                    shop = []
-                    seen = set()
-                    for zone in (ZONE_PLAY, ZONE_SETASIDE):
-                        for m in self._cards(zone, self.bob_ctrl, CARD_KINDS):
-                            k = (m["position"], m["card_id"])
-                            if k not in seen:
-                                seen.add(k)
-                                shop.append(m)
-                    shop.sort(key=lambda m: (m["position"], m["eid"]))
-                    snap["shop_cards"] = [m["card_id"] for m in shop[:8]]
+                for zone, items in (("board", self._board(self.main_ctrl)),
+                                    ("hand", self._cards(ZONE_HAND, self.main_ctrl, HAND_KINDS)),
+                                    ("shop", self._shop())):
+                    snap[zone+"_cards"] = [m["card_id"] for m in items]
+                    snap[zone+"_pos"] = [m["position"]-1 for m in items]
                 if at in ("buy_minion", "buy_spell"):
                     if tgt.get("card"):
                         snap["card_id"] = tgt.get("card")
@@ -602,6 +596,9 @@ class XmlReplay:
                 "board_cards": [m["card_id"] for m in s["self_board"]],
                 "hand_cards": [m["card_id"] for m in s["hand"]],
                 "shop_cards": [m["card_id"] for m in s["shop"]],
+                "board_pos": [m["position"]-1 for m in s["self_board"]],
+                "hand_pos": [m["position"]-1 for m in s["hand"]],
+                "shop_pos": [m["position"]-1 for m in s["shop"]],
                 "action_index": 0,
             }
             self.actions.append(a)
@@ -939,6 +936,8 @@ def parse_game(task):
                 "board_cards": a.get("board_cards") or [],
                 "hand_cards": a.get("hand_cards") or [],
                 "shop_cards": a.get("shop_cards") or [],
+                "board_pos": a.get("board_pos") or [], "hand_pos": a.get("hand_pos") or [],
+                "shop_pos": a.get("shop_pos") or [],
                 "shop_slot": a.get("shop_slot"), "board_slot": a.get("board_slot"),
                 "hand_slot": a.get("hand_slot"), "play_pos": a.get("play_pos"),
                 "action_index": a.get("action_index"),

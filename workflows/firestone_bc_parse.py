@@ -174,6 +174,7 @@ class GameParser:
             if val is not None:
                 self.zone_sets.setdefault(val, set()).add(eid)
         e["tags"][tag] = val
+        e["last"] = self.seq
         if tag == TAG_CONTROLLER:
             card = e.get("card") or ""
             if "BaconShopBob" in card:
@@ -226,18 +227,14 @@ class GameParser:
         hand = self._cards_in(self.zone_sets.get(ZONE_HAND, ()), HAND_KINDS, self.main_ctrl)
         shop = []
         if self.bob_ctrl is not None:
-            shop_ids = set(self.zone_sets.get(ZONE_PLAY, ())) | set(self.zone_sets.get(ZONE_SETASIDE, ()))
-            shop = self._cards_in(shop_ids, CARD_KINDS, self.bob_ctrl)
-            # 同一槽位去重（zone 1/6 可能同时存在同一张展示卡）
-            seen = set()
-            uniq = []
-            for pos, eid, cid in shop:
-                key = (pos, cid)
-                if key in seen:
-                    continue
-                seen.add(key)
-                uniq.append((pos, eid, cid))
-            shop = uniq
+            visible = self._cards_in(self.zone_sets.get(ZONE_PLAY, ()), CARD_KINDS, self.bob_ctrl)
+            by_position = {}
+            for pos,eid,cid in visible:
+                if 1 <= pos <= 8:
+                    order = (self.entities[eid].get("last",0), int(eid))
+                    if pos not in by_position or order > by_position[pos][0]:
+                        by_position[pos] = (order,(pos,eid,cid))
+            shop = [by_position[pos][1] for pos in sorted(by_position)]
         return {
             "board": [c for _, _, c in board],
             "hand": [c for _, _, c in hand],
