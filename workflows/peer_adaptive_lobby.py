@@ -30,10 +30,13 @@ def play(weights, index, change, start=343410000):
     agents = []
     for seat in range(8):
         # Opponent roles are identical across arms and rotate with the focal seat.
-        p = weights["native" if (seat-focus)%8 in (2,4,6) else "peer"]
-        agent = deepcopy(p,{id(p.evaluator):p.evaluator})
-        if seat==focus and change:
-            agent = RetainMaterial(agent)
+        if seat == focus and "intent" in weights:
+            agent = weights["intent" if change else "material"]
+        else:
+            p = weights["native" if (seat-focus)%8 in (2,4,6) else "peer"]
+            agent = deepcopy(p,{id(p.evaluator):p.evaluator})
+            if seat==focus and change:
+                agent = RetainMaterial(agent)
         agent.reset()
         agents.append(agent)
     old_turn = -1
@@ -74,12 +77,16 @@ def play(weights, index, change, start=343410000):
         overrides=agents[focus].overrides if change else [])
 
 
-def shard(out, index, pairs=8, workers=8, start=343410000):
+def shard(out, index, pairs=8, workers=8, start=343410000, bundle=None):
     import torch
     torch.set_num_threads(1)
     proto,_ = holdout_protocol()
     weights = {k:make_eval_policy(str(p),protocol=proto,device="cpu")["policy"]
                for k,p in (("peer",INITIAL),("native",native.BASE))}
+    if bundle is not None:
+        weights["intent"] = make_eval_policy("research-policy:"+str(bundle),protocol=proto,device="cpu")["policy"]
+        parent = bundle/read(bundle/"policy.json")["parent"]["path"]
+        weights["material"] = make_eval_policy(str(parent),protocol=proto,device="cpu")["policy"]
     for j in range(index, pairs, workers):
         raw,kept = play(weights,j,False,start),play(weights,j,True,start)
         if not kept["overrides"] and raw!=kept:
@@ -87,7 +94,7 @@ def shard(out, index, pairs=8, workers=8, start=343410000):
         atomic_json(out/f"pair-{j}.json",dict(parent=raw,candidate=kept))
 
 
-def run(out, pairs=8, workers=8, start=343410000):
+def run(out, pairs=8, workers=8, start=343410000, bundle=None):
     from concurrent.futures import ThreadPoolExecutor
     import subprocess
     if source_identity(ROOT)["tracked_dirty"] or file_identity(INITIAL)["sha256"]!=INITIAL_SHA or file_identity(
@@ -101,13 +108,16 @@ def run(out, pairs=8, workers=8, start=343410000):
         parent=INITIAL_SHA,native=native.PLAN["base_sha"],rules="human-turn-3702-standard",
         engine_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),live_pin=file_identity(ROOT/"config/live/model.json"),
         job=os.environ["SLURM_JOB_ID"],scope="adaptive simulated field; estimate incremental utility and common T12 strength")
+    if bundle is not None:
+        spec.update(peer_opponent=INITIAL_SHA,parent=read(bundle/"policy.json")["parent"]["identity"]["sha256"],
+                    candidate=file_identity(bundle/"policy.json")["sha256"])
     spec["protocol_sha256"]=sha256(json.dumps({k:v for k,v in spec.items() if k not in ("job","source")},
         sort_keys=True).encode()).hexdigest()
     atomic_json(out/"plan.json",spec)
     def launch(i):
         with (out/f"worker-{i}.log").open("x") as log:
             subprocess.run([sys.executable,__file__,str(out),"--worker",str(i),"--pairs",str(pairs),
-                            "--workers",str(workers),"--seed",str(start)],check=True,
+                            "--workers",str(workers),"--seed",str(start)]+(["--bundle",str(bundle)] if bundle else []),check=True,
                            stdout=log,stderr=subprocess.STDOUT)
     with ThreadPoolExecutor(workers) as ex:
         list(ex.map(launch,range(workers)))
@@ -134,8 +144,9 @@ if __name__=="__main__":
     parser.add_argument("--workers",type=int,default=8)
     parser.add_argument("--pairs",type=int,default=8)
     parser.add_argument("--seed",type=int,default=343410000)
+    parser.add_argument("--bundle",type=Path)
     args=parser.parse_args()
     if args.worker is None:
-        run(args.out,args.pairs,args.workers,args.seed)
+        run(args.out,args.pairs,args.workers,args.seed,args.bundle)
     else:
-        shard(args.out,args.worker,args.pairs,args.workers,args.seed)
+        shard(args.out,args.worker,args.pairs,args.workers,args.seed,args.bundle)

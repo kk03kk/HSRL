@@ -316,6 +316,12 @@ def make_eval_policy(
 
     ``kind`` 是 ``"own"`` / ``"thirdparty"``，写进报告便于审计。
     """
+    if str(spec).startswith("research-policy:"):
+        from .sale_intent_policy import load_bundle
+        def load_parent(path):
+            return make_eval_policy(path, protocol=protocol, device=device, load_checkpoint=load_checkpoint,
+                                    evaluator_factory=evaluator_factory, greedy_policy_cls=greedy_policy_cls)
+        return load_bundle(str(spec).removeprefix("research-policy:"), protocol, load_parent)
     if load_checkpoint is None or evaluator_factory is None \
             or greedy_policy_cls is None:
         from .model import load_checkpoint as _lc  # noqa: PLC0415 - 惰性，单测可注入
