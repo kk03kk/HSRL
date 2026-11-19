@@ -71,7 +71,7 @@ class SpendOnSpell:
         return prior,value
 
 
-def shard(out,i):
+def shard(out,i,seed_start,games):
     import torch
     torch.set_num_threads(1)
     proto,digest = field()
@@ -83,7 +83,7 @@ def shard(out,i):
         return SpendOnSpell(make_eval_policy(str(BASE/"model.pt"),protocol=proto,device="cuda:0")["policy"],change)
     base,alternative = policy(False),policy(True)
     rows,cases = [],[]
-    for seed in range(START+i,START+N,8):
+    for seed in range(seed_start+i,seed_start+games,8):
         a = trial(base,pool,seed,event_turns=True)
         b = trial(alternative,pool,seed,event_turns=True)
         if a["lobby"] != b["lobby"] or base.case != alternative.case or (base.case is None and a != b):
@@ -94,22 +94,24 @@ def shard(out,i):
     atomic_json(out/f"cases-{i}.json",cases)
 
 
-def run(out):
+def run(out,seed_start=START,games=N):
     source = source_identity(ROOT)
-    if source["tracked_dirty"] or file_identity(BASE/"model.pt")["sha256"] != BASE_SHA:
+    if (source["tracked_dirty"] or file_identity(BASE/"model.pt")["sha256"] != BASE_SHA
+            or games <= 0 or games % 8):
         raise ValueError("wrong source or reference policy")
     proto,lib = field()
     out.mkdir(exist_ok=False)
     atomic_json(out/"plan.json",dict(source=source,parent=BASE_SHA,protocol=proto.sha256(),library=lib,
-        seed=START,games=N,job=os.environ["SLURM_JOB_ID"],engine_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),
+        seed=seed_start,games=games,job=os.environ["SLURM_JOB_ID"],engine_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),
         live_pin=file_identity(ROOT/"config/live/model.json"),rule="First T7+ legal shop spell with 1-2 gold when greedy would pass or refresh. Buy highest policy-probability spell once, then ordinary policy.",
         gate="All-game utility lower paired 95% CI > 0 and common T12 log strength lower CI >= -0.12."))
     def launch(i):
         with (out/f"worker-{i}.log").open("x") as log:
-            subprocess.run([sys.executable,__file__,str(out),"--worker",str(i)],stdout=log,stderr=subprocess.STDOUT,check=True)
+            subprocess.run([sys.executable,__file__,str(out),"--worker",str(i),"--seed",str(seed_start),
+                            "--games",str(games)],stdout=log,stderr=subprocess.STDOUT,check=True)
     with ThreadPoolExecutor(8) as workers:
         list(workers.map(launch,range(8)))
-    report = compare(out,START,N)
+    report = compare(out,seed_start,games)
     cases = [row["case"] for i in range(8) for row in read(out/f"cases-{i}.json") if row["case"]]
     report.update(affected=len(cases),refresh=sum(c["original"]==A_REFRESH for c in cases),
                   passed=report["delta"]["utility"]["ci95"][0]>0 and report["delta"]["log12"]["ci95"][0]>=-.12)
@@ -120,8 +122,10 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out",type=Path)
     parser.add_argument("--worker",type=int)
+    parser.add_argument("--seed",type=int,default=START)
+    parser.add_argument("--games",type=int,default=N)
     args=parser.parse_args()
     if args.worker is None:
-        run(args.out)
+        run(args.out,args.seed,args.games)
     else:
-        shard(args.out,args.worker)
+        shard(args.out,args.worker,args.seed,args.games)
