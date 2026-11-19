@@ -91,21 +91,22 @@ def trial(policy, pool, seed):
                 decisions=r["decisions"], injections=mirror["mirror_applied"])
 
 
-def crossover(pool, base, peer, dest, index):
+def crossover(pool, policies, dest, index, opening):
     from workflows.d142_crossover import Fork, play
+    other = "peer_free" if opening=="base" else "base"
     for seed in range(179240000+index,179240128,SHARDS):
         fork = Fork()
-        ordinary = play(pool,base,seed,capture=fork)
-        legs = {"base":ordinary}
+        ordinary = play(pool,policies[opening],seed,capture=fork)
+        legs = {opening:ordinary}
         if fork.state is not None:
-            same = play(pool,base,seed,resume=fork)
+            same = play(pool,policies[opening],seed,resume=fork)
             if (same["terminal"] != ordinary["terminal"] or same["rank"] != ordinary["rank"]
                     or same["actions"] != [a for a in ordinary["actions"] if a[0]>=9]):
                 raise ValueError(f"same-policy replay mismatch {seed}")
-            legs["peer_free"] = play(pool,peer,seed,resume=fork)
+            legs[other] = play(pool,policies[other],seed,resume=fork)
         else:
-            legs["peer_free"] = ordinary
-        atomic_json(dest/f"{seed}.json",dict(seed=seed, opening=fork.opening if fork.state else None,
+            legs[other] = ordinary
+        atomic_json(dest/f"{seed}.json",dict(seed=seed, prefix=opening, opening=fork.opening if fork.state else None,
                    legs={k:dict(rank=v["rank"],strength=v["strength"],terminal=v["terminal"])
                          for k,v in legs.items()}))
 
@@ -131,8 +132,8 @@ def main():
     dest.mkdir(exist_ok=False)
     atomic_json(dest/"identity.json",dict(model=PEER_SHA,base=Q.PLAN["base_sha"],protocol=proto.sha256(),
         upstream_engine=ck["meta"].get("engine_source_hash"),device=device,z=45))
-    if sys.argv[2:]==["cross"]:
-        crossover(pool,policies["base"],policies["peer_free"],dest,index)
+    if sys.argv[2:] in (["cross"],["cross-peer"]):
+        crossover(pool,policies,dest,index,"base" if sys.argv[2]=="cross" else "peer_free")
         return
     for seed in range(SEED+index,SEED+N,SHARDS):
         rows = {k:trial(p,pool,seed) for k,p in policies.items()}

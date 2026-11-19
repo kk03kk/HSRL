@@ -63,5 +63,29 @@ def analyze(root):
     return dict(models=summary,paired=pairs)
 
 
+def analyze_cross(root):
+    rows=[json.loads(p.read_bytes()) for p in root.glob("shard-*/179*.json")]
+    assert sorted(r["seed"] for r in rows)==list(range(179240000,179240128))
+    reached=[r["legs"] for r in rows if r["opening"]]
+    pairs={}
+    for key, group in (("all",[r["legs"] for r in rows]),("reached9",reached)):
+        pair={}
+        for name,metric in (("rank",lambda x:x),("win",lambda x:int(x==1)),
+                            ("top2",lambda x:int(x<=2)),("top4",lambda x:int(x<=4))):
+            measures=[[metric(r[k]["rank"]) for r in group] for k in ("base","peer_free")]
+            pair[name]={"means":[sum(v)/len(v) for v in measures],
+                        "difference":interval([b-a for a,b in zip(*measures)])}
+        pairs[key]=pair
+    turns={}
+    for t in ("10","12","14","15"):
+        common=[r for r in reached if all(t in a["strength"] for a in r.values())]
+        same=[[r[k]["strength"][t] for r in common] for k in ("base","peer_free")]
+        turns[t]=dict(n=len(common),medians=[quant(v) for v in same],
+            median_paired_change=quant([b-a for a,b in zip(*same)]),
+            reach=[sum(t in r[k]["strength"] for r in reached) for k in ("base","peer_free")])
+    return dict(starts=len(rows),reached9=len(reached),paired=pairs,turns=turns)
+
+
 if __name__=="__main__":
-    print(json.dumps(analyze(Path(sys.argv[1])),indent=2))
+    runner=analyze_cross if sys.argv[2:]==["cross"] else analyze
+    print(json.dumps(runner(Path(sys.argv[1])),indent=2))
