@@ -28,6 +28,7 @@ def read(path):
 
 
 def holdout_protocol():
+    from hsbg.az.train.personal import library_digest
     profile = os.environ.get("HSAI_ACTION_PROFILE")
     if profile not in (OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE):
         proto, pool = panel.Q.config("hold", allow_tail_variant=True)
@@ -47,6 +48,9 @@ def holdout_protocol():
         expected = STANDARD_PROTOCOL if profile == STANDARD_ACTION_PROFILE else OPEN_PROTOCOL
     if proto.sha256() != expected or pool.frames != 5477:
         raise ValueError("hold protocol or library size mismatch")
+    expected_library = read(ROOT / "config/research/human-turn-3702-ppo.json")["library_digests"]["hold"]
+    if library_digest(proto.mirror_snaps) != expected_library:
+        raise ValueError("hold library content mismatch")
     return proto, pool
 
 

@@ -34,10 +34,11 @@ def compare(root, start, n):
             game["metrics"].update(prepare(game))
             game["metrics"]["reach12"] = int(body(game, 12) is not None)
     models = {}
+    last_turn = max(int(turn) for row in rows for game in row.values() for turn in game["turns"])
     for name in rows[0]:
         games = [r[name] for r in rows]
         turns = {}
-        for turn in range(6, 19):
+        for turn in range(1, last_turn + 1):
             values = [v for g in games if (v := body(g, turn)) is not None]
             turns[turn] = dict(n=len(values), p50=p50(values))
         models[name] = dict(turns=turns,

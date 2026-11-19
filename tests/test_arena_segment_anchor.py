@@ -31,7 +31,8 @@ python() { printf '%s\\n' "$@" > "$out/args-$i.txt"; }
         'anchor_beta anchor_iters anchor_tail forced_tier_plan forced_tier_carry '
         'forced_tier_prob forced_teacher_until forced_teacher_coef tier_coef tier_bonus '
         'tier_table tier_gate_k tier_gate_ref tier_penalty win_bonus rank_utility_table actor_gpus '
-        'mirror_strict mirror_sample move_cap freeze_cap unfreeze_ban ban_trinkets').split()
+        'mirror_strict mirror_sample move_guard move_cap move_repeat max_actions '
+        'freeze_cap unfreeze_ban ban_trinkets').split()
     script+='\n'.join(f'{name}=0' for name in variables)+'\n'+body
     env={**os.environ,'CAPTURE_ROOT':out.as_posix(),'CAPTURE_RESUME':str(resume),'HSAI_ARENA_PARENT_TRAINER':parent}
     subprocess.run([bash_binary(),'-c',script],env=env,check=True,capture_output=True,text=True,encoding='utf-8')

@@ -377,7 +377,7 @@ def _split_sections(text: str) -> Dict[str, str]:
 
 
 SERVER_STATE_SCRIPT = r"""
-set -u
+set -eu
 cd ~/projects/HSAI || exit 3
 echo "@@HEAD"
 git log -1 --format='%H %s'
@@ -408,6 +408,9 @@ def server_state() -> Dict[str, Any]:
     if rc != 0:
         raise OpsError(f"服务器状态读取失败 rc={rc}: {err.strip()[:300]}")
     s = _split_sections(out)
+    if (not re.fullmatch(r'[0-9a-f]{40}(?: .*)?', s.get("HEAD", "").strip())
+            or not s.get("BRANCH", "").strip() or "DIRTY" not in s or "JOBS" not in s):
+        raise OpsError("Incomplete server Git or queue state")
     dirty = [ln for ln in s.get("DIRTY", "").splitlines() if ln.strip()]
     jobs = []
     for line in s.get("JOBS", "").splitlines():
@@ -465,11 +468,18 @@ def build_state() -> Dict[str, Any]:
     if tunnel["ok"] and "error" not in state.get("server", {}):
         drift = {
             "head_equal": local["head"].split()[0] == state["server"]["head"].split()[0],
+            "branch_equal": local["branch"] == state["server"]["branch"],
             "local_dirty": local["dirty_count"],
             "server_dirty": state["server"]["dirty_count"],
         }
     state["drift"] = drift
     return state
+
+
+def in_sync(state: Dict[str, Any]) -> bool:
+    drift = state.get("drift")
+    return bool(drift and drift["head_equal"] and drift["branch_equal"]
+                and not drift["local_dirty"] and not drift["server_dirty"])
 
 
 def print_state(state: Dict[str, Any]) -> None:
@@ -492,7 +502,7 @@ def print_state(state: Dict[str, Any]) -> None:
         print(f"           models={len(srv.get('models', []))} libs={len(srv.get('libraries', []))}")
     if state.get("drift"):
         d = state["drift"]
-        flag = "IN SYNC" if d["head_equal"] and not d["local_dirty"] and not d["server_dirty"] else "DRIFT"
+        flag = "IN SYNC" if in_sync(state) else "DRIFT"
         print(f"  drift  : {flag} (heads_equal={d['head_equal']} "
               f"local_dirty={d['local_dirty']} server_dirty={d['server_dirty']})")
 
@@ -896,7 +906,7 @@ def cmd_state(args: argparse.Namespace) -> int:
         print(json.dumps(state, ensure_ascii=False, indent=2))
     else:
         print_state(state)
-    return 0 if state["tunnel"]["ok"] else 2
+    return 0 if in_sync(state) else 2
 
 
 def non_ascii_warning(script: str) -> Optional[str]:

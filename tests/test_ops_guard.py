@@ -16,6 +16,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ops"))
 
 from hsai_ops import check_heavy, non_ascii_warning  # noqa: E402
+
+
+@pytest.mark.parametrize("field,value", [
+    ("head_equal", False), ("branch_equal", False),
+    ("local_dirty", 1), ("server_dirty", 1),
+])
+def test_state_requires_clean_matching_checkout(field, value):
+    from hsai_ops import in_sync
+    clean = dict(head_equal=True, branch_equal=True, local_dirty=0, server_dirty=0)
+    assert in_sync({"drift": clean})
+    assert not in_sync({"drift": dict(clean, **{field: value})})
+    assert not in_sync({"drift": None, "server": {"error": "timeout"}})
 import hsai_ops  # noqa: E402  (digest 守卫的内部函数要按模块访问)
 
 

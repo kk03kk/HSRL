@@ -6,7 +6,7 @@ from hsbg.az.train.cli import build_parser
 
 
 def test_mechanical_extraction_preserves_all_263_argument_contracts():
-    additions = {'recruit_start_bank', 'recruit_start_p'}
+    additions = {'recruit_start_bank', 'recruit_start_p', 'lobby_filter_probability'}
     payload = [dict(options=a.option_strings, dest=a.dest, default=a.default,
                     type=getattr(a.type, '__name__', None), choices=a.choices,
                     required=a.required, nargs=a.nargs, action=type(a).__name__)
@@ -19,8 +19,10 @@ def test_mechanical_extraction_preserves_all_263_argument_contracts():
 
 def test_curriculum_additions_are_explicit_and_default_off():
     parser=build_parser()
-    assert len(parser._actions)==265
+    assert len(parser._actions)==266
     args=parser.parse_args([])
     assert args.recruit_start_bank=='' and args.recruit_start_p==0.
     args=parser.parse_args(['--recruit-start-bank','bank','--recruit-start-p','0.3'])
     assert args.recruit_start_bank=='bank' and args.recruit_start_p==0.3
+    assert parser.parse_args([]).lobby_filter_probability == 1.0
+    assert parser.parse_args(['--lobby-filter-probability', '0.25']).lobby_filter_probability == 0.25
