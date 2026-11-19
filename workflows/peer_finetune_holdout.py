@@ -119,7 +119,7 @@ def shard(args):
 def run(args):
     from hsbg.runtime.provenance import source_identity
     source = source_identity(ROOT)
-    seal = verified_generation(args.segment, 232700000)
+    seal = verified_generation(args.segment, args.train_seed)
     if source["tracked_dirty"] or file_identity(INITIAL)["sha256"] != INITIAL_SHA:
         raise ValueError("unexpected release or parent")
     if not (0 <= args.protected <= args.games and args.games > 0):
@@ -183,6 +183,7 @@ if __name__ == "__main__":
     parser.add_argument("--segment", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--train-seed", type=int, default=232700000)
     parser.add_argument("--games", type=int, default=512)
     parser.add_argument("--protected", type=int, default=256)
     parser.add_argument("--raw-parent", action="store_true")
