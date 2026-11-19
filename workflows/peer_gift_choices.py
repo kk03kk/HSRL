@@ -30,6 +30,7 @@ def inspect(path):
     stack = []
     pending = None
     rows = []
+    repeated = 0
     with zipfile.ZipFile(path) as archive, archive.open(next(n for n in archive.namelist() if n.endswith(".xml"))) as stream:
         for ev, el in ET.iterparse(stream, events=("start","end")):
             replay.seq += 1
@@ -49,15 +50,21 @@ def inspect(path):
                 stack.pop()
                 el.clear()
             elif el.tag == "Choices" and replay.main is not None and el.get("playerID") == replay.main:
+                options = sorted((int(v.get("index")),v.get("entity")) for v in el.findall("Choice"))
                 if pending is not None:
+                    menu, _, previous = pending
+                    if (menu == (el.get("source"), options) and previous["turn"] == replay.round
+                            and previous["cards"] == [replay.ent.get(eid,{}).get("card") for _,eid in options]):
+                        repeated += 1
+                        el.clear()
+                        continue
                     raise ValueError("new main-player choice before resolving an open Dark Gift")
                 if replay.ent.get(el.get("source"),{}).get("card") == SOURCE:
-                    options = sorted((int(v.get("index")),v.get("entity")) for v in el.findall("Choice"))
                     offers = {eid:slot for slot,eid in options}
                     ids = [replay.ent.get(eid,{}).get("card") for _, eid in options]
                     if not all(ids) or [s for s,_ in options] != [0,1,2]:
                         raise ValueError("missing offered entity identity or position")
-                    pending = (offers,dict(turn=replay.round, offer_sequence=replay.seq,
+                    pending = ((el.get("source"),options),offers,dict(turn=replay.round, offer_sequence=replay.seq,
                         manual=("7",BUTTON) in stack, cards=ids,
                         board=[m["card_id"] for m in replay._board(replay.main_ctrl)]))
                 el.clear()
@@ -65,7 +72,7 @@ def inspect(path):
                 choices = el.findall("Choice")
                 if len(choices) != 1 or el.get("count") != "1":
                     raise ValueError("not a single observed main-player selection")
-                offers, row = pending
+                _, offers, row = pending
                 slot = selected_index(offers,choices[0].get("entity"))
                 row.update(chosen_slot=slot,native_action=30+slot,chosen=row["cards"][slot],chosen_sequence=replay.seq)
                 rows.append(row)
@@ -73,7 +80,7 @@ def inspect(path):
                 el.clear()
     if pending is not None:
         raise ValueError("unresolved human Dark Gift")
-    return dict(source=file_identity(path),rows=rows)
+    return dict(source=file_identity(path),rows=rows,retransmissions=repeated)
 
 
 def main():
