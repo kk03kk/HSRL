@@ -26,11 +26,12 @@ START,N = 351410000,512
 
 
 class SpendOnSpell:
-    def __init__(self,policy,intervene):
+    def __init__(self,policy,intervene,selector=None):
         self.policy = policy
         self.evaluate = policy.evaluator
         self.model = self.evaluate.model
         self.intervene = intervene
+        self.selector = selector
         policy.evaluator = self
 
     def reset(self):
@@ -42,7 +43,7 @@ class SpendOnSpell:
         self.proposed = None
         decision = self.policy.decide(game,seat)
         if self.proposed and not decision.info.get("forced"):
-            expected = self.proposed["alternate"] if self.intervene else self.proposed["original"]
+            expected = self.proposed["alternate"] if self.intervene and self.proposed["selected"] else self.proposed["original"]
             if decision.action != expected:
                 raise ValueError("controller did not execute the recorded decision")
             self.case = self.proposed
@@ -64,7 +65,8 @@ class SpendOnSpell:
         self.proposed = dict(turn=self.game.turn,gold=player["gold"],hp=player["health"]+player["armor"],
             board=len(player["board"]),hand=len(player["hand"]),original=original,alternate=A_BUY+slot,
             card=item["card"],original_prior=float(prior[original]),alternate_prior=float(prior[A_BUY+slot]))
-        if self.intervene:
+        self.proposed["selected"] = self.selector(self.proposed) if self.selector else True
+        if self.intervene and self.proposed["selected"]:
             altered = np.zeros_like(prior)
             altered[A_BUY+slot] = 1
             return altered,value
