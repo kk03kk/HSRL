@@ -142,6 +142,10 @@ class EvalConfig:
     # opening can then draw the current opponents independently in each future.
     research_before_opponents: Any = None
     research_restore_opening: bool = False
+    # An exact first-decision fork, taken after opponent injection. Used only
+    # by paired research; the ordinary evaluation path never supplies either.
+    research_capture_strict: Any = None
+    research_strict_context: Any = None
 
 
 def _mix_seed(*parts: int) -> int:
@@ -188,10 +192,16 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
     E = load_engine()
     initial_state = getattr(config, 'research_initial_state', None)
     restore_opening = getattr(config, 'research_restore_opening', False)
+    context = config.research_strict_context
+    if context is not None and (initial_state is None or not config.mirror_strict or
+            restore_opening or config.forced_tier_plan or config.collect_exposure or
+            context.turn != initial_state['turn'] or context.learner != config.policy_seat or
+            context.library.pool is not config.mirror_pool):
+        raise ValueError('strict suffix needs its original, already prepared research context')
     if restore_opening and (initial_state is None or config.mirror_pool is None):
         raise ValueError('opening restore needs a sealed state and opponent pool')
     if initial_state is not None:
-        if int(config.games) != 1 or config.mirror_strict or config.human_board_pool is not None or config.lobby_exclude:
+        if int(config.games) != 1 or (config.mirror_strict and context is None) or config.human_board_pool is not None or config.lobby_exclude:
             raise ValueError('research suffix requires one game, no strict/human/lobby override')
         if int(initial_state.get('seed', -1)) != int(config.seed):
             raise ValueError('research state seed must match its declared rollout seed')
@@ -272,6 +282,11 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                 strict_library, seat0, random.Random(_mix_seed(game_seed, seat0)), mirror_stats,
                 frame_rng=lambda turn, target: random.Random(_mix_seed(game_seed, turn, target)),
             )
+            if context is not None:
+                from copy import deepcopy
+                strict = deepcopy(context, {id(context.library): context.library})
+                mirror_stats = strict.stats
+        capture = config.research_capture_strict
 
         def _record_combats():
             if not config.collect_exposure:
@@ -369,6 +384,11 @@ def evaluate_policy(policy: Policy, config: EvalConfig) -> Dict[str, Any]:
                     continue
                 seat = int(p)
                 if seat == seat0:
+                    if capture is not None and int(game.turn) == capture.turn:
+                        if strict is None or strict.turn != capture.turn:
+                            raise RuntimeError('cannot fork before strict opponent preparation')
+                        capture(game, policy, strict)
+                        capture = None
                     _trace_before = (config.decision_recorder.before(game, seat)
                                      if config.decision_recorder is not None else None)
                     mask = mask_from_bytes(game.legal_mask(seat))
