@@ -20,6 +20,28 @@ def sha(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def visible_frame(engine, index, gid, key, slot):
+    turn, side = divmod(int(key), 2)
+    tier, units, _ = slot
+    board = [dict(zip(FIELDS, u)) for u in units]
+    game = engine.Game.from_json(template(turn))
+    install_board(game, 0, {"tier": tier, "board_detail": board})
+    player = json.loads(game.player_json(0))
+    for field in ("hand", "shop", "hand_queue", "hand_queue_marks"):
+        player[field] = []
+    player.update(ended_turn=True, gold=0)
+    receiver = engine.Game.from_json(template(turn))
+    rep = receiver.apply_turn_snapshots([[0, json.dumps(player)]], False)
+    actual = json.loads(receiver.player_json(0))
+    if (rep["applied"] != 1 or rep["rejected"] or not rep["pool_balance_ok"]
+            or not rep["pool_species_ok"] or receiver.invariant_violations()
+            or actual["tier"] != tier or [[m[k] for k in FIELDS] for m in actual["board"]] != units):
+        raise ValueError(f"round-trip mismatch {gid}/{key}")
+    return dict(turn=turn, seat=0, source_turn=turn, source_game_seed=index,
+                source_game_id=gid, source_side=side, stage=STAGE_EOT, player=player,
+                source="firestone_visible_eot", pool_mode="unknown", held_pool_parts=[])
+
+
 def build(args):
     import hsbg_engine as engine
     if (sha(args.receipts) != "aa82876ff5c2cab258e4d248b73d026fbae9604599c2dbc246a6045d49c910c7"
@@ -62,26 +84,9 @@ def build(args):
                 for key, status in slots.items():
                     if status!="pass":
                         continue
-                    turn, side = divmod(int(key),2)
-                    tier, units, _ = games[gid]["slots"][key]
-                    board = [dict(zip(FIELDS, u)) for u in units]
-                    game = engine.Game.from_json(template(turn))
-                    install_board(game,0,{"tier":tier,"board_detail":board})
-                    player=json.loads(game.player_json(0))
-                    for field in ("hand","shop","hand_queue","hand_queue_marks"):
-                        player[field]=[]
-                    player.update(ended_turn=True,gold=0)
-                    receiver=engine.Game.from_json(template(turn))
-                    rep=receiver.apply_turn_snapshots([[0,json.dumps(player)]],False)
-                    actual=json.loads(receiver.player_json(0))
-                    if (rep["applied"]!=1 or rep["rejected"] or not rep["pool_balance_ok"]
-                            or not rep["pool_species_ok"] or receiver.invariant_violations()
-                            or actual["tier"]!=tier or [[m[k] for k in FIELDS] for m in actual["board"]]!=units):
-                        raise ValueError(f"round-trip mismatch {gid}/{key}")
-                    frames.append(dict(turn=turn,seat=0,source_turn=turn,source_game_seed=index,
-                                       source_game_id=gid,source_side=side,stage=STAGE_EOT,player=player,
-                                       source="firestone_visible_eot",pool_mode="unknown",held_pool_parts=[]))
-                    counts[turn]+=1
+                    frame = visible_frame(engine, index, gid, key, games[gid]["slots"][key])
+                    frames.append(frame)
+                    counts[frame["turn"]]+=1
                     seen.add(gid)
                     if len(frames)==384:
                         flush()
