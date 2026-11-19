@@ -229,16 +229,33 @@ def pin_middle(out):
     # Keep the chosen rolling snapshot alive across the trainer's retention pass.
     for _ in range(20):
         live=J.read(SEG/"train/latest.json")
-        if live["seed"]!=J.PPO_SEED or live["cum_decisions"]<=0:
+        if live["seed"]!=J.PPO_SEED or live["cum_decisions"]<=0 or live["version"]<1:
             raise ValueError("wrong rolling checkpoint")
+        kind="final" if live.get("final") else "step"
+        generation=(SEG/"train/snapshots"/f"{kind}_{live['version']:06d}").resolve()
+        checkpoint=Path(live["model"])
+        if checkpoint.resolve()!=generation/"model.pt" or Path(live["trainer"]).resolve()!=generation/"trainer.pt":
+            raise ValueError("rolling receipt points outside its generation")
         path=out/"model.pt"
         try:
-            os.link(live["model"],path)
+            if kind=="step":
+                record=J.read(generation/"record.json")
+                if record["ppo"]["trainer_updates"]!=live["version"] or record["ppo"]["updates"]<1:
+                    raise ValueError("snapshot does not match its completed update")
+            os.link(checkpoint,path)
         except FileNotFoundError:
             time.sleep(.5)
             continue
-        if file_identity(path)!=live["files"]["model.pt"]:
+        identity=file_identity(path)
+        if kind=="final" and identity!=live["files"]["model.pt"]:
             raise ValueError("rolling checkpoint identity mismatch")
+        checked=C.quill.engine_info()
+        if checked["source_hash"]!=C.quill.PLAN["engine"]:
+            raise ValueError("monitor engine changed")
+        from hsbg.az.train.personal import inspect_checkpoint
+        verified=inspect_checkpoint(str(path),"cpu")
+        if not verified["forward_ok"] or verified["sha256"]!=identity["sha256"]:
+            raise ValueError("pinned policy failed load or forward verification")
         return path,live
     raise RuntimeError("no rolling checkpoint available")
 
