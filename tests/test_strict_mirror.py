@@ -160,3 +160,24 @@ def test_human_turn_tail_requires_fixed_learner_placement(monkeypatch):
     mirror.learner_active = False
     assert mirror.get(19, 1, None) is frame
     assert mirror.counts == Counter(tail_after_learner_placement=1)
+
+
+def test_versioned_human_tail_only_accepts_last_observed_source(monkeypatch):
+    from types import SimpleNamespace
+    from hsbg.az.train.strict_mirror import StrictMirror
+    from hsbg.az.train.eval_policy import protocol_from_args
+    import pytest
+    monkeypatch.setenv("HSAI_ACTION_PROFILE","human-turn-3702")
+    monkeypatch.delenv("HSAI_HUMAN_TAIL",raising=False)
+    exact=protocol_from_args(SimpleNamespace()).sha256()
+    monkeypatch.setenv("HSAI_HUMAN_TAIL","last-observed-v1")
+    assert exact!=protocol_from_args(SimpleNamespace()).sha256()
+    f=SimpleNamespace(turn=20,source_turn=20)
+    m=StrictMirror(SimpleNamespace(last_turn=20,sample=lambda *a:f),0,None,None)
+    m.learner_active=True
+    assert m.get(21,6,None) is f and m.counts["human_last_observed_live_seats"]==1
+    with pytest.raises(ValueError):
+        m.get(19,6,None)
+    f.source_turn=17
+    with pytest.raises(ValueError):
+        m.get(21,6,None)

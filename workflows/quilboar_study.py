@@ -36,12 +36,14 @@ def read(path):
 
 
 @lru_cache(None)
-def config(field):
+def config(field, *, allow_tail_variant=False):
     opts=read(Path('config/evaluation/human-turn-3702-parent.json'))['evaluation']
     opts['mirror-snaps']='artifacts/libraries/human-turn-3702-20261118/'+field
     proto=protocol_from_args(argparse.Namespace(**{k.replace('-','_'):v for k,v in opts.items()}),engine=engine_info())
     proto.assert_training_contract()
-    if field=='hold' and proto.sha256()!=PLAN['protocol']:
+    from dataclasses import replace
+    exact=replace(proto,human_tail="exact") if allow_tail_variant else proto
+    if field=='hold' and exact.sha256()!=PLAN['protocol']:
         raise ValueError('hold protocol changed')
     pool=MirrorSnapshotPool(opts['mirror-snaps'],sample='random')
     if pool.frames!={'hold':5477,'train':40659}[field]:

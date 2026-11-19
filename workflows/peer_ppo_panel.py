@@ -90,6 +90,8 @@ def trial(policy, pool, seed, *, event_turns=False):
     row = dict(seed=seed, lobby=recorder.lobby, turns=turns, metrics=stats(arm),
                decisions=r["decisions"], injections=mirror["mirror_applied"])
     if event_turns:
+        row["tail_rank_upper"] = r["mirror_strict_counts"].get("human_tail_rank_upper",0)
+        row["tail_seats"] = r["mirror_strict_counts"].get("human_last_observed_live_seats",0)
         row["pig_returns"] = [[e["turn"],e["immediate_stats"]] for e in recorder.measured]
         row["element_returns"] = [[t,g] for t,g,s in recorder.absorptions if s>0 and g>0]
     return row

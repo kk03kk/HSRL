@@ -33,6 +33,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+from .strict_mirror import human_tail_policy
 
 __all__ = [
     "TRAINING_CONTRACT",
@@ -164,6 +165,7 @@ class EvalProtocol:
 
     # ── 3. 引擎口径（空 dict = 未提供）───────────────────────────
     engine: Mapping[str, Any] = field(default_factory=dict)
+    human_tail: str = "exact"
 
     # ---- 序列化 ----
     def contract_dict(self) -> Dict[str, Any]:
@@ -191,6 +193,8 @@ class EvalProtocol:
             },
             "engine": {str(k): self.engine[k] for k in sorted(self.engine or {})},
         }
+        if self.human_tail != "exact":
+            out["field"]["human_tail"] = self.human_tail
         return out
 
     def sha256(self) -> str:
@@ -275,6 +279,7 @@ def protocol_from_args(args: Any, *, engine: Optional[Mapping[str, Any]] = None,
         forced_tier_plan=str(get("forced_tier_plan", "") or ""),
         forced_tier_prob=float(get("forced_tier_prob", 0.0) or 0.0),
         lobby_exclude=tuple(_race_names(get("lobby_exclude", ""))),
+        human_tail=human_tail_policy(),
         engine=dict(engine or {}),
     )
 

@@ -24,6 +24,7 @@ from hsbg.runtime.provenance import source_identity
 from hsbg.runtime.references import reference_directory
 
 OUT=Path(os.environ["HSAI_DISTILL_OUT"])
+TRAINED=Path(os.environ.get("HSAI_DISTILL_TRAINED",str(OUT)))
 N=256
 EVAL_N=512
 MATCH_N=384
@@ -42,7 +43,7 @@ def read(path):
 
 
 def sources(split):
-    proto,pool=P.Q.config(split)
+    proto,pool=P.Q.config(split,allow_tail_variant=split=="hold")
     if (file_identity(P.WEIGHT)["sha256"]!=P.PEER_SHA or
             file_identity(P.Q.BASE)["sha256"]!=P.Q.PLAN["base_sha"]):
         raise ValueError("source weights changed")
@@ -96,7 +97,7 @@ class Samples:
         return dec
 
 
-def rollout(policy,pool,seed,*,fork=None,state=None,context=None):
+def rollout(policy,pool,seed,*,fork=None,state=None,context=None,bounds=None):
     result=evaluate_policy(policy,EvalConfig(games=1,seed=seed,mirror_pool=pool,mirror_strict=True,
         research_capture_strict=fork,research_initial_state=state,research_strict_context=context))
     m=result["mirror"]
@@ -105,6 +106,8 @@ def rollout(policy,pool,seed,*,fork=None,state=None,context=None):
         ("errors","missing","rejected","fallback","pool_unbalanced","pool_species_unbalanced"))
         or not m["mirror_applied"] or m["mirror_applied"]!=m["mirror_attempt"]):
         raise ValueError(f"invalid rollout {seed}")
+    if bounds is not None:
+        bounds.append(result["mirror_strict_counts"].get("human_tail_rank_upper",0))
     return result["rank_sequence"][0]
 
 
@@ -225,7 +228,7 @@ def fit():
 def check(i):
     proto,pool,policies=sources("hold")
     for arm in ARMS:
-        path=OUT/arm/"model.pt"
+        path=TRAINED/arm/"model.pt"
         assert file_identity(path)==read(path.parent/"manifest.json")["checkpoint"]
         policies[arm]=P.Q.policy(path,proto)
     dest=OUT/f"eval-{i}"
@@ -254,8 +257,10 @@ def check(i):
             if any(ids.get(key) in cards for raw in keys for key in (raw,raw+"_G")):
                 groups.append(name)
         if groups:
-            ranks={k:rollout(pol,pool,seed,state=fork.state,context=fork.strict) for k,pol in policies.items()}
-            rows.append(dict(j=j,groups=groups,hp=p["health"]+p["armor"],opening=fork.opening,ranks=ranks))
+            bounds={k:[] for k in policies}
+            ranks={k:rollout(pol,pool,seed,state=fork.state,context=fork.strict,bounds=bounds[k]) for k,pol in policies.items()}
+            rows.append(dict(j=j,groups=groups,hp=p["health"]+p["armor"],opening=fork.opening,ranks=ranks,
+                             tail_rank_upper={k:v[0] for k,v in bounds.items()}))
     atomic_json(OUT/f"matched-{i}.json",rows)
 
 
@@ -287,7 +292,15 @@ def main():
         fit()
         atomic_json(OUT/"trained.json",{k:file_identity(OUT/k/"model.pt") for k in ARMS})
     elif stage=="assessment":
-        assert all(file_identity(OUT/k/"model.pt")==v for k,v in read(OUT/"trained.json").items())
+        trained=read(TRAINED/"trained.json")
+        assert set(trained)==set(ARMS) and all(file_identity(TRAINED/k/"model.pt")==v for k,v in trained.items())
+        if OUT!=TRAINED:
+            OUT.mkdir(parents=True,exist_ok=False)
+            plan=read(TRAINED/"plan.json")
+            proto,_=P.Q.config("hold",allow_tail_variant=True)
+            plan.update(assessment_protocol=proto.sha256(),assessment_source=source_identity(ROOT),
+                        trained=str(TRAINED),weights=trained,tail=proto.human_tail)
+            atomic_json(OUT/"plan.json",plan)
         workers("check")
         atomic_json(OUT/"evaluated.json",dict(n=EVAL_N,matched_candidates=MATCH_N,job=os.environ["SLURM_JOB_ID"]))
     else:

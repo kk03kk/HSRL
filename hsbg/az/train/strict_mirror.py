@@ -15,6 +15,15 @@ CANCEL = ACTION_SEGMENTS["cancel"][0]
 CHOOSE_FIRST, CHOOSE_LAST = ACTION_SEGMENTS["choose"]
 
 
+def human_tail_policy():
+    mode = os.environ.get("HSAI_HUMAN_TAIL", "exact")
+    if mode not in ("exact", "last-observed-v1"):
+        raise ValueError(f"unknown human snapshot tail: {mode}")
+    if mode != "exact" and os.environ.get("HSAI_ACTION_PROFILE") != "human-turn-3702":
+        raise ValueError("human tail policy requires the human-turn-3702 field")
+    return mode
+
+
 class StrictLibrary:
     """同回合同座优先；只从同一冻结校准库补足稀疏座位和极晚回合。"""
 
@@ -61,6 +70,7 @@ class StrictMirror:
         self.learner_active = False
         self.certified = {}
         self.frames = {}
+        self.tail_policy = human_tail_policy()
 
     def get(self, turn, seat, rng):
         # 供既有原子注入与账本检查复用；保存实抽帧用于暴露报告。
@@ -71,8 +81,13 @@ class StrictMirror:
                 and (frame.turn != turn or getattr(frame, "source_turn", 0) not in (0, turn))):
             # Terminal placement is already fixed for an eliminated learner.
             if self.learner_active:
-                raise ValueError(f"no exact human opponent for active learner at turn {turn}")
-            self.counts["tail_after_learner_placement"] += 1
+                if not (self.tail_policy == "last-observed-v1" and turn > self.library.last_turn
+                        and frame.turn == self.library.last_turn
+                        and getattr(frame, "source_turn", 0) in (0, self.library.last_turn)):
+                    raise ValueError(f"no exact human opponent for active learner at turn {turn}")
+                self.counts["human_last_observed_live_seats"] += 1
+            else:
+                self.counts["tail_after_learner_placement"] += 1
         self.frames[seat] = frame
         return frame
 
@@ -112,6 +127,9 @@ class StrictMirror:
         self.frames.clear()
         health, placements = game.health(), game.placements()
         self.learner_active = health[self.learner] > 0 and placements[self.learner] == 0
+        if (self.tail_policy == "last-observed-v1" and self.learner_active and
+                turn > self.library.last_turn and not self.counts["human_tail_rank_upper"]):
+            self.counts["human_tail_rank_upper"] = sum(h > 0 and p == 0 for h,p in zip(health,placements))
         targets = []
         for seat in range(N_PLAYERS):
             if seat == self.learner:
