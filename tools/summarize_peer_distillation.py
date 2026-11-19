@@ -1,6 +1,7 @@
 """Summarize paired natural outcomes and identically restored safety cohorts."""
 import json
 from pathlib import Path
+from statistics import median
 import sys
 
 import numpy as np
@@ -11,7 +12,7 @@ def load(path):
 
 
 def p50(values):
-    return sorted(values)[round(.5*(len(values)-1))] if values else None
+    return median(values) if len(values) else None
 
 
 def estimate(values):
