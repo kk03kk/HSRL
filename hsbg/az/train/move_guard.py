@@ -118,8 +118,8 @@ class MoveGuard:
         self.hard_cap = hard_cap
         if self.cap < 0:
             raise ValueError(f"move_cap 必须 >= 0，得到 {self.cap}")
-        if self.repeat_limit < 1:
-            raise ValueError(f"move_repeat_limit 必须 >= 1，得到 {self.repeat_limit}")
+        if self.repeat_limit < 0:
+            raise ValueError(f"move_repeat_limit 必须 >= 0，得到 {self.repeat_limit}")
         self._turns: Dict[Tuple[int, int], _SeatTurn] = {}
         self.stats = MoveGuardStats()
 
@@ -176,7 +176,7 @@ class MoveGuard:
             elif a == inverse:
                 out[a] = False
                 n_inv += 1
-            elif st.counts.get(a, 0) >= self.repeat_limit:
+            elif self.repeat_limit > 0 and st.counts.get(a, 0) >= self.repeat_limit:
                 out[a] = False
                 n_rep += 1
 

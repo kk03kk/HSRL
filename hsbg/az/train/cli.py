@@ -58,7 +58,7 @@ def build_parser():
                     help="每回合换位次数上限：>=cap 后屏蔽全部 Move"
                          "（2026-11-17 D-070：默认 5→2；0=本回合禁止换位）")
     ap.add_argument("--move-repeat-limit", type=int, default=2,
-                    help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2；1=不允许重复）")
+                    help="同一 (from,to) 本回合出现 >=N 次后屏蔽（默认 2；0=关闭同动作限制，1=不允许重复）")
     # ── 流派（archetype）软偏置（默认关闭；见 docs/ARCHETYPE_BIAS.md）──
     ap.add_argument("--archetype-bias-coef", type=float, default=0.0,
                     help="流派软偏置系数：0=关闭（逐位等价旧路径）。对当前流派在当前 "

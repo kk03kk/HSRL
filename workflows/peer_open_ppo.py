@@ -10,7 +10,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-ACTION_PROFILE = "human-turn-3702-open"
+ACTION_PROFILE = "human-turn-3702-standard"
 EVAL_SEED = 257870000
 
 
@@ -58,10 +58,10 @@ def train(out: Path) -> None:
 
 
 def assess(out: Path) -> None:
-    from workflows.peer_finetune_holdout import OPEN_PROTOCOL
+    from workflows.peer_finetune_holdout import STANDARD_PROTOCOL
     from workflows.peer_ppo_pilot import SEED, read, verified_generation
 
-    if (read(out / "plan.json")["protocol_sha256"] != OPEN_PROTOCOL
+    if (read(out / "plan.json")["protocol_sha256"] != STANDARD_PROTOCOL
             or read(out / "complete.json") != verified_generation(out / "fit", SEED)):
         raise ValueError("pilot protocol or final seal mismatch")
     subprocess.run([

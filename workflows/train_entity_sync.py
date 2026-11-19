@@ -851,8 +851,8 @@ def main() -> int:
     if int(args.move_cap) < 0:
         print("[error] --move-cap 必须 >= 0", file=sys.stderr)
         return 2
-    if int(args.move_repeat_limit) < 1:
-        print("[error] --move-repeat-limit 必须 >= 1", file=sys.stderr)
+    if int(args.move_repeat_limit) < 0:
+        print("[error] --move-repeat-limit 必须 >= 0", file=sys.stderr)
         return 2
     if int(args.move_guard):
         if int(args.rust_collector):

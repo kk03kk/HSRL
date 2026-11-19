@@ -3641,7 +3641,7 @@ class PPOSelfPlayPolicy(Policy):
         from .eval_policy import TRAINING_CONTRACT  # noqa: PLC0415
         _c = TRAINING_CONTRACT
         if (int(self.config.max_actions_per_turn) != int(_c["max_actions_per_turn"])
-                or not bool(getattr(self.config, "move_guard", False))
+                or bool(getattr(self.config, "move_guard", False)) != bool(_c["move_guard"])
                 or int(getattr(self.config, "move_cap", 0)) != int(_c["move_cap"])
                 or int(getattr(self.config, "move_repeat_limit", 0))
                 != int(_c["move_repeat_limit"])

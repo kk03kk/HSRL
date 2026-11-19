@@ -34,7 +34,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 from .lobby_filter import engine_rule_overrides
-from .strict_mirror import HUMAN_ACTION_PROFILES, OPEN_ACTION_PROFILE, human_tail_policy
+from .strict_mirror import HUMAN_ACTION_PROFILES, OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE, human_tail_policy
 
 __all__ = [
     "TRAINING_CONTRACT",
@@ -80,6 +80,8 @@ if _profile in HUMAN_ACTION_PROFILES:
                              forbid_unfreeze=False, ban_trinkets=False)
     if _profile == OPEN_ACTION_PROFILE:
         TRAINING_CONTRACT.update(max_actions_per_turn=200, move_guard=False, move_cap=0, freeze_cap=0)
+    elif _profile == STANDARD_ACTION_PROFILE:
+        TRAINING_CONTRACT.update(max_actions_per_turn=200, move_cap=10, move_repeat_limit=0, freeze_cap=3)
 elif _profile != "v14":
     raise ValueError(f"Unknown HSAI_ACTION_PROFILE: {_profile}")
 EVAL_CONTRACT_KEYS: Tuple[str, ...] = tuple(TRAINING_CONTRACT)

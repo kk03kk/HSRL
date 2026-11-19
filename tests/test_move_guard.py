@@ -166,7 +166,7 @@ def test_invalid_params():
     with pytest.raises(ValueError):
         MoveGuard(cap=-1)
     with pytest.raises(ValueError):
-        MoveGuard(repeat_limit=0)
+        MoveGuard(repeat_limit=-1)
 
 
 # ── policy 层（stub evaluator，无需模型前向）─────────────────────────────

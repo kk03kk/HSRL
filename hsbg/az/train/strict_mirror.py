@@ -14,7 +14,8 @@ from .mirror_snapshots import inject_turn
 CANCEL = ACTION_SEGMENTS["cancel"][0]
 CHOOSE_FIRST, CHOOSE_LAST = ACTION_SEGMENTS["choose"]
 OPEN_ACTION_PROFILE = "human-turn-3702-open"
-HUMAN_ACTION_PROFILES = ("human-turn-3702", OPEN_ACTION_PROFILE)
+STANDARD_ACTION_PROFILE = "human-turn-3702-standard"
+HUMAN_ACTION_PROFILES = ("human-turn-3702", OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE)
 
 
 def human_tail_policy():
