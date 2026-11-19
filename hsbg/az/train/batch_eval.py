@@ -260,8 +260,8 @@ class BatchLeafServer:
         if not bool(mask_np.any(axis=1).all()):
             bad = np.flatnonzero(~mask_np.any(axis=1))[:8].tolist()
             raise ValueError(f"存在无合法动作的行（mask 全 False）：rows={bad}")
-        mask_t = torch.from_numpy(mask_np).to(dev)
-        t = torch.from_numpy(temps).to(dev).unsqueeze(1)
+        mask_t = torch.from_numpy(mask_np).to(dev, non_blocking=True)
+        t = torch.from_numpy(temps).to(dev, non_blocking=True).unsqueeze(1)
         probs = masked_log_softmax_torch(logits / t, mask_t).exp()
         with torch.no_grad():
             rank = rlog.to(dev) if torch.is_tensor(rlog) else torch.from_numpy(np.asarray(rlog, dtype=np.float32)).to(dev)
@@ -272,9 +272,10 @@ class BatchLeafServer:
         g = torch.Generator(device=dev).manual_seed(seed)
         idx = torch.multinomial(probs, 1, generator=g).squeeze(1)
         lps = probs.gather(1, idx.unsqueeze(1)).squeeze(1).clamp_min(1e-12).log()
-        return (idx.detach().cpu().numpy().astype(np.int64),
-                lps.detach().cpu().numpy().astype(np.float32),
-                vals.detach().cpu().numpy().astype(np.float32))
+        # Action indices in this action space round-trip through FP32 exactly.
+        # One transfer avoids three separate waits on the CUDA stream.
+        packed = torch.stack((idx.float(), lps.float(), vals.float())).detach().cpu().numpy()
+        return packed[0].astype(np.int64), packed[1].copy(), packed[2].copy()
 
     def _take_batch(self) -> List[LeafRequest]:
         first = self._q.get()
@@ -317,9 +318,14 @@ class BatchLeafServer:
                     break
                 batch.append(nxt)
             try:
-                f = np.concatenate([np.atleast_2d(r.features) for r in batch], axis=0)
-                c = np.concatenate([np.atleast_2d(r.cards) for r in batch], axis=0)
-                m = np.concatenate([np.atleast_2d(r.mask) for r in batch], axis=0)
+                if len(batch) == 1:
+                    # Lockstep sends an already-packed array in a single request.
+                    req = batch[0]
+                    f, c, m = (np.atleast_2d(x) for x in (req.features, req.cards, req.mask))
+                else:
+                    f = np.concatenate([np.atleast_2d(r.features) for r in batch], axis=0)
+                    c = np.concatenate([np.atleast_2d(r.cards) for r in batch], axis=0)
+                    m = np.concatenate([np.atleast_2d(r.mask) for r in batch], axis=0)
                 owner = []
                 row_base = []
                 _off = 0

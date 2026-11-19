@@ -2176,10 +2176,10 @@ class PPOEvaluator:
         c = np.zeros((x.shape[0], OBS_CARDS), dtype=np.int64) if cards is None \
             else np.atleast_2d(np.asarray(cards, dtype=np.int64))
         m = None if mask is None else torch.from_numpy(
-            np.ascontiguousarray(np.atleast_2d(np.asarray(mask, dtype=bool)))).to(self.device)
+            np.ascontiguousarray(np.atleast_2d(np.asarray(mask, dtype=bool)))).to(self.device, non_blocking=True)
         with torch.no_grad():
-            xt = torch.from_numpy(np.ascontiguousarray(x)).to(self.device)
-            ct = torch.from_numpy(np.ascontiguousarray(c)).to(self.device)
+            xt = torch.from_numpy(np.ascontiguousarray(x)).to(self.device, non_blocking=True)
+            ct = torch.from_numpy(np.ascontiguousarray(c)).to(self.device, non_blocking=True)
             amp = str(getattr(self, "amp", "off")).lower() in ("bf16", "bfloat16")
             net = getattr(self, "_fwd", None) or self.model
             pad_to = self._pad_bucket(xt.shape[0]) if getattr(self, "_compiled", False) else 0
