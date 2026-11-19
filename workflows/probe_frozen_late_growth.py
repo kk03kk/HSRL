@@ -22,6 +22,9 @@ MODELS={
     "investment":("artifacts/models/human-turn-3702-quilboar-investment-20261119-1/model.pt",
                   "bd85b7ae526094e1194dca991a8e49869584d90df1a6e192b7015934e1f9ead7")}
 CASES=("elem_budget","elem_offer","quill_ready","quill_offer","mech_double","dragon_poet")
+if os.environ.get("HSAI_QUILL_COLD_PROBE")=="1":
+    OUT=Path("artifacts/runs/nus-frozen-late-growth-cold-20261119-1")
+    CASES=("quill_cold_ready","quill_cold_search","quill_lone_source")
 SEEDS=list(range(520100,520124))
 
 

@@ -25,8 +25,10 @@ CASES = ("mech","mech_double","mech_boxers","dragon","dragon_poet","pig","pig_pr
 
 
 def board(case):
-    if case in ("quill_ready","quill_offer"):
-        return [RIDER if case=="quill_ready" else "BG20_100",RAT,"BG36_331","BG33_885"]
+    if case=="quill_lone_source":
+        return [RAT,"BG20_100"]
+    if case in ("quill_ready","quill_offer","quill_cold_ready","quill_cold_search"):
+        return [RIDER if case in ("quill_ready","quill_cold_ready") else "BG20_100",RAT,"BG36_331","BG33_885"]
     if case=="elem_offer":
         return [WILD,SURF,KELP,BRANN,BAL,PAD]
     if case.startswith("mech"):
@@ -36,7 +38,9 @@ def board(case):
     if case.startswith("dragon"):
         return [BROOD,POET if case=="dragon_poet" else PAD,HOPE,WARD,NAD,WARD]
     if case.startswith("pig"):
-        return ["BG20_101" if case=="pig_no_rider" else RIDER,RAT,"BG20_100","BG31_320"]
+        # A battlecry-only boar on the starting board keeps four recipients
+        # without introducing a second source of hand cards.
+        return ["BG34_683" if case=="pig_no_rider" else RIDER,RAT,"BG20_100","BG31_320"]
     return [WILD,SURF,KELP,BRANN if case not in ("elem_no_brann","elem_budget_lean") else PAD,
             BAL if case not in ("elem_no_double","elem_budget_lean") else PAD,AZ if case!="elem_no_azerite" else PAD]
 
