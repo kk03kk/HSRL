@@ -86,6 +86,35 @@ def analyze_cross(root):
     return dict(starts=len(rows),reached9=len(reached),paired=pairs,turns=turns)
 
 
+def compare_openings(base_dir, peer_dir):
+    def load(root):
+        records=[json.loads(p.read_bytes()) for p in root.glob("shard-*/179*.json")]
+        assert len(records)==128
+        return {r["seed"]:r["legs"] for r in records}
+    base,peer=load(base_dir),load(peer_dir)
+    seeds=sorted(base)
+    assert seeds==sorted(peer)==list(range(179240000,179240128))
+    arms={}
+    for prefix,group in (("base",base),("peer_free",peer)):
+        for suffix in ("base","peer_free"):
+            arm=[group[s][suffix] for s in seeds]
+            strength=[r["strength"]["12"] for r in arm if "12" in r["strength"]]
+            ranks=[r["rank"] for r in arm]
+            arms[prefix+"-"+suffix]=dict(rank=np.mean(ranks),top2=sum(v<=2 for v in ranks),
+                top4=sum(v<=4 for v in ranks),win=ranks.count(1),t12=quant(strength),n12=len(strength))
+    a=[base[s]["base"]["rank"] for s in seeds]
+    b=[peer[s]["peer_free"]["rank"] for s in seeds]
+    natural={name:interval([metric(v)-metric(u) for u,v in zip(a,b)]) for name,metric in
+             (("rank",lambda x:x),("top2",lambda x:int(x<=2)),("win",lambda x:int(x==1)))}
+    interaction=interval([(peer[s]["peer_free"]["rank"]-peer[s]["base"]["rank"])-
+                          (base[s]["peer_free"]["rank"]-base[s]["base"]["rank"]) for s in seeds])
+    return dict(arms=arms,natural=natural,rank_interaction=interaction)
+
+
 if __name__=="__main__":
-    runner=analyze_cross if sys.argv[2:]==["cross"] else analyze
-    print(json.dumps(runner(Path(sys.argv[1])),indent=2))
+    if sys.argv[2:3]==["compare"]:
+        result=compare_openings(Path(sys.argv[1]),Path(sys.argv[3]))
+    else:
+        runner=analyze_cross if sys.argv[2:]==["cross"] else analyze
+        result=runner(Path(sys.argv[1]))
+    print(json.dumps(result,indent=2))
