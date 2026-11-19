@@ -84,11 +84,15 @@ def run(panel_path, out):
     with ProcessPoolExecutor(max_workers=8) as pool:
         lobby = {(s,t):[n,hp,others] for part in pool.map(lobby_openings,model['decision_traces'])
                  for s,t,n,hp,others in part}
-    assert own.keys() == lobby.keys()
+    # A learner can act during recruitment without ever producing an EOT
+    # board or going into combat. Keep those openings out of fight statistics.
+    if own.keys() - lobby.keys():
+        raise ValueError(f'missing native openings: {sorted(own.keys() - lobby.keys())[:10]}')
     atomic_json(out,dict(panel=file_identity(panel_path),library=manifest['digest'],
                          source_games=len(manifest['games']),protocol=panel['protocol']['protocol_sha256'],
                          field={t:[[v,side] for v,side,_ in vals] for t,vals in frame_values.items()},
                          origins={t:len({gid for _,_,gid in vals}) for t,vals in frame_values.items()},
+                         openings_without_combat=[list(k) for k in sorted(lobby.keys()-own.keys())],
                          columns=['seed','turn','rank','strength','opponent','win','tie','damage_taken',
                                   'alive_at_open','own_hp_armor','other_alive_hp_armor'],
                          encounters=[[s,t,ranks[s],own[s,t],*exposures[s,t],*lobby[s,t]] for s,t in sorted(own)]))
