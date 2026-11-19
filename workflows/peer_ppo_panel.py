@@ -71,7 +71,7 @@ class Peer(PPOGreedyPolicy):
         return super().decide(game, seat)
 
 
-def trial(policy, pool, seed):
+def trial(policy, pool, seed, *, event_turns=False):
     recorder = Mechanisms()
     r = evaluate_policy(policy, EvalConfig(games=1, seed=seed, mirror_pool=pool,
         mirror_strict=True, collect_economy=True, decision_recorder=recorder))
@@ -87,8 +87,12 @@ def trial(policy, pool, seed):
     arm = dict(rank=r["rank_sequence"][0], eot={t:[v["atk"]+v["hp"],v["cards"]] for t,v in turns.items()},
          absorptions=recorder.absorptions,gems=recorder.measured,magnet=recorder.mechanics,
          hope_growth=recorder.hope_growth,offers=recorder.offers,buys=recorder.buys)
-    return dict(seed=seed, lobby=recorder.lobby, turns=turns, metrics=stats(arm),
-                decisions=r["decisions"], injections=mirror["mirror_applied"])
+    row = dict(seed=seed, lobby=recorder.lobby, turns=turns, metrics=stats(arm),
+               decisions=r["decisions"], injections=mirror["mirror_applied"])
+    if event_turns:
+        row["pig_returns"] = [[e["turn"],e["immediate_stats"]] for e in recorder.measured]
+        row["element_returns"] = [[t,g] for t,g,s in recorder.absorptions if s>0 and g>0]
+    return row
 
 
 def crossover(pool, policies, dest, index, opening):
