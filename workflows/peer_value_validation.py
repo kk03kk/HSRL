@@ -153,7 +153,7 @@ def rank_test():
     atomic_json(OUT/"rank-result.json",dict(all=all_rows,midgame=summary((t>=8)&(t<=12)),passed=bool(passed)))
 
 
-def fork_test():
+def fork_test(dest=None):
     if not (OUT/"forks/complete.json").is_file():
         raise ValueError("continuations incomplete")
     nets,proj=models()
@@ -185,11 +185,14 @@ def fork_test():
         if not rs:
             return dict(n=0)
         realized=np.asarray([r["returns"] for r in rs])
-        truth=realized[:,1]-realized[:,0]
-        replicas=U[np.asarray([r["rank"] for r in rs])-1]
+        # Utilities are exact multiples of 1/20. Rank permutations with the
+        # same utility must remain ties regardless of floating-point sum order.
+        ticks=np.rint(U*20).astype(np.int64)
+        replicas=ticks[np.asarray([r["rank"] for r in rs])-1]
+        truth=np.diff(replicas.sum(1),axis=1)[:,0]/(20*replicas.shape[1])
         half=replicas.shape[1]//2
-        split1=np.diff(replicas[:,:half].mean(1),axis=1)[:,0]
-        split2=np.diff(replicas[:,half:].mean(1),axis=1)[:,0]
+        split1=np.diff(replicas[:,:half].sum(1),axis=1)[:,0]
+        split2=np.diff(replicas[:,half:].sum(1),axis=1)[:,0]
         comparable=(split1!=0)&(split2!=0)
         choices={k:np.array([r["choice"][k] for r in rs]) for k in KEYS}
         values={k:realized[np.arange(len(rs)),choice] for k,choice in choices.items()}
@@ -206,8 +209,12 @@ def fork_test():
     result=summary(verified)
     passed=(result["n"]>=60 and result["disagreements"]["compact"]>=15 and
         result["gain"]["compact"]["ci95"][0]>0 and result["gain"]["historical"]["mean"]>0)
-    atomic_json(OUT/"fork-decisions.json",rows)
-    atomic_json(OUT/"fork-result.json",dict(screened=n,eligible=summary(rows),verified=result,
+    if dest is None:
+        dest=OUT
+    else:
+        dest.mkdir(parents=True,exist_ok=False)
+    atomic_json(dest/"fork-decisions.json",rows)
+    atomic_json(dest/"fork-result.json",dict(screened=n,eligible=summary(rows),verified=result,
         verified_groups={k:summary([r for r in verified if fn(r)]) for k,fn in (
             ("low",lambda r:r["low"]),("prepared",lambda r:r["prepared"]),("tier",lambda r:r["kind"]=="tier"),
             ("component",lambda r:r["kind"]=="growth_purchase"))},
@@ -222,6 +229,6 @@ if __name__=="__main__":
         fit()
         rank_test()
     elif sys.argv[1]=="fork":
-        fork_test()
+        fork_test(Path(sys.argv[2]) if len(sys.argv)>2 else None)
     else:
         raise ValueError("unknown stage")
