@@ -13,13 +13,15 @@ from .mirror_snapshots import inject_turn
 
 CANCEL = ACTION_SEGMENTS["cancel"][0]
 CHOOSE_FIRST, CHOOSE_LAST = ACTION_SEGMENTS["choose"]
+OPEN_ACTION_PROFILE = "human-turn-3702-open"
+HUMAN_ACTION_PROFILES = ("human-turn-3702", OPEN_ACTION_PROFILE)
 
 
 def human_tail_policy():
     mode = os.environ.get("HSAI_HUMAN_TAIL", "exact")
     if mode not in ("exact", "last-observed-v1"):
         raise ValueError(f"unknown human snapshot tail: {mode}")
-    if mode != "exact" and os.environ.get("HSAI_ACTION_PROFILE") != "human-turn-3702":
+    if mode != "exact" and os.environ.get("HSAI_ACTION_PROFILE") not in HUMAN_ACTION_PROFILES:
         raise ValueError("human tail policy requires the human-turn-3702 field")
     return mode
 
@@ -77,7 +79,7 @@ class StrictMirror:
         if self.frame_rng is not None:
             rng = self.frame_rng(turn, seat)
         frame = self.library.sample(turn, seat, rng, self.counts)
-        if (frame is not None and os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3702"
+        if (frame is not None and os.environ.get("HSAI_ACTION_PROFILE") in HUMAN_ACTION_PROFILES
                 and (frame.turn != turn or getattr(frame, "source_turn", 0) not in (0, turn))):
             # Terminal placement is already fixed for an eliminated learner.
             if self.learner_active:

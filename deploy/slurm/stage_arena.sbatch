@@ -120,12 +120,15 @@ win_bonus="${HSAI_ARENA_WIN_BONUS:-0}"
 rank_utility_table="${HSAI_ARENA_RANK_UTILITY:-1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75}"
 
 move_cap=2
+move_guard=1
+max_actions=100
 unfreeze_ban=1
 freeze_cap="${HSAI_ARENA_FREEZE_CAP:-1}"
 ban_trinkets="${HSAI_ARENA_BAN_TRINKETS:-1}"
 mirror_strict=0
 mirror_sample=p50band
-if [[ "${HSAI_ACTION_PROFILE:-v14}" == human-turn-3702 ]]; then
+action_profile="${HSAI_ACTION_PROFILE:-v14}"
+if [[ "$action_profile" == human-turn-3702 || "$action_profile" == human-turn-3702-open ]]; then
   move_cap=4
   unfreeze_ban=0
   freeze_cap=2
@@ -137,6 +140,12 @@ if [[ "${HSAI_ACTION_PROFILE:-v14}" == human-turn-3702 ]]; then
   forced_tier_prob=0
   forced_teacher_coef=0
   forced_teacher_until=0
+fi
+if [[ "$action_profile" == human-turn-3702-open ]]; then
+  move_guard=0
+  move_cap=0
+  freeze_cap=0
+  max_actions=200
 fi
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
 # --- GPU 落位：MIG UUID 重定向（2026-11-15 用户授权）---------------------------
@@ -205,7 +214,7 @@ fi
   echo "forced-tier plan=$forced_tier_plan carry=$forced_tier_carry prob=$forced_tier_prob"
   echo "teacher until=$forced_teacher_until coef=$forced_teacher_coef"
   # 动作契约 / 规则限制：让 run.env 自证"这一轮用的是哪套限制"（2026-11-17 审计）
-  echo "contract max_actions=100 move_guard=1 move_cap=$move_cap move_repeat=2 freeze_cap=$freeze_cap forbid_cancel=1 forbid_unfreeze=$unfreeze_ban ban_trinkets=$ban_trinkets lobby_exclude=${HSAI_ARENA_LOBBY_EXCLUDE:-<none>} sims=0"
+  echo "contract profile=$action_profile max_actions=$max_actions move_guard=$move_guard move_cap=$move_cap move_repeat=2 freeze_cap=$freeze_cap forbid_cancel=1 forbid_unfreeze=$unfreeze_ban ban_trinkets=$ban_trinkets lobby_exclude=${HSAI_ARENA_LOBBY_EXCLUDE:-<none>} sims=0"
   echo "KPI = T12 median board strength (M1). tier soft-reward coef=$tier_coef (0=off, forced tier replaces it)"
   echo "reward: terminal placement utility ONLY + tier_target coef=$tier_coef penalty=$tier_penalty bonus=0.15 table=$tier_table gate_k=$tier_gate_k gate_ref=$tier_gate_ref"
   echo "all other shaping = 0 (spell/comp/retained/shaping/terminal_strength)"
@@ -248,9 +257,9 @@ python workflows/train_entity_sync.py \
   --local-batch-inference 0 --records-dtype fp32 --leaf-amp bf16 --anchor-amp 1 \
   --pipeline-guard abort --leaf-wait-ms 0 --threads 1 --amp bf16 \
   --gpus "$actor_gpus" --gpu-index-space visible --ipc-mode shm --leaf-fused 1 \
-  --move-guard 1 --move-cap "$move_cap" --move-repeat-limit 2 --forbid-cancel 1 \
+  --move-guard "$move_guard" --move-cap "$move_cap" --move-repeat-limit 2 --forbid-cancel 1 \
   --pipeline-zero-step-fallback 1 --forbid-unfreeze "$unfreeze_ban" \
-  --max-actions-per-turn 100 \
+  --max-actions-per-turn "$max_actions" \
   --lobby-exclude "${HSAI_ARENA_LOBBY_EXCLUDE:-}" \
   --lobby-filter-probability "${HSAI_ARENA_LOBBY_FILTER_PROBABILITY:-1}" \
   --freeze-cap "$freeze_cap" --ban-trinkets "$ban_trinkets" \

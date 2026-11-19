@@ -33,7 +33,8 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
-from .strict_mirror import human_tail_policy
+from .lobby_filter import engine_rule_overrides
+from .strict_mirror import HUMAN_ACTION_PROFILES, OPEN_ACTION_PROFILE, human_tail_policy
 
 __all__ = [
     "TRAINING_CONTRACT",
@@ -74,9 +75,11 @@ TRAINING_CONTRACT: Dict[str, Any] = {
 
 #: 参与协议指纹的契约键（顺序固定，写进报告便于人读）。
 _profile = os.environ.get("HSAI_ACTION_PROFILE", "v14")
-if _profile == "human-turn-3702":
+if _profile in HUMAN_ACTION_PROFILES:
     TRAINING_CONTRACT = dict(TRAINING_CONTRACT, move_cap=4, freeze_cap=2,
                              forbid_unfreeze=False, ban_trinkets=False)
+    if _profile == OPEN_ACTION_PROFILE:
+        TRAINING_CONTRACT.update(max_actions_per_turn=200, move_guard=False, move_cap=0, freeze_cap=0)
 elif _profile != "v14":
     raise ValueError(f"Unknown HSAI_ACTION_PROFILE: {_profile}")
 EVAL_CONTRACT_KEYS: Tuple[str, ...] = tuple(TRAINING_CONTRACT)
@@ -166,6 +169,7 @@ class EvalProtocol:
     # ── 3. 引擎口径（空 dict = 未提供）───────────────────────────
     engine: Mapping[str, Any] = field(default_factory=dict)
     human_tail: str = "exact"
+    engine_rules: Mapping[str, Any] = field(default_factory=engine_rule_overrides)
 
     # ---- 序列化 ----
     def contract_dict(self) -> Dict[str, Any]:
@@ -195,6 +199,8 @@ class EvalProtocol:
         }
         if self.human_tail != "exact":
             out["field"]["human_tail"] = self.human_tail
+        if self.engine_rules:
+            out["engine_rules"] = dict(self.engine_rules)
         return out
 
     def sha256(self) -> str:

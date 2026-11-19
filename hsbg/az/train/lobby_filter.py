@@ -29,9 +29,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+from .strict_mirror import OPEN_ACTION_PROFILE
 
 __all__ = [
     "RACE_ORDER", "parse_race_list", "race_bits_from_features",
@@ -176,6 +180,12 @@ class LobbyFilterStats:
         self.applied += int(other.applied)
 
 
+def engine_rule_overrides() -> dict[str, int]:
+    if os.environ.get("HSAI_ACTION_PROFILE") == OPEN_ACTION_PROFILE:
+        return {"freeze_presses_per_turn": 0}
+    return {}
+
+
 def make_filtered_game(engine: Any, seed: int, exclude: Sequence[str] = (), *,
                        learner_seat: int = 0, max_tries: int = 96,
                        probability: float = 1.0,
@@ -183,9 +193,11 @@ def make_filtered_game(engine: Any, seed: int, exclude: Sequence[str] = (), *,
                        ) -> Tuple[Any, int]:
     """建一局**lobby 不含被禁种族**的游戏，返回 ``(game, 实际 seed)``。
 
-    ``exclude`` 为空时等价于 ``engine.Game(seed)``（逐位不变，零开销）。
+    ``exclude`` 为空时直接使用原 seed 建局，并应用动作配置对应的引擎规则。
     ``max_tries`` 用完仍找不到就抛错（不要静默用一局含禁族的对局顶上去）。
     """
+    rules = engine_rule_overrides()
+    game_kwargs = {"config_json": json.dumps(rules)} if rules else {}
     if not 0 <= probability <= 1:
         raise ValueError("lobby filter probability must be between zero and one")
     # A separate hash stream assigns the practice condition before seeing the lobby.
@@ -194,12 +206,12 @@ def make_filtered_game(engine: Any, seed: int, exclude: Sequence[str] = (), *,
     if not exclude:
         if stats is not None:
             stats.applied += 1
-        return engine.Game(seed=int(seed)), int(seed)
+        return engine.Game(seed=int(seed), **game_kwargs), int(seed)
     for k in range(int(max_tries)):
         cand = int(seed) if k == 0 else derive_seed(int(seed), k)
         if stats is not None:
             stats.attempt += 1
-        game = engine.Game(seed=cand)
+        game = engine.Game(seed=cand, **game_kwargs)
         f, _c = game.observe(int(learner_seat))
         if not is_excluded(f, exclude):
             if stats is not None:
