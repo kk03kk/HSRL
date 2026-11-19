@@ -1,0 +1,15 @@
+{
+  "run": "artifacts/runs/nus-peer-value-20261119-1",
+  "policy": "Unmodified published peer, default z, masked temperature 0.55",
+  "train": [251100000, 1024],
+  "rank_test": [252100000, 512],
+  "fork_test": [253100000, 640],
+  "fork_planning_seed": 254100000,
+  "fork_label_seed": 255100000,
+  "planning_futures": 2,
+  "outcome_futures": 4,
+  "heads": "Frozen D-152 69-dimensional head, data-matched retrained 69-dimensional head, and same-budget head augmented by 24 train-only principal components each from global, board and hand contextual tokens.",
+  "rank_gate": "Paired per-game mean rank NLL improvement with bootstrap 95% lower bound above zero against both controls on 512 untouched seeds; expected utility MSE must not rise against the data-matched control.",
+  "fork_gate": "At T8-T12 fork on the original peer opening. Invest in an upgrade or available scaling component versus buy the strongest available non-core body. Score the next public decision after the specified purchase or upgrade, averaged over two planning futures. Validate tempo using first-turn end-of-recruit body in those separate futures. On verified tradeoffs (tempo has greater mean body), require >=60 states, >=15 head disagreements and paired selected terminal utility advantage 95% lower bound >0 against data-matched baseline and positive advantage against frozen D-152. All eligible states also reported. No fitting on continuation labels.",
+  "ppo": "Only if both gates pass: start both arms at original actor, same sampling stream and D-152 budget of 60 batches x 256 games, single seed; then independently evaluate both endpoints and unchanged peer on 512 fresh paired seeds. No overnight submission."
+}
