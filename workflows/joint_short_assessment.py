@@ -60,6 +60,7 @@ class Mechanisms(ReturnRecorder):
     def begin_game(self,game,index,seed,seat):
         super().begin_game(game,index,seed,seat)
         self.absorptions=[]
+        self.unmeasured_absorptions=[]
         self.mechanics=[]
         self.offers=set()
         self.buys=set()
@@ -96,8 +97,13 @@ class Mechanisms(ReturnRecorder):
         target=C.probe.absorption(p,a)
         if target is not None:
             eid,old,shop=target
-            new=next(m for m in C.own(game)["board"] if m["eid"]==eid)
-            self.absorptions.append([int(game.turn),new["atk"]+new["hp"]-old,shop])
+            new=next((m for m in C.own(game)["board"] if m["eid"]==eid),None)
+            if new is None:
+                # A targeted action can replace the entity, for example when a triple forms.
+                # Its individual change is unobserved, which is distinct from a zero gain.
+                self.unmeasured_absorptions.append(dict(turn=int(game.turn), action=a, eid=eid))
+            else:
+                self.absorptions.append([int(game.turn),new["atk"]+new["hp"]-old,shop])
         if 8<=a<16:
             card=C.item_card(p["shop"][a-8])
             if card in (ids[AZ],ids[RIDER]):

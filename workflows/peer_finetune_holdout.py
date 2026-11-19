@@ -125,16 +125,42 @@ def run(args):
         raise ValueError("raw parent assessment requires the confirmed action protocol")
     parent = str((panel.WEIGHT if args.raw_parent else INITIAL).resolve())
     args.out.mkdir(parents=True, exist_ok=False)
-    atomic_json(args.out / "plan.json", dict(source=source, seed=args.seed, games=args.games,
+    plan = dict(source=source, seed=args.seed, games=args.games,
         matched_prefixes=args.protected, protocol=protocol.sha256(), candidate=seal["files"]["model.pt"],
         models=dict(parent=parent, candidate=seal["model"]), initial_sha=INITIAL_SHA,
-        raw_parent=args.raw_parent, parent_sha=panel.PEER_SHA if args.raw_parent else INITIAL_SHA))
+        raw_parent=args.raw_parent, parent_sha=panel.PEER_SHA if args.raw_parent else INITIAL_SHA)
+    workers = list(range(8))
+    if args.reuse_complete:
+        old = read(args.reuse_complete / "plan.json")
+        required = ("seed", "games", "matched_prefixes", "protocol", "candidate", "initial_sha", "raw_parent", "parent_sha")
+        if any(plan[key] != old[key] for key in required):
+            raise ValueError("recovered assessment plan differs")
+        reused = {}
+        for worker in workers:
+            p = args.reuse_complete / f"panel-{worker}.json"
+            m = args.reuse_complete / f"matched-{worker}.json"
+            if not p.is_file() or not m.is_file():
+                continue
+            rows, states = read(p), read(m)
+            seeds = list(range(args.seed + worker, args.seed + args.games, 8))
+            if ([row["parent"]["seed"] for row in rows] != seeds
+                    or any(set(row) != {"parent", "candidate"} or
+                           (row["parent"]["seed"], row["parent"]["lobby"]) !=
+                           (row["candidate"]["seed"], row["candidate"]["lobby"]) for row in rows)
+                    or any(item["seed"] not in seeds or item["seed"] >= args.seed + args.protected for item in states)):
+                raise ValueError(f"invalid recovered worker {worker}")
+            atomic_json(args.out / p.name, rows)
+            atomic_json(args.out / m.name, states)
+            reused[str(worker)] = {f.name: file_identity(f) for f in (p, m)}
+        workers = [worker for worker in workers if str(worker) not in reused]
+        plan["reused"] = dict(origin=str(args.reuse_complete.resolve()), files=reused)
+    atomic_json(args.out / "plan.json", plan)
     def launch(i):
         with (args.out / f"worker-{i}.log").open("x") as log:
             subprocess.run([sys.executable, __file__, *sys.argv[1:], "--worker", str(i)],
                            check=True, stdout=log, stderr=subprocess.STDOUT)
     with ThreadPoolExecutor(8) as pool:
-        list(pool.map(launch, range(8)))
+        list(pool.map(launch, workers))
     natural = compare(args.out, args.seed, args.games)
     matched = [v for i in range(8) for v in read(args.out / f"matched-{i}.json")]
     if len({v["seed"] for v in matched}) != len(matched):
@@ -156,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("--games", type=int, default=512)
     parser.add_argument("--protected", type=int, default=256)
     parser.add_argument("--raw-parent", action="store_true")
+    parser.add_argument("--reuse-complete", type=Path)
     parser.add_argument("--worker", type=int)
     args = parser.parse_args()
     run(args) if args.worker is None else shard(args)

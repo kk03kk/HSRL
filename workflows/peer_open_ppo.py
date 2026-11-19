@@ -109,7 +109,7 @@ def train(out: Path, *, previous: Path | None = None) -> None:
         job=os.environ["SLURM_JOB_ID"]))
 
 
-def assess(out: Path) -> None:
+def assess(out: Path, *, reused: Path | None = None) -> None:
     from workflows.peer_finetune_holdout import STANDARD_PROTOCOL
     from workflows.peer_ppo_pilot import SEED, read, verified_generation
     from hsbg.runtime.artifacts import atomic_json
@@ -123,24 +123,29 @@ def assess(out: Path) -> None:
             or seal["start"] != FIRST_BATCHES or final["version"] != TOTAL_BATCHES
             or read(last / "plan.json")["parent"] != first["checkpoint"]):
         raise ValueError("pilot protocol or final seal mismatch")
-    subprocess.run([
+    assessment = out / ("assessment-recovered" if reused else "assessment")
+    cmd = [
         sys.executable, "workflows/peer_finetune_holdout.py", "--segment", str(last / "fit"),
-        "--out", str(out / "assessment"), "--seed", str(EVAL_SEED),
+        "--out", str(assessment), "--seed", str(EVAL_SEED),
         "--games", "512", "--protected", "256", "--raw-parent",
-    ], check=True)
-    result = read(out / "assessment/complete.json")
+    ]
+    if reused:
+        cmd.extend(("--reuse-complete", str(reused)))
+    subprocess.run(cmd, check=True)
+    result = read(assessment / "complete.json")
     utility = result["delta"]["utility"]["ci95"][0] > 0
     growth = result["delta"]["log12"]["ci95"][0] >= -0.12
     atomic_json(out / "decision.json", dict(
         utility_pass=utility, t12_growth_pass=growth, passed=utility and growth,
         eval_seed=EVAL_SEED, games=result["n"], final=final["files"]["model.pt"],
-        protocol=STANDARD_PROTOCOL))
+        protocol=STANDARD_PROTOCOL, assessment=str(assessment)))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("train", "resume", "assess"))
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--reuse-assessment", type=Path)
     args = parser.parse_args()
     os.chdir(ROOT)
     for key in list(os.environ):
@@ -149,6 +154,6 @@ if __name__ == "__main__":
     os.environ.update(HSAI_ACTION_PROFILE=ACTION_PROFILE, HSAI_HUMAN_TAIL="last-observed-v1")
     out = args.out.resolve()
     if args.stage == "assess":
-        assess(out)
+        assess(out, reused=args.reuse_assessment)
     else:
         train(out, previous=out / "segment-01" if args.stage == "resume" else None)
