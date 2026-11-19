@@ -306,15 +306,16 @@ def make_eval_policy(
 ) -> Dict[str, Any]:
     """**唯一的**评测策略构造入口：``spec`` → ``{model, meta, policy, kind}``。
 
-    两条分支：
+    支持的策略格式：
 
     * 自家 checkpoint（``load_checkpoint`` + ``PPOEvaluator`` + ``PPOGreedyPolicy``）；
     * 第三方权重（``thirdparty:/path``，``ThirdPartyGreedyPolicy``）。
+    * 带清单的研究策略（``research-policy:/directory``），按模型和卡表摘要恢复分类器与父策略。
 
     依赖默认惰性 import（``hsbg.az.train.model`` / ``.ppo`` / ``.thirdparty_policy``），
     因此单测可以注入假实现而不需要引擎或 torch。
 
-    ``kind`` 是 ``"own"`` / ``"thirdparty"``，写进报告便于审计。
+    ``kind`` 为 ``"own"``、``"thirdparty"`` 或 ``"research-policy"``，可写进报告。
     """
     if str(spec).startswith("research-policy:"):
         from .sale_intent_policy import load_bundle
