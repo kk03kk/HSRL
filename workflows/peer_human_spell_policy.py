@@ -6,6 +6,8 @@ import math
 import os
 from pathlib import Path
 import sys
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -19,7 +21,7 @@ from workflows.peer_spell_choice import INPUTS,RUNS
 
 CARDS=Path("engine/crates/hsbg-engine/data/cards.json")
 ARCHIVE=Path("data/firestone_replays/refresh-20261112T031450Z")
-OUT=RUNS/"nus-peer-human-spell-prior-20261120-1"
+OUT=RUNS/"nus-peer-human-spell-prior-20261120-2"
 
 
 class Offers(XmlReplay):
@@ -53,7 +55,12 @@ def parse_one(task):
     policy.turns=set()
     policy.choices=[]
     policy.costs={c["id"]:int(c.get("cost") or 0) for c in cdb.cards}
-    policy.parse(str(path))
+    try:
+        parsed=policy.parse(str(path))
+    except (ParseError,BadZipFile) as exc:
+        return dict(original=original,file=file_identity(path),error=type(exc).__name__)
+    if parsed is None:
+        return dict(original=original,file=file_identity(path),error="missing_xml")
     return dict(original=original,file=file_identity(path),buys=policy.buys,mapped=policy.mapped,choices=policy.choices)
 
 
@@ -103,9 +110,13 @@ def run():
         method="One first eligible reroll/buy per turn. One visible spell with positive listed cost within spendable gold; equal total weight per contributing human game."))
     with ProcessPoolExecutor(8) as ex:
         rows=list(ex.map(parse_one,[(k,available[k]) for k in selected]))
+    atomic_json(OUT/"observations.json",rows)
+    errors=Counter(r["error"] for r in rows if "error" in r)
+    rows=[r for r in rows if "error" not in r]
+    if len(rows)<.90*len(selected):
+        raise ValueError("fewer than 90 percent of fixed originals parse cleanly")
     mapped=sum(r["mapped"] for r in rows)
     purchases=sum(r["buys"] for r in rows)
-    atomic_json(OUT/"observations.json",rows)
     if not purchases or mapped/purchases<.95:
         raise ValueError("physical shop-slot agreement below 95 percent")
     model=fit(rows)
@@ -135,7 +146,7 @@ def run():
         gain.extend(part)
         per_input[name]=estimate(part)
     utility,log12=estimate(gain),estimate(late)
-    atomic_json(OUT/"complete.json",dict(policy=file_identity(OUT/"policy.json"),originals=len(rows),
+    atomic_json(OUT/"complete.json",dict(policy=file_identity(OUT/"policy.json"),originals=len(rows),errors=errors,
         human_events=sum(len(r["choices"]) for r in rows),purchases=purchases,mapped=mapped,
         trained_on_simulation_returns=False,chosen=chosen,utility=utility,log12=log12,growth=estimate(growth),
         per_input=per_input,passed=utility["ci95"][0]>0 and log12["ci95"][0]>=-.12))
