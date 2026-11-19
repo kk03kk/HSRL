@@ -390,7 +390,7 @@ def _load_checkpoint_payload(payload, device):
     meta = dict(payload.get("meta") or {})
     hidden = int(meta.get("hidden", 256))
     arch = str(meta.get("arch", "tiny"))
-    if arch == 'quilboar_choice_v1':
+    if arch in ('quilboar_choice_v1','quilboar_investment_v1'):
         from .quilboar_option import load_payload
         return load_payload(payload,device,_load_checkpoint_payload)
     if arch == "conditional_economy_v1":

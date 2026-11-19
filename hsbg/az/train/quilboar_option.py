@@ -95,6 +95,8 @@ class QuilboarOption(nn.Module):
     arch=ARCH
     mechanism_schema=''
     input_floats=3227
+    terms=TERMS
+    features=staticmethod(basis)
 
     def __init__(self,base,meta,weights):
         super().__init__()
@@ -103,13 +105,13 @@ class QuilboarOption(nn.Module):
             raise ValueError('option requires original unnormalized entity inputs')
         self.base=base
         self.component_meta=meta
-        self.weights=nn.Parameter(torch.as_tensor(weights,dtype=torch.float32).reshape(len(TERMS)).clone())
+        self.weights=nn.Parameter(torch.as_tensor(weights,dtype=torch.float32).reshape(len(self.terms)).clone())
 
     def forward(self,features,cards,mask=None):
         logits,rank,value=self.base(features,cards,mask)
         adjustments=[]
         for i,(f,c) in enumerate(zip(features.detach().cpu().numpy(),cards.detach().cpu().numpy())):
-            features_i=basis(f,c)
+            features_i=self.features(f,c)
             if features_i is not None:
                 adjustments.append((i,features_i))
         if adjustments:
@@ -119,16 +121,20 @@ class QuilboarOption(nn.Module):
         return logits,rank,value
 
     def checkpoint_metadata(self):
-        return dict(arch=ARCH,component_meta=self.component_meta,terms=list(TERMS),card_sha=roles()[1])
+        return dict(arch=self.arch,component_meta=self.component_meta,terms=list(self.terms),card_sha=roles()[1])
 
 
 def load_payload(payload,device,load_component):
     meta=payload['meta']
-    if meta['terms']!=list(TERMS) or meta['card_sha']!=roles()[1]:
+    cls=QuilboarOption
+    if meta['arch']=='quilboar_investment_v1':
+        from .quilboar_investment import QuilboarInvestment
+        cls=QuilboarInvestment
+    if meta['terms']!=list(cls.terms) or meta['card_sha']!=roles()[1]:
         raise ValueError('option vocabulary or term layout mismatch')
     state=payload['state_dict']
     base,_=load_component(dict(meta=meta['component_meta'],state_dict={
         k[5:]:v for k,v in state.items() if k.startswith('base.')}),device)
-    model=QuilboarOption(base,meta['component_meta'],state['weights'].detach().cpu())
+    model=cls(base,meta['component_meta'],state['weights'].detach().cpu())
     model.load_state_dict(state,strict=True)
     return model.to(device).eval(),dict(meta)

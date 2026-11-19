@@ -24,7 +24,7 @@ from hsbg.runtime.artifacts import atomic_json,file_identity
 from hsbg.runtime.provenance import source_identity
 from hsbg.env import obs_std as O
 
-PLAN=json.loads((ROOT/'config/research/quilboar-choice-study.json').read_text())
+PLAN=json.loads((ROOT/os.environ.get('HSAI_QUILL_PLAN','config/research/quilboar-choice-study.json')).read_text())
 OUT=Path(os.environ.get('HSAI_QUILL_OUT',PLAN['out']))
 BASE=PLAN['base']
 U=np.array([1,.35,-1,-1.15,-1.3,-1.45,-1.6,-1.75])

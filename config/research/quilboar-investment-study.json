@@ -1,0 +1,16 @@
+{
+  "out":"artifacts/runs/nus-quilboar-investment-20261119-1",
+  "base":"artifacts/runs/nus-human-turn-overnight-20261118-1/segment-04/train/snapshots/final_003265/model.pt",
+  "base_sha":"e1117934c76c37090212ec02e75d8ef52b21280c8d47f7dd5eb6089a228f74ad",
+  "demonstration":"artifacts/runs/nus-quilboar-choice-20261119-1",
+  "engine":"c4c71014e3d41760",
+  "protocol":"3af5631bb2190a5dd862298fe7b2f1974f052c9e3b1e460975b5d097386a03ae",
+  "libraries":{"train":"3b18d4d5eceaf458990c7031098df76e9dea042c083dc1d95d306d379b721e81","hold":"5efd7b1394c84ffa40eeaba40bf1d87cc5c10cf0d5cec8954ebfc286d25f12d9"},
+  "workers":8,
+  "sizes":{"investment_fit":96,"develop":192,"natural":1024,"special":384},
+  "seeds":{"investment_fit":411100000,"develop":411200000,"natural":411300000,"special":411400000},
+  "decision":{
+    "development":"Carry one outcome-trained endpoint to blind testing if it improves repeated activation and paired mean log T10-to-T12 growth is >= -0.025, with original utility difference >= -0.10. Otherwise stop after development.",
+    "special_and_promotion":"Same mechanism, growth, survival and placement gates as the original study. A separate blind panel is used if the endpoint advances."
+  }
+}

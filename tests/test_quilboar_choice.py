@@ -47,3 +47,22 @@ def test_native_choose_one_counter(card,expected):
         recorder.after(game,before,None,a,False)
     assert all(m['gems']==expected for m in own(game)['board'])
     assert [e[2] for e in recorder.events]==([2*expected] if card else [])
+
+
+def test_investment_scales_with_visible_gems_and_forgone_board():
+    from hsbg.az.train.quilboar_investment import investment,support
+    ids=support()
+    slot=lambda key:int(np.flatnonzero(ids==key)[0])
+    f=np.zeros(3227,np.float32)
+    c=np.zeros(124,np.int64)
+    f[0],f[5],f[O.GLOBAL_LOBBY_RACES_START+7]=.5,.75,1
+    c[O.SLICE_CARD_SHOP.start]=slot("BG31_323")
+    c[O.SLICE_CARD_BOARD.start]=slot("BG31_326")
+    weak=investment(f,c)
+    f[O.SLICE_BOARD.start+O.MINION_ATK]=40.
+    developed=investment(f,c)
+    assert developed[8,len(TERMS)+2]<weak[8,len(TERMS)+2]
+    f[31]=2.
+    assert investment(f,c)[8,-1]>developed[8,-1]
+    f[O.GLOBAL_LOBBY_RACES_START+7]=0
+    assert investment(f,c) is None
