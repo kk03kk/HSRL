@@ -1,0 +1,14 @@
+{
+  "reason": "After 60 batches, only 24/2048 archived legal decisions change greedy choice; measured directional KL is 0.00102. The 384-seed performance panel is still running.",
+  "stop": "A clear loss in rank utility or late board strength is grounds to stop. No overnight spend from a pilot that misses the predeclared pilot gate.",
+  "bounded_followup": "If the pilot misses the gate with no clear loss, permit exactly one dose test: continue intact Trainer to version 240. Require pilot utility point >= -0.05 and T12 log point >= -0.10, neither upper 95% bound below 0, and reach12 decline <=3 points. Skip this test if the original pilot qualifies for confirmation.",
+  "source_version": 60,
+  "source_model_sha256": "4fb207215033c6a695cf30b41e2313802bcdbadc39133595cbfdfe9ef3e6a510",
+  "source_trainer_sha256": "3fd4f61b0f03dc1013da384c686b34231d1ca4f84eed9c76cd4ceb209724166e",
+  "extra_batches": 180,
+  "development_seed": 193840000,
+  "development_games": 512,
+  "confirmation_seed": 194790000,
+  "confirmation_games": 512,
+  "gate": "Use the same utility, growth and protection thresholds as peer-finetune-confirmation.json, applied to the two new panels of version 240 only. No intermediate endpoint selection."
+}
