@@ -104,7 +104,7 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
         fork = segment / "initial"
         fork.mkdir()
         torch.save(payload, fork / "model.pt")
-        changed_model, _ = load_payload(torch.load(fork / "model.pt", weights_only=True), "cpu")
+        changed_model, _ = load_payload(torch.load(fork / "model.pt", map_location="cpu", weights_only=True), "cpu")
         old = dict(original_model.named_parameters())
         added = [k for k,v in changed_model.named_parameters() if v.requires_grad and not old[k].requires_grad]
         expected = {"actor.encoder.layers.3." + k for k,_ in changed_model.actor.encoder.layers[-1].named_parameters()}
@@ -130,8 +130,8 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
     if last_block:
         import torch
         from hsbg.az.train.peer_actor import load_payload
-        fitted, _ = load_payload(torch.load(final["model"], weights_only=True), "cpu")
-        base = torch.load(INITIAL, weights_only=True)["state_dict"]
+        fitted, _ = load_payload(torch.load(final["model"], map_location="cpu", weights_only=True), "cpu")
+        base = torch.load(INITIAL, map_location="cpu", weights_only=True)["state_dict"]
         changed = {k for k,v in fitted.state_dict().items() if not torch.equal(v, base[k])}
         allowed = {k for k,v in fitted.named_parameters() if v.requires_grad}
         if (not fitted.adapt_last_block or not changed <= allowed
