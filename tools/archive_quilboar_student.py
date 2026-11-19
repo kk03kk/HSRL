@@ -29,14 +29,20 @@ def archive(root, branches, target, report):
     os.link(source, target / "model.pt")
     if file_identity(target / "model.pt") != weights:
         raise ValueError("archived checkpoint identity mismatch")
+    investment = "demonstration" in plan["plan"]
+    fit = Path(plan["plan"].get("demonstration", str(root))) / "fit.json"
+    updates = ([root / "optimization.json"] if investment else
+               [root / stage / "update.json" for stage in ("search1", "search2")])
+    for evidence in (fit, *updates):
+        if not evidence.is_file():
+            raise FileNotFoundError(evidence)
     atomic_json(target / "manifest.json", dict(**manifest, source_run=str(root),
                 libraries=plan["plan"]["libraries"], source_identity=plan["source"],
                 natural_and_special_report={"path": str(report), **file_identity(report)},
                 same_state_report={"path": str(branches), **file_identity(branches)}))
-    atomic_json(target / "checkpoint.json", dict(format="quilboar_choice_v1",
+    atomic_json(target / "checkpoint.json", dict(format="quilboar_investment_v1" if investment else "quilboar_choice_v1",
                 model=weights, parent=plan["plan"]["base"], parent_sha256=manifest["base"],
-                selected_arm=selected["candidate"], fit=str(root / "fit.json"),
-                policy_search=[str(root / stage / "update.json") for stage in ("search1", "search2")]))
+                selected_arm=selected["candidate"], fit=str(fit), policy_search=list(map(str,updates))))
     data = load(report)
     all_games = data["natural"]["cohorts"]["all"]
     pigs = data["special"]["cohorts"]["all"]
@@ -44,10 +50,10 @@ def archive(root, branches, target, report):
         card.write(
             f"# Choice Quilboar research policy\n\n"
             f"Selected arm: {selected['candidate']}. Self-contained weights: {weights['sha256']}.\n\n"
-            "The frozen v3265 policy supplies the prior. A learned 19-coefficient residual uses "
+            "The frozen v3265 policy supplies the prior. A learned residual uses "
             "publicly visible card roles on eligible boards and shops. All decisions use normal "
             "legal masks. The training examples came from a scripted expert in natural games. "
-            "Development compared imitation with two generations of whole-game policy search.\n\n"
+            "Separate training, development and blind seeds were used.\n\n"
             f"Blind natural field: {all_games['rank']['paired']['n']} paired seeds, average placement "
             f"{all_games['rank']['parent']:.3f} to {all_games['rank']['student']:.3f}. "
             f"Separate eligible field: {pigs['rank']['paired']['n']} paired seeds, "
