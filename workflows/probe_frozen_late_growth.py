@@ -48,14 +48,14 @@ def absorption(p,a):
     return eid,m["atk"]+m["hp"],p["stats"]["tavern_elemental_atk"]
 
 
-def play(seed,case,agent,*,opening=None,normal_health=None):
+def play(seed,case,agent,*,opening=None,normal_health=None,last_turn=18):
     g=make(seed,case) if opening is None else opening
     normal_health=NORMAL_HEALTH if normal_health is None else normal_health
     agent.reset()
     rec=ReturnRecorder()
     rec.begin_game(g,0,seed,0)
     turns=[]
-    for t in range(9,19):
+    for t in range(int(g.turn),last_turn+1):
         assert g.turn==t and not g.is_over()
         if normal_health:
             for seat in range(8):
