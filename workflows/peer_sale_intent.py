@@ -18,7 +18,7 @@ from hsbg.runtime.artifacts import atomic_json,file_identity
 from hsbg.runtime.provenance import source_identity
 from tools.summarize_peer_finetune import compare
 from workflows.peer_health_switch import field
-from workflows.peer_finetune_holdout import read
+from workflows.peer_finetune_holdout import holdout_protocol,read
 from workflows.peer_ppo_panel import trial
 from workflows.peer_stop_learning import BASE,BASE_SHA
 
@@ -28,6 +28,22 @@ SCHEMA=("turn","effective_health","board_count","sold_share","hand_count","playa
         "tier","one_gold_offers","sale_log_margin")
 START=365410000
 CARDS=Path("engine/crates/hsbg-engine/data/cards.json")
+DEVELOPMENT=RUNS/"nus-peer-sale-intent-effect-20261120-1"
+PANEL_SEEDS={"development":(368410000,512),"hold":(371410000,768),"market":(374410000,512)}
+
+
+def panel(split):
+    if split=="development":
+        return field()
+    from hsbg.az.train.personal import library_digest
+    if split=="hold":
+        proto,_=holdout_protocol()
+    else:
+        from workflows.peer_minion_transfer import protocol
+        proto=protocol(RUNS/"nus-peer-market-build-20261120-1")
+        if proto.sha256()!="e1ecbed8489a0a2185b1eb4d9318c1065169fb486fd536c927a617a76e7689dd":
+            raise ValueError("expected the sensitivity field with verified market prices")
+    return proto,library_digest(proto.mirror_snaps)
 
 
 def probability(fit,features):
@@ -139,7 +155,7 @@ def shard(out,mode,i):
     import torch
     torch.set_num_threads(1)
     plan=read(out/"plan.json")
-    proto,lib=field()
+    proto,lib=panel(plan.get("split","development"))
     if (proto.sha256(),lib)!=(plan["protocol"],plan["library"]):
         raise ValueError("development field differs")
     pool=MirrorSnapshotPool(proto.mirror_snaps,sample=proto.mirror_sample)
@@ -167,17 +183,21 @@ def shard(out,mode,i):
     atomic_json(out/f"events-{i}.json",details)
 
 
-def run(out,mode):
-    source=source_identity(ROOT);proto,lib=field()
+def run(out,mode,split):
+    if mode=="fit" and split!="development":
+        raise ValueError("intent labels can be fitted only on development games")
+    source=source_identity(ROOT);proto,lib=panel(split)
     if source["tracked_dirty"] or file_identity(BASE/"model.pt")["sha256"]!=BASE_SHA:
         raise ValueError("wrong source or model")
     if mode=="effect" and not read(FIT/"complete.json")["passed"]:
         raise ValueError("fresh-seed classifier gate failed")
-    n=768 if mode=="fit" else 512
-    start=START if mode=="fit" else 368410000
+    if split!="development" and (not read(DEVELOPMENT/"complete.json")["passed"]
+            or read(DEVELOPMENT/"plan.json")["classifier"]!=file_identity(FIT/"complete.json")):
+        raise ValueError("independent efficacy must pass before confirming the same frozen classifier")
+    start,n=(START,768) if mode=="fit" else PANEL_SEEDS[split]
     out.mkdir(exist_ok=False)
     atomic_json(out/"plan.json",dict(source=source,model=BASE_SHA,seed=start,n=n,job=os.environ["SLURM_JOB_ID"],
-        library=lib,protocol=proto.sha256(),canonical_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),
+        library=lib,protocol=proto.sha256(),split=split,canonical_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),
         live_pin=file_identity(ROOT/"config/live/model.json"),classifier=file_identity(FIT/"complete.json") if mode=="effect" else None))
     def launch(i):
         with (out/f"worker-{i}.log").open("x") as log:
@@ -200,6 +220,7 @@ if __name__=="__main__":
     parser.add_argument("mode",choices=("fit","effect"))
     parser.add_argument("out",type=Path)
     parser.add_argument("--worker",type=int)
+    parser.add_argument("--split",choices=PANEL_SEEDS,default="development")
     args=parser.parse_args()
-    if args.worker is None:run(args.out,args.mode)
+    if args.worker is None:run(args.out,args.mode,args.split)
     else:shard(args.out,args.mode,args.worker)
