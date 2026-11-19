@@ -121,14 +121,7 @@ class SaleIntent:
         return p,v
 
 
-def fit_model(rows):
-    missing=sum("next" not in e for r in rows for e in r["events"])
-    if missing:
-        raise ValueError(f"{missing} sales lack a subsequent observed economic decision")
-    train=[e for r in rows if (r["seed"]-START)%3!=2 for e in r["events"] if "next" in e]
-    check=[(r["seed"],e) for r in rows if (r["seed"]-START)%3==2 for e in r["events"] if "next" in e]
-    if len(train)<40 or not check:
-        return dict(passed=False,training=len(train),check=len(check),reason="insufficient natural sales")
+def fit_classifier(train):
     x=np.array([e["features"] for e in train],float)
     center=x.mean(0);scale=x.std(0);scale[scale<1e-7]=1.
     design=np.column_stack((np.ones(len(x)),(x-center)/scale))
@@ -140,7 +133,18 @@ def fit_model(rows):
         hessian=(design.T*(pred*(1-pred)))@design+penalty
         step=np.linalg.solve(hessian,grad);weights-=step
         if np.linalg.norm(step)<1e-8:break
-    spec=dict(features=SCHEMA,center=center.tolist(),scale=scale.tolist(),bias=float(weights[0]),coef=weights[1:].tolist())
+    return dict(features=SCHEMA,center=center.tolist(),scale=scale.tolist(),bias=float(weights[0]),coef=weights[1:].tolist())
+
+
+def fit_model(rows):
+    missing=sum("next" not in e for r in rows for e in r["events"])
+    if missing:
+        raise ValueError(f"{missing} sales lack a subsequent observed economic decision")
+    train=[e for r in rows if (r["seed"]-START)%3!=2 for e in r["events"]]
+    check=[(r["seed"],e) for r in rows if (r["seed"]-START)%3==2 for e in r["events"]]
+    if len(train)<40 or not check:
+        return dict(passed=False,training=len(train),check=len(check),reason="insufficient natural sales")
+    spec=fit_classifier(train)
     chosen=[(s,e) for s,e in check if probability(spec,e["features"])>=.8]
     n=len(chosen);correct=sum(e["next"]==1 for _,e in chosen)
     acc=correct/n if n else 0.
@@ -178,7 +182,10 @@ def shard(out,mode,i):
             if changes and any(changes[0][k]!=eligible[0][k] for k in ("index","turn","original","features")):
                 raise ValueError("first predicted sale differs between arms")
             rows.append(dict(parent=a,candidate=b))
-        details.append(dict(seed=seed,events=events))
+        detail=dict(seed=seed,events=events)
+        if candidate is not None:
+            detail["interventions"]=changes
+        details.append(detail)
     if candidate is not None:atomic_json(out/f"panel-{i}.json",rows)
     atomic_json(out/f"events-{i}.json",details)
 
