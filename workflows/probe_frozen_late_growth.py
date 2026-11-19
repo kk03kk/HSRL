@@ -48,15 +48,16 @@ def absorption(p,a):
     return eid,m["atk"]+m["hp"],p["stats"]["tavern_elemental_atk"]
 
 
-def play(seed,case,agent):
-    g=make(seed,case)
+def play(seed,case,agent,*,opening=None,normal_health=None):
+    g=make(seed,case) if opening is None else opening
+    normal_health=NORMAL_HEALTH if normal_health is None else normal_health
     agent.reset()
     rec=ReturnRecorder()
     rec.begin_game(g,0,seed,0)
     turns=[]
     for t in range(9,19):
         assert g.turn==t and not g.is_over()
-        if NORMAL_HEALTH:
+        if normal_health:
             for seat in range(8):
                 debug(g,"set_player",seat,health=30,armor=0)
         events=[]
@@ -83,7 +84,7 @@ def play(seed,case,agent):
                      board=[m["card"] for m in p["board"]],shop=s["tavern_elemental_atk"],
                      gem=2+s["gem_atk"]+s["gem_hp"],absorptions=events,
                      choices=rec.measured[gem_start:],actions=actions))
-        if NORMAL_HEALTH:
+        if normal_health:
             # The learner sees ordinary health and may spend it during shopping.
             # Refill after its last decision to protect only the combat horizon.
             debug(g,"set_player",0,health=30,armor=0)
