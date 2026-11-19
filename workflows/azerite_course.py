@@ -221,6 +221,41 @@ def exam(out, worker):
     atomic_json(out/f"exam-{worker}.json",rows)
 
 
+def archive(out):
+    """Keep a classroom student as an immutable research asset."""
+    read = lambda path: json.loads(path.read_bytes())
+    fit_record = read(out/"fit.json")
+    exam_record = read(out/"complete.json")
+    plan = read(out/"plan.json")
+    ckpt = out/"candidate"/"model.pt"
+    identity = file_identity(ckpt)
+    if identity != fit_record["model"] or exam_record["trajectories"] != 384:
+        raise ValueError("unverified course endpoint")
+    _,meta = load_checkpoint(str(ckpt),"cpu")
+    if meta["parent_sha"] != plan["parent"] or meta["quill_teacher_sha"] != plan["teacher"]:
+        raise ValueError("different teaching lineage")
+    dest = Path("artifacts/models")/out.name.replace("nus-","human-turn-3702-",1)
+    pending = dest.with_name(dest.name+".partial")
+    if dest.exists():
+        raise FileExistsError(dest)
+    pending.mkdir(exist_ok=False)
+    os.link(ckpt,pending/"model.pt")
+    atomic_json(pending/"manifest.json",dict(schema="hsai.model/v1.1",status="research",
+                arch=meta["arch"],files={"model.pt":identity},source_run=str(out),
+                engine=plan["engine"],source=plan["source"],protocol=plan["protocol"],
+                libraries=quill.PLAN["libraries"],parent=plan["parent"],teacher=plan["teacher"],
+                classroom_pass=exam_record["classroom_pass"],natural_promotion_evaluated=False))
+    atomic_json(pending/"checkpoint.json",dict(stage="supervised",optimizer_steps=fit_record["steps"],
+                model=identity,fit=file_identity(out/"fit.json"),exam=file_identity(out/"complete.json")))
+    with (pending/"MODEL_CARD.md").open("x",encoding="utf-8") as stream:
+        stream.write("# Azerite and Quilboar classroom student\n\n"
+                     f"Frozen evaluation: {exam_record['trajectories']} protected trajectories. "
+                     f"Classroom gate passed: {exam_record['classroom_pass']}. "
+                     "Natural-game strength is unverified. The evaluation baseline remains version 3265.\n\n"
+                     f"Training record: {out}/fit.json. Examination: {out}/complete.json.\n")
+    pending.rename(dest)
+
+
 def run(out):
     out.mkdir(parents=True,exist_ok=False)
     src = source_identity(ROOT)
@@ -262,12 +297,14 @@ def run(out):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("out",type=Path)
-    parser.add_argument("stage",nargs="?",default="run",choices=("run","generate","exam"))
+    parser.add_argument("stage",nargs="?",default="run",choices=("run","generate","exam","archive"))
     parser.add_argument("worker",nargs="?",type=int)
     args = parser.parse_args()
     torch.set_num_threads(1)
     if args.stage=="run":
         run(args.out)
+    elif args.stage=="archive":
+        archive(args.out)
     elif args.stage=="generate":
         generate(args.out,args.worker)
     else:
