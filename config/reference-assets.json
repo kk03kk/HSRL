@@ -2,8 +2,14 @@
   "schema": "hsai.reference-assets/v1",
   "hsbg-ppo": {
     "directory": "artifacts/references/hsbg-ppo-20261117",
-    "purpose": "Optional external-model compatibility analysis; not part of native training or formal v1.4 evaluation",
-    "provenance_status": "Original repository revision and source-code license scope remain unverified. Preserve locally on NUS; do not redistribute these files through Git.",
+    "purpose": "Required for public peer policy evaluation and all peer_heads_v1 training and restoration.",
+    "author": "PrentendYan / jimmypretend",
+    "license": "CC BY-NC 4.0",
+    "source_repository": "https://github.com/PrentendYan/hearthstone-bg-ppo",
+    "source_revision": "8e6f354f2c937e7c1249bcea791862e1e75e9d56",
+    "model_repository": "https://huggingface.co/jimmypretend/hearthstone-bg-ppo",
+    "model_revision": "c0801f15c6d7b558e13f7d2f4ba6f48baf83b8a3",
+    "model_sha256": "0454a99dda1d95b03922aa5015c827b1d499c8e952893284a3b3a0e87bf0352b",
     "files": {
       "LICENSE": "3a8ffb53f8e0f065b06cb2d2913428d651f5f9df9c32c1f0ea5d5b8aaecbec8c",
       "hsbg_net/__init__.py": "fe3410752789ad085f9d22eb31eb67846180471fa593b7cb0455ad902c4387c9",
