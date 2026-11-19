@@ -14,4 +14,5 @@ set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:?}"
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 export PYTHONUTF8=1 PYTHONUNBUFFERED=1
+export HSAI_ACTION_PROFILE=human-turn-3702
 exec .venv/bin/python workflows/azerite_course.py "${1:?new run directory required}"
