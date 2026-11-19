@@ -10,7 +10,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import torch
 from hsbg.runtime.artifacts import atomic_json,file_identity
 from hsbg.runtime.provenance import source_identity
-from tools.probe_four_growth_curves import AZ,ABSORB,RIDER,SURF,make,own,step,card_ids,item_card
+from tools.probe_four_growth_curves import ABSORB,debug,make,own,step,card_ids,item_card
 from workflows.quilboar_study import PLAN,BASE,ROOT,config,policy,engine_info
 from workflows.quilboar_gem_returns import ReturnRecorder
 
@@ -25,6 +25,11 @@ CASES=("elem_budget","elem_offer","quill_ready","quill_offer","mech_double","dra
 if os.environ.get("HSAI_QUILL_COLD_PROBE")=="1":
     OUT=Path("artifacts/runs/nus-frozen-late-growth-cold-20261119-1")
     CASES=("quill_cold_ready","quill_cold_search","quill_lone_source")
+NORMAL_HEALTH=os.environ.get("HSAI_GROWTH_NORMAL_HEALTH")=="1"
+if NORMAL_HEALTH:
+    OUT=Path("artifacts/runs/nus-frozen-late-growth-30hp-20261119-1")
+    CASES=("elem_budget","elem_offer","quill_ready","quill_offer","quill_cold_ready",
+           "quill_cold_search","quill_lone_source","mech_double","dragon_poet")
 SEEDS=list(range(520100,520124))
 
 
@@ -51,6 +56,9 @@ def play(seed,case,agent):
     turns=[]
     for t in range(9,19):
         assert g.turn==t and not g.is_over()
+        if NORMAL_HEALTH:
+            for seat in range(8):
+                debug(g,"set_player",seat,health=30,armor=0)
         events=[]
         actions=0
         gem_start=len(rec.measured)
@@ -75,6 +83,10 @@ def play(seed,case,agent):
                      board=[m["card"] for m in p["board"]],shop=s["tavern_elemental_atk"],
                      gem=2+s["gem_atk"]+s["gem_hp"],absorptions=events,
                      choices=rec.measured[gem_start:],actions=actions))
+        if NORMAL_HEALTH:
+            # The learner sees ordinary health and may spend it during shopping.
+            # Refill after its last decision to protect only the combat horizon.
+            debug(g,"set_player",0,health=30,armor=0)
         for seat in range(1,8):
             step(g,0,seat)
         if g.truncated_combats:
@@ -104,6 +116,7 @@ def run():
     assert engine["source_hash"]==PLAN["engine"] and not src["tracked_dirty"]
     atomic_json(OUT/"plan.json",dict(seeds=SEEDS,models=MODELS,cases=CASES,engine=engine,
         source=src,job=os.environ["SLURM_JOB_ID"],end=18,actions="human-turn-3702",
+        protected_health=30 if NORMAL_HEALTH else 1000,
         diagnostic="T13-T18: native payout on 3 distinct turns including T16 or later; report T18 body and measured payouts separately. Natural gold and shops after initial T9 fixture."))
     def run_shard(i):
         with (OUT/f"worker-{i}.log").open("x") as log:
