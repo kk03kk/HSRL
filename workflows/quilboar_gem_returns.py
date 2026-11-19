@@ -10,7 +10,7 @@ import torch
 from workflows.quilboar_study import Recorder,config,policy,play,read,atomic_json,file_identity
 
 JOBS=[Path("artifacts/runs/nus-quilboar-"+k+"-20261119-1") for k in ("choice","investment")]
-OUT=Path("artifacts/runs/nus-quilboar-proc-audit-20261119-1")
+OUT=Path("artifacts/runs/nus-quilboar-proc-audit-20261119-2")
 
 
 class ReturnRecorder(Recorder):
@@ -59,8 +59,10 @@ def shard(i):
                     continue
                 rec=ReturnRecorder()
                 run=play(p,pool,student["seed"],rec)
+                run["eot"]={str(t):board for t,board in run["eot"].items()}
                 if run!=student:
-                    raise ValueError("replay disagrees with blind trajectory")
+                    mismatch=[k for k in run if run[k]!=student.get(k)]
+                    raise ValueError(f"replay mismatch {root.name} {student['seed']}: {mismatch}")
                 rows.append(dict(study=root.name,panel=panel,seed=student["seed"],events=rec.measured))
     atomic_json(OUT/f"{i}.json",rows)
 
