@@ -86,7 +86,19 @@ def shard(args):
     proto, pool = holdout_protocol()
     if proto.sha256() != plan["protocol"]:
         raise ValueError("hold protocol differs from the assessment plan")
-    players = {k: panel.Q.policy(Path(v), proto) for k,v in plan["models"].items()}
+    players = {"candidate": panel.Q.policy(Path(plan["models"]["candidate"]), proto)}
+    if plan.get("raw_parent"):
+        from workflows.peer_exploration import load_peer
+
+        raw, _ = load_peer()
+        players["parent"] = panel.Peer(panel.Scores(raw, "cuda:0"), proto, keep=False)
+        wrapped = panel.Q.policy(INITIAL, proto)
+        seed = args.seed + args.worker
+        if panel.trial(players["parent"], pool, seed, event_turns=True) != panel.trial(
+                wrapped, pool, seed, event_turns=True):
+            raise ValueError(f"wrapped starting policy differs from raw actor on seed {seed}")
+    else:
+        players["parent"] = panel.Q.policy(Path(plan["models"]["parent"]), proto)
     records, matched = [], []
     for j in range(args.worker, args.games, 8):
         seed = args.seed + j
@@ -109,10 +121,14 @@ def run(args):
     if not (0 <= args.protected <= args.games and args.games > 0):
         raise ValueError("invalid cohort sizes")
     protocol, _ = holdout_protocol()
+    if args.raw_parent and protocol.sha256() != STANDARD_PROTOCOL:
+        raise ValueError("raw parent assessment requires the confirmed action protocol")
+    parent = str((panel.WEIGHT if args.raw_parent else INITIAL).resolve())
     args.out.mkdir(parents=True, exist_ok=False)
     atomic_json(args.out / "plan.json", dict(source=source, seed=args.seed, games=args.games,
         matched_prefixes=args.protected, protocol=protocol.sha256(), candidate=seal["files"]["model.pt"],
-        models=dict(parent=str(INITIAL.resolve()), candidate=seal["model"]), initial_sha=INITIAL_SHA))
+        models=dict(parent=parent, candidate=seal["model"]), initial_sha=INITIAL_SHA,
+        raw_parent=args.raw_parent, parent_sha=panel.PEER_SHA if args.raw_parent else INITIAL_SHA))
     def launch(i):
         with (args.out / f"worker-{i}.log").open("x") as log:
             subprocess.run([sys.executable, __file__, *sys.argv[1:], "--worker", str(i)],
@@ -139,6 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--games", type=int, default=512)
     parser.add_argument("--protected", type=int, default=256)
+    parser.add_argument("--raw-parent", action="store_true")
     parser.add_argument("--worker", type=int)
     args = parser.parse_args()
     run(args) if args.worker is None else shard(args)
