@@ -24,11 +24,12 @@ from workflows.peer_ppo_panel import trial
 
 
 class RetainMaterial:
-    def __init__(self, controller):
+    def __init__(self, controller, *, extended=False):
         self.controller = controller
         self.evaluate = controller.evaluator
         self.model = self.evaluate.model
         controller.evaluator = self
+        self.extended = extended
 
     def reset(self):
         self.controller.reset()
@@ -45,7 +46,10 @@ class RetainMaterial:
             return prior, value
         player = json.loads(self.game.player_json(seat))
         board = player["board"]
-        if player["health"] + player["armor"] > 15 or len(board) > 4:
+        low = player["health"] + player["armor"] <= 15
+        short = len(board) <= 4
+        extra = self.extended and player["gold"] < 3 and (short or (low and len(board) <= 6))
+        if not ((low and short) or extra):
             return prior, value
         stats = [unit["atk"] + unit["hp"] for unit in board]
         total = sum(stats)
@@ -92,15 +96,17 @@ def run(args):
         pool = MirrorSnapshotPool(proto.mirror_snaps, sample=proto.mirror_sample)
         def policy():
             return make_eval_policy(str(INITIAL), protocol=proto, device=args.device)["policy"]
-        raw, keep = policy(), RetainMaterial(policy())
+        raw = RetainMaterial(policy()) if args.extension else policy()
+        keep = RetainMaterial(policy(), extended=args.extension)
         rows, edits = [], []
         for j in range(args.worker, args.games, 8):
             seed = args.seed + j
             a, b = [trial(p, pool, seed, event_turns=True) for p in (raw, keep)]
-            if not keep.overrides and a != b:
+            unchanged = raw.overrides == keep.overrides if args.extension else not keep.overrides
+            if unchanged and a != b:
                 raise ValueError(f"untouched game differs at {seed}")
             rows.append(dict(parent=a, candidate=b))
-            edits.append(dict(seed=seed, overrides=keep.overrides.copy()))
+            edits.append(dict(seed=seed, overrides=keep.overrides.copy(), affected=not unchanged))
         atomic_json(out/f"panel-{args.worker}.json", rows)
         atomic_json(out/f"changes-{args.worker}.json", edits)
         return
@@ -108,6 +114,8 @@ def run(args):
     atomic_json(out/"plan.json", dict(source=source, seed=args.seed, games=args.games, split=args.split, device=args.device,
         parent=parent, protocol=proto.sha256(), field=proto.as_dict(), library=digest,
         rule="T7+, HP+armor<=15, board<=4: protect each 15%+ unit on a proposed material sale",
+        comparison=("extension vs original retention: gold<3 and (board<=4 or low HP and board<=6)"
+                    if args.extension else "original retention vs raw"),
         gate="positive lower 95% CI on all-game utility and T12 paired log strength lower CI >= -0.12",
         engine_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),
         live_pin=file_identity(ROOT/"config/live/model.json"), job=os.environ["SLURM_JOB_ID"]))
@@ -123,7 +131,7 @@ def run(args):
         for row, edits in zip(read(out/f"panel-{i}.json"), read(out/f"changes-{i}.json"), strict=True):
             if row["parent"]["seed"] != edits["seed"]:
                 raise ValueError("override seed mismatch")
-            if edits["overrides"]:
+            if edits["affected"]:
                 effects.append(row["candidate"]["metrics"]["utility"] - row["parent"]["metrics"]["utility"])
     report["affected"] = estimate(effects)
     report["passed"] = report["delta"]["utility"]["ci95"][0] > 0 and report["delta"]["log12"]["ci95"][0] >= -.12
@@ -135,6 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--split", required=True, choices=("train", "hold", "transfer"))
     parser.add_argument("--device", default="cuda:0", choices=("cpu", "cuda:0"))
+    parser.add_argument("--extension", action="store_true")
     parser.add_argument("--seed", required=True, type=int)
     parser.add_argument("--games", required=True, type=int)
     parser.add_argument("--worker", type=int)
