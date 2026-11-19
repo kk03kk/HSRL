@@ -17,7 +17,7 @@ from hsbg.runtime.artifacts import atomic_json, file_identity
 from hsbg.runtime.provenance import source_identity
 from tools.summarize_peer_finetune import compare, estimate
 from workflows.peer_finetune_holdout import INITIAL, INITIAL_SHA, read
-from workflows.peer_minion_rules import RULES, CARDS
+from workflows.peer_minion_rules import RULES, MARKET_RULES, CARDS
 from workflows.peer_ppo_panel import trial
 from workflows.peer_stop_learning import BASE_SHA
 
@@ -36,12 +36,13 @@ def protocol(build):
     if (not Path(hsbg_engine.__file__).resolve().is_relative_to((build/"site").resolve())
             or file_identity(build/"checkout"/CARDS) != identity["card_table"]
             or file_identity(build/"checkout/research-engine-lock.json") != identity["research_lock"]
-            or identity["source_hash"] != "77b1f008c9d046b2"):
+            or identity["rules"] not in (RULES,MARKET_RULES)
+            or identity["source_hash"] != {RULES:"77b1f008c9d046b2", MARKET_RULES:"1b04acb00da7044c"}[identity["rules"]]):
         raise ValueError("unverified sensitivity installation")
     previous = read(OLD/"plan.json")
     original = previous["field"]
     engine = engine_info()
-    expected = dict(original["engine"],source_hash=identity["source_hash"],server_rules_version=RULES)
+    expected = dict(original["engine"],source_hash=identity["source_hash"],server_rules_version=identity["rules"])
     if dict((k,engine[k]) for k in expected) != expected:
         raise ValueError("runtime binary or layout changed")
     proto = EvalProtocol(**original["contract"], **original["field"], engine=expected,
