@@ -1,0 +1,18 @@
+{
+  "source": "https://us.forums.blizzard.com/en/hearthstone/t/3703-hotfix-patch/168317",
+  "effective_date": "2026-11-17",
+  "prices_old_new": {
+    "BG30_MagicItem_962": [4,5], "BG32_MagicItem_808": [2,3], "BG32_MagicItem_892": [3,4],
+    "BG36_MagicItem_409": [0,1], "BG35_MagicItem_306": [2,3], "BG36_MagicItem_800": [3,1],
+    "BG30_MagicItem_411": [1,0], "BG36_MagicItem_307": [2,1], "BG32_MagicItem_278": [1,0],
+    "BG36_MagicItem_390": [1,0], "BG35_MagicItem_150": [2,0], "BG30_MagicItem_821": [1,0],
+    "BG36_MagicItem_402": [4,2], "BG30_MagicItem_442": [6,7], "BG36_MagicItem_450": [4,5],
+    "BG35_MagicItem_732": [6,7], "BG36_MagicItem_308": [5,6], "BG36_MagicItem_414": [3,5],
+    "BG36_MagicItem_423t": [1,0], "BG30_MagicItem_801": [3,1], "BG32_MagicItem_284": [2,0],
+    "BG35_MagicItem_740": [3,0], "BG32_MagicItem_361t": [2,1], "BG30_MagicItem_914t": [2,0]
+  },
+  "removed_lesser": "BG36_MagicItem_812",
+  "aberration_only_hero": "BG36_HERO_002",
+  "lesser_orb": "BG35_MagicItem_816",
+  "orb_exclusion_in_quilboar": "BG36_MagicItem_307"
+}
