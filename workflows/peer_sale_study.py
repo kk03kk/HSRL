@@ -2,6 +2,7 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from hsbg.az.train.eval_policy import make_eval_policy
 from hsbg.az.train.mirror_snapshots import MirrorSnapshotPool
+from hsbg.az.train.personal import library_digest
 from hsbg.runtime.artifacts import atomic_json, file_identity
 from hsbg.runtime.provenance import source_identity
 from tools.summarize_peer_finetune import compare, estimate
@@ -65,8 +67,18 @@ class RetainMaterial:
 
 def run(args):
     out = args.out
-    proto, digest = field() if args.split == "train" else (
-        holdout_protocol()[0], read(ROOT/"config/research/human-turn-3702-ppo.json")["library_digests"]["hold"])
+    if args.split == "train":
+        proto, digest = field()
+    else:
+        proto, _ = holdout_protocol()
+        if args.split == "transfer":
+            path = Path("artifacts/libraries/human-turn-transfer-20261119-01")
+            digest = library_digest(path)
+            if digest != "8a769ef0f43fc8edf2a718514898b1ae4e60831aa8bf37355e11c4d2627c4be0":
+                raise ValueError("transfer field changed")
+            proto = replace(proto, mirror_snaps=path.as_posix())
+        else:
+            digest = read(ROOT/"config/research/human-turn-3702-ppo.json")["library_digests"]["hold"]
     source = source_identity(ROOT)
     parent = file_identity(INITIAL)
     if source["tracked_dirty"] or parent["sha256"] != INITIAL_SHA:
@@ -79,7 +91,7 @@ def run(args):
             raise ValueError("panel assets differ")
         pool = MirrorSnapshotPool(proto.mirror_snaps, sample=proto.mirror_sample)
         def policy():
-            return make_eval_policy(str(INITIAL), protocol=proto, device="cuda:0")["policy"]
+            return make_eval_policy(str(INITIAL), protocol=proto, device=args.device)["policy"]
         raw, keep = policy(), RetainMaterial(policy())
         rows, edits = [], []
         for j in range(args.worker, args.games, 8):
@@ -93,7 +105,7 @@ def run(args):
         atomic_json(out/f"changes-{args.worker}.json", edits)
         return
     out.mkdir(parents=True, exist_ok=False)
-    atomic_json(out/"plan.json", dict(source=source, seed=args.seed, games=args.games, split=args.split,
+    atomic_json(out/"plan.json", dict(source=source, seed=args.seed, games=args.games, split=args.split, device=args.device,
         parent=parent, protocol=proto.sha256(), field=proto.as_dict(), library=digest,
         rule="T7+, HP+armor<=15, board<=4: protect each 15%+ unit on a proposed material sale",
         gate="positive lower 95% CI on all-game utility and T12 paired log strength lower CI >= -0.12",
@@ -121,7 +133,8 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--split", required=True, choices=("train", "hold"))
+    parser.add_argument("--split", required=True, choices=("train", "hold", "transfer"))
+    parser.add_argument("--device", default="cuda:0", choices=("cpu", "cuda:0"))
     parser.add_argument("--seed", required=True, type=int)
     parser.add_argument("--games", required=True, type=int)
     parser.add_argument("--worker", type=int)
