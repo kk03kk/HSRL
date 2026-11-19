@@ -37,7 +37,12 @@ class RetainMaterial:
 
     def decide(self, game, seat):
         self.game = game
-        return self.controller.decide(game, seat)
+        self.last_override = None
+        choice = self.controller.decide(game, seat)
+        if self.last_override is not None and choice.info.get("forced"):
+            self.overrides.pop()
+            self.last_override = None
+        return choice
 
     def __call__(self, features, cards, mask, seat):
         prior, value = self.evaluate(features, cards, mask, seat)
@@ -66,7 +71,36 @@ class RetainMaterial:
         if not eligible[replacement]:
             raise ValueError("invalid alternate choice")
         self.overrides.append([self.game.turn, choice, replacement])
+        self.last_override = (choice, replacement, "base" if low and short else "extra")
         return new, value
+
+
+class ActionTrace:
+    def __init__(self, controller):
+        self.controller = controller
+
+    def reset(self):
+        self.controller.reset()
+        self.events = []
+
+    def decide(self, game, seat):
+        choice = self.controller.decide(game, seat)
+        self.events.append((int(game.turn), seat, int(choice.action), getattr(self.controller, "last_override", None)))
+        return choice
+
+
+def first_change(left, right, extension):
+    for index,(a,b) in enumerate(zip(left,right)):
+        if a[:3] == b[:3]:
+            continue
+        reason = b[3]
+        if (a[:2] != b[:2] or a[3] is not None or reason is None
+                or reason != (a[2], b[2], "extra" if extension else "base")):
+            raise ValueError(f"unexplained first action change at decision {index}: {a} / {b}")
+        return dict(index=index, turn=a[0], original=a[2], replacement=b[2], reason=reason[2])
+    if len(left) != len(right):
+        raise ValueError("identical action prefix produced an unexplained episode length")
+    return None
 
 
 def run(args):
@@ -98,15 +132,16 @@ def run(args):
             return make_eval_policy(str(INITIAL), protocol=proto, device=args.device)["policy"]
         raw = RetainMaterial(policy()) if args.extension else policy()
         keep = RetainMaterial(policy(), extended=args.extension)
+        left, right = ActionTrace(raw), ActionTrace(keep)
         rows, edits = [], []
         for j in range(args.worker, args.games, 8):
             seed = args.seed + j
-            a, b = [trial(p, pool, seed, event_turns=True) for p in (raw, keep)]
-            unchanged = raw.overrides == keep.overrides if args.extension else not keep.overrides
-            if unchanged and a != b:
+            a, b = [trial(p, pool, seed, event_turns=True) for p in (left, right)]
+            first = first_change(left.events, right.events, args.extension)
+            if first is None and a != b:
                 raise ValueError(f"untouched game differs at {seed}")
             rows.append(dict(parent=a, candidate=b))
-            edits.append(dict(seed=seed, overrides=keep.overrides.copy(), affected=not unchanged))
+            edits.append(dict(seed=seed, overrides=keep.overrides.copy(), affected=first is not None, first=first))
         atomic_json(out/f"panel-{args.worker}.json", rows)
         atomic_json(out/f"changes-{args.worker}.json", edits)
         return
