@@ -264,7 +264,7 @@ class GameParser:
             "turn": _int(mt.get(TAG_TURN)) if mt else self.turn,
             "action_type": action_type,
             "source": "firestone_xml",
-            "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
+            "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
             "card_id": None,
             "entity_id": entity_id,
             "target_id": target_id,
@@ -434,9 +434,7 @@ class GameParser:
                 s["play_pos"] = None
                 zone = e["tags"].get(TAG_ZONE)
                 pos = _int(e["tags"].get(TAG_POSITION))
-                s["hand_slot"] = (pos - 1) if (zone == ZONE_HAND and pos) else None
-                if zone == ZONE_HAND and s["hand_slot"] is None:
-                    s["hand_slot"] = 0
+                s["hand_slot"] = pos - 1 if zone == ZONE_HAND and pos is not None and 1 <= pos <= 10 else None
             elif at == "hero_power":
                 s["card_id"] = card
             else:
@@ -468,10 +466,10 @@ class GameParser:
             e = self.entities.get(eid) or {}
             zone = e["tags"].get(TAG_ZONE)
             pos = _int(e["tags"].get(TAG_POSITION))
-            if zone == ZONE_PLAY and pos:
-                s["play_pos"] = pos - 1
-            elif at == "play_spell" and s.get("play_pos") is None:
+            if at == "play_spell":
                 s["play_pos"] = 0
+            elif zone == ZONE_PLAY and pos:
+                s["play_pos"] = pos - 1
         elif at == "reposition":
             e = self.entities.get(eid) or {}
             pos = _int(e["tags"].get(TAG_POSITION))
@@ -666,7 +664,7 @@ def main():
 
     n = max(1, total_samples)
     stats = {
-        "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
+        "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "source": {
             "root": args.root,

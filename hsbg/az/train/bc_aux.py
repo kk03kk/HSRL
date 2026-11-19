@@ -638,8 +638,17 @@ def load_bc_samples(path: str = DEFAULT_BC_SAMPLES_PATH, *,
                 skipped["action_type"] += 1
                 continue
             ai = _int_or_none(r.get("action_index"))
-            old_xml = not r.get("action_semantics") and (r.get("source") == "firestone_xml"
-                        or ("player_folder" in r and "entity_id" in r and "shop_pos" in r))
+            from_xml = r.get("source") == "firestone_xml" or (
+                "player_folder" in r and "entity_id" in r and "shop_pos" in r)
+            old_xml = not r.get("action_semantics") and from_xml
+            if from_xml and atype in ("play_minion", "play_spell") and ai is not None:
+                hand_slot, play_pos = divmod(ai - ACT.A_PLAY, ACT.N_POS)
+                hand = [card for card,pos in zip(r.get("hand_cards") or [], r.get("hand_pos") or [])
+                        if _int_or_none(pos) == hand_slot]
+                if not 0 <= hand_slot < ACT.N_HAND or not r.get("card_id") or hand != [r["card_id"]]:
+                    ai = None
+                elif atype == "play_spell":
+                    ai -= play_pos
             if atype == "buy_spell" and (old_xml or "shop_slot" in r):
                 slot = _int_or_none(r.get("shop_slot"))
                 if slot is None and old_xml:

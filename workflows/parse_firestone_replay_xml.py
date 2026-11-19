@@ -521,7 +521,7 @@ class XmlReplay:
                     snap["card_id"] = card_id
                     p = _int((e.get("tags") or {}).get(TAG_POSITION))
                     zone = (e.get("tags") or {}).get(TAG_ZONE)
-                    snap["hand_slot"] = (p - 1) if zone == ZONE_HAND and p is not None and 1 <= p <= 10 else 0
+                    snap["hand_slot"] = (p - 1) if zone == ZONE_HAND and p is not None and 1 <= p <= 10 else None
                 elif at == "hero_power":
                     snap["card_id"] = card_id
                 else:
@@ -550,10 +550,10 @@ class XmlReplay:
             e = self.ent.get(str(eid)) or {}
             zone = (e.get("tags") or {}).get(TAG_ZONE)
             p = _int((e.get("tags") or {}).get(TAG_POSITION))
-            if zone == ZONE_PLAY and p is not None:
+            if a["action_type"] == "play_spell":
+                a["play_pos"] = 0  # The engine opens a separate Choose action for targeting.
+            elif zone == ZONE_PLAY and p is not None:
                 a["play_pos"] = (p - 1) if 1 <= p <= 7 else None
-            elif a["action_type"] == "play_spell" and a.get("play_pos") is None:
-                a["play_pos"] = 0
         a["action_index"] = self._action_index(a)
         self.actions.append(a)
 
@@ -944,7 +944,7 @@ def parse_game(task):
                 "placement": placement,
                 "build_number": build,
                 "source": "firestone_xml",
-                "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
+                "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
             })
 
         out["stats"].update({
@@ -1136,7 +1136,7 @@ def main():
     stats = {
         "schema": "hsbg.firestone_replay_library.stats",
         "schema_version": 2,
-        "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
+        "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "source": {
             "root": root,

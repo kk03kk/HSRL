@@ -139,6 +139,14 @@ def test_replay_purchase_slots_and_observed_resource_versions(tmp_path):
     assert ids[0,10]==s.action_types.index("buy_spell")
     assert ids[0,15]==s.action_types.index("buy_minion") and ids[0,11]==-1
 
+    played = _row(source="firestone_xml", action_type="play_minion", action_index=46,
+                  hand_cards=["TEST_MINION"], hand_pos=[0])
+    spell = played | {"action_type":"play_spell", "action_index":57, "card_id":"TEST_SPELL",
+                      "hand_cards":["TEST_SPELL"], "hand_pos":[1]}
+    plays = [played, played | {"hand_pos":[2]}, played | {"hand_cards":[]}, spell]
+    checked = load_bc_samples(_write_jsonl(tmp_path/"plays.gz", plays), cards_path=cards)
+    assert list(checked.action_index) == [46,54]
+
 
 def test_load_filters_whitelist_mmr_and_invalid(bc_data):
     path, cards = bc_data
