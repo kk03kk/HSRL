@@ -13,10 +13,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from hsbg.az.train.forced_spell import SPELL_BUY_ACTION, ForcedSpellTracker
+from hsbg.az.train.forced_spell import ForcedSpellTracker, legal_spell_buys
+from hsbg.env.obs_std import ITEM_F, ITEM_PRESENT, ITEM_IS_MINION, OBS_FLOATS, SLICE_SHOP, SPELL_PRESENT
+from hsbg.env.action_space_std import A_BUY, N_SHOP
 from hsbg.az.train.ppo import CollectConfig, PPOSelfPlayPolicy
 
 N_ACTIONS = 245
+SPELL_BUY_ACTION = A_BUY + 3
 
 
 class _Game:
@@ -63,15 +66,19 @@ def _policy(*, per_game: int = 0, turn_min: int = 6, prob: float = 1.0,
 
 def _finish(policy: PPOSelfPlayPolicy, *, turn: int = 8, action: int = 3,
             mask: np.ndarray | None = None, logprob: float = -0.5):
+    features = np.zeros(OBS_FLOATS, dtype=np.float32)
+    shop = features[SLICE_SHOP].reshape(N_SHOP, ITEM_F)
+    shop[3, [ITEM_PRESENT, SPELL_PRESENT]] = 1
+    shop[7, [ITEM_PRESENT, ITEM_IS_MINION]] = 1
     return policy._finish(
-        _Game(turn), 0, np.zeros(8, dtype=np.float32), np.zeros(4, dtype=np.int32),
+        _Game(turn), 0, features, np.zeros(4, dtype=np.int32),
         _mask(0, 1, 2, SPELL_BUY_ACTION) if mask is None else mask,
         action=int(action), logprob=float(logprob), value=0.25,
         target_pi=None, out_pi=None)
 
 
 def test_forced_spell_overrides_the_sampled_action():
-    """配额内且合法：动作被改成 15、logprob=0、forced=True（不进策略梯度）。"""
+    """配额内且合法：动作被改成当前法术槽、logprob=0、forced=True（不进策略梯度）。"""
     p = _policy(per_game=3, turn_min=6)
     d = _finish(p, turn=8, action=3)
     assert int(d.action) == SPELL_BUY_ACTION
@@ -160,3 +167,34 @@ def test_turn_cap_guard_beats_forced_spell():
     assert d.info["forced"] is True              # 是"回合上限"这个守卫在强制
     assert "forced_spell" not in p.records[-1]   # tracker 根本没被咨询
     assert p._spell.stats()["forced_actions"] == before
+
+def test_minion_in_eighth_slot_is_neither_forced_nor_counted():
+    p = _policy(per_game=1, turn_min=0)
+    d = _finish(p, action=15, mask=_mask(0,15))
+    assert d.action==15 and not d.info["forced"]
+    assert p._spell.stats()["policy_spell_actions"]==0
+
+
+def test_skipped_forcing_writes_real_teacher_action():
+    p = _policy(per_game=2, turn_min=0, prob=0, teacher=True)
+    _finish(p, action=1)
+    assert p.records[-1]["teacher_action"] == SPELL_BUY_ACTION
+
+
+def test_native_observation_matches_actual_spell_slots():
+    import json
+    engine = pytest.importorskip("hsbg_engine")
+    game = engine.Game(31407)
+    for _ in range(60):
+        if json.loads(game.player_json(0))["shop"] and game.needs_action(0):
+            break
+        for seat in range(8):
+            if game.needs_action(seat):
+                game.step(seat,next(i for i,ok in enumerate(game.legal_mask(seat)) if ok))
+    raw = game.observe(0)[0]
+    f = np.frombuffer(raw, dtype="<f4")
+    mask = np.frombuffer(game.legal_mask(0),dtype=np.uint8)
+    items = json.loads(game.player_json(0))["shop"]
+    expected = tuple(A_BUY+i for i,s in enumerate(items) if "Spell" in s["item"] and mask[A_BUY+i])
+    assert expected and all(a!=15 for a in expected)
+    assert legal_spell_buys(f,mask)==expected

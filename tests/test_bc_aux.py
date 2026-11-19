@@ -99,6 +99,39 @@ def bc_data(tmp_path):
 
 
 # ── 1. 加载 / 过滤 ───────────────────────────────────────────────────────
+def test_replay_purchase_slots_and_observed_resource_versions(tmp_path):
+    from hsbg.az.train.bc_aux import bc_type_ids
+    from workflows.firestone_bc_parse import GameParser
+    from workflows.parse_firestone_replay_xml import XmlReplay
+    from workflows.firestone_power_tags import remaining_health
+
+    modern = XmlReplay(None)
+    compact = GameParser({}, {}, "")
+    modern.main = compact.main_id = "1"
+    for parser in (modern,compact):
+        for tag,value in (("26","10"),("25","9"),("295","1")):
+            parser.set_tag("1",tag,value)
+        assert parser.gold == 2
+        parser.set_tag("2","25","0")
+        assert parser.gold == 2
+    assert remaining_health({"45":"30","44":"22"})==8
+    for slot,expected in ((0,8),(3,11),(7,15),(None,None),(8,None)):
+        row = {"action_type":"buy_spell","shop_slot":slot}
+        assert modern._action_index(row)==expected
+        assert compact.action_index(row)==(expected is not None,expected)
+
+    cards = _write_cards(tmp_path/"cards.json")
+    old = _row(action_type="buy_spell",action_index=15,source="firestone_xml",card_id="TEST_SPELL",
+               shop_cards=["TEST_SPELL","TEST_MINION"],shop_pos=[2,7])
+    rows = [old,old|{"shop_pos":[]},old|{"shop_slot":2,"action_semantics":"observed-buy-slot-spendable-gold-remaining-health-v2","gold":2,"health":8}]
+    s = load_bc_samples(_write_jsonl(tmp_path/"dataset.gz",rows),cards_path=cards)
+    assert list(s.action_index)==[10,10]
+    assert list(s.gold_known)==[False,True] and list(s.health_known)==[False,True]
+    ids=bc_type_ids(s)
+    assert ids[0,10]==s.action_types.index("buy_spell")
+    assert ids[0,15]==s.action_types.index("buy_minion") and ids[0,11]==-1
+
+
 def test_load_filters_whitelist_mmr_and_invalid(bc_data):
     path, cards = bc_data
     s = load_bc_samples(path, mmr_min=6000, cards_path=cards)

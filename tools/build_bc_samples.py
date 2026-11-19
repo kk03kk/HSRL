@@ -39,7 +39,8 @@ from typing import Any, Dict, Optional
 #: 输出里保留的字段（loader 认的名字）
 KEEP = ("action_type", "action_index", "card_id", "turn", "gold", "tier",
         "health", "armor", "shop_cards", "hand_cards", "board_cards",
-        "game_id", "source")
+        "game_id", "source", "action_semantics", "shop_slot", "shop_pos", "hand_pos",
+        "board_pos", "max_health", "damage", "seq")
 
 
 def game_meta(library: Path) -> Dict[str, Dict[str, Any]]:

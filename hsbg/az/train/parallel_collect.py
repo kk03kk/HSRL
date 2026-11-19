@@ -103,6 +103,9 @@ def _one_game(model: Any, cfg: CollectConfig, gi: int, *, search_fn: Any,
             truncated = 1
         else:
             placements = list(meta["placements"])
+            if shaper.spell_enabled:
+                for idx,rec in enumerate(policy.records):
+                    shaper.attach_spell(policy.records,idx,policy.game_id,rec["action"])
             for seat in range(len(placements)):
                 seat_recs = [r for r in policy.records if int(r["seat"]) == seat]
                 if seat_recs:

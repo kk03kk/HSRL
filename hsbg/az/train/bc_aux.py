@@ -186,8 +186,8 @@ STD_ACTION_SEGMENT: Tuple[str, ...] = _build_action_segment_table()
 def _build_static_type_ids() -> np.ndarray:
     """与样本无关的 245 -> 9 类映射（``-1`` = 不参与类型聚合）。
 
-    静态可分的 7 类：end_turn / reroll / upgrade / hero_power / sell /
-    buy_minion（商店 0..6）/ buy_spell（商店第 7 槽 = 酒馆法术槽）。
+    静态可分的 5 类：end_turn / reroll / upgrade / hero_power / sell。
+    买牌类别由决策前该商店位置的卡牌种类决定。
     ``play_spell`` / ``play_minion`` 无法从动作下标静态区分（取决于手牌该槽是
     随从还是法术），由 :func:`bc_type_ids` 按样本观测的手牌卡种动态细分。
     """
@@ -209,9 +209,6 @@ def _build_static_type_ids() -> np.ndarray:
     _fill("upgrade", (ACT.A_UPGRADE,))
     _fill("hero_power", range(ACT.A_HERO_POWER, ACT.A_HERO_POWER + ACT.N_POWERS))
     _fill("sell", range(ACT.A_SELL, ACT.A_SELL + ACT.N_BOARD))
-    # 酒馆第 7 槽（``A_BUY+7``）是酒馆法术槽；0..6 是随从槽。
-    _fill("buy_minion", range(ACT.A_BUY, ACT.A_BUY + ACT.N_SHOP - 1))
-    _fill("buy_spell", (ACT.A_BUY + ACT.N_SHOP - 1,))
     return ids
 
 
@@ -228,10 +225,7 @@ def _build_action_type_table() -> Tuple[str, ...]:
     out = []
     for a in range(N_ACTIONS):
         seg = STD_ACTION_SEGMENT[a]
-        if seg == "buy":
-            out.append("buy_spell" if a == ACT.A_BUY + ACT.N_SHOP - 1
-                       else "buy_minion")
-        elif seg == "refresh":  # BC 白名单里叫 reroll
+        if seg == "refresh":  # BC 白名单里叫 reroll
             out.append("reroll")
         else:
             out.append(seg)
@@ -644,6 +638,17 @@ def load_bc_samples(path: str = DEFAULT_BC_SAMPLES_PATH, *,
                 skipped["action_type"] += 1
                 continue
             ai = _int_or_none(r.get("action_index"))
+            old_xml = not r.get("action_semantics") and (r.get("source") == "firestone_xml"
+                        or ("player_folder" in r and "entity_id" in r and "shop_pos" in r))
+            if atype == "buy_spell" and (old_xml or "shop_slot" in r):
+                slot = _int_or_none(r.get("shop_slot"))
+                if slot is None and old_xml:
+                    # Some old exports retained reliable native positions but dropped the target slot.
+                    matches = [pos for card,pos in zip(r.get("shop_cards") or [],r.get("shop_pos") or [])
+                               if card == r.get("card_id")]
+                    if len(matches) == 1:
+                        slot = _int_or_none(matches[0])
+                ai = ACT.A_BUY+slot if slot is not None and 0 <= slot < ACT.N_SHOP else None
             if ai is None or not (0 <= ai < N_ACTIONS):
                 skipped["action_index"] += 1
                 continue
@@ -675,6 +680,11 @@ def load_bc_samples(path: str = DEFAULT_BC_SAMPLES_PATH, *,
             for key, dst in (("turn", turn_l), ("gold", gold_l), ("tier", tier_l),
                              ("health", health_l), ("armor", armor_l)):
                 v = _int_or_none(r.get(key))
+                if old_xml and key == "gold":
+                    v = None
+                if old_xml and key == "health":
+                    damage = _int_or_none(r.get("damage"))
+                    v = max(0,v-damage) if v is not None and damage is not None else None
                 dst.append(int(v) if v is not None else 0)
                 known[key].append(v is not None)
             hero_l.append(_map_hero(r.get("hero"), table))
@@ -969,8 +979,7 @@ def bc_type_ids(samples: BCSamples,
     手牌卡种未知的动作保持 ``-1``（不参与聚合），但**真实动作**总是被强制写回
     其 ``action_type`` 对应类别（标签优先，保证类型 CE 的分母非空）。
 
-    其余 7 类（end_turn / reroll / upgrade / hero_power / sell / buy_minion /
-    buy_spell）来自 :data:`BC_STATIC_TYPE_IDS`，与样本无关。
+    买牌由商店卡种区分。其他五类来自 :data:`BC_STATIC_TYPE_IDS`。
     """
     n_total = len(samples) if indices is None else 0
     if indices is None:
@@ -991,6 +1000,12 @@ def bc_type_ids(samples: BCSamples,
                                        BC_ACTION_CLASSES["play_minion"]))
     for row, si in enumerate(idx):
         si = int(si)
+        for slot in np.flatnonzero(samples.shop_present[si]):
+            card = int(samples.shop[si,slot])
+            if 0 <= card < table.n_cards:
+                kind = int(table.kind[card])
+                if kind in (1,2):
+                    out[row,ACT.A_BUY+slot] = class_map["buy_minion" if kind==1 else "buy_spell"]
         for slot in range(ACT.N_HAND):
             if not bool(samples.hand_present[si, slot]):
                 continue

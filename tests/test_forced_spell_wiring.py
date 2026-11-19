@@ -15,7 +15,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from hsbg.az.train import personal
-from hsbg.az.train.forced_spell import SPELL_BUY_ACTION
 from hsbg.az.train.ppo import CollectConfig
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,7 +56,7 @@ def test_policy_honours_the_tracker_in_the_finish_path() -> None:
     src = (ROOT / "hsbg" / "az" / "train" / "ppo.py").read_text(encoding="utf-8")
     assert "self._spell = (ForcedSpellTracker(" in src
     assert "self._spell.decide(" in src
-    assert "_script_action = SPELL_BUY_ACTION if spell_forced else UPGRADE_ACTION" in src
+    assert "_script_action = spell_decision.action if spell_forced else UPGRADE_ACTION" in src
     assert "note_policy_action" in src
 
 
@@ -72,10 +71,3 @@ def test_collectors_aggregate_both_paths() -> None:
     assert "aggregate_forced_spell(" in pool
     inline = (ROOT / "hsbg" / "az" / "train" / "ppo.py").read_text(encoding="utf-8")
     assert "aggregate_forced_spell(games_meta)" in inline
-
-
-def test_action_index_matches_the_shop_spell_slot() -> None:
-    """强制的是商店法术槽（A_BUY + N_SHOP - 1 = 15），不是别的动作。"""
-    assert SPELL_BUY_ACTION == 15
-    assert "SPELL_BUY_ACTION" in (ROOT / "hsbg" / "az" / "train" / "ppo.py").read_text(
-        encoding="utf-8")

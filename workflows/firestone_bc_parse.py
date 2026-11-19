@@ -34,6 +34,11 @@ import time
 import traceback
 from multiprocessing import Pool
 
+if __package__:
+    from .firestone_power_tags import RESOURCE_TAGS, available_gold, remaining_health
+else:
+    from firestone_power_tags import RESOURCE_TAGS, available_gold, remaining_health
+
 # ── Hearthstone 枚举（只保留解析需要的常量）──────────────────────────────
 TAG_ZONE = "49"
 TAG_CONTROLLER = "50"
@@ -68,7 +73,7 @@ ACTION_MAP = {
     "hero_power": ("4+slot", True, "HeroPower(slot)，slot 0..1"),
     "dark_gift": ("6", True, "DarkGift"),
     "buy_minion": ("8+slot", True, "Buy(shop slot 0..7)"),
-    "buy_spell": ("8+7", True, "Buy(tavern spell slot 7)"),
+    "buy_spell": ("8+slot", True, "Buy(observed tavern spell slot)"),
     "sell": ("16+slot", True, "Sell(board slot 0..6)"),
     "play_minion": ("46+hand*8+pos", True, "Play{hand 0..9, pos 0..7}"),
     "play_spell": ("46+hand*8+pos", True, "Play{hand 0..9, pos 0..7}"),
@@ -174,8 +179,8 @@ class GameParser:
             if "BaconShopBob" in card:
                 self.bob_ctrl = val
         if eid == self.main_id:
-            if tag == TAG_RESOURCES:
-                self.gold = _int(val)
+            if tag in RESOURCE_TAGS:
+                self.gold = available_gold(e["tags"])
             elif tag == TAG_TECH_LEVEL:
                 self.tier = _int(val)
             elif tag == TAG_TURN:
@@ -261,12 +266,15 @@ class GameParser:
             "mmr": self.meta.get("mmr"),
             "turn": _int(mt.get(TAG_TURN)) if mt else self.turn,
             "action_type": action_type,
+            "source": "firestone_xml",
+            "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
             "card_id": None,
             "entity_id": entity_id,
             "target_id": target_id,
-            "gold": _int(mt.get(TAG_RESOURCES)) if mt else self.gold,
+            "gold": available_gold(mt) if mt else self.gold,
             "tier": _int(mt.get(TAG_TECH_LEVEL)) if mt else self.tier,
-            "health": _int(ht.get(TAG_HEALTH)),
+            "health": remaining_health(ht),
+            "max_health": _int(ht.get(TAG_HEALTH)),
             "damage": _int(ht.get(TAG_DAMAGE)),
             "armor": _int(ht.get(TAG_ARMOR)),
             "board_cards": st["board"],
@@ -323,13 +331,11 @@ class GameParser:
         if not info or not info[1]:
             return False, None
         expr = info[0]
-        if at in ("buy_minion",):
+        if at in ("buy_minion","buy_spell"):
             slot = s.get("shop_slot")
             if slot is None or not (0 <= slot <= 7):
                 return False, None
             return True, 8 + slot
-        if at in ("buy_spell",):
-            return True, 8 + 7
         if at == "sell":
             slot = s.get("board_slot")
             if slot is None or not (0 <= slot <= 6):
@@ -663,6 +669,7 @@ def main():
 
     n = max(1, total_samples)
     stats = {
+        "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "source": {
             "root": args.root,

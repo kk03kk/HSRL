@@ -46,7 +46,6 @@ from hsbg.az.train.common import engine_available, engine_info, to_jsonable  # n
 from hsbg.az.train.mirror_snapshots import parse_turn_bands, ramp_p  # noqa: E402
 from hsbg.az.train.checkpoint_io import publish_checkpoint  # noqa: E402
 from hsbg.az.train.reward_shaping import (  # noqa: E402
-    SPELL_BUY_ACTION,
     parse_tier_bonus,
     shaping_gamma_warning,
 )
@@ -824,7 +823,7 @@ def main() -> int:
             print("[error] --spell-bootstrap-per-game 必须 >= 1", file=sys.stderr)
             return 2
         print(f"[spell-bootstrap] 开启：coef={float(args.spell_bootstrap_coef):g} "
-              f"每局上限={int(args.spell_bootstrap_per_game)} 动作={SPELL_BUY_ACTION}"
+              f"每局上限={int(args.spell_bootstrap_per_game)}，按当前合法法术槽判定"
               "（商店法术槽；动作条件奖励，非策略不变）", flush=True)
 
     # ---- records 数据通路（默认 auto/fp16；`--ipc-mode disk --records-dtype fp32` = 历史路径。

@@ -48,6 +48,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 
+if __package__:
+    from .firestone_power_tags import RESOURCE_TAGS, available_gold, remaining_health
+else:
+    from firestone_power_tags import RESOURCE_TAGS, available_gold, remaining_health
+
 # ════════════════════════════════════════════════════════════════════════
 # Hearthstone tag / keyword 常量
 # ════════════════════════════════════════════════════════════════════════
@@ -108,7 +113,7 @@ ACTION_MAP = {
     "hero_power": ("4+slot", True),
     "dark_gift": ("6", True),
     "buy_minion": ("8+slot", True),
-    "buy_spell": ("15", True),
+    "buy_spell": ("8+slot", True),
     "sell": ("16+slot", True),
     "play_minion": ("46+hand*8+pos", True),
     "play_spell": ("46+hand*8+pos", True),
@@ -243,8 +248,8 @@ class XmlReplay:
                 if self.round > 0 and self.round not in self.snapped_turns:
                     self.snapshot("turn_end")
                 self.round = nt
-        elif k == TAG_RESOURCES and eid == str(self.main):
-            self.gold = _int(v)
+        elif k in RESOURCE_TAGS and eid == str(self.main):
+            self.gold = available_gold(e["tags"])
         elif k == TAG_TECH_LEVEL and eid == str(self.main):
             self.tier = _int(v)
         elif k == TAG_LEADERBOARD_PLACE:
@@ -392,7 +397,8 @@ class XmlReplay:
             "shop": [],
             "gold": self.gold,
             "tier": self.tier,
-            "hero_hp": self.hero_hp,
+            "hero_hp": remaining_health(self.ent.get(str(self.main_hero),{}).get("tags",{})),
+            "hero_max_hp": self.hero_hp,
             "hero_damage": self.hero_damage,
             "hero_armor": self.hero_armor,
             "opp_hero_card": opp_hero,
@@ -453,11 +459,9 @@ class XmlReplay:
             return 4
         if at == "dark_gift":
             return 6
-        if at == "buy_minion":
+        if at in ("buy_minion","buy_spell"):
             s = a.get("shop_slot")
             return 8 + s if isinstance(s, int) and 0 <= s <= 7 else None
-        if at == "buy_spell":
-            return 15
         if at == "sell":
             s = a.get("board_slot")
             return 16 + s if isinstance(s, int) and 0 <= s <= 6 else None
@@ -486,11 +490,12 @@ class XmlReplay:
                 target = el.get("target")
                 tgt = self.ent.get(str(target)) or {}
                 snap = {
-                    "turn": int(self.round), "action_type": at,
+                    "turn": int(self.round), "action_type": at, "seq": self.seq,
                     "card_id": None, "target_card_id": None,
                     "entity_id": str(eid) if eid else None, "target_id": str(target) if target else None,
                     "gold": self.gold, "tier": self.tier,
-                    "hero_hp": self.hero_hp, "hero_armor": self.hero_armor,
+                    "hero_hp": remaining_health(self.ent.get(str(self.main_hero),{}).get("tags",{})),
+                    "hero_max_hp": self.hero_hp, "hero_armor": self.hero_armor,
                     "shop_slot": None, "board_slot": None,
                     "hand_slot": None, "play_pos": None,
                     "board_cards": [m["card_id"] for m in self._board(self.main_ctrl)],
@@ -591,7 +596,7 @@ class XmlReplay:
                 "turn": int(t), "action_type": "end_turn", "card_id": None,
                 "target_card_id": None, "entity_id": None, "target_id": None,
                 "gold": s.get("gold"), "tier": s.get("tier"),
-                "hero_hp": s.get("hero_hp"), "hero_armor": s.get("hero_armor"),
+                "hero_hp": s.get("hero_hp"), "hero_max_hp": s.get("hero_max_hp"), "hero_armor": s.get("hero_armor"),
                 "shop_slot": None, "board_slot": None, "hand_slot": None,
                 "play_pos": None,
                 "board_cards": [m["card_id"] for m in s["self_board"]],
@@ -600,7 +605,8 @@ class XmlReplay:
                 "action_index": 0,
             }
             self.actions.append(a)
-        self.actions.sort(key=lambda a: (a["turn"], a["action_type"]))
+        # Synthetic EndTurn has no native sequence and follows the observed decisions.
+        self.actions.sort(key=lambda a: (a["turn"], a.get("seq", self.seq+1)))
         return {
             "main_name": self.main_name,
             "hero_card_id": (self.ent.get(str(self.main_hero)) or {}).get("card"),
@@ -928,7 +934,8 @@ def parse_game(task):
                 "entity_id": a.get("entity_id"),
                 "target_id": a.get("target_id"),
                 "gold": a.get("gold"), "tier": a.get("tier"),
-                "health": a.get("hero_hp"), "armor": a.get("hero_armor"),
+                "health": a.get("hero_hp"), "max_health": a.get("hero_max_hp"), "armor": a.get("hero_armor"),
+                "seq": a.get("seq"),
                 "board_cards": a.get("board_cards") or [],
                 "hand_cards": a.get("hand_cards") or [],
                 "shop_cards": a.get("shop_cards") or [],
@@ -938,6 +945,7 @@ def parse_game(task):
                 "placement": placement,
                 "build_number": build,
                 "source": "firestone_xml",
+                "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
             })
 
         out["stats"].update({
@@ -1128,7 +1136,8 @@ def main():
                                  "max": max(v)}
     stats = {
         "schema": "hsbg.firestone_replay_library.stats",
-        "schema_version": 1,
+        "schema_version": 2,
+        "action_semantics": "observed-buy-slot-spendable-gold-remaining-health-v2",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "source": {
             "root": root,

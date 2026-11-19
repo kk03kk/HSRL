@@ -44,7 +44,6 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from hsbg.env.action_space_std import A_BUY, N_SHOP
 from hsbg.env.obs_std import (
     GLOBAL_FIELD_INDEX,
     GLOBAL_FIELD_SCALE,
@@ -58,12 +57,6 @@ from hsbg.env.obs_std import (
 )
 
 from .mirror_snapshots import board_strength
-
-#: 「买法术」的动作 id。商店共 ``N_SHOP`` 个槽，最后一个固定是酒馆法术槽
-#: （``engine/crates/hsbg-engine/src/config.rs`` 里 ``7 + shop_spell_slots(=1)``，
-#: 掩码在 ``actions.rs`` 的 ``for i in 0..shop.len().min(N_SHOP)``）。
-#: 用常量组合而非字面量 15，动作布局变化时会跟着变；单测核对它确实等于 15。
-SPELL_BUY_ACTION = int(A_BUY) + int(N_SHOP) - 1
 
 #: 与训练默认 γ=1.0 对齐的塑形折扣（``shaping_reward`` 的兼容默认值）。
 #: **不要**把它当成「任务约定的 0.995」：历史实现的 0.995 与训练 γ=1.0 不一致，
@@ -375,7 +368,7 @@ class RewardShaper:
         self.spell_coef = float(getattr(cfg, "spell_bootstrap_coef", 0.0) or 0.0)
         self.spell_per_game = int(getattr(cfg, "spell_bootstrap_per_game", 0) or 0)
         self.spell_enabled = self.spell_coef != 0.0 and self.spell_per_game > 0
-        self._spell_used: Dict[int, int] = {}
+        self._spell_used: Dict[Tuple[int,int], int] = {}
         self.spell_hits = 0
         self.spell_sum = 0.0
 
@@ -427,7 +420,7 @@ class RewardShaper:
 
         为什么不能用势函数：势函数塑形是策略不变的，它不会改变"永远不买法术"这个
         局部最优。这里刻意用**动作条件**奖励（非策略不变），因此：
-        * 只认 ``BUY_SPELL_ACTION``（商店最后一个槽 = 法术槽，见 ``actions.rs`` N_SHOP=8）；
+        * 根据决策时的原生商店类型与合法掩码确认购买的法术槽；
         * 每局最多 ``per_game`` 次（配额上限，无法靠多买多拿）；
         * ``coef=0``（默认）时整个函数立即返回 0，不读 record、不写字段 —— 旧路径逐位一致。
 
@@ -441,12 +434,13 @@ class RewardShaper:
         rec = records[idx]
         if int(rec.get("game_id", -1)) != int(game_id):
             return 0.0
-        if int(action) != SPELL_BUY_ACTION:
+        if rec.get("spell_purchase_action") != int(action):
             return 0.0
-        used = int(self._spell_used.get(int(game_id), 0))
+        key = (int(game_id),int(rec.get("seat",0)))
+        used = int(self._spell_used.get(key, 0))
         if used >= self.spell_per_game:
             return 0.0
-        self._spell_used[int(game_id)] = used + 1
+        self._spell_used[key] = used + 1
         rec["reward"] = float(rec.get("reward", 0.0)) + float(self.spell_coef)
         rec["spell_bootstrap"] = float(self.spell_coef)
         self.spell_hits += 1

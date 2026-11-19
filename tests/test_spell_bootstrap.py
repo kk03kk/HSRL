@@ -16,19 +16,15 @@ from __future__ import annotations
 import pytest
 
 from hsbg.az.train.ppo import CollectConfig
-from hsbg.az.train.reward_shaping import SPELL_BUY_ACTION, RewardShaper
+from hsbg.az.train.reward_shaping import RewardShaper
 from hsbg.env.action_space_std import A_BUY, N_SHOP
 
 
-def test_spell_buy_action_matches_engine_layout() -> None:
-    """法术槽 = 商店最后一个槽：A_BUY + N_SHOP - 1。"""
-    assert N_SHOP == 8
-    assert A_BUY == 8
-    assert SPELL_BUY_ACTION == A_BUY + N_SHOP - 1 == 15
+SPELL_BUY_ACTION = A_BUY + 3
 
 
 def _records(n: int, game_id: int = 7) -> list:
-    return [{"game_id": game_id, "action": -1} for _ in range(n)]
+    return [{"game_id": game_id, "action": SPELL_BUY_ACTION, "spell_purchase_action": SPELL_BUY_ACTION} for _ in range(n)]
 
 
 def test_disabled_by_default_touches_nothing() -> None:

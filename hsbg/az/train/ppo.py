@@ -98,7 +98,7 @@ from .forced_tier import (
     summarize_forced_tier,
 )
 from .forced_spell import (
-    SPELL_BUY_ACTION,
+    legal_spell_buys,
     ForcedSpellTracker,
     aggregate_forced_spell,
 )
@@ -511,9 +511,7 @@ class CollectConfig:
     shaping_tier_bonus: str = "0,0,20,60,150,400,900"
     #: ── 法术自举补贴（spell bootstrap，默认关闭；见 docs/analysis/NEXT_INTERVENTIONS_20261114.md）──
     #: 系数：**0 = 关闭**（不读动作、不写 record、不新增 meta 键，旧路径逐位一致）。
-    #: 为什么需要它：champion 整局**买 0 次法术**，而每回合商店里都有一个合法法术槽
-    #: （``A_BUY+7``，见 ``engine/.../actions.rs`` 与 ``recruit.rs``），真人每回合买 0.46–1.51 个。
-    #: 终局名次是稀疏信号，单次法术被 150+ 个决策稀释 ⇒ 梯度≈0，策略永远不探索这一类动作。
+    #: 购买动作由决策时原生观测的商店卡种及合法掩码确定。
     #: 这是**动作条件**奖励（不是势函数），**不满足策略不变性**：只注入前 K 次、仅买法术，
     #: 用来把这类动作「点亮」，之后再靠名次奖励接管。验收必须同时看名次与板面。
     spell_bootstrap_coef: float = 0.0
@@ -3964,13 +3962,17 @@ class PPOSelfPlayPolicy(Policy):
         # 强制买法术课程：只在"没有别的守卫接管"时咨询 tracker（配额与合法性由它负责）。
         # 注意顺序——先算 forced_turn，才能保证不会在只允许 EndTurn 的决策上强制买法术。
         spell_decision = None
+        spell_actions = ()
+        spell_bonus = self.config.spell_bootstrap_coef > 0 and self.config.spell_bootstrap_per_game > 0
+        if self._spell is not None or spell_bonus:
+            spell_actions = legal_spell_buys(f, mask)
         if (self._spell is not None and not forced_turn and not guard_forced
                 and not tier_forced):
             spell_decision = self._spell.decide(
                 game_id=int(self.game_id), seat=seat, turn=turn,
-                spell_legal=bool(mask[SPELL_BUY_ACTION]),
+                spell_action=spell_actions[0] if spell_actions else None,
                 force_prob=float(self._spell_prob), rng=self._rng,
-                teacher_enabled=bool(self._spell_teacher))
+                teacher_enabled=bool(self._spell_teacher and not getattr(forced_decision, "teacher", False)))
         spell_forced = bool(spell_decision is not None
                             and getattr(spell_decision, "force", False))
         script_forced = bool(tier_forced or spell_forced)
@@ -3980,7 +3982,7 @@ class PPOSelfPlayPolicy(Policy):
         if self._spell is not None:
             # 记账：策略**未被强制**时自己选择了买法术（"学会没学会"的唯一口径）。
             self._spell.note_policy_action(game_id=int(self.game_id), seat=seat,
-                                           action=int(action), forced=forced)
+                                           is_spell_purchase=int(action) in spell_actions, forced=forced)
 
         legal = np.flatnonzero(mask)
         if legal.size == 0:
@@ -3988,7 +3990,7 @@ class PPOSelfPlayPolicy(Policy):
         elif policy_forced:
             # 强制升本/强制买法术：动作固定，logprob=0（同守卫口径：不进策略梯度，
             # 不当成 on-policy 样本；价值/回报链照常保留）。
-            _script_action = SPELL_BUY_ACTION if spell_forced else UPGRADE_ACTION
+            _script_action = spell_decision.action if spell_forced else UPGRADE_ACTION
             action, logprob = int(_script_action), 0.0
         elif forced:
             # 守卫动作是**环境确定性约束**（delta 在 EndTurn 上），不是行为分布采样。
@@ -4035,6 +4037,10 @@ class PPOSelfPlayPolicy(Policy):
         if spell_decision is not None:
             # 只在本局本回合真的咨询了 tracker 时才写（未启用时 record 集合不变）
             rec["forced_spell"] = spell_decision.as_record()
+            if spell_decision.teacher and not forced and "teacher_action" not in rec:
+                rec["teacher_action"] = spell_decision.action
+        if spell_bonus:
+            rec["spell_purchase_action"] = int(action) if int(action) in spell_actions else None
         if self._mix is not None and self._mix.enabled:
             # 搜索行为混合：μ 的 logprob（ratio 分母）与 π 的 logprob（KL 口径）。
             # 未混合/搜索失败的决策两者都等于按 π 采样的 logprob。
@@ -4582,6 +4588,9 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
                 truncated += 1
             else:
                 placements = list(meta["placements"])
+                if shaper.spell_enabled:
+                    for idx,rec in enumerate(policy.records):
+                        shaper.attach_spell(policy.records,idx,gid,rec["action"])
                 for seat in range(len(placements)):
                     seat_recs = [r for r in policy.records if int(r["seat"]) == seat]
                     if seat_recs:
@@ -4668,6 +4677,8 @@ def collect_ppo_batch(model: Any, config: Optional[CollectConfig] = None, *,
                             illegal += 1
                             action = int(np.flatnonzero(mask)[0]) if mask.any() else 0
                         game.step(int(p), action)
+                        if shaper.spell_enabled:
+                            shaper.attach_spell(policy.records, len(policy.records)-1, gid, action)
                         if _curr_mult != 1.0:
                             _carry = int(json.loads(game.player_json(int(p))).get(
                                 "gold") or 0)

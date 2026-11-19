@@ -1,14 +1,7 @@
 """强制买法术（forced spell-buy）探索课程：让零频动作真的被采到，并如实记账。
 
-动机（见 ``docs/analysis/RUNS_20261113.md`` §5.79 与
-``docs/analysis/DESIGN_FORCED_SPELL_20261114.md``）：champion 及其全部后代**整局买 0 次法术**，
-而真人每回合买 0.46–1.51 个；中后期增长 ≈90% 来自"养留存随从"，法术是这条主线上
-唯一从未被探索过的动作类。
-
-关键教训：**动作条件奖励对零频动作结构性无效**——2026-11-14 的 `spell-bootstrap` 补贴
-（coef 0.05 × 每局 3 次）在 21 个冒烟迭代里 `reward_shaping_mean` 恒为 0.0，因为
-"没采过 ⇒ 值函数不知道它好不好 ⇒ 概率仍是 0 ⇒ 仍然不会采"。要打破这个自指死锁，
-只能**先让它真的发生**，这就是本模块。
+课程在指定回合及配额内引入合法法术购买，分别记录强制购买和策略自主购买。
+2026-11-14 的旧实验仅检查第八个商店槽；这些历史计数无法还原各槽的法术购买频率。
 
 本模块只做三件事，全部是纯逻辑、可单测（与 ``forced_tier`` 同构）：
 
@@ -20,7 +13,7 @@
 设计约束（与 ``forced_tier`` / PPO 口径一致，一条都不能少）：
 
 - **只强制真正合法的动作**：判据是引擎给的合法掩码里商店法术槽那一位
-  （``mask[SPELL_BUY_ACTION]``）。本模块不读金币、不补金币、不改引擎状态；
+  与原生观测中的酒馆物品类型共同确认。本模块不读金币、不补金币、不改引擎状态；
   不合法就**不强制**，并记一次 ``blocked``。
 - **被强制的决策不进策略梯度**：调用方把该条记录标成 ``forced``（与动作上限守卫、
   换位守卫、强制升本同口径：``logprob=0``，PPO 的策略/辅助损失排除，只保留价值链）。
@@ -43,9 +36,18 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from .forced_tier import parse_prob_schedule, prob_at
+from hsbg.env.action_space_std import A_BUY, N_SHOP
+from hsbg.env.obs_std import ITEM_F, ITEM_IS_MINION, ITEM_PRESENT, SLICE_SHOP, SPELL_PRESENT
 
-#: 商店法术槽的动作下标 = ``A_BUY + N_SHOP - 1``（N_SHOP = 8，见 common.py ACTION_SEGMENTS）
-SPELL_BUY_ACTION = 15
+
+def legal_spell_buys(features, mask):
+    """Return current native buy actions for affordable, occupied spell slots."""
+    shop = features[SLICE_SHOP].reshape(N_SHOP, ITEM_F)
+    return tuple(
+        A_BUY + i for i, item in enumerate(shop)
+        if mask[A_BUY + i] and item[ITEM_PRESENT] > .5
+        and item[ITEM_IS_MINION] < .5 and item[SPELL_PRESENT] > .5
+    )
 
 #: 每局默认最多强制买几次
 DEFAULT_FORCED_SPELL_PER_GAME = 3
@@ -91,7 +93,7 @@ class ForcedSpellDecision:
 
     def as_record(self) -> Dict[str, object]:
         return {"force": bool(self.force), "turn": int(self.turn),
-                "remaining": int(self.remaining)}
+                "remaining": int(self.remaining), "action": self.action, "teacher": self.teacher}
 
     def __repr__(self) -> str:  # 仅调试/日志用
         return (f"ForcedSpellDecision(force={self.force}, teacher={self.teacher}, "
@@ -157,13 +159,13 @@ class ForcedSpellTracker:
 
     # ---- 主判定 ----
     def decide(self, *, game_id: Any = 0, seat: Any = 0, turn: Any = 0,
-               spell_legal: bool, decisions: Optional[float] = None,
+               spell_action: Optional[int], decisions: Optional[float] = None,
                force_prob: Optional[float] = None,
                rng: Optional[object] = None,
                teacher_enabled: bool = True) -> ForcedSpellDecision:
         """判断本次决策是否强制"买法术"。
 
-        ``spell_legal`` 必须来自引擎合法掩码的法术槽位（唯一权威口径）。
+        ``spell_action`` 来自当前可购买的法术槽；没有可购法术时传 None。
         ``decisions``：查 ``prob_schedule`` 用的累计决策数；``None`` ⇒ 用本对象的
         ``decide()`` 调用次数（PPO 热路径走这个默认值，避免多维护一个计数器）。
         ``force_prob`` 给定时优先用它（便于测试与逐段覆盖）。
@@ -171,6 +173,9 @@ class ForcedSpellTracker:
         out = ForcedSpellDecision()
         if not self.enabled:
             return out
+        spell_legal = spell_action is not None
+        if spell_legal and not A_BUY <= spell_action < A_BUY + N_SHOP:
+            raise ValueError("invalid native spell purchase index")
         self._decisions_seen += 1
         turn = int(turn)
         out.turn = turn
@@ -199,10 +204,11 @@ class ForcedSpellTracker:
                 self.prob_skips += 1
                 if teacher_enabled:
                     out.teacher = True
+                    out.action = int(spell_action)
                     self.teacher_labels += 1
                 return out
         out.force = True
-        out.action = int(SPELL_BUY_ACTION)
+        out.action = int(spell_action)
         st.remaining -= 1
         st.forced += 1
         self.forced_actions += 1
@@ -210,11 +216,11 @@ class ForcedSpellTracker:
         return out
 
     def note_policy_action(self, *, game_id: Any = 0, seat: Any = 0,
-                           action: Any = -1, forced: bool = False) -> None:
+                           is_spell_purchase: bool, forced: bool = False) -> None:
         """记账：策略**未被强制**时自己选择了买法术（判断"学会没学会"的唯一口径）。"""
         if not self.enabled or bool(forced):
             return
-        if int(action) != int(SPELL_BUY_ACTION):
+        if not is_spell_purchase:
             return
         st = self._game(game_id, seat)
         st.policy_spell_actions += 1
@@ -299,7 +305,7 @@ __all__ = [
     "DEFAULT_FORCED_SPELL_TURN_MIN",
     "ForcedSpellDecision",
     "ForcedSpellTracker",
-    "SPELL_BUY_ACTION",
+    "legal_spell_buys",
     "aggregate_forced_spell",
     "forced_spell_rates",
     "summarize_forced_spell",
