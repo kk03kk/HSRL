@@ -83,11 +83,20 @@ def check_states(j, seed, parent, players, pool, rows):
     return dict(seed=seed, turn=fork.turn, hp=hp, opening=fork.opening, groups=groups, ranks=ranks)
 
 
+def selected_field(split):
+    if split == "hold":
+        return holdout_protocol()
+    from hsbg.az.train.mirror_snapshots import MirrorSnapshotPool
+    from workflows.peer_health_switch import field
+    proto, _ = field()
+    return proto, MirrorSnapshotPool(proto.mirror_snaps, sample=proto.mirror_sample)
+
+
 def shard(args):
     import torch
     torch.set_num_threads(1)
     plan = read(args.out / "plan.json")
-    proto, pool = holdout_protocol()
+    proto, pool = selected_field(args.split)
     if proto.sha256() != plan["protocol"]:
         raise ValueError("hold protocol differs from the assessment plan")
     players = {"candidate": panel.Q.policy(Path(plan["models"]["candidate"]), proto)}
@@ -124,15 +133,20 @@ def run(args):
         raise ValueError("unexpected release or parent")
     if not (0 <= args.protected <= args.games and args.games > 0):
         raise ValueError("invalid cohort sizes")
-    protocol, _ = holdout_protocol()
+    protocol, _ = selected_field(args.split)
     if args.raw_parent and protocol.sha256() != STANDARD_PROTOCOL:
         raise ValueError("raw parent assessment requires the confirmed action protocol")
     parent = str((panel.WEIGHT if args.raw_parent else INITIAL).resolve())
+    parent_sha = panel.PEER_SHA if args.raw_parent else INITIAL_SHA
+    if args.parent_model or args.parent_sha:
+        if args.raw_parent or not args.parent_model or file_identity(args.parent_model)["sha256"] != args.parent_sha:
+            raise ValueError("invalid comparison policy")
+        parent, parent_sha = str(args.parent_model.resolve()), args.parent_sha
     args.out.mkdir(parents=True, exist_ok=False)
     plan = dict(source=source, seed=args.seed, games=args.games,
         matched_prefixes=args.protected, protocol=protocol.sha256(), candidate=seal["files"]["model.pt"],
         models=dict(parent=parent, candidate=seal["model"]), initial_sha=INITIAL_SHA,
-        raw_parent=args.raw_parent, parent_sha=panel.PEER_SHA if args.raw_parent else INITIAL_SHA)
+        raw_parent=args.raw_parent, parent_sha=parent_sha, split=args.split)
     workers = list(range(8))
     if args.reuse_complete:
         old = read(args.reuse_complete / "plan.json")
@@ -187,6 +201,9 @@ if __name__ == "__main__":
     parser.add_argument("--games", type=int, default=512)
     parser.add_argument("--protected", type=int, default=256)
     parser.add_argument("--raw-parent", action="store_true")
+    parser.add_argument("--parent-model", type=Path)
+    parser.add_argument("--parent-sha")
+    parser.add_argument("--split", choices=("train", "hold"), default="hold")
     parser.add_argument("--reuse-complete", type=Path)
     parser.add_argument("--worker", type=int)
     args = parser.parse_args()

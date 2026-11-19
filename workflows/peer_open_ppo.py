@@ -16,13 +16,13 @@ FIRST_BATCHES = 8
 TOTAL_BATCHES = 60
 
 
-def inspect_trainer(checkpoint):
+def inspect_trainer(checkpoint, initial_model=None):
     import torch
     from workflows.peer_finetune_holdout import INITIAL
 
     model = torch.load(checkpoint["model"], map_location="cpu", weights_only=False)
     state = torch.load(checkpoint["trainer"], map_location="cpu", weights_only=False)
-    initial = torch.load(INITIAL, map_location="cpu", weights_only=False)["state_dict"]
+    initial = torch.load(initial_model or INITIAL, map_location="cpu", weights_only=False)["state_dict"]
     tensors = model["state_dict"]
     if (state["updates"] != checkpoint["version"]
             or state["extra"]["cum_decisions"] != checkpoint["cum_decisions"]

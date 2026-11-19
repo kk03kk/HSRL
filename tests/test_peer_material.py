@@ -1,7 +1,7 @@
 import pytest
 torch = pytest.importorskip("torch")
 
-from hsbg.az.train.peer_actor import retain_material_mask
+from hsbg.az.train.peer_actor import SaleAdjustment, retain_material_mask
 from hsbg.env.obs_std import GLOBAL_FIELD_INDEX, GLOBAL_FIELD_SCALE, MINION_F, SLICE_BOARD
 
 
@@ -30,3 +30,20 @@ def test_material_thresholds(turn, hp, armor, units, remaining):
     mask[:] = False
     mask[0,16] = True
     assert torch.equal(retain_material_mask(features,mask),mask)
+
+
+def test_sale_adjustment_zero_init_and_activity():
+    head = SaleAdjustment()
+    f = torch.zeros(4,3227)
+    mask = torch.ones(4,245,dtype=torch.bool)
+    f[:,GLOBAL_FIELD_INDEX["turn"]] = torch.tensor([7,6,7,7])/20
+    f[:,GLOBAL_FIELD_INDEX["gold"]] = torch.tensor([3,3,4,3])/GLOBAL_FIELD_SCALE["gold"]
+    mask[-1,0] = False
+    assert torch.equal(head(f,mask),torch.zeros(4,7))
+    with torch.no_grad():
+        head.linear.bias.fill_(1)
+    delta = head(f,mask)
+    assert (delta[0]>0).all() and (delta[0]<4).all()
+    assert (delta[1:]==0).all()
+    delta.sum().backward()
+    assert head.linear.bias.grad.item()>0

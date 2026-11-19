@@ -26,6 +26,31 @@ def retain_material_mask(features, mask):
     return torch.where(eligible.any(dim=1, keepdim=True), eligible, mask)
 
 
+class SaleAdjustment(nn.Module):
+    """Bounded per-slot logit adjustment during low-gold mid/late recruitment."""
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(9, 1)
+        nn.init.zeros_(self.linear.weight)
+        nn.init.zeros_(self.linear.bias)
+
+    def forward(self, f, mask):
+        idx = GLOBAL_FIELD_INDEX
+        board = f[:, SLICE_BOARD].reshape(-1, N_BOARD, MINION_F)
+        stats = (board[:,:,1].float() + board[:,:,2].float()).clamp_min(0)*10
+        total = stats.sum(1, keepdim=True)
+        gold = f[:,idx["gold"]] * GLOBAL_FIELD_SCALE["gold"]
+        turn = f[:,idx["turn"]] * GLOBAL_FIELD_SCALE["turn"]
+        health = f[:,idx["health"]]*40 + f[:,idx["armor"]]*20
+        context = torch.stack([turn/15, health/40, gold/3, f[:,idx["board_len"]], f[:,idx["hand_len"]],
+                               f[:,idx["tier"]], torch.log1p(total[:,0])/10],dim=1).clamp(0,2)
+        slots = torch.cat([context[:,None,:].expand(-1,N_BOARD,-1),
+                           (stats/total.clamp_min(1)).unsqueeze(-1),
+                           (torch.log1p(stats)/10).unsqueeze(-1)],dim=2)
+        active = (turn.round() >= 7) & (gold.round() <= 3) & mask[:,0]
+        return 4 * self.linear(slots).squeeze(-1).float().tanh() * active[:,None]
+
+
 class PeerActor(nn.Module):
     uses_cards=True
     arch=ARCH
@@ -51,6 +76,13 @@ class PeerActor(nn.Module):
         if self.adapt_last_block:
             self.actor.encoder.layers[-1].requires_grad_(True)
         self.rank_head=nn.Sequential(nn.Linear(69,128),nn.Tanh(),nn.Linear(128,8))
+        self.sale_adjustment = None
+
+    def enable_sale_adjustment(self):
+        if self.adapt_last_block or not self.retain_material or self.sale_adjustment is not None:
+            raise ValueError("sale adjustment requires a frozen material-retaining baseline")
+        self.requires_grad_(False)
+        self.sale_adjustment = SaleAdjustment()
 
     def checkpoint_metadata(self):
         meta = dict(arch=ARCH,peer_config=self.config,temperature=self.temperature,origin=ORIGINAL_SHA)
@@ -58,6 +90,8 @@ class PeerActor(nn.Module):
             meta["adapt_last_block"] = True
         if self.retain_material:
             meta["sale_policy"] = "retain-material-v1"
+        if self.sale_adjustment is not None:
+            meta["sale_adjustment"] = "low-gold-linear-v1"
         return meta
 
     def forward(self,features,cards,mask):
@@ -66,6 +100,10 @@ class PeerActor(nn.Module):
         logits,v=self.actor(features,cards,mask)
         critic_input=torch.cat((features[:,:68],v.detach().float().unsqueeze(1)),dim=1)
         scaled=(logits.float().masked_fill(~mask,0.)/self.temperature).masked_fill(~mask,-1e9)
+        if self.sale_adjustment is not None:
+            end = A_SELL + N_BOARD
+            sale = scaled[:,A_SELL:end] + self.sale_adjustment(features, mask)
+            scaled = torch.cat([scaled[:,:A_SELL], sale, scaled[:,end:]], dim=1)
         return scaled,self.rank_head(critic_input)
 
 
@@ -84,5 +122,9 @@ def load_payload(payload,device):
     import hsbg_net
     model=PeerActor(hsbg_net.build(meta["peer_config"]),meta["peer_config"],meta["temperature"],
                     adapt_last_block=meta.get("adapt_last_block", False), retain_material=bool(sale_policy))
+    if meta.get("sale_adjustment") is not None:
+        if meta["sale_adjustment"] != "low-gold-linear-v1":
+            raise ValueError("unknown sale adjustment")
+        model.enable_sale_adjustment()
     model.load_state_dict(payload["state_dict"],strict=True)
     return model.to(device).eval(),meta
