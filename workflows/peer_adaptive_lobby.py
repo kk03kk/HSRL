@@ -21,9 +21,9 @@ from workflows.peer_sale_study import RetainMaterial
 from workflows import quilboar_study as native
 
 
-def play(weights, index, change):
+def play(weights, index, change, start=343410000):
     import hsbg_engine
-    seed = 343410000 + index
+    seed = start + index
     focus = index%8
     game, actual = make_filtered_game(hsbg_engine, seed, learner_seat=focus)
     assert actual == seed
@@ -74,41 +74,55 @@ def play(weights, index, change):
         overrides=agents[focus].overrides if change else [])
 
 
-def shard(out, index):
+def shard(out, index, pairs=8, workers=8, start=343410000):
     import torch
     torch.set_num_threads(1)
     proto,_ = holdout_protocol()
     weights = {k:make_eval_policy(str(p),protocol=proto,device="cpu")["policy"]
                for k,p in (("peer",INITIAL),("native",native.BASE))}
-    raw,kept = play(weights,index,False),play(weights,index,True)
-    if not kept["overrides"] and raw!=kept:
-        raise ValueError("unaffected lobby not replayed exactly")
-    atomic_json(out/f"pair-{index}.json",dict(parent=raw,candidate=kept))
+    for j in range(index, pairs, workers):
+        raw,kept = play(weights,j,False,start),play(weights,j,True,start)
+        if not kept["overrides"] and raw!=kept:
+            raise ValueError("unaffected lobby not replayed exactly")
+        atomic_json(out/f"pair-{j}.json",dict(parent=raw,candidate=kept))
 
 
-def run(out):
+def run(out, pairs=8, workers=8, start=343410000):
     from concurrent.futures import ThreadPoolExecutor
     import subprocess
     if source_identity(ROOT)["tracked_dirty"] or file_identity(INITIAL)["sha256"]!=INITIAL_SHA or file_identity(
             native.BASE)["sha256"]!=native.PLAN["base_sha"]:
         raise ValueError("release or starting policies differ")
     out.mkdir(exist_ok=False)
-    spec=dict(source=source_identity(ROOT),seed=343410000,pairs=8,opponents="4 public actors, 3 native 3265",
-        focus="each seat once",order="seed*1000+turn shuffle, one action per seat per sweep",
+    if pairs <= 0 or pairs % 8 or not 1 <= workers <= min(pairs,int(os.environ["SLURM_CPUS_PER_TASK"])):
+        raise ValueError("require complete seat rotations and allocated CPU workers")
+    spec=dict(source=source_identity(ROOT),seed=start,pairs=pairs,opponents="4 public actors, 3 native 3265",
+        focus="equal seat rotation",order="seed*1000+turn shuffle, one action per seat per sweep",
         parent=INITIAL_SHA,native=native.PLAN["base_sha"],rules="human-turn-3702-standard",
         engine_lock=file_identity(ROOT/"config/engine-upstream-lock.json"),live_pin=file_identity(ROOT/"config/live/model.json"),
-        job=os.environ["SLURM_JOB_ID"],scope="engineering and exposure; no ranking inference from eight pairs")
+        job=os.environ["SLURM_JOB_ID"],scope="adaptive simulated field; estimate incremental utility and common T12 strength")
     spec["protocol_sha256"]=sha256(json.dumps({k:v for k,v in spec.items() if k not in ("job","source")},
         sort_keys=True).encode()).hexdigest()
     atomic_json(out/"plan.json",spec)
     def launch(i):
         with (out/f"worker-{i}.log").open("x") as log:
-            subprocess.run([sys.executable,__file__,str(out),"--worker",str(i)],check=True,
+            subprocess.run([sys.executable,__file__,str(out),"--worker",str(i),"--pairs",str(pairs),
+                            "--workers",str(workers),"--seed",str(start)],check=True,
                            stdout=log,stderr=subprocess.STDOUT)
-    with ThreadPoolExecutor(8) as ex:
-        list(ex.map(launch,range(8)))
-    rows=[read(out/f"pair-{i}.json") for i in range(8)]
-    atomic_json(out/"complete.json",dict(pairs=8, affected=sum(bool(r["candidate"]["overrides"]) for r in rows),
+    with ThreadPoolExecutor(workers) as ex:
+        list(ex.map(launch,range(workers)))
+    from math import log1p
+    from tools.summarize_peer_finetune import UTILITY, estimate, p50
+    rows=[read(out/f"pair-{i}.json") for i in range(pairs)]
+    for i,row in enumerate(rows):
+        if any(g["seed"] != start+i or g["focus"] != i%8 for g in row.values()):
+            raise ValueError("seed or seat coverage differs")
+    boards = {arm:[r[arm]["boards"]["12"] for r in rows if "12" in r[arm]["boards"]] for arm in rows[0]}
+    common = [(r["parent"],r["candidate"]) for r in rows if all("12" in g["boards"] for g in r.values())]
+    atomic_json(out/"complete.json",dict(pairs=pairs, affected=sum(bool(r["candidate"]["overrides"]) for r in rows),
+        utility=estimate([UTILITY[r["candidate"]["rank"]-1]-UTILITY[r["parent"]["rank"]-1] for r in rows]),
+        t12={arm:dict(n=len(vals),p50=p50(vals)) for arm,vals in boards.items()},
+        log12=estimate([log1p(b["boards"]["12"])-log1p(a["boards"]["12"]) for a,b in common]),
         ranks=[[r[k]["rank"] for k in ("parent","candidate")] for r in rows],
         actions=sum(g["decisions"] for r in rows for g in r.values())))
 
@@ -117,5 +131,11 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out",type=Path)
     parser.add_argument("--worker",type=int)
+    parser.add_argument("--workers",type=int,default=8)
+    parser.add_argument("--pairs",type=int,default=8)
+    parser.add_argument("--seed",type=int,default=343410000)
     args=parser.parse_args()
-    run(args.out) if args.worker is None else shard(args.out,args.worker)
+    if args.worker is None:
+        run(args.out,args.pairs,args.workers,args.seed)
+    else:
+        shard(args.out,args.worker,args.pairs,args.workers,args.seed)
