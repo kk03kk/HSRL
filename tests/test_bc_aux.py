@@ -115,6 +115,14 @@ def test_replay_purchase_slots_and_observed_resource_versions(tmp_path):
         parser.set_tag("2","25","0")
         assert parser.gold == 2
     assert remaining_health({"45":"30","44":"22"})==8
+    # The player's selected hero pointer can arrive after the hero's own tags.
+    modern.set_tag("9","45","30")
+    modern.set_tag("9","44","8")
+    modern.set_tag("9","292","6")
+    modern.set_tag("1","27","9")
+    assert (modern.hero_hp,modern.hero_damage,modern.hero_armor)==(30,8,6)
+    modern.set_tag("1","27","10")
+    assert (modern.hero_hp,modern.hero_damage,modern.hero_armor)==(None,None,None)
     modern.bob_ctrl = "2"
     modern.ent.update({s:{"last":int(s)} for s in ("11","12","13")})
     modern._cards = lambda zone,ctrl,kinds: [

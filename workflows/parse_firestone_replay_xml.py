@@ -240,6 +240,11 @@ class XmlReplay:
         elif k == TAG_HERO_ENTITY:
             if eid == str(self.main):
                 self.main_hero = v
+                # The replay can reveal the hero before the player points at it.
+                hero_tags = self.ent.get(str(v), {}).get("tags", {})
+                self.hero_hp = _int(hero_tags.get(TAG_HEALTH))
+                self.hero_damage = _int(hero_tags.get(TAG_DAMAGE))
+                self.hero_armor = _int(hero_tags.get(TAG_ARMOR))
         elif k == TAG_TURN and eid == str(self.main):
             nt = _int(v)
             if nt is not None and nt > self.round:
@@ -944,7 +949,7 @@ def parse_game(task):
                 "placement": placement,
                 "build_number": build,
                 "source": "firestone_xml",
-                "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
+                "action_semantics": "observed-hand-shop-slots-selected-hero-resources-v4",
             })
 
         out["stats"].update({
@@ -1136,7 +1141,7 @@ def main():
     stats = {
         "schema": "hsbg.firestone_replay_library.stats",
         "schema_version": 2,
-        "action_semantics": "observed-hand-shop-slots-spendable-gold-remaining-health-v3",
+        "action_semantics": "observed-hand-shop-slots-selected-hero-resources-v4",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "source": {
             "root": root,
