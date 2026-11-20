@@ -1849,11 +1849,13 @@ impl Game {
             .get(hand_idx)
             .ok_or("no such hand card")?;
         match &h.item {
-            Item::Minion(m) => {
+            Item::Minion(_) => {
                 if self.players[p].board.len() >= self.cfg.board_size {
                     return Err("board is full");
                 }
-                let _ = m;
+                if self.can_magnetize(p, hand_idx, pos) {
+                    return Err("use the magnetize action for a drop left of a compatible host");
+                }
                 let h = self.take_hand_card(p, hand_idx)?;
                 let tier = self.players[p].tier;
                 self.with_recruit(p, |ctx| {

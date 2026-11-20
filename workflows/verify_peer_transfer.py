@@ -20,6 +20,16 @@ from hsrl_agent.live.policy import ModelPolicy
 
 
 def archived(policy, folder):
+    from PIL import Image
+    from hsrl_agent.live.vision import OCR, races_from_hero_banner
+    from hsrl_agent.live.encoding import RACES
+    image_file = folder / "visual-evidence/hero-wait-last.jpg"
+    metadata = json.loads(image_file.with_suffix(".json").read_bytes())
+    with Image.open(image_file) as image:
+        races = races_from_hero_banner(OCR(max_width=1280).locate(image))
+    if not races:
+        raise ValueError("no witnessed five-type subtitle in this archive")
+    changed = restored = 0
     with (folder / "decisions.jsonl").open(encoding="utf8") as f:
         ids = {r["decision_id"] for line in f for r in [json.loads(line)]
                if r["phase"] == "recruit" and r["role"] == "model" and not r["reused"]}
@@ -41,9 +51,22 @@ def archived(policy, folder):
             bindings = bind_actions(s)
             d = policy.decide(s, bindings)
             assert d.binding in bindings
+            assert s["game_id"] == metadata["game_id"]
+            evidence = [int(race in races) for race in RACES]
+            old = s["view"]["lobby_races"]
+            if any(old) and old != evidence:
+                raise ValueError("contradictory lobby evidence")
+            if not any(old):
+                repaired = {**s, "view":{**s["view"], "lobby_races":evidence}}
+                assert bind_actions(repaired) == bindings
+                other = policy.decide(repaired, bindings)
+                assert other.binding in bindings
+                restored += 1
+                changed += other.action != d.action
             kinds[d.binding.kind] = kinds.get(d.binding.kind, 0) + 1
     assert seen == ids and ids
     return dict(frames=len(seen), missing_lobby=unknown_lobby, action_families=kinds,
+                verified_races=races, banner=file_identity(image_file), restored=restored, changed_argmax=changed,
                 interpretation="Single archived decisions; alternate actions were never dispatched.")
 
 
@@ -88,8 +111,8 @@ def main():
     parser.add_argument("--seed", default=37032001, type=int)
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
-    if args.out.exists() or args.games < 1:
-        raise ValueError("expected a new output and at least one game")
+    if args.out.exists() or args.games < 0 or (not args.games and not args.archive):
+        raise ValueError("expected a new output and a game or an archived replay")
     if os.environ.get("HSAI_ACTION_PROFILE") != ECONOMY_ACTION_PROFILE or not engine.build_is_current(ROOT/"engine"):
         raise ValueError("peer action profile and matching compiled engine are required")
     data = engine.data_info()
@@ -99,7 +122,7 @@ def main():
     policy = ModelPolicy(args.checkpoint)
     if not policy.peer_round:
         raise ValueError("peer round checkpoint required")
-    rows = selfplay(args.checkpoint, args.games, args.seed)
+    rows = selfplay(args.checkpoint, args.games, args.seed) if args.games else []
     frames = archived(policy, args.archive) if args.archive else None
     atomic_json(args.out, dict(model=policy.sha, engine=engine.build_info()["source_hash"], data=data,
                 card_table=file_identity(ROOT/"engine/crates/hsbg-engine/data/cards.json"),

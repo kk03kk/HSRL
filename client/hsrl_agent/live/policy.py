@@ -104,7 +104,7 @@ class ModelPolicy:
         report = verify()
         if not report['ok']: raise Blocked('observation/card/action contract failed')
         if self.peer_round and report['engine']['build_info']['source_hash'] not in (
-                'c4c71014e3d41760', '2442185529580f76'):
+                'c4c71014e3d41760', 'c1d91053387aeac3'):
             raise Blocked('peer policy has not been verified on this engine build')
         self.device=device
         self.model,self.meta=(load_champion_policy(checkpoint,device) if spec['auxiliary'] else load_checkpoint(str(checkpoint),device=device))

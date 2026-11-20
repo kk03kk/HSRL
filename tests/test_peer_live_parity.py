@@ -99,3 +99,13 @@ def test_toggle_requires_a_server_option_on_both_profiles():
     assert any(b.action == 2 for b in bind_actions(s))
     s["options"] = []
     assert not any(b.action == 2 for b in bind_actions(s))
+
+def test_hero_header_requires_exactly_one_clean_five_type_subtitle():
+    from hsrl_agent.live.vision import races_from_hero_banner
+    title = dict(text="选择一个英雄", confidence=.99, point=(.50,.12))
+    subtitle = dict(text="亡灵，恶魔，海盗，畸变怪，野猪人", confidence=.94, point=(.50,.168))
+    assert races_from_hero_banner([title, subtitle]) == ["ABERRATION","DEMON","PIRATE","QUILBOAR","UNDEAD"]
+    assert races_from_hero_banner([subtitle]) is None
+    for change in (dict(text="禁用：亡灵，恶魔，海盗，畸变怪，野猪人"),dict(confidence=.83),
+                   dict(text="亡灵，恶魔，海盗，海盗，野猪人"),dict(point=(.5,.31))):
+        assert races_from_hero_banner([title,{**subtitle,**change}]) is None

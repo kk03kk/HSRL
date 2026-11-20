@@ -275,7 +275,11 @@ impl Game {
                         }
                     }
                     for b in 0..pl.board.len().min(N_BOARD) {
-                        m[A_MAGNETIZE + h * N_BOARD + b] = self.can_magnetize(p, h, b);
+                        if self.can_magnetize(p, h, b) {
+                            // A left-side drop fuses to this host. Offer only its native action.
+                            m[A_MAGNETIZE + h * N_BOARD + b] = true;
+                            m[A_PLAY + h * N_POS + b] = false;
+                        }
                     }
                 }
                 Item::Spell { card: c, .. } => {

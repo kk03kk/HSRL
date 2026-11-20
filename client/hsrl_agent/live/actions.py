@@ -108,17 +108,26 @@ def bind_actions(snapshot):
         elif eid in groups['hand']:
             h=groups['hand'][eid]
             if c['card_type']=='MINION':
+                public_board = snapshot['view'].get('board', [])
+                # Untargeted, server-authorized hand play uses a board insertion
+                # position for Magnetic. No target-selection dialog is opened.
+                positional = (peer_round and kind == 'POWER' and option.get('has_targets') is False
+                              and not targets and not branches and str(c.get('tags',{}).get('MAGNETIC')) == '1')
+                hosts = {}
+                for pos, host in enumerate(board):
+                    if not positional and host['entity_id'] not in targets:
+                        continue
+                    item = public_board[pos] if pos < len(public_board) else None
+                    if magnetic_host(c, host, item):
+                        hosts[pos] = host['entity_id']
                 if len(board)<7:
                     for pos in range(len(board)+1):
+                        if peer_round and pos in hosts:
+                            continue
                         out.append(Binding(46+h*8+pos,'play',source=eid,position=pos,option_id=oid,targets=targets,branches=branches))
-                public_board = snapshot['view'].get('board', [])
-                for target in targets:
-                    if target not in groups['board']:
-                        continue
-                    pos = groups['board'][target]
-                    item = public_board[pos] if pos < len(public_board) else None
-                    if magnetic_host(c, entities[target], item):
-                        out.append(Binding(126+h*7+pos,'magnetize',source=eid,target=target,option_id=oid))
+                for pos, target in hosts.items():
+                    out.append(Binding(126+h*7+pos,'magnetize',source=eid,target=target,option_id=oid,
+                                       position=pos if positional else None))
             elif c['card_type'] in ('SPELL','BATTLEGROUND_SPELL'):
                 out.append(Binding(46+h*8,'play',source=eid,option_id=oid,targets=targets,branches=branches))
         elif eid in powers:

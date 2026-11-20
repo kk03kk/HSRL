@@ -99,3 +99,22 @@ fn late_dark_gift_restriction_uses_the_board_type_in_every_slot() {
         assert!(!eligible(db().get(cid(id)), Some(Races::MECH)));
     }
 }
+
+#[test]
+fn an_undead_host_exposes_the_magnetic_drop_but_not_a_conflicting_plain_placement() {
+    use hsbg_engine::actions::{A_MAGNETIZE, A_PLAY};
+    let mut g = game(370303);
+    set_board(&mut g, 0, &["BG25_010"]);
+    g.players[0].hand.clear();
+    give(&mut g, 0, "BG_DEEP_015");
+    let mask = g.legal_mask(0);
+    assert!(!mask[A_PLAY]);
+    assert!(mask[A_PLAY + 1]);
+    assert!(mask[A_MAGNETIZE]);
+    assert!(g.play(0, 0, 0).is_err());
+    assert_eq!(g.players[0].hand.len(), 1);
+    g.magnetize(0, 0, 0).unwrap();
+    assert!(g.players[0].hand.is_empty());
+    assert_eq!(g.players[0].board.len(), 1);
+    assert_eq!(g.players[0].stats.magnetized, 1);
+}

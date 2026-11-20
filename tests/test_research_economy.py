@@ -142,7 +142,7 @@ def test_legacy_teacher_action_sequences_remain_unchanged():
         'complete_gold':'f0d22d72c58b4e89c003991adf5d3a560c6ff8636d616903d2b044112ac33a61',
         'missing_privateer':'c827e8b528fcd92edd21627c69b93f209e6caa28f7f0303c768b3b5632b903c6'}
     import hsbg_engine as engine
-    if engine.build_info()['source_hash'] == '2442185529580f76':
+    if engine.build_info()['source_hash'] == 'c1d91053387aeac3':
         # Same teacher, new source lobby: the hotfix changes pool draws for the seed.
         expected = {
             'normal':'c84bc2858fe0d69e02a9bec3567f6a775d6db94301ca3608f1fcafbe160fb90e',

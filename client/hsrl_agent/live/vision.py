@@ -87,6 +87,22 @@ def races_from_text(rows):
     if len(found)!=5: raise Blocked('OCR did not establish exactly five available tribes')
     return sorted(found)
 
+def races_from_hero_banner(rows):
+    """Read the five-type subtitle under the witnessed Chinese hero-selection title."""
+    title = [r for r in rows if r['confidence'] >= .95 and r['text'].strip() == '选择一个英雄'
+             and .42 <= r['point'][0] <= .58 and .09 <= r['point'][1] <= .15]
+    if len(title) != 1:
+        return None
+    x, y = title[0]['point']
+    below = [r for r in rows if abs(r['point'][0]-x) < .055 and .023 <= r['point'][1]-y <= .075]
+    if len(below) != 1 or below[0]['confidence'] < .90:
+        return None
+    words = [w.strip() for w in re.split(r'[,，、]', below[0]['text'])]
+    if len(set(words)) != 5 or len(words) != 5 or any(word not in TRIBES for word in words):
+        return None
+    return sorted(TRIBES[word] for word in words)
+
+
 class Geometry:
     def __init__(self,profile): self.profile=profile
     def family(self,snapshot):

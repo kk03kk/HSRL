@@ -11,8 +11,8 @@
       "files": {
         "actions.rs": {
           "upstream_sha256": "c44915a4236a945d0a76e577953e00cad87118b8b78eae341776cd19a1aa9e1d",
-          "fork_sha256": "862368dc4f3d9e880f53d8b2cd5b6d663897bf4f552bd17bc24fd3f9b918e82d",
-          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留"
+          "fork_sha256": "2293224d9094ef8c16c55ba3ca47965ead7aa698b4f5aec50c5f7b0fba90b8aa",
+          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留 Keep positional Magnetic and standalone play disjoint on a compatible host."
         },
         "batch.rs": {
           "upstream_sha256": "946bc0f161885e53e5ae4a9afa9a67a447b7c422af430ed1fb636122e09b76d2",
@@ -350,8 +350,8 @@
         },
         "recruit.rs": {
           "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
-          "fork_sha256": "b3e520f445e939b3011c2c9df702328053ba430f025b016dd1d24177a33ea27a",
-          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans."
+          "fork_sha256": "9583d023207024b431ce2b13fc280e27d96d9000ca2a6300e373633e7461a99a",
+          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans. Keep positional Magnetic and standalone play disjoint on a compatible host."
         },
         "rng.rs": {
           "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",

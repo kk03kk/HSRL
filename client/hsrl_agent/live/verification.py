@@ -231,7 +231,16 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
               or settled_activation(decision,old,new,r)))
         and r.get('log_position',-1)>(old.get('log_position') or 0)
         and (r.get('started_at_log_position') or r.get('log_position',-1))>(old.get('log_position') or 0)]
-    if b.target is not None:
+    if b.kind == 'magnetize' and b.position is not None:
+        # Positional play has no protocol target. Match our submitted source/slot
+        # here; below we also require the host attachment in the same root.
+        positions = {b.position+1} | ({0} if b.position==0 else set())
+        receipts = [r for r in receipts if r.get('target') in (None,0,b.target)
+                    and (sub := r.get('submission')) and sub.get('source') == b.source
+                    and sub.get('option_id') == b.option_id and sub.get('position') in positions
+                    and sub.get('owner') == old.get('local_player_id')
+                    and sub.get('log_position',0) > (old.get('log_position') or 0)]
+    elif b.target is not None:
         receipts=[r for r in receipts if r.get('target')==b.target]
     if b.sub_option_id is not None:
         receipts=[r for r in receipts if r.get('sub_option_id')==b.sub_option_id]

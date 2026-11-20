@@ -46,6 +46,7 @@ class LivePipeline:
         self.metrics=Measurements();self.saved_key=None
         self.admission=None
         self.lobby_ocr=None
+        self.next_banner_read = 0.0
         self.overdue_evidence=deque(maxlen=2);self.overdue_saves=0
     def record_overdue(self,data):
         """Passive diagnostics once per uncertain stage, never input admission."""
@@ -86,18 +87,27 @@ class LivePipeline:
     def prepare(self,data):
         s=self.project(data)
         with self.metrics.measure('visual_evidence'):visual,image=self.gate.observe(s,self.pending())
-        if (visual.get('phase') == 'hero' and visual.get('available_races_shown')
-                and self.profile.get('available_races_roi') and not self.projector.lobby_races):
-            from .vision import OCR, races_from_text, crop_box
+        if (visual.get('phase') == 'hero' and not self.projector.lobby_races
+                and image is not None and time.monotonic() >= self.next_banner_read):
+            from .vision import OCR, races_from_text, races_from_hero_banner, crop_box
             from .runtime import save
-            self.lobby_ocr = self.lobby_ocr or OCR()
-            crop = image.crop(crop_box(self.profile['available_races_roi'], image.size))
-            rows = self.lobby_ocr.read(crop)
-            races = races_from_text(rows)
-            self.projector.observe_lobby(data['game_id'], races)
-            save(self.out/'lobby-observation.json', dict(game_id=data['game_id'], revision=data['revision'],
-                                                        races=races, source='reviewed_available_races_roi', rows=rows))
-            s = self.project(data)
+            self.next_banner_read = time.monotonic() + 1.0
+            races = None
+            if visual.get('available_races_shown') and self.profile.get('available_races_roi'):
+                self.lobby_ocr = self.lobby_ocr or OCR()
+                crop = image.crop(crop_box(self.profile['available_races_roi'], image.size))
+                races = races_from_text(self.lobby_ocr.read(crop))
+                source = 'reviewed_available_races_roi'
+            elif image.size == (2560, 1600) and self.profile.get('review_state') == 'reviewed':
+                self.lobby_ocr = self.lobby_ocr or OCR(max_width=1280)
+                races = races_from_hero_banner(self.lobby_ocr.locate(image))
+                source = 'hero_selection_title_and_five_type_subtitle'
+            if races:
+                import hashlib
+                self.projector.observe_lobby(data['game_id'], races)
+                save(self.out/'lobby-observation.json', dict(game_id=data['game_id'], revision=data['revision'],
+                     races=races, source=source, frame_sha256=hashlib.sha256(image.tobytes()).hexdigest()))
+                s = self.project(data)
         s=self.finish(s,visual);key=state_stamp(s)
         if key!=self.saved_key:
             from .runtime import save
