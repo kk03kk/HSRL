@@ -21,6 +21,27 @@ SEAL = RUNS / "nus-adaptive-triple-seal-20261120-1" / "seal.json"
 RULE = "complete_triple"
 
 
+class ScoreCaptured(Exception):
+    pass
+
+
+def compare_scores(i):
+    e=read(RUN/f"game-{i}.json")["alternatives"][RULE]["trigger"]
+    opening=read(BANK/f"opening-{i}.json")
+    def capture(game,events):
+        observed=json.loads(json.dumps(events[RULE]))
+        if {k:v for k,v in observed.items() if k!="confidence"}!={k:v for k,v in e.items() if k!="confidence"}:
+            raise ValueError("public decision or full source state differs")
+        errors=[abs(a-b) for a,b in zip(e["confidence"],observed["confidence"],strict=True)]
+        raise ScoreCaptured(dict(index=i,state=e["state"],prefix=e["prefix"],original=e["confidence"],
+                                 observed=observed["confidence"],max_abs_error=max(errors)))
+    try:
+        branch.arm(i,[RULE],False,opening,at_branch=capture,capture_turns=False)
+    except ScoreCaptured as result:
+        return result.args[0]
+    raise ValueError("missed exact comparison state")
+
+
 def replay(i):
     pair = read(RUN / f"game-{i}.json")
     expected = pair["alternatives"][RULE]
@@ -72,7 +93,7 @@ def replay(i):
     return dict(index=i,turn=e["turn"],card=e["triple_card"],**parts)
 
 
-def main(output):
+def main(output,scores_only=False):
     global OUT
     OUT=output
     source=source_identity(ROOT)
@@ -91,12 +112,17 @@ def main(output):
         raise ValueError("no eligible decisions")
     OUT.mkdir(exist_ok=False)
     atomic_json(OUT/"plan.json",dict(source=source,original_seal=file_identity(SEAL),ids=ids,
-                                    job=os.environ["SLURM_JOB_ID"],node=os.environ["SLURMD_NODENAME"]))
+                                    job=os.environ["SLURM_JOB_ID"],node=os.environ["SLURMD_NODENAME"],
+                                    scores_only=scores_only))
     branch.START=plan["seed"]
     branch.ACTORS=weights()
     with ProcessPoolExecutor(min(len(ids),int(os.environ["SLURM_CPUS_PER_TASK"])),mp_context=mp.get_context("fork")) as pool:
-        rows=list(pool.map(replay,ids))
+        rows=list(pool.map(compare_scores if scores_only else replay,ids))
     atomic_json(OUT/"rows.json",rows)
+    if scores_only:
+        atomic_json(OUT/"complete.json",dict(n=len(rows),nonidentical=sum(r["max_abs_error"]!=0 for r in rows),
+                    max_abs_error=max(r["max_abs_error"] for r in rows),rows=file_identity(OUT/"rows.json")))
+        return
     unique=[r for r in rows if r["candidate"]["golden_before"]==0]
     summaries={}
     for arm in ("baseline","candidate"):
@@ -118,4 +144,6 @@ def main(output):
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out",type=Path)
-    main(parser.parse_args().out)
+    parser.add_argument("--compare-public-scores",action="store_true")
+    args=parser.parse_args()
+    main(args.out,args.compare_public_scores)
