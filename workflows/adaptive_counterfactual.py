@@ -140,7 +140,7 @@ class BranchPolicy:
         return p,v
 
 
-def arm(i,specs,apply,opening,*,at_branch=None,capture_turns=True):
+def arm(i,specs,apply,opening,*,at_branch=None,capture_turns=True,on_focus_action=None):
     actor = ACTORS["intent"]
     policy = BranchPolicy(actor,specs,apply)
     capture = {}
@@ -152,6 +152,8 @@ def arm(i,specs,apply,opening,*,at_branch=None,capture_turns=True):
         for e in policy.pending.values():
             e["state"] = sha256(game.state_json().encode()).hexdigest()
             e["prefix"] = trace.hexdigest()
+        if on_focus_action is not None:
+            on_focus_action(game,action,policy.pending)
         if at_branch is not None and policy.pending:
             return at_branch(game,policy.pending)
     conversions = []
