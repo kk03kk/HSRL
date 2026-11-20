@@ -1,6 +1,6 @@
 # 训练配方（冻结版）
 
-**2026-11-20 正式系列的准备版本为 D-185。** 普通 `gpu` 分区，四轮各申请三小时，轮末独立单卡评测成功后接续上一轮完整 Trainer。训练起点与 D-184 相同；固定种子监测、终点新种子和八席自主场分别留档。[整轮配置](../config/research/peer-gpu-rounds.json) · [完整配方与准备报告](analysis/PEER_GPU_ROUNDS_20261120.md)
+**2026-11-20 正式系列的准备版本为 D-185 / D-186。** 普通 `gpu` 分区，首次一轮三小时，轮末固定单卡评测满足 D-186 的条件后自动释放余下三轮。各轮接续上一轮完整 Trainer。训练起点与 D-184 相同；固定种子监测、终点新种子和八席自主场分别留档。[整轮配置](../config/research/peer-gpu-rounds.json) · [完整配方与准备报告](analysis/PEER_GPU_ROUNDS_20261120.md)
 
 **2026-11-20 群友模型续训使用 D-184 的新动作标准。** 每回合 300 步、换位 10 次、冻结与解冻合计 3 次。群友原模型开局，不限制买卖、升本和阵容。扩大剂量的短训固定为 120 批，每批 256 局。服务器在冻结发布目录执行 `sbatch deploy/slurm/peer_action_budget_ppo.sbatch <全新输出目录>`。[配方与协议](../config/research/peer-action-budget-ppo.json) · [限额对照与理由](analysis/PEER_ACTION_BUDGET_20261120.md)
 

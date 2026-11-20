@@ -30,4 +30,6 @@ D-183 在跑分前固定了权重、种子和选择门槛。NUS 作业 1170220 �
 
 ## 复核入口
 
+新配方短训 1170250、评测 1170251 已完成。120 批末代权重摘要 `93e0beef62d7575294d6457ba7327d1a869bad0653866823a4eba2598f6a99a1`，完整 Trainer 摘要 `d470bc8351f78f628b0c86bfdb1926170339729888ffcfd19cc2f82891cb1093`。两代恢复点、逐局评测和判定均在服务器 `artifacts/runs/nus-peer-budget-ppo-20261120-1`。独立评测的点估计有利，但未过 D-184 的晋级门槛。[成绩、区间与下一阶段配方](PEER_GPU_ROUNDS_20261120.md)
+
 原始对照与每局记录在服务器 `artifacts/runs/nus-peer-action-budget-20261120-1`，冻结提交 `1e5832d`。冻结键与取消抽样在 `artifacts/runs/nus-peer-guard-usage-20261120-1`，冻结提交 `266d1fa`。源锁文件摘要 `e40a063b15d0a2a589315f57a0580c392579c2618fc1a33e651d64bf58f01683`，引擎 37.0.2.256589 / `c4c71014e3d41760`。实机 pin 文件摘要 `9f716aa3d1af3819ff949a3c533ab68a547a0c476511833a14c2d296e410ff3d`，所指模型 `ba7e8bbcf69f3f6142041369de3f9930242bae2de5c826c205c6d509b5dbd8e7`。公开权重 `0454a99dda1d95b03922aa5015c827b1d499c8e952893284a3b3a0e87bf0352b`，PPO 包装权重 `55f6665c0b357860eefd6b6916620a0118e1dc2c5d5e77bbea9136f64f48c5a9`，初始模型清单 `e76a5b4786b9c2ff4caa455d2b2626168aaa4b0c30159ae1f8ac45b4d3d399ab`。三份评测协议及各自 SHA 存于作业目录对应配置的 JSON。
