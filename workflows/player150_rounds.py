@@ -62,7 +62,7 @@ def train(dest, cfg, seed, parent, *, test):
                HSAI_ARENA_STOP_EPOCH=str(stop), HSAI_ARENA_MINUTES=str(cfg["minutes"]),
                HSAI_ARENA_ITERATIONS="2" if test and not parent else ("1" if test else "0"),
                HSAI_ARENA_CKPT=parent["model"] if parent else str((START / "model.pt").resolve()))
-    if test:
+    if test and parent:
         env["HSAI_ARENA_GAMES"] = "16"
     if parent:
         env["HSAI_ARENA_PARENT_TRAINER"] = parent["trainer"]

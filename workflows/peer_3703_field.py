@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import random
+import shutil
 from statistics import mean
 import sys
 
@@ -32,7 +33,7 @@ ACTORS = None
 PLAYER150 = os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3703-player150"
 if PLAYER150:
     ENGINE = "8bd1f4785018c474"
-    LIB = Path("artifacts/libraries/player150-mixed-20261120-01")
+    LIB = Path("artifacts/libraries/player150-mixed-20261120-02")
     START = 541730000
 
 def initialize():
@@ -67,6 +68,19 @@ def simulate(index):
     if receipt.exists() or snap.exists():
         raise FileExistsError(seed)
     from hsbg.az.train.lobby_filter import make_filtered_game
+    if PLAYER150:
+        previous = Path("artifacts/libraries/player150-mixed-20261120-01") / split
+        old_receipt = previous / receipt.name
+        if old_receipt.is_file():
+            old = json.loads(old_receipt.read_bytes())
+            old_snap = previous / snap.name
+            if old["seed"] != seed or old["roles"] != [(seat+i)%2 for seat in range(8)] or old["file"] != file_identity(old_snap):
+                raise ValueError("invalid previously verified game")
+            shutil.copyfile(old_snap, snap)
+            if file_identity(snap) != old["file"]:
+                raise ValueError("copied game differs from verified source")
+            atomic_json(receipt, dict(old, original_receipt=file_identity(old_receipt)))
+            return seed
     game, actual_seed = make_filtered_game(engine, seed)
     cfg = json.loads(game.state_json())["cfg"]
     assert actual_seed == seed and cfg["freeze_presses_per_turn"] == (2 if PLAYER150 else 3)
@@ -119,10 +133,25 @@ def simulate(index):
                         f["held_pool_parts"] = held_pool_parts(player)
                         f["frame_sha256"] = hashlib.sha256(payload.encode()).hexdigest()
                         probe = game.copy()
-                        rep = probe.apply_turn_snapshots([[seat,payload]],False)
+                        recipient = seat
+                        if PLAYER150 and json.loads(probe.player_json(seat))["pending"]:
+                            if (not game.legal_mask(seat)[0] or sum(game.legal_mask(seat)) != 1
+                                or json.loads(game.player_card_faces(seat))["remaining"] != 0 or player["pending"]):
+                                raise ValueError("unexpected pending choice during EOT transfer test")
+                            # Validate the settled frame against a recipient eligible for injection,
+                            # as training does. The source seat still has its pre-timeout menu.
+                            from workflows.mirror_hard_gates import _drive_to_turn
+                            template, _ = make_filtered_game(engine, seed)
+                            template = _drive_to_turn(template, 1)
+                            sample = json.loads(template.state_json())
+                            sample["turn"] = turn
+                            probe = engine.Game.from_json(json.dumps(sample))
+                            recipient = next(s for s in range(8) if probe.needs_action(s)
+                                             and not json.loads(probe.player_json(s))["pending"])
+                        rep = probe.apply_turn_snapshots([[recipient,payload]],False)
                         if rep["applied"] != 1 or rep["rejected"] or not rep["pool_balance_ok"] or not rep["pool_species_ok"]:
                             raise ValueError(("source board is not injectable",seed,seat,turn,rep))
-                        copied = json.loads(probe.player_json(seat))
+                        copied = json.loads(probe.player_json(recipient))
                         fields = ("card","atk","hp","kw","bonus_kw","golden","shield_max")
                         if [[m[k] for k in fields] for m in copied["board"]] != [[m[k] for k in fields] for m in player["board"]]:
                             raise ValueError(("board did not round-trip",seed,seat,turn))
