@@ -129,7 +129,7 @@ ban_trinkets="${HSAI_ARENA_BAN_TRINKETS:-1}"
 mirror_strict=0
 mirror_sample=p50band
 action_profile="${HSAI_ACTION_PROFILE:-v14}"
-if [[ "$action_profile" == human-turn-3702 || "$action_profile" == human-turn-3702-open || "$action_profile" == human-turn-3702-standard ]]; then
+if [[ "$action_profile" =~ ^human-turn-3702(-open|-standard|-economy|-economy-move8)?$ ]]; then
   move_cap=4
   unfreeze_ban=0
   freeze_cap=2
@@ -148,11 +148,13 @@ if [[ "$action_profile" == human-turn-3702-open ]]; then
   freeze_cap=0
   max_actions=200
 fi
-if [[ "$action_profile" == human-turn-3702-standard ]]; then
+if [[ "$action_profile" =~ ^human-turn-3702-(standard|economy|economy-move8)$ ]]; then
   move_cap=10
   move_repeat=0
   freeze_cap=3
   max_actions=200
+  if [[ "$action_profile" != human-turn-3702-standard ]]; then max_actions=300; fi
+  if [[ "$action_profile" == human-turn-3702-economy-move8 ]]; then move_cap=8; fi
 fi
 [[ -d "$snaps" ]] || { echo "missing snapshot library: $snaps" >&2; exit 2; }
 # --- GPU 落位：MIG UUID 重定向（2026-11-15 用户授权）---------------------------

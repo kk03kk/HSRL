@@ -14,11 +14,18 @@ from tools.summarize_peer_finetune import UTILITY, compare, estimate
 from workflows import peer_ppo_panel as panel
 from workflows.human_turn_preflight import verified_generation
 from workflows.d142_crossover import Fork, PrefixComplete, play, ResumedPolicy
-from hsbg.az.train.strict_mirror import OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE
+from hsbg.az.train.strict_mirror import (BOUNDED_ACTION_PROFILES, COMPACT_ACTION_PROFILE, ECONOMY_ACTION_PROFILE,
+                                        OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE)
 
 PROTOCOL = "ec900f2c14cd9922d2b2e9b2f68835b703d57090c9e68d666f4620930351bcd4"
 OPEN_PROTOCOL = "6a639e320632892fbdf3b632935e63df3948e0f21154e00aa52426474250aeb2"
 STANDARD_PROTOCOL = "1d45f262cdb8323820beb2f258e62cdc71d6201f097ed5d175899fbad215a350"
+PROFILE_PROTOCOLS = {
+    OPEN_ACTION_PROFILE: OPEN_PROTOCOL,
+    STANDARD_ACTION_PROFILE: STANDARD_PROTOCOL,
+    ECONOMY_ACTION_PROFILE: "035d2eddcffa36e8092f0975863cf1da93789be7818db5ad14df16941c59bee6",
+    COMPACT_ACTION_PROFILE: "6a51949407c3c04aa26d7f8bc4d3dfcda399bc14ffbb42ade08d7c4f698236c1",
+}
 INITIAL = Path("artifacts/runs/nus-peer-heads-20261119-1/initial/model.pt")
 INITIAL_SHA = "55f6665c0b357860eefd6b6916620a0118e1dc2c5d5e77bbea9136f64f48c5a9"
 
@@ -30,7 +37,7 @@ def read(path):
 def holdout_protocol():
     from hsbg.az.train.personal import library_digest
     profile = os.environ.get("HSAI_ACTION_PROFILE")
-    if profile not in (OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE):
+    if profile not in PROFILE_PROTOCOLS:
         proto, pool = panel.Q.config("hold", allow_tail_variant=True)
         expected = PROTOCOL
     else:
@@ -40,12 +47,12 @@ def holdout_protocol():
 
         opts = read(ROOT / "config/evaluation/human-turn-3702-parent.json")["evaluation"]
         fields = {key.replace("-", "_"): value for key, value in opts.items()}
-        if profile == STANDARD_ACTION_PROFILE:
+        if profile in BOUNDED_ACTION_PROFILES:
             fields.update(keep_start_board=False, tp_forbid_cancel=True)
         proto = protocol_from_args(argparse.Namespace(**(fields | TRAINING_CONTRACT)), engine=engine_info())
         proto.assert_training_contract()
         pool = MirrorSnapshotPool(proto.mirror_snaps, sample=proto.mirror_sample)
-        expected = STANDARD_PROTOCOL if profile == STANDARD_ACTION_PROFILE else OPEN_PROTOCOL
+        expected = PROFILE_PROTOCOLS[profile]
     if proto.sha256() != expected or pool.frames != 5477:
         raise ValueError("hold protocol or library size mismatch")
     expected_library = read(ROOT / "config/research/human-turn-3702-ppo.json")["library_digests"]["hold"]

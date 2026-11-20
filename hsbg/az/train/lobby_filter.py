@@ -35,7 +35,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .strict_mirror import OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE
+from .strict_mirror import BOUNDED_ACTION_PROFILES, OPEN_ACTION_PROFILE
 
 __all__ = [
     "RACE_ORDER", "parse_race_list", "race_bits_from_features",
@@ -183,7 +183,7 @@ class LobbyFilterStats:
 def engine_rule_overrides() -> dict[str, int]:
     if os.environ.get("HSAI_ACTION_PROFILE") == OPEN_ACTION_PROFILE:
         return {"freeze_presses_per_turn": 0}
-    if os.environ.get("HSAI_ACTION_PROFILE") == STANDARD_ACTION_PROFILE:
+    if os.environ.get("HSAI_ACTION_PROFILE") in BOUNDED_ACTION_PROFILES:
         return {"freeze_presses_per_turn": 3}
     return {}
 
