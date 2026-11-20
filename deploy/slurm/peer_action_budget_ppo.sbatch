@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A allusers
 #SBATCH -q normal
-#SBATCH -p gpu,gpu-long
+#SBATCH -p gpu
 #SBATCH --gres=gpu:h100-47:2
 #SBATCH --exclude=xgpi11,xgpi15,xgpi17
 #SBATCH --propagate=NONE

@@ -81,11 +81,45 @@ def submit(out, cfg, smoke, dry_run):
             print(index, stage, parent, flush=True)
 
 
+def progress(out):
+    """Print the learning curve from completed monitoring panels."""
+    cfg = settings(read(out / "series.json")["smoke"])
+    print("round decisions rank top4% win% T8_P50/n T10_P50/n T12_P50/n T14_P50/n rank_delta[95%] growth_9_12_delta[95%]/n")
+    for index in range(1, cfg["rounds"] + 1):
+        seal = out / f"round-{index:02d}/monitor.json"
+        if not seal.exists():
+            break
+        panel = read(seal)
+        if (panel["protocol"] != cfg["protocol_sha256"] or panel["seed"] != cfg["monitor"]["seed"]
+                or file_identity(panel["report"]) != panel["report_identity"]):
+            raise ValueError("unexpected monitoring evidence")
+        scores = read(panel["report"])
+        for arm in ("parent", "candidate"):
+            model = scores["models"][arm]
+            m = model["means"]
+            bodies = [model["turns"].get(str(t), {"p50": None, "n": 0}) for t in (8, 10, 12, 14)]
+            bounds = []
+            if arm == "candidate":
+                for key in ("rank", "growth9to12"):
+                    d = scores["delta"][key]
+                    if d["n"]:
+                        lo, hi = d["ci95"]
+                        bounds.append(f'{d["mean"]:+.3f}[{lo:+.3f},{hi:+.3f}]/{d["n"]}')
+                    else:
+                        bounds.append("NA/0")
+            print(f'{index}-{arm}', panel["cumulative_decisions"] if arm == "candidate" else 0,
+                  f'{m["rank"]:.3f}', f'{100*m["top4"]:.1f}', f'{100*m["win"]:.1f}',
+                  *(f'{b["p50"]}/{b["n"]}' for b in bodies), *bounds)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("preview", "submit"))
+    parser.add_argument("action", choices=("preview", "submit", "progress"))
     parser.add_argument("out", type=Path)
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
     os.chdir(ROOT)
-    submit(args.out.resolve(), settings(args.smoke), args.smoke, args.action == "preview")
+    if args.action == "progress":
+        progress(args.out.resolve())
+    else:
+        submit(args.out.resolve(), settings(args.smoke), args.smoke, args.action == "preview")
