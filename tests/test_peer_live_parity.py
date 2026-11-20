@@ -109,3 +109,24 @@ def test_hero_header_requires_exactly_one_clean_five_type_subtitle():
     for change in (dict(text="禁用：亡灵，恶魔，海盗，畸变怪，野猪人"),dict(confidence=.83),
                    dict(text="亡灵，恶魔，海盗，海盗，野猪人"),dict(point=(.5,.31))):
         assert races_from_hero_banner([title,{**subtitle,**change}]) is None
+
+def test_positional_magnetic_play_uses_only_a_witnessed_play_option():
+    s = snapshot()
+    s["action_profile"] = "peer-r1"
+    s["client"].update(hand=[dict(entity_id=10,card_id="BG_DEEP_015",card_type="MINION",
+                                 tags={"MAGNETIC":"1","MAGNETIC_TO_RACE":"11"})],
+                       board=[dict(entity_id=11,card_id="BG25_010",tags={"CARDRACE":"UNDEAD"})])
+    s["options"] = [option(10)]
+    by = {b.action:b for b in bind_actions(s)}
+    assert by[126].target == 11 and by[126].position == 0
+    assert 46 not in by and 47 in by
+    s["options"] = [{**option(10), "has_targets":True}]
+    assert all(b.kind != "magnetize" for b in bind_actions(s))
+    s["options"] = []
+    assert [b.kind for b in bind_actions(s)] == ["end"]
+
+def test_peer_refuses_a_missing_lobby_at_decision_time():
+    from hsrl_agent.live.policy import require_peer_lobby
+    with pytest.raises(Blocked, match="five observed"):
+        require_peer_lobby({"lobby_races":[0]*11})
+    require_peer_lobby({"lobby_races":[1]*5+[0]*6})

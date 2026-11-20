@@ -147,6 +147,8 @@ def main(argv=None,root=None):
             from .policy import ModelPolicy
             s=load(args.snapshot);policy=ModelPolicy(args.checkpoint,args.device)
             if policy.peer_round:
+                from .policy import require_peer_lobby
+                require_peer_lobby(s['view'])
                 s = dict(s, action_profile='peer-r1')
             decision=policy.decide(s,bind_actions(s))
             save(args.out,asdict(decision));print(json.dumps(asdict(decision),ensure_ascii=False));return 0

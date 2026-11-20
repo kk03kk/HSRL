@@ -51,6 +51,12 @@ for digest, label in (
                                 offline_only=True)
 
 
+def require_peer_lobby(view):
+    bits = view.get('lobby_races') or []
+    if len(bits) != 11 or any(v not in (0, 1) for v in bits) or sum(bits) != 5:
+        raise Blocked('peer decision needs five observed lobby types for this game')
+
+
 def _vector_meta(array):
     """输入向量摘要（形状/范数/指纹），不复制数据本体。"""
     import numpy as _np

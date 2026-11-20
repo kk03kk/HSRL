@@ -30,6 +30,7 @@ def archived(policy, folder):
     if not races:
         raise ValueError("no witnessed five-type subtitle in this archive")
     changed = restored = 0
+    hand_frames = undead_frames = positional_frames = 0
     with (folder / "decisions.jsonl").open(encoding="utf8") as f:
         ids = {r["decision_id"] for line in f for r in [json.loads(line)]
                if r["phase"] == "recruit" and r["role"] == "model" and not r["reused"]}
@@ -49,6 +50,15 @@ def archived(policy, folder):
             bind_unknown_cards(s["view"],policy,s["approximation"])
             unknown_lobby += not any(s["view"]["lobby_races"])
             bindings = bind_actions(s)
+            sources = {card['entity_id'] for card in s['client']['hand']
+                       if card['card_id'] in ('BG_DEEP_015','BG_DEEP_015_G')}
+            if sources:
+                hand_frames += 1
+                magnetic = [b for b in bindings if b.kind == 'magnetize' and b.source in sources]
+                positional_frames += any(b.position is not None for b in magnetic)
+                undead = {card['entity_id'] for card in s['client']['board']
+                          if str(card['tags'].get('CARDRACE')) in ('11', 'UNDEAD')}
+                undead_frames += any(b.target in undead for b in magnetic)
             d = policy.decide(s, bindings)
             assert d.binding in bindings
             assert s["game_id"] == metadata["game_id"]
@@ -67,6 +77,8 @@ def archived(policy, folder):
     assert seen == ids and ids
     return dict(frames=len(seen), missing_lobby=unknown_lobby, action_families=kinds,
                 verified_races=races, banner=file_identity(image_file), restored=restored, changed_argmax=changed,
+                prosthetic_hand_frames=hand_frames, hand_with_undead_target=undead_frames,
+                hand_with_positional_magnetic=positional_frames,
                 interpretation="Single archived decisions; alternate actions were never dispatched.")
 
 

@@ -740,6 +740,8 @@ class Controller:
         owned_choice=owned_selection(snapshot['client'])
         if self.ended==turn and not owned_choice:return 'waiting_next_turn'
         if self.peer_round:
+            from .policy import require_peer_lobby
+            require_peer_lobby(snapshot["view"])
             snapshot = dict(snapshot, action_profile="peer-r1")
         bindings=bind_actions(snapshot)
         if (self.practical or self.peer_round) and not snapshot['client'].get('choices') and not snapshot['client'].get('interaction'):
