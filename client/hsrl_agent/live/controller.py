@@ -15,6 +15,7 @@ class Controller:
         self.out.mkdir(parents=True,exist_ok=True);self.enable_input=enable_input
         self.clock=clock;self.timeout=timeout;self.pending=None;self.ended=None;self.halted=None
         self.practical=practical;self.turn_counts={}
+        self.peer_round=getattr(policy, 'peer_round', False)
         self.recovery_timeout=max(timeout,recovery_timeout) if practical else timeout
         self.overdue=False
         self.target_sent=False
@@ -137,17 +138,18 @@ class Controller:
             history['counts'][str(action)]=history['counts'].get(str(action),0)+1
         counts=self.turn_counts.setdefault(turn,dict(actions=0,moves=0))
         counts['actions']+=1
+        if action == 2: counts['freezes'] = counts.get('freezes', 0) + 1
         if 196<=int(action)<245:counts['moves']+=1
     def _guarded_bindings(self,snapshot,bindings,*,turn_key=None):
-        """Apply the frozen 80/5/2/inverse move rules before model sampling."""
+        """Match this checkpoint family before model sampling."""
         turn=turn_key or (snapshot['game_id'],snapshot['client'].get('turn'))
         history=self._history(turn)
         counts=self.turn_counts.get(turn,dict(actions=0,moves=0))
         end=tuple(b for b in bindings if b.kind=='end')
-        if counts['actions']>=80 and end:
+        if counts['actions'] >= (300 if self.peer_round else 80) and end:
             return end
         last=history.get('last_action');counts_by_action=history.get('counts',{})
-        cap=counts.get('moves',0)>=5
+        cap=counts.get('moves',0) >= (10 if self.peer_round else 5)
         inverse=None
         if isinstance(last,int) and 196<=last<245:
             src=(last-196)//7;dst=(last-196)%7
@@ -155,9 +157,11 @@ class Controller:
         out=[]
         for binding in bindings:
             action=int(binding.action)
+            if self.peer_round and action == 2 and counts.get('freezes', 0) >= 3:
+                continue
             if not 196<=action<245:
                 out.append(binding);continue
-            if cap or action==inverse or counts_by_action.get(str(action),0)>=2:
+            if cap or action==inverse or (not self.peer_round and counts_by_action.get(str(action),0)>=2):
                 continue
             out.append(binding)
         return tuple(out)
@@ -735,9 +739,13 @@ class Controller:
         from .lifecycle import owned_selection
         owned_choice=owned_selection(snapshot['client'])
         if self.ended==turn and not owned_choice:return 'waiting_next_turn'
+        if self.peer_round:
+            snapshot = dict(snapshot, action_profile="peer-r1")
         bindings=bind_actions(snapshot)
-        if self.practical and not snapshot['client'].get('choices') and not snapshot['client'].get('interaction'):
+        if (self.practical or self.peer_round) and not snapshot['client'].get('choices') and not snapshot['client'].get('interaction'):
             bindings=self._guarded_bindings(snapshot,bindings)
+        budget_end = (self.peer_round and self.turn_counts.get(turn, {}).get('actions', 0) >= 300
+                      and bool(bindings) and all(b.kind == 'end' for b in bindings))
         cache_key=(state_stamp(snapshot),tuple(bindings))
         reused=bool(self.practical and snapshot.get('comparison')=='semantic-v1' and self.candidate and self.candidate[0]==cache_key)
         infer_start=time.perf_counter()
@@ -769,9 +777,15 @@ class Controller:
             # decision timeline.
             did=self.trace.decision(snapshot,decision,policy_ms=policy_ms,reused=reused,
                 bindings=bindings,plan=None,
-                seat=snapshot['client'].get('local_player_id'),role='model',
+                seat=snapshot['client'].get('local_player_id'),role='environment' if budget_end else 'model',
                 inputs=getattr(self.policy,'last_inputs',None))
             self.current_decision_id=did
+        if self.peer_round and decision.binding.kind == 'end':
+            self.ended = turn
+            self._save_state()
+            self.event('stand_down_until_turn_changes', game_id=turn[0], turn=turn[1],
+                       reason='action_budget' if budget_end else 'policy_end')
+            return 'waiting_next_turn'
         try:
             plan=self.geometry.plan(decision,snapshot)
         except Blocked as exc:

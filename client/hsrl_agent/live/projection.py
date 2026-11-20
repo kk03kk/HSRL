@@ -20,13 +20,27 @@ def control_cost(card):
     # Client action-control quote overrides raw card COST; no universal price.
     return number(card['tags'],'INTERACTABLE_OBJECT_COST',card.get('cost'))
 
-def card_minion(card):
+def rogers_remaining(card):
+    """The public tooltip on Rogers shows the remaining gold, per entity."""
+    if card.get('card_id') not in ('BG33_823', 'BG33_823_G'):
+        return None
+    tags = card.get('tags', {})
+    remaining = number(tags, 'TAG_SCRIPT_DATA_NUM_1')
+    threshold = number(tags, 'TAG_SCRIPT_DATA_NUM_3')
+    if threshold == 9 and remaining is not None and 1 <= remaining <= threshold:
+        return remaining
+    return None
+
+
+def card_minion(card, printed_races=()):
     t=card['tags']
     for key in ('ATK','HEALTH'):
         if key not in t: raise Blocked('minion stat missing:'+key)
     races=str(t.get('CARDRACE','')).split(',')
     races=[RACE_IDS.get(r,r) for r in races]
     races=list(O.RACE_NAMES) if races==['ALL'] or races==['26'] else [] if races in (['0'],['INVALID'],['NONE']) else [r for r in races if r]
+    if races and len(printed_races) > 1 and set(races).issubset(printed_races):
+        races = list(printed_races)
     if set(races)-set(O.RACE_NAMES): raise Blocked('unknown minion race')
     max_health=number(t,'HEALTH')
     aliases={'IMMUNE_ATTACKING':'IMMUNE_WHILE_ATTACKING'}
@@ -55,7 +69,10 @@ class Projector:
             kept=number(t,'MODEL_KEPT_FROM_LAST_TURN') if zone=='shop' else False,
             marked=number(t,'MODEL_DARKMOON_TICKET') if zone=='shop' else number(t,'MODEL_LINKED_GROUP') if zone=='hand' else False,
             tier=c['tier'])
-        if is_minion: result['minion']=card_minion(c)
+        if is_minion:
+            result['minion']=card_minion(c, self.info[card['card_id']].get('races', ()))
+            if c['card_id'] in ('BG33_823', 'BG33_823_G'):
+                result['bounty_gold_remaining'] = rogers_remaining(c)
         else:
             # Most spells' simulator data is zero; only a fact producer can
             # certify this. Do not turn absent SCRIPT_DATA into a guessed zero.

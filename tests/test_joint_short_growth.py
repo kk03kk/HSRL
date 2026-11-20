@@ -55,5 +55,12 @@ def test_pin_accepts_published_rolling_receipt_without_final_files(tmp_path,monk
         forward_ok=True,sha256=assessment.file_identity(p)["sha256"]))
     out=tmp_path/"evaluation"
     out.mkdir()
+    # This is an archived, engine-pinned monitor; newer wheels must reject it.
+    if assessment.C.quill.engine_info()["source_hash"] != assessment.C.quill.PLAN["engine"]:
+        import pytest
+        with pytest.raises(ValueError, match="monitor engine changed"):
+            assessment.pin_middle(out)
+        assert not (out/"model.pt").exists()
+        monkeypatch.setitem(assessment.C.quill.PLAN, "engine", assessment.C.quill.engine_info()["source_hash"])
     model,actual=assessment.pin_middle(out)
     assert os.path.samefile(model,ckpt) and actual==receipt

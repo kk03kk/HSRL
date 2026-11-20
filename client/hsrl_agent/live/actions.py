@@ -1,7 +1,34 @@
 """Server Options/EntityChoices -> identity-bound 245 actions. No action ranking."""
 from .contracts import Binding,Blocked
 
+def magnetic_host(source, host, public_item):
+    from .projection import RACE_IDS
+    tags = source.get('tags', {})
+    if str(tags.get('MAGNETIC', '0')) != '1':
+        return False
+    allowed = {'MECHANICAL'}
+    extra = tags.get('MAGNETIC_TO_RACE')
+    if extra is not None:
+        race = RACE_IDS.get(str(extra), str(extra))
+        if race in ('UNDEAD', 'DEMON', 'ELEMENTAL'):
+            allowed.add(race)
+    else:
+        card = source['card_id'].removesuffix('_G')
+        if card == 'BG_DEEP_015':
+            allowed.add('UNDEAD')
+        elif card == 'BG31_859':
+            allowed.add('ELEMENTAL')
+        elif card.startswith('BG25_807t'):
+            allowed.add('DEMON')
+    raw = str(host.get('tags', {}).get('CARDRACE', '')).split(',')
+    races = {RACE_IDS.get(r, r) for r in raw}
+    if public_item and public_item.get('card_id') == host['card_id']:
+        races.update((public_item.get('minion') or {}).get('races') or ())
+    return bool(races & (allowed | {'26', 'ALL'}))
+
+
 def bind_actions(snapshot):
+    peer_round = snapshot.get("action_profile") == "peer-r1"
     data=snapshot['client']
     board,hand,shop=(data.get(k,[]) for k in ('board','hand','shop'))
     groups={z:{c['entity_id']:i for i,c in enumerate(data.get(z,[]))} for z in ('board','hand','shop')}
@@ -37,6 +64,8 @@ def bind_actions(snapshot):
         # 见过 cancel 合法。实机若把 7 放进掩码，argmax 可能落在这个未训练的位
         # 上——历史实机回放里出现过 play/cancel 循环。只有当取消是唯一可授权动作
         # 时才保留它，否则空掩码会直接 Blocked 死锁。
+        if not out and peer_round:
+            raise Blocked('no representable non-cancel choice on the peer contract')
         if not out and interaction.get('cancel_authorized'):
             out.append(Binding(7,'cancel',choice_id=interaction.get('request_id')))
         return tuple(out)
@@ -74,7 +103,7 @@ def bind_actions(snapshot):
             # Do not present that opposite transition under the trained action.
             # The real client exposes no separate unfreeze action in the 245
             # vocabulary, so omit Freeze until at least one slot is unfrozen.
-            if not shop or not all(str(c.get('tags',{}).get('FROZEN','0'))=='1' for c in shop):
+            if peer_round or not shop or not all(str(c.get('tags',{}).get('FROZEN','0'))=='1' for c in shop):
                 out.append(Binding(2,'freeze',source=eid,option_id=oid))
         elif eid in groups['hand']:
             h=groups['hand'][eid]
@@ -82,12 +111,14 @@ def bind_actions(snapshot):
                 if len(board)<7:
                     for pos in range(len(board)+1):
                         out.append(Binding(46+h*8+pos,'play',source=eid,position=pos,option_id=oid,targets=targets,branches=branches))
-                if str(c.get('tags',{}).get('MAGNETIC','0'))=='1':
-                    for target in targets:
-                        if target in groups['board']:
-                            b=entities[target]
-                            if str(b.get('tags',{}).get('CARDRACE')) in ('17','26','MECHANICAL','ALL'):
-                                out.append(Binding(126+h*7+groups['board'][target],'magnetize',source=eid,target=target,option_id=oid))
+                public_board = snapshot['view'].get('board', [])
+                for target in targets:
+                    if target not in groups['board']:
+                        continue
+                    pos = groups['board'][target]
+                    item = public_board[pos] if pos < len(public_board) else None
+                    if magnetic_host(c, entities[target], item):
+                        out.append(Binding(126+h*7+pos,'magnetize',source=eid,target=target,option_id=oid))
             elif c['card_type'] in ('SPELL','BATTLEGROUND_SPELL'):
                 out.append(Binding(46+h*8,'play',source=eid,option_id=oid,targets=targets,branches=branches))
         elif eid in powers:

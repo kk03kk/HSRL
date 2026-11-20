@@ -235,6 +235,9 @@ def summarize(out,plan):
 
 
 def pin_middle(out):
+    checked=C.quill.engine_info()
+    if checked["source_hash"]!=C.quill.PLAN["engine"]:
+        raise ValueError("monitor engine changed")
     # Keep the chosen rolling snapshot alive across the trainer's retention pass.
     for _ in range(20):
         live=J.read(SEG/"train/latest.json")
@@ -258,9 +261,6 @@ def pin_middle(out):
         identity=file_identity(path)
         if kind=="final" and identity!=live["files"]["model.pt"]:
             raise ValueError("rolling checkpoint identity mismatch")
-        checked=C.quill.engine_info()
-        if checked["source_hash"]!=C.quill.PLAN["engine"]:
-            raise ValueError("monitor engine changed")
         from hsbg.az.train.personal import inspect_checkpoint
         verified=inspect_checkpoint(str(path),"cpu")
         if not verified["forward_ok"] or verified["sha256"]!=identity["sha256"]:

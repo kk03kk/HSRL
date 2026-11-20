@@ -37,9 +37,18 @@ def exclusive(path):
         finally:f.seek(0);msvcrt.locking(f.fileno(),msvcrt.LK_UNLCK,1)
 
 
-def visual_state(backend,profile,data,previous=None,*,pending=None):
+def matches_template(image, profile, spec):
     from PIL import Image
-    from .vision import stable,crop_box,template_score
+    from .vision import crop_box,template_score
+    path=Path(profile['_directory'])/spec['template']
+    # Templates are workspace files, not executable producers.
+    if hashlib.sha256(path.read_bytes()).hexdigest()!=spec['sha256']:raise Blocked('visual template changed')
+    with Image.open(path) as template:
+        return template_score(image.crop(crop_box(spec['rect'],image.size)),template)<=spec.get('max_error',.035)
+
+
+def visual_state(backend,profile,data,previous=None,*,pending=None):
+    from .vision import stable,crop_box
     first,window=backend.capture()
     time.sleep(profile.get('settle_seconds',.25))
     second,after=backend.capture()
@@ -53,17 +62,11 @@ def visual_state(backend,profile,data,previous=None,*,pending=None):
     phase='hero' if data['choices'] and all(c['card_type']=='HERO' for c in data['choices']) else 'discover' if data['choices'] else data['phase']
     guard=profile.get('scene_guards',{}).get(phase)
     if not guard:raise Blocked('no reviewed visual scene guard:'+phase)
-    def matches(spec):
-        path=Path(profile['_directory'])/spec['template']
-        # Templates are workspace files, not executable producers.
-        if hashlib.sha256(path.read_bytes()).hexdigest()!=spec['sha256']:raise Blocked('visual template changed')
-        with Image.open(path) as template:
-            return template_score(second.crop(crop_box(spec['rect'],second.size)),template)<=spec.get('max_error',.035)
-    if not matches(guard):raise Blocked('client scene disagrees with reviewed visual template')
+    if not matches_template(second, profile, guard):raise Blocked('client scene disagrees with reviewed visual template')
     status=dict(window_token=after.token(),phase=phase)
     for key in ('target_open','confirm_enabled','available_races_shown'):
         spec=profile.get('signals',{}).get(key)
-        status[key]=bool(spec and matches(spec))
+        status[key]=bool(spec and matches_template(second, profile, spec))
     from .perception import selection,branch
     status['selection']=selection(second,profile,data)
     status.update(branch(second,profile,data,pending))

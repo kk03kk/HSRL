@@ -20,6 +20,8 @@ def validate_live_profile(checkpoint,profile):
     with Path(checkpoint).open('rb') as f:sha=hashlib.file_digest(f,'sha256').hexdigest()
     spec=POLICY_SPECS.get(sha)
     if spec is None:raise Blocked('checkpoint is not an approved pinned policy')
+    if spec.get('offline_only'):
+        raise Blocked('peer checkpoint is qualified for offline decisions only')
     required=spec.get('required_client_build')
     # Build numbers are ints in POLICY_SPECS but strings in the reviewed profile JSON.
     # Comparing them raw made the gate unsatisfiable even for an identical build

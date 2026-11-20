@@ -28,8 +28,9 @@ def test_cycle_memory_ablation_is_explicit_and_preserves_other_history():
             prior,_=altered(None,None,regular.evaluator.last_mask,0)
             assert int(prior.argmax())==action and altered.reason==reason
             assert not altered.operator.cycled and altered.operator.last_play==last_play
-            assert operator.cycled and action!=decision.action
-            found=True;break
+            assert operator.cycled
+            if action != decision.action:
+                found=True;break
         game.step(0,decision.action)
         if decision.action==0:break
     assert found

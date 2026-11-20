@@ -45,6 +45,7 @@ class LivePipeline:
         self.policy=policy;self.pending=pending;self.out=out;self.gate=gate or FrameGate(backend,profile,out=out/'visual-evidence')
         self.metrics=Measurements();self.saved_key=None
         self.admission=None
+        self.lobby_ocr=None
         self.overdue_evidence=deque(maxlen=2);self.overdue_saves=0
     def record_overdue(self,data):
         """Passive diagnostics once per uncertain stage, never input admission."""
@@ -72,6 +73,8 @@ class LivePipeline:
     def project(self,data):
         if self.reader.connection!='connected':raise Blocked('client connection is not confirmed connected')
         with self.metrics.measure('projection'):s=self.projector.build_public(self.reader,data)
+        if getattr(self.policy, 'peer_round', False):
+            s['action_profile'] = 'peer-r1'
         return s
     def finish(self,s,visual,*,pinned=None,use_current=True):
         pending=self.pending() if use_current else pinned
@@ -83,6 +86,18 @@ class LivePipeline:
     def prepare(self,data):
         s=self.project(data)
         with self.metrics.measure('visual_evidence'):visual,image=self.gate.observe(s,self.pending())
+        if (visual.get('phase') == 'hero' and visual.get('available_races_shown')
+                and self.profile.get('available_races_roi') and not self.projector.lobby_races):
+            from .vision import OCR, races_from_text, crop_box
+            from .runtime import save
+            self.lobby_ocr = self.lobby_ocr or OCR()
+            crop = image.crop(crop_box(self.profile['available_races_roi'], image.size))
+            rows = self.lobby_ocr.read(crop)
+            races = races_from_text(rows)
+            self.projector.observe_lobby(data['game_id'], races)
+            save(self.out/'lobby-observation.json', dict(game_id=data['game_id'], revision=data['revision'],
+                                                        races=races, source='reviewed_available_races_roi', rows=rows))
+            s = self.project(data)
         s=self.finish(s,visual);key=state_stamp(s)
         if key!=self.saved_key:
             from .runtime import save

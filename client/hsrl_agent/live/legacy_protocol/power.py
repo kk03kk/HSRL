@@ -124,7 +124,7 @@ class PowerState:
                 from dataclasses import replace
                 observation=replace(self.observe(),resolutions=(),actions=())
                 keep={'FROZEN','EXHAUSTED','INTERACTABLE_OBJECT_COST','PREMIUM','MAGNETIC','CARDRACE','ATTACHED','CREATOR',
-                      'TAG_SCRIPT_DATA_NUM_1','TAG_SCRIPT_DATA_NUM_2'}
+                      'TAG_SCRIPT_DATA_NUM_1','TAG_SCRIPT_DATA_NUM_2','TAG_SCRIPT_DATA_NUM_3','MAGNETIC_TO_RACE'}
                 from .constants import ABILITY_PROGRESS_TAGS
                 keep.update(ABILITY_PROGRESS_TAGS)
                 fields={zone:tuple(replace(c,tags={k:v for k,v in c.tags.items() if k in keep}) for c in getattr(observation,zone))

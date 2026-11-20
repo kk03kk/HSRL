@@ -36,6 +36,14 @@ def test_real_protocol_is_checked_before_allocating_evaluation_outputs():
     from workflows.evaluate_suite import preflight_protocol
     pytest.importorskip('hsbg_engine')
     plan=json.loads((Path(__file__).resolve().parents[1]/'config/evaluation/v14-r1-20261117.json').read_text(encoding='utf-8'))
-    assert preflight_protocol(plan)['schema'] == 'hsai.eval_protocol/v1'
+    import hsbg_engine as engine
+    if engine.build_info()['source_hash'] == 'c4c71014e3d41760':
+        assert preflight_protocol(plan)['schema'] == 'hsai.eval_protocol/v1'
+    else:
+        with pytest.raises(ValueError,match='before evaluation'):
+            preflight_protocol(plan)
+        # A new standalone plan can describe this engine without reusing old scores.
+        fresh = {k:v for k,v in plan.items() if k != 'expected_protocol_sha256'}
+        assert preflight_protocol(fresh)['schema'] == 'hsai.eval_protocol/v1'
     plan['expected_protocol_sha256']='0'*64
     with pytest.raises(ValueError,match='before evaluation'): preflight_protocol(plan)

@@ -145,7 +145,10 @@ def main(argv=None,root=None):
         if args.command=='decide':
             from .actions import bind_actions
             from .policy import ModelPolicy
-            s=load(args.snapshot);decision=ModelPolicy(args.checkpoint,args.device).decide(s,bind_actions(s))
+            s=load(args.snapshot);policy=ModelPolicy(args.checkpoint,args.device)
+            if policy.peer_round:
+                s = dict(s, action_profile='peer-r1')
+            decision=policy.decide(s,bind_actions(s))
             save(args.out,asdict(decision));print(json.dumps(asdict(decision),ensure_ascii=False));return 0
         if args.command=='review-profile':
             p=load(args.profile)

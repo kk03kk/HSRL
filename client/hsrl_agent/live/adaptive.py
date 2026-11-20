@@ -13,6 +13,17 @@ from .facts import context_facts
 class AdaptiveProjector(Projector):
     def __init__(self,profile,info):
         super().__init__(profile,copy.deepcopy(info));self.estimates={}
+        self.lobby_game = None
+        self.lobby_races = None
+
+    def observe_lobby(self, game_id, races):
+        from .encoding import RACES
+        if not game_id or len(races) != 5 or len(set(races)) != 5 or set(races) - set(RACES):
+            raise Blocked('five distinct public lobby types are required')
+        races = tuple(sorted(races))
+        if game_id == self.lobby_game and self.lobby_races and self.lobby_races != races:
+            raise Blocked('public lobby evidence conflicts within this game')
+        self.lobby_game, self.lobby_races = game_id, races
 
     def build_public(self,reader,data,*,now=None):
         # Published entities are immutable. Only replace top-level metadata;
@@ -31,7 +42,9 @@ class AdaptiveProjector(Projector):
             # EntityChoices independently authorizes selection while the next
             # ordinary Options list is intentionally suspended until selection.
             data['options_pending']=False;data['client_task_list']=None
-        facts=context_facts(reader,data,self.info)
+        if self.lobby_game != data['game_id']:
+            self.lobby_game, self.lobby_races = data['game_id'], None
+        facts=context_facts(reader,data,self.info,lobby_races=self.lobby_races)
         facts['view'].pop('unknown',None)
         g=facts['global'];v=facts['view'];entity_tags=facts['entity_tags']
         for name in O.GLOBAL_FIELD_NAMES:

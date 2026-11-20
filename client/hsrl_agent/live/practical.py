@@ -174,6 +174,10 @@ def interpret_frame(image,after,profile,data,pending=None):
         available_races_shown=False,interaction_evidence='window identity + real server phase + stable card region')
     if phase=='hero':
         from .hero_ui import inspect
+        from .runtime import matches_template
+        signal = profile.get('signals', {}).get('available_races_shown')
+        if signal and profile.get('available_races_roi') and profile.get('review_state') == 'reviewed':
+            result['available_races_shown'] = matches_template(image, profile, signal)
         proof=inspect(image,profile,data);result['hero_ui']=proof
         result['choice_green_scores']=[slot['halo'] for slot in proof['slots']]
         if pending:

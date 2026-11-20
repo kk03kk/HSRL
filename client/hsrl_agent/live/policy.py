@@ -40,6 +40,16 @@ POLICY_SPECS={CHECKPOINT_SHA256:dict(id='original-14.8m',auxiliary=False),
                   id='league-final-14858',auxiliary=False,parameters=16436034,
                   required_client_build=255790,trained_engine_version='37.0.2.256589')}
 
+# Both checkpoints share the verified public actor and the R1 action budget.
+# Real input still requires a separately calibrated, accepted peer profile.
+for digest, label in (
+    ('55f6665c0b357860eefd6b6916620a0118e1dc2c5d5e77bbea9136f64f48c5a9', 'peer-parent'),
+    ('1bcb12c6038f0d07223d925893c58a4be244531769f32e9820eeb2e9f10e134a', 'peer-r1-647'),
+):
+    POLICY_SPECS[digest] = dict(id=label, auxiliary=False, parameters=7999364,
+                                trained_engine_version='37.0.2.256589', peer_round=True,
+                                offline_only=True)
+
 
 def _vector_meta(array):
     """输入向量摘要（形状/范数/指纹），不复制数据本体。"""
@@ -90,7 +100,12 @@ class ModelPolicy:
         spec=POLICY_SPECS.get(self.sha)
         if spec is None:raise Blocked('checkpoint is not an approved pinned policy')
         self.policy_id=spec['id']
-        if not verify()['ok']: raise Blocked('observation/card/action contract failed')
+        self.peer_round=spec.get('peer_round', False)
+        report = verify()
+        if not report['ok']: raise Blocked('observation/card/action contract failed')
+        if self.peer_round and report['engine']['build_info']['source_hash'] not in (
+                'c4c71014e3d41760', '2442185529580f76'):
+            raise Blocked('peer policy has not been verified on this engine build')
         self.device=device
         self.model,self.meta=(load_champion_policy(checkpoint,device) if spec['auxiliary'] else load_checkpoint(str(checkpoint),device=device))
         if sum(p.numel() for p in self.model.parameters())!=spec.get('parameters',14808254): raise Blocked('wrong model architecture')
