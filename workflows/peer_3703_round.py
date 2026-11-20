@@ -45,10 +45,12 @@ def field(split):
     from hsbg.az.train.personal import checked_library
     from hsbg.az.train.common import engine_info
     from hsbg.az.train.eval_policy import EvalProtocol, protocol_sha256_of
-    man=checked_library(LIB/split)
+    from workflows.peer_3703_human_field import LIB as external_field
+    path=external_field if split=="human" else LIB/split
+    man=checked_library(path)
     if man["split"] != split or man["fingerprint"]["engine"]["source_hash"] != ENGINE:
         raise ValueError("invalid field")
-    proto=EvalProtocol(mirror_snaps=str(LIB/split),mirror_sample="random",mirror_strict=1,
+    proto=EvalProtocol(mirror_snaps=str(path),mirror_sample="random",mirror_strict=1,
                       engine=engine_info(),human_tail="last-observed-v1",tp_forbid_cancel=True,keep_start_board=False)
     proto.assert_training_contract()
     spec=dict(protocol=proto.as_dict(),library_sha256=man["digest"], tail="last-observed-v1",
@@ -79,7 +81,7 @@ def panel(split,models,start,n,out):
     from tools.summarize_peer_distillation import estimate
     torch.set_num_threads(1)
     proto,man,spec,sha=field(split)
-    POOL=MirrorSnapshotPool(str(LIB/split),sample="random")
+    POOL=MirrorSnapshotPool(proto.mirror_snaps,sample="random")
     assert POOL.frames==man["frames"] and not POOL.bad_files
     MODELS=[make_eval_policy(str(p),protocol=proto,device="cpu")["policy"] for p in models]
     # Process-local actors and read-only snapshot banks.
@@ -150,7 +152,7 @@ def production(args,dest,parent):
 
 if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument("stage",choices=("baseline","train-test","train","monitor"))
+    p.add_argument("stage",choices=("baseline","train-test","train","monitor","human-base","human-end"))
     p.add_argument("out",type=Path)
     p.add_argument("--baseline-sha")
     args=p.parse_args()
@@ -166,6 +168,8 @@ if __name__=="__main__":
     if args.stage in ("baseline","train-test"):
         train=args.stage=="train-test"
         panel("train" if train else "hold",[PARENT,R1],526730000 if train else MONITOR_SEED,8 if train else 64,dest)
+    elif args.stage=="human-base":
+        panel("human",[PARENT,R1],529730000,64,dest)
     elif args.stage=="train":
         production(args,dest,parent)
     else:
@@ -178,4 +182,9 @@ if __name__=="__main__":
         _,_,_,sha=field("hold")
         if sha!=baseline["protocol_sha256"]:
             raise ValueError("hold field changed")
-        panel("hold",[R1,Path(seal["model"])],MONITOR_SEED,256,dest)
+        if args.stage=="human-end":
+            if field("human")[3]!=read(args.out/"human-base/complete.json")["protocol_sha256"]:
+                raise ValueError("external field changed")
+            panel("human",[R1,Path(seal["model"])],529730000,256,dest)
+        else:
+            panel("hold",[R1,Path(seal["model"])],MONITOR_SEED,256,dest)
