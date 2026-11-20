@@ -1,0 +1,9 @@
+{
+  "schema": "hsai.peer-ppo-recipe/v1",
+  "action_profile": "human-turn-3702-economy",
+  "protocol_sha256": "035d2eddcffa36e8092f0975863cf1da93789be7818db5ad14df16941c59bee6",
+  "initial_manifest_sha256": "e76a5b4786b9c2ff4caa455d2b2626168aaa4b0c30159ae1f8ac45b4d3d399ab",
+  "train_seed": 401410000,
+  "evaluation_seed": 407410000,
+  "total_batches": 120
+}

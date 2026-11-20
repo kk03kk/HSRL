@@ -1,6 +1,7 @@
-"""Run the D-155 fixed-dose PPO pilot and its paired assessment."""
+"""Run a fixed-dose peer PPO training recipe and its paired assessment."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -38,7 +39,9 @@ def inspect_trainer(checkpoint, initial_model=None):
                 lr=state["scheduler"]["_last_lr"][0], scheduler_step=state["scheduler"]["last_epoch"])
 
 
-def train(out: Path, *, previous: Path | None = None, last_block=False, seed=None) -> None:
+def train(out: Path, *, previous: Path | None = None, last_block=False, seed=None,
+          action_profile=ACTION_PROFILE, total_batches=TOTAL_BATCHES, evaluation_seed=None,
+          initial_manifest_sha256=None) -> None:
     from hsbg.az.train.personal import library_digest
     from hsbg.runtime.artifacts import atomic_json, file_identity
     from hsbg.runtime.provenance import source_identity
@@ -62,7 +65,7 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
             library_digest(library / split) != digest
             for split, digest in recipe["library_digests"].items()):
         raise ValueError("engine or library identity mismatch")
-    settings.update(HSAI_ACTION_PROFILE=ACTION_PROFILE, HSAI_ARENA_SEED=str(train_seed),
+    settings.update(HSAI_ACTION_PROFILE=action_profile, HSAI_ARENA_SEED=str(train_seed),
                     HSAI_ARENA_MINUTES="175", HSAI_ARENA_ANCHOR="0.06", HSAI_ARENA_ANCHOR_TAIL="0.04")
     identity = dict(commit=source["commit"], settings=settings, protocol_sha256=protocol.sha256(),
                     initial=initial, peer=PEER_SHA, libraries=recipe["library_digests"],
@@ -70,6 +73,11 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
                     live_pin=file_identity(ROOT / "config/live/model.json"))
     if last_block:
         identity["adapt_last_block"] = True
+    if evaluation_seed is not None:
+        manifest = file_identity(INITIAL.with_name("manifest.json"))
+        if manifest["sha256"] != initial_manifest_sha256:
+            raise ValueError("starting model manifest differs from the frozen recipe")
+        identity.update(total_batches=total_batches, evaluation_seed=evaluation_seed, model_manifest=manifest)
     parent = None
     if previous:
         parent = verified_generation(previous / "fit", train_seed)
@@ -89,7 +97,7 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
     if stop <= time.time() + 300:
         raise ValueError("insufficient allocation time")
     start = parent["version"] if parent else 0
-    end = TOTAL_BATCHES if parent else FIRST_BATCHES
+    end = total_batches if parent else FIRST_BATCHES
     runtime = dict(settings, HSRL_ROOT=str(ROOT), HSAI_ARENA_OUT=str(segment / "fit"),
                    HSAI_ARENA_CKPT=parent["model"] if parent else str(INITIAL.resolve()),
                    HSAI_ARENA_ITERATIONS=str(end - start), HSAI_ARENA_STOP_EPOCH=str(stop))
@@ -118,7 +126,8 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
         runtime["HSAI_ARENA_CKPT"] = str(fork / "model.pt")
     atomic_json(segment / "plan.json", dict(
         source=source, identity=identity, protocol=protocol.as_dict(), start=start, end=end,
-        evaluation_seed=308410000 if last_block else EVAL_SEED, parent=parent, runtime=runtime, job=os.environ["SLURM_JOB_ID"]))
+        evaluation_seed=evaluation_seed if evaluation_seed is not None else (308410000 if last_block else EVAL_SEED),
+        parent=parent, runtime=runtime, job=os.environ["SLURM_JOB_ID"]))
     subprocess.run(["bash", "deploy/slurm/stage_arena.sbatch"], env=os.environ | runtime, check=True)
     final = verified_generation(segment / "fit", train_seed)
     if final["version"] != end or final["cum_decisions"] <= (parent["cum_decisions"] if parent else 0):
@@ -143,25 +152,33 @@ def train(out: Path, *, previous: Path | None = None, last_block=False, seed=Non
         job=os.environ["SLURM_JOB_ID"]))
 
 
-def assess(out: Path, *, reused: Path | None = None) -> None:
-    from workflows.peer_finetune_holdout import STANDARD_PROTOCOL
+def assess(out: Path, *, reused: Path | None = None, recipe=None) -> None:
+    from workflows.peer_finetune_holdout import PROFILE_PROTOCOLS
     from workflows.peer_ppo_pilot import SEED, read, verified_generation
     from hsbg.runtime.artifacts import atomic_json
 
     first = read(out / "segment-01/complete.json")
     last = out / "segment-02"
     seal = read(last / "complete.json")
-    final = verified_generation(last / "fit", SEED)
-    if (seal["identity"]["protocol_sha256"] != STANDARD_PROTOCOL
+    train_seed = recipe["train_seed"] if recipe else SEED
+    eval_seed = recipe["evaluation_seed"] if recipe else EVAL_SEED
+    total_batches = recipe["total_batches"] if recipe else TOTAL_BATCHES
+    protocol = PROFILE_PROTOCOLS[recipe["action_profile"] if recipe else ACTION_PROFILE]
+    if recipe and (seal["identity"]["total_batches"] != total_batches
+                   or seal["identity"]["evaluation_seed"] != eval_seed
+                   or protocol != recipe["protocol_sha256"]):
+        raise ValueError("assessment recipe differs from the trained generation")
+    final = verified_generation(last / "fit", train_seed)
+    if (seal["identity"]["protocol_sha256"] != protocol
             or first["identity"] != seal["identity"] or seal["checkpoint"] != final
-            or seal["start"] != FIRST_BATCHES or final["version"] != TOTAL_BATCHES
+            or seal["start"] != FIRST_BATCHES or final["version"] != total_batches
             or read(last / "plan.json")["parent"] != first["checkpoint"]):
         raise ValueError("pilot protocol or final seal mismatch")
     assessment = out / ("assessment-recovered" if reused else "assessment")
     cmd = [
         sys.executable, "workflows/peer_finetune_holdout.py", "--segment", str(last / "fit"),
-        "--out", str(assessment), "--seed", str(EVAL_SEED),
-        "--games", "512", "--protected", "256", "--raw-parent",
+        "--out", str(assessment), "--seed", str(eval_seed), "--train-seed", str(train_seed),
+        "--games", "512", "--protected", "0" if recipe else "256", "--raw-parent",
     ]
     if reused:
         cmd.extend(("--reuse-complete", str(reused)))
@@ -169,10 +186,16 @@ def assess(out: Path, *, reused: Path | None = None) -> None:
     result = read(assessment / "complete.json")
     utility = result["delta"]["utility"]["ci95"][0] > 0
     growth = result["delta"]["log12"]["ci95"][0] >= -0.12
-    atomic_json(out / "decision.json", dict(
+    decision = dict(
         utility_pass=utility, t12_growth_pass=growth, passed=utility and growth,
-        eval_seed=EVAL_SEED, games=result["n"], final=final["files"]["model.pt"],
-        protocol=STANDARD_PROTOCOL, assessment=str(assessment)))
+        eval_seed=eval_seed, games=result["n"], final=final["files"]["model.pt"],
+        protocol=protocol, assessment=str(assessment))
+    if recipe:
+        decision["rank_pass"] = result["delta"]["rank"]["ci95"][1] < 0
+        decision["common_growth_pass"] = result["delta"]["growth9to12"]["ci95"][0] > 0
+        decision["passed"] = all(decision[key] for key in (
+            "utility_pass", "t12_growth_pass", "rank_pass", "common_growth_pass"))
+    atomic_json(out / "decision.json", decision)
 
 
 if __name__ == "__main__":
@@ -182,17 +205,32 @@ if __name__ == "__main__":
     parser.add_argument("--reuse-assessment", type=Path)
     parser.add_argument("--last-block", action="store_true")
     parser.add_argument("--train-seed", type=int)
+    parser.add_argument("--recipe", type=Path, help="Frozen peer PPO action profile, budget and seeds.")
     args = parser.parse_args()
     os.chdir(ROOT)
     for key in list(os.environ):
         if key.startswith(("HSAI_ARENA_", "HSAI_RECRUIT_START_")):
             del os.environ[key]
-    os.environ.update(HSAI_ACTION_PROFILE=ACTION_PROFILE, HSAI_HUMAN_TAIL="last-observed-v1")
+    recipe = None
+    if args.recipe:
+        recipe = json.loads(args.recipe.read_bytes())
+        if (recipe.get("schema") != "hsai.peer-ppo-recipe/v1" or args.last_block or args.train_seed is not None
+                or recipe["total_batches"] <= FIRST_BATCHES or recipe["train_seed"] == recipe["evaluation_seed"]):
+            parser.error("invalid or conflicting frozen training recipe")
+    profile = recipe["action_profile"] if recipe else ACTION_PROFILE
+    os.environ.update(HSAI_ACTION_PROFILE=profile, HSAI_HUMAN_TAIL="last-observed-v1")
+    if recipe:
+        from workflows.peer_finetune_holdout import BOUNDED_ACTION_PROFILES, PROFILE_PROTOCOLS
+        if profile not in BOUNDED_ACTION_PROFILES or PROFILE_PROTOCOLS[profile] != recipe["protocol_sha256"]:
+            parser.error("unrecognized action protocol in recipe")
     out = args.out.resolve()
     if args.stage == "assess":
         if args.last_block or args.train_seed is not None:
             parser.error("use peer_finetune_holdout.py with explicit train and assessment seeds")
-        assess(out, reused=args.reuse_assessment)
+        assess(out, reused=args.reuse_assessment, recipe=recipe)
     else:
         train(out, previous=out / "segment-01" if args.stage == "resume" else None,
-              last_block=args.last_block, seed=args.train_seed)
+              last_block=args.last_block, seed=recipe["train_seed"] if recipe else args.train_seed,
+              action_profile=profile, total_batches=recipe["total_batches"] if recipe else TOTAL_BATCHES,
+              evaluation_seed=recipe["evaluation_seed"] if recipe else None,
+              initial_manifest_sha256=recipe["initial_manifest_sha256"] if recipe else None)

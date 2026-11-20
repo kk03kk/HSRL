@@ -141,7 +141,8 @@ def run(args):
     if not (0 <= args.protected <= args.games and args.games > 0):
         raise ValueError("invalid cohort sizes")
     protocol, _ = selected_field(args.split)
-    if args.raw_parent and protocol.sha256() != STANDARD_PROTOCOL:
+    profile = os.environ.get("HSAI_ACTION_PROFILE")
+    if args.raw_parent and (profile not in BOUNDED_ACTION_PROFILES or protocol.sha256() != PROFILE_PROTOCOLS[profile]):
         raise ValueError("raw parent assessment requires the confirmed action protocol")
     parent = str((panel.WEIGHT if args.raw_parent else INITIAL).resolve())
     parent_sha = panel.PEER_SHA if args.raw_parent else INITIAL_SHA

@@ -11,11 +11,36 @@ P0-2（协议指纹缺失）三件事的**根因层**：
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 from hsbg.az.train import eval_policy as EP
+
+
+@pytest.mark.parametrize(("profile", "max_actions", "moves"), [
+    ("human-turn-3702-standard", 200, 10),
+    ("human-turn-3702-economy", 300, 10),
+    ("human-turn-3702-economy-move8", 300, 8),
+])
+def test_bounded_peer_profile_reaches_policy_and_engine(profile, max_actions, moves):
+    # Contracts are read at process startup, the same way Slurm workers read them.
+    probe = """
+import json
+from hsbg.az.train.eval_policy import TRAINING_CONTRACT
+from hsbg.az.train.lobby_filter import engine_rule_overrides
+print(json.dumps([TRAINING_CONTRACT, engine_rule_overrides()]))
+"""
+    output = subprocess.check_output(
+        [sys.executable, "-c", probe], env=os.environ | {"HSAI_ACTION_PROFILE": profile}, text=True)
+    policy, engine = json.loads(output)
+    assert policy["max_actions_per_turn"] == max_actions
+    assert (policy["move_guard"], policy["move_cap"], policy["move_repeat_limit"]) == (True, moves, 0)
+    assert policy["freeze_cap"] == engine["freeze_presses_per_turn"] == 3
+    assert policy["forbid_cancel"] and not policy["forbid_unfreeze"] and not policy["ban_trinkets"]
 
 
 # ────────────────────────── 假实现（无引擎/无 torch）──────────────────────────
