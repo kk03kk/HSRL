@@ -3,6 +3,7 @@ import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
+import hashlib
 import json
 import math
 import os
@@ -20,7 +21,7 @@ R1 = Path("artifacts/runs/nus-peer-rounds-production-20261120-1/round-01/train-1
 PARENT_SHA = "55f6665c0b357860eefd6b6916620a0118e1dc2c5d5e77bbea9136f64f48c5a9"
 R1_SHA = "1bcb12c6038f0d07223d925893c58a4be244531769f32e9820eeb2e9f10e134a"
 TRAINER_SHA = "d2e1b926d8cae3afd17f8b37431285fb760f662f8408b76f6e19ab595bdab949"
-LIB = Path("artifacts/libraries/peer-3703-mixed-20261120-01")
+LIB = Path("artifacts/libraries/peer-3703-mixed-20261120-02")
 ENGINE = "c1d91053387aeac3"
 START = 511730000
 # Sensitivity test using the historical round duration divided by 1.6s,
@@ -51,7 +52,7 @@ def initialize():
 def simulate(index):
     import hsbg_engine as engine
     from hsbg.az.train.engine_quality import require_clean_engine
-    from hsbg.az.train.mirror_snapshots import capture_eot, engine_stamp, write_snapshot_file
+    from hsbg.az.train.mirror_snapshots import capture_eot, engine_stamp, held_pool_parts, write_snapshot_file
     timed = index >= TRAIN_GAMES + HOLD_GAMES
     i = index - HOLD_GAMES if timed else index
     seed = START+i
@@ -60,7 +61,9 @@ def simulate(index):
     snap, receipt = dest/f"snap_{seed}.json.gz", dest/f"game-{seed}.json"
     if receipt.exists() or snap.exists():
         raise FileExistsError(seed)
-    game = engine.Game(seed=seed)
+    from hsbg.az.train.lobby_filter import make_filtered_game
+    game, actual_seed = make_filtered_game(engine, seed)
+    assert actual_seed == seed and json.loads(game.state_json())["cfg"]["freeze_presses_per_turn"] == 3
     roles = [(seat+i)%2 for seat in range(8)]
     agents = []
     for role in roles:
@@ -99,6 +102,23 @@ def simulate(index):
                     bodies[seat][turn] = sum(m["atk"]+m["hp"] for m in f["player"]["board"])
                     if not timed:
                         f.update(source="native_3703_peer",source_turn=turn)
+                        # An external combat board does not purchase from the recipient's shop.
+                        # Keep the native board and its enchantments. Omit private zones on every frame.
+                        player = f["player"]
+                        for zone in ("hand","shop","hand_queue","hand_queue_marks"):
+                            player[zone] = []
+                        player["gold"] = 0
+                        payload = json.dumps(player, ensure_ascii=False)
+                        f["held_pool_parts"] = held_pool_parts(player)
+                        f["frame_sha256"] = hashlib.sha256(payload.encode()).hexdigest()
+                        probe = game.copy()
+                        rep = probe.apply_turn_snapshots([[seat,payload]],False)
+                        if rep["applied"] != 1 or rep["rejected"] or not rep["pool_balance_ok"] or not rep["pool_species_ok"]:
+                            raise ValueError(("source board is not injectable",seed,seat,turn,rep))
+                        copied = json.loads(probe.player_json(seat))
+                        fields = ("card","atk","hp","kw","bonus_kw","golden","shield_max")
+                        if [[m[k] for k in fields] for m in copied["board"]] != [[m[k] for k in fields] for m in player["board"]]:
+                            raise ValueError(("board did not round-trip",seed,seat,turn))
                         frames.append(f)
                 game.step(seat,action)
                 counts[seat] += 1
