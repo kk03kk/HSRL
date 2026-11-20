@@ -1,7 +1,6 @@
 """Trace focal public decisions in sealed, fully adaptive eight-policy games."""
 import argparse
 from concurrent.futures import ProcessPoolExecutor
-from hashlib import sha256
 import json
 import multiprocessing as mp
 import os
@@ -23,7 +22,7 @@ RUNS = Path("artifacts/runs")
 OLD = RUNS / "nus-peer-intent-adaptive-20261120-1"
 RANGES = {"end":(0,1), "roll":(1,2), "freeze":(2,3), "level":(3,4), "power":(4,6),
           "gift":(6,7), "buy":(8,16), "sell":(16,23), "activate":(23,30),
-          "choose":(30,46), "play":(46,126), "cast":(126,196), "move":(196,245)}
+          "choose":(30,46), "play":(46,126), "magnetize":(126,196), "move":(196,245)}
 
 
 def family(action):
