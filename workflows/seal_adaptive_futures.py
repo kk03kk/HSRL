@@ -1,9 +1,10 @@
 """Analyze repeated decision futures with the original lobby state as the sampling unit."""
+import argparse
 from collections import Counter
 import math
 import os
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median
 import sys
 import numpy as np
 
@@ -38,7 +39,17 @@ def grouped(rows,draws):
     return dict(states=len(rows),pairs=n,common=int(v[:,5].sum()),effects=out)
 
 
-def main():
+def describe(games):
+    boards = {}
+    for t in range(9,15):
+        values = [g["boards"][str(t)] for g in games if str(t) in g["boards"]]
+        boards[t] = dict(n=len(values), p50=median(values) if values else None)
+    ranks = [g["rank"] for g in games]
+    return dict(n=len(ranks), mean_rank=mean(ranks), first=ranks.count(1),
+                top_four=sum(r<=4 for r in ranks), boards=boards)
+
+
+def main(out):
     plan=read(OUT/"plan.json");seal=read(OUT/"complete.json")
     ids=plan["indices"];future={i:[] for i in ids}
     natural=[];source_states=[]
@@ -79,15 +90,18 @@ def main():
         for tag,x,y in (("natural_vs_new",s["natural_gain"],mean(s["rep_rank"])),
                         ("fit_vs_held",s["fit_mean_rank"],s["held_mean_rank"])):
             signs[tag+("_tie" if x*y==0 else "_agree" if x*y>0 else "_disagree")]+=1
-    out=OUT.parent/"nus-adaptive-trinket-future-seal-20261120-1"
     out.mkdir(exist_ok=False)
     atomic_json(out/"states.json",state_rows)
     passed=sum(chosen)>=8 and all(report["effects"][k]["ci95"][0]>0 for k in ("rank_gain","common_growth"))
     atomic_json(out/"complete.json",dict(job=os.environ["SLURM_JOB_ID"],plan=file_identity(OUT/"plan.json"),
         source_seal=file_identity(OUT/"complete.json"),states=file_identity(out/"states.json"),choice_pairs=grouped(groups,draws),
         conditional_held=report,states_selected=sum(chosen),signs=signs,mean_abs_rank_same_policy_new_rng=mean(control_abs),
-        mean_abs_rank_change_choice_paired_rng=mean(flip_abs),learn_public_selector=passed))
+        mean_abs_rank_change_choice_paired_rng=mean(flip_abs),learn_public_selector=passed,
+        raw_by_action={arm:describe([r[arm] for group in future.values() for r in group])
+                       for arm in ("parent","candidate")}))
 
 
 if __name__=="__main__":
-    main()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("out",type=Path,nargs="?",default=OUT.parent/"nus-adaptive-trinket-future-seal-20261120-1")
+    main(parser.parse_args().out)
