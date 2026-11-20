@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 from .lobby_filter import engine_rule_overrides
 from .strict_mirror import (BOUNDED_ACTION_PROFILES, COMPACT_ACTION_PROFILE, HUMAN_ACTION_PROFILES,
-                            OPEN_ACTION_PROFILE, STANDARD_ACTION_PROFILE, human_tail_policy)
+                            OPEN_ACTION_PROFILE, PLAYER150_PROFILE, STANDARD_ACTION_PROFILE, human_tail_policy)
 
 __all__ = [
     "TRAINING_CONTRACT",
@@ -81,6 +81,8 @@ if _profile in HUMAN_ACTION_PROFILES:
                              forbid_unfreeze=False, ban_trinkets=False)
     if _profile == OPEN_ACTION_PROFILE:
         TRAINING_CONTRACT.update(max_actions_per_turn=200, move_guard=False, move_cap=0, freeze_cap=0)
+    elif _profile == PLAYER150_PROFILE:
+        TRAINING_CONTRACT.update(max_actions_per_turn=150, move_cap=3, move_repeat_limit=0, freeze_cap=2)
     elif _profile in BOUNDED_ACTION_PROFILES:
         TRAINING_CONTRACT.update(max_actions_per_turn=200 if _profile==STANDARD_ACTION_PROFILE else 300,
                                  move_cap=8 if _profile==COMPACT_ACTION_PROFILE else 10,

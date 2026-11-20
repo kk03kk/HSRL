@@ -78,6 +78,14 @@ class PeerActor(nn.Module):
         self.rank_head=nn.Sequential(nn.Linear(69,128),nn.Tanh(),nn.Linear(128,8))
         self.sale_adjustment = None
 
+    def enable_player_view(self):
+        from . import player_observation as public
+        if getattr(self, "mechanism_schema", "") or self.sale_adjustment is not None:
+            raise ValueError("unexpected parent for public observation upgrade")
+        self.mechanism_schema = public.SCHEMA
+        self.input_floats = public.WIDTH
+        self.public_input = public.PublicInputAdapter().to(next(self.parameters()).device)
+
     def enable_sale_adjustment(self):
         if self.adapt_last_block or not self.retain_material or self.sale_adjustment is not None:
             raise ValueError("sale adjustment requires a frozen material-retaining baseline")
@@ -86,6 +94,10 @@ class PeerActor(nn.Module):
 
     def checkpoint_metadata(self):
         meta = dict(arch=ARCH,peer_config=self.config,temperature=self.temperature,origin=ORIGINAL_SHA)
+        if getattr(self, "mechanism_schema", ""):
+            from . import player_observation as public
+            meta.update(mechanism_schema=public.SCHEMA, mechanism_schema_sha256=public.SCHEMA_SHA,
+                        input_floats=public.WIDTH)
         if self.adapt_last_block:
             meta["adapt_last_block"] = True
         if self.retain_material:
@@ -97,6 +109,8 @@ class PeerActor(nn.Module):
     def forward(self,features,cards,mask):
         if self.retain_material:
             mask = retain_material_mask(features, mask)
+        if getattr(self, "mechanism_schema", ""):
+            features = self.public_input(features)
         logits,v=self.actor(features,cards,mask)
         critic_input=torch.cat((features[:,:68],v.detach().float().unsqueeze(1)),dim=1)
         scaled=(logits.float().masked_fill(~mask,0.)/self.temperature).masked_fill(~mask,-1e9)
@@ -122,6 +136,12 @@ def load_payload(payload,device):
     import hsbg_net
     model=PeerActor(hsbg_net.build(meta["peer_config"]),meta["peer_config"],meta["temperature"],
                     adapt_last_block=meta.get("adapt_last_block", False), retain_material=bool(sale_policy))
+    if meta.get("mechanism_schema"):
+        from . import player_observation as public
+        if (meta["mechanism_schema"], meta.get("mechanism_schema_sha256"), meta.get("input_floats")) != (
+                public.SCHEMA, public.SCHEMA_SHA, public.WIDTH):
+            raise ValueError("unsupported public peer observation")
+        model.enable_player_view()
     if meta.get("sale_adjustment") is not None:
         if meta["sale_adjustment"] != "low-gold-linear-v1":
             raise ValueError("unknown sale adjustment")

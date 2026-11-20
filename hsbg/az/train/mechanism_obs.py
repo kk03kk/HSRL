@@ -81,6 +81,11 @@ def observe(game, seat, schema=''):
     pair = game.observe(int(seat))
     if not schema:
         return pair
+    from . import player_observation as public
+    if schema == public.SCHEMA:
+        features, cards = pair
+        facts = json.loads(game.player_card_faces(int(seat)))
+        return bytes(features) + public.encode(facts).tobytes(), cards
     if schema != SCHEMA:
         raise ValueError(f'unknown mechanism observation schema: {schema}')
     features, cards = pair
@@ -96,7 +101,8 @@ def schema_of(model):
 
 
 def valid_width(width):
-    return int(width) in (LEGACY_FLOATS, OBS_FLOATS)
+    from .player_observation import WIDTH
+    return int(width) in (LEGACY_FLOATS, OBS_FLOATS, WIDTH)
 
 
 def enable_mechanisms(model):

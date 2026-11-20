@@ -29,6 +29,11 @@ START = 511730000
 SECONDS = [45,30,45,60,70,95,90,100,125,115,115,115]
 TRAIN_GAMES, HOLD_GAMES = 128, 32
 ACTORS = None
+PLAYER150 = os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3703-player150"
+if PLAYER150:
+    ENGINE = "8bd1f4785018c474"
+    LIB = Path("artifacts/libraries/player150-mixed-20261120-01")
+    START = 541730000
 
 def initialize():
     global ACTORS
@@ -38,11 +43,11 @@ def initialize():
     torch.set_num_threads(1)
     if not engine.build_is_current(ROOT/"engine") or engine.build_info()["source_hash"] != ENGINE:
         raise ValueError("wrong native engine")
-    if engine.server_rules_version() != "37.0.3" or os.environ["HSAI_ACTION_PROFILE"] != "human-turn-3702-economy":
+    if engine.server_rules_version() != "37.0.3" or os.environ["HSAI_ACTION_PROFILE"] not in ("human-turn-3702-economy", "human-turn-3703-player150"):
         raise ValueError("wrong server or action profile")
     proto = EvalProtocol()
     proto.assert_training_contract()
-    assert (proto.max_actions_per_turn, proto.move_cap, proto.freeze_cap) == (300, 10, 3)
+    assert (proto.max_actions_per_turn, proto.move_cap, proto.freeze_cap) == ((150, 3, 2) if PLAYER150 else (300, 10, 3))
     ACTORS = []
     for path, sha in ((PARENT, PARENT_SHA),(R1,R1_SHA)):
         if file_identity(path)["sha256"] != sha:
@@ -63,7 +68,9 @@ def simulate(index):
         raise FileExistsError(seed)
     from hsbg.az.train.lobby_filter import make_filtered_game
     game, actual_seed = make_filtered_game(engine, seed)
-    assert actual_seed == seed and json.loads(game.state_json())["cfg"]["freeze_presses_per_turn"] == 3
+    cfg = json.loads(game.state_json())["cfg"]
+    assert actual_seed == seed and cfg["freeze_presses_per_turn"] == (2 if PLAYER150 else 3)
+    assert bool(cfg.get("player_view_150")) == PLAYER150
     roles = [(seat+i)%2 for seat in range(8)]
     agents = []
     for role in roles:
@@ -144,6 +151,8 @@ def seal():
     summaries = {}
     for split, lo, hi in (("train",0,TRAIN_GAMES),("hold",TRAIN_GAMES,TRAIN_GAMES+HOLD_GAMES),
                           ("stress",TRAIN_GAMES,TRAIN_GAMES+HOLD_GAMES)):
+        if split == "stress" and PLAYER150:
+            continue
         dest = LIB/split
         rows = [json.loads((dest/f"game-{START+i}.json").read_bytes()) for i in range(lo,hi)]
         assert all(r["seed"] == START+i for i,r in enumerate(rows,lo))
@@ -180,6 +189,6 @@ if __name__=="__main__":
         seal()
     else:
         workers=int(os.environ["SLURM_CPUS_PER_TASK"])
-        assert workers==8 and 0<=args.shard<24
+        assert workers==8 and 0<=args.shard<(20 if PLAYER150 else 24)
         with ProcessPoolExecutor(workers,initializer=initialize) as pool:
             print(list(pool.map(simulate,range(args.shard*8,args.shard*8+8))),flush=True)

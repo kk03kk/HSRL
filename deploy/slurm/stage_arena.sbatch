@@ -129,7 +129,7 @@ ban_trinkets="${HSAI_ARENA_BAN_TRINKETS:-1}"
 mirror_strict=0
 mirror_sample=p50band
 action_profile="${HSAI_ACTION_PROFILE:-v14}"
-if [[ "$action_profile" =~ ^human-turn-3702(-open|-standard|-economy|-economy-move8)?$ ]]; then
+if [[ "$action_profile" =~ ^human-turn-3702(-open|-standard|-economy|-economy-move8)?$ || "$action_profile" == human-turn-3703-player150 ]]; then
   move_cap=4
   unfreeze_ban=0
   freeze_cap=2
@@ -141,6 +141,11 @@ if [[ "$action_profile" =~ ^human-turn-3702(-open|-standard|-economy|-economy-mo
   forced_tier_prob=0
   forced_teacher_coef=0
   forced_teacher_until=0
+fi
+if [[ "$action_profile" == human-turn-3703-player150 ]]; then
+  max_actions=150
+  move_cap=3
+  move_repeat=0
 fi
 if [[ "$action_profile" == human-turn-3702-open ]]; then
   move_guard=0
