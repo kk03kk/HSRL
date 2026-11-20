@@ -201,15 +201,15 @@ fn felboar_and_faceless_converter_count_spells() {
              this game!)"
         )
     );
-    for _ in 0..2 {
+    for _ in 0..3 {
         give(&mut g, "BG28_897");
         cast_on(&mut g, 3);
     }
-    assert_eq!(board_text(&mut g, 0), None, "it fired: 3 left again");
+    assert_eq!(board_text(&mut g, 0), None, "it fired: 4 left again");
     assert_eq!(
         board_text(&mut g, 1),
         txt(
-            "Deathrattle: Give your Deity +8/+4. (Improved by each Tavern spell you've cast \
+            "Deathrattle: Give your Deity +10/+5. (Improved by each Tavern spell you've cast \
              this game!)"
         )
     );

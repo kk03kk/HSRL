@@ -26,8 +26,8 @@
         },
         "cards.rs": {
           "upstream_sha256": "b82d3f6df6c07893e59759006f53521e506fd49288f94798d786281f1c347651",
-          "fork_sha256": "1a509b5f4a528d74409e67464c26c52fef47f8ebc369c46ed86517c15a1faa3b",
-          "reason": "卡表 meta 驱动版本与兼容缺失 meta 的历史输入"
+          "fork_sha256": "4603db240c379c99a1f9565139010f5d7fd969d056c981090156e302d11500ad",
+          "reason": "卡表 meta 驱动版本与兼容缺失 meta 的历史输入 Update the 37.0.3 trinket pool cardinality regression."
         },
         "combat.rs": {
           "upstream_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd",

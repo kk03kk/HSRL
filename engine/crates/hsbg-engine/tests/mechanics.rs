@@ -3114,7 +3114,7 @@ fn hero_offer_policy() {
             ("BG36_HERO_000", usize::from(aberrations)),
             (
                 "BG36_HERO_002",
-                usize::from(g.lobby_races.intersects(Races::UNDEAD)),
+                usize::from(aberrations && g.lobby_races.intersects(Races::UNDEAD)),
             ),
         ] {
             assert_eq!(
@@ -5221,9 +5221,10 @@ fn cast_without_this_is_your_cast() {
         g.apply(0, Action::Choose(opt)).unwrap();
         let st = &g.players[0].stats;
         assert_eq!((st.spells_cast, st.tavern_spells_cast), (casts, casts));
-        // The Felboar ate one Tavern minion after the third Barrage only.
+        // Three Barrages advance the four-spell counter without consuming a minion.
+        assert_eq!(g.players[0].board[0].counter, casts as i32);
         let ate = shop - g.players[0].shop.len();
-        assert_eq!(ate, if casts == 3 { 1 } else { 0 }, "option {opt}");
+        assert_eq!(ate, 0, "option {opt}");
         if casts == 0 {
             // "This plays" Blood Gems: +3/+3 on the Felboar, nothing counted.
             assert_eq!(stats(&g, 0)[0], (before.0 + 3, before.1 + 3));
