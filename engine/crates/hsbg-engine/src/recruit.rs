@@ -1108,6 +1108,7 @@ impl Ctx<'_> {
             .filter(|c| {
                 let def = d.get(*c);
                 tiers.contains(&def.tier) && self.g.pool.get(*c) > 0 && gift_discoverable(def, turn)
+                    && late_gift_matches(def, (turn > 9).then_some(common))
             })
             .collect();
         crate::content::slotted_gift_options(self, side, &cand, &slots, &gifts)
@@ -2543,6 +2544,16 @@ impl Game {
 /// Paradox's gifts stack like on a triple.
 pub fn gift_discoverable(def: &crate::cards::CardDef, turn: u32) -> bool {
     !def.id.starts_with("BG36_360") && gift_compatible(def, turn)
+}
+
+/// On turn ten and later the server limits four picks even in untyped slots.
+/// None means this draw precedes that window; an empty board then matches no type.
+pub fn late_gift_matches(def: &crate::cards::CardDef, common: Option<Races>) -> bool {
+    match common {
+        Some(race) if matches!(def.id.trim_end_matches("_G"), "BG36_356" | "BG35_342" | "BG35_123" | "BG36_102") =>
+            crate::content::goes_with_type(def, race),
+        _ => true,
+    }
 }
 
 /// Dark Gift minion compatibility (the general rules; examples, not a complete list).

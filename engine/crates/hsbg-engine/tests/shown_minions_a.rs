@@ -183,8 +183,8 @@ fn felboar_and_faceless_converter_count_spells() {
     assert_eq!(
         board_text(&mut g, 0),
         txt(
-            "After you cast 3 spells, consume a minion in the Tavern to gain its stats. \
-             (2 left!)"
+            "After you cast 4 spells, consume a minion in the Tavern to gain its stats. \
+             (3 left!)"
         )
     );
     assert_eq!(

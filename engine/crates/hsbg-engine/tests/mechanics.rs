@@ -3263,9 +3263,11 @@ fn tavish_summons_the_minion_when_there_is_space() {
 #[test]
 fn tier7_minions_are_pooled_with_five_copies() {
     let g = game(347);
-    let amalgam = cid("BG34_320"); // all types: always in the lobby
-    assert!(g.universe.contains(&amalgam));
-    assert_eq!(g.pool.get(amalgam), 5);
+    let banned = cid("BG34_320");
+    assert!(!g.universe.contains(&banned));
+    assert_eq!(g.pool.get(banned), 0);
+    let eligible = g.universe.iter().copied().find(|id| db().get(*id).pools.tier7).unwrap();
+    assert_eq!(g.pool.get(eligible), 5);
 }
 
 #[test]

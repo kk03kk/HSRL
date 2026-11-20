@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 pub const LIVE_BANNED_CARDS: &[&str] = &[
     "BG36_MagicItem_412", "BG36_MagicItem_412t2", // Kiri，两种饰品再次禁用。
     "BG32_MagicItem_300", // Putricide Sticker（固定卡表中已经不在池）。
+    "BG34_320", // The Last One Standing, disabled Nov 16, 2026.
     "BGS_121", // Gentle Djinni（固定卡表中已经不在池）。
 ];
 

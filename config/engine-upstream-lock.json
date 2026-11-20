@@ -2,7 +2,7 @@
   "schema": "hsrl.upstream_source_lock/v1",
   "repository": "https://github.com/MCG-NJU/AutoTavern",
   "commit": "1c2086a997afde46d68c6c5992cab194ddcfce88",
-  "checked_on": "2026-11-09",
+  "checked_on": "2026-11-20",
   "normalization": "LF; taverngym namespace -> hsbg_engine",
   "groups": [
     {
@@ -35,8 +35,8 @@
         },
         "config.rs": {
           "upstream_sha256": "b4f497252393744b76e6710affbea3b087349562bee94d6ef9348e3e592107c3",
-          "fork_sha256": "093006937f52bbd33ac396b8753e0bcd59234f779b9794a9756715500596eab1",
-          "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史"
+          "fork_sha256": "8bcc3ca8aa9f59e0ae0eea04bbd01c79f5d4fa77c9388a58df53f3111f872924",
+          "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/aberrations.rs": {
           "upstream_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1",
@@ -64,7 +64,8 @@
         },
         "content/demons.rs": {
           "upstream_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749",
-          "fork_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749"
+          "fork_sha256": "c25157ba5e26999c095a83f18875d5cd3e9972b407a91b589bab81fb2bcf227d",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/demons_p1.rs": {
           "upstream_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102",
@@ -112,7 +113,8 @@
         },
         "content/heroes_special.rs": {
           "upstream_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee",
-          "fork_sha256": "8b4afe543661e435abba89408df0d39449890e7f34069d9a7e5fdf729dceedee"
+          "fork_sha256": "7d354647370b9bbbec55860c0c8090195249d5d46794ae7f8ddc30c684791433",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/mechs.rs": {
           "upstream_sha256": "e6c35513f96abd69bfcbdd09e79c36f5166a4be4c97c08e9a63b8720d87a94af",
@@ -180,7 +182,8 @@
         },
         "content/quilboar.rs": {
           "upstream_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b",
-          "fork_sha256": "3ee56861eb764f9a21b6b0adc925fe3f81580105a3f775edab9a2dee6b4d200b"
+          "fork_sha256": "9ec397d73e6f5a0393591f69389ff24fb676a2131e9012b515e5a5f2f99a8a62",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/quilboar_p1.rs": {
           "upstream_sha256": "f55e4e9d3f84603a3354167a50a8fc9da4fcadf09face538bab44694bd0825a7",
@@ -229,7 +232,8 @@
         },
         "content/trinkets_p2.rs": {
           "upstream_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24",
-          "fork_sha256": "5efa2e4de38d614976b091dba9c0c661f8a36fc65d041643ac656445013d0a24"
+          "fork_sha256": "efe48d1391ab03190beaf1f3e2da5c62dc457f3f6995c80a976b256c583d72f7",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/trinkets_p3.rs": {
           "upstream_sha256": "8f4e8a0cb5630aaeedd333c9fe61a57a7869699d821a28ce2c096712c6721943",
@@ -245,7 +249,8 @@
         },
         "content/trinkets_p6.rs": {
           "upstream_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403",
-          "fork_sha256": "71225d1287d439669df62992bb3e43f05283fe47b3d97252f98a90961379f403"
+          "fork_sha256": "a5377c615b52ed55917d23339e01771f3ebf7cd7aba6a6827aaaa162acabb24b",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "content/trinkets_p7.rs": {
           "upstream_sha256": "f46f985b8d430fc533625c256b2de3056815fa2132b5051b2867fac30bcc58d2",
@@ -336,8 +341,8 @@
         },
         "lib.rs": {
           "upstream_sha256": "cab9ca0682f8d2bca615cd06fef0a490d636a891ed9f7213b79d307e01c33efb",
-          "fork_sha256": "b2da1a83a7ab67b0ccca681fa7f342047c59c9959239fbdaf0032d6fc1f37d1f",
-          "reason": "fork 模块与接口导出，版本 meta 读取和说明"
+          "fork_sha256": "ad4a4bfc7af0e52972b0dec9128f8ab9561941e7fe74a8ce783d6b7813e6f338",
+          "reason": "fork 模块与接口导出，版本 meta 读取和说明 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "obs.rs": {
           "upstream_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1",
@@ -345,8 +350,8 @@
         },
         "recruit.rs": {
           "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
-          "fork_sha256": "ec14d10f86bce17d8f31599a41e792d57899edccc7c68fa3a851b08f25387291",
-          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用"
+          "fork_sha256": "b3e520f445e939b3011c2c9df702328053ba430f025b016dd1d24177a33ea27a",
+          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans."
         },
         "rng.rs": {
           "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",

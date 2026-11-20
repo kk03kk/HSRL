@@ -331,8 +331,8 @@ fn ashen_corruptor_rewinds_a_refresh_paid_with_health() {
 }
 
 #[test]
-fn felboar_consumes_a_tavern_minion_after_three_spells() {
-    // "After you cast 3 spells, consume a minion in the Tavern to gain its stats. (3 left!)"
+fn felboar_consumes_a_tavern_minion_after_four_spells() {
+    // "After you cast 4 spells, consume a minion in the Tavern to gain its stats. (4 left!)"
     // Golden: "... to gain double its stats."
     for (felboar, mult) in [("BG28_633", 1), ("BG28_633_G", 2)] {
         let mut g = game(36_220);
@@ -341,7 +341,7 @@ fn felboar_consumes_a_tavern_minion_after_three_spells() {
         // Twice, to see the count start again: (the minion in the Tavern, its stats).
         for (food, a, h) in [(CAMPER, 2, 3), (GUARD, 3, 3)] {
             shop(&mut g, &[food]);
-            for cast_so_far in [1, 2] {
+            for cast_so_far in [1, 2, 3] {
                 cast(&mut g, COIN);
                 assert_eq!(stats(&g, 0)[0], want, "{felboar}");
                 assert_eq!(shop_stats(&g), vec![(a, h)], "{felboar}");
@@ -354,7 +354,7 @@ fn felboar_consumes_a_tavern_minion_after_three_spells() {
                 shop_stats(&g).is_empty(),
                 "{felboar}: the minion is consumed"
             );
-            assert_eq!(g.players[0].board[0].counter, 0, "{felboar}: 3 left again");
+            assert_eq!(g.players[0].board[0].counter, 0, "{felboar}: 4 left again");
         }
     }
 }

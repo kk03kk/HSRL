@@ -65,7 +65,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GAME_VERSION: &str = "37.0.2.256589";
 /// Server-side rule overlay, as a **fallback**: the authoritative value is
 /// `meta.server_patch` of the embedded card data, see [`server_rules_version`].
-pub const SERVER_RULES_VERSION: &str = "37.0.2";
+pub const SERVER_RULES_VERSION: &str = "37.0.3";
 
 /// Hearthstone client build the embedded card data replicates (`meta.client_version` of
 /// `data/cards.json`), or [`GAME_VERSION`] when the data file carries none.

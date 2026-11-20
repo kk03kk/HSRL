@@ -156,8 +156,8 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
         (
             "BG23_017",
             Script {
-                battlecry: Some(|c, me, _| gem_bonus(c, me.side, 2 * me.g(), me.g())),
-                deathrattle: Some(|c, me| gem_bonus(c, me.side, 2 * me.g(), me.g())),
+                battlecry: Some(|c, me, _| gem_bonus(c, me.side, me.g(), me.g())),
+                deathrattle: Some(|c, me| gem_bonus(c, me.side, me.g(), me.g())),
                 ..E
             },
         ),

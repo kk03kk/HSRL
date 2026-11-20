@@ -442,7 +442,8 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
             "BG35_MagicItem_816",
             Script {
                 on_attach: Some(|c, me| {
-                    let cands = eligible(c, me.side, CardKind::TrinketLesser, |_| true);
+                    let restrict_wand = c.g.lobby_races.intersects(Races::QUILBOAR);
+                    let cands = eligible(c, me.side, CardKind::TrinketLesser, |d| !restrict_wand || d.id != "BG36_MagicItem_307");
                     if let Some(&t) = c.g.rng.pick(&cands) {
                         grant_trinket(c, me.side, t);
                     }
