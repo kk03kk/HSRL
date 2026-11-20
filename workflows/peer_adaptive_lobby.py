@@ -21,12 +21,19 @@ from workflows.peer_sale_study import RetainMaterial
 from workflows import quilboar_study as native
 
 
-def play(weights, index, change, start=343410000):
+def play(weights, index, change, start=343410000, *, opening=None, on_turn=None, on_focus=None):
     import hsbg_engine
     seed = start + index
     focus = index%8
-    game, actual = make_filtered_game(hsbg_engine, seed, learner_seat=focus)
-    assert actual == seed
+    if opening is None:
+        game, actual = make_filtered_game(hsbg_engine, seed, learner_seat=focus)
+        assert actual == seed
+    else:
+        if opening["seed"] != seed or opening["focus"] != focus:
+            raise ValueError("adaptive opening belongs to another seed or focal seat")
+        game = hsbg_engine.Game.from_json(opening["state"])
+        if game.state_json() != opening["state"] or game.turn != opening["turn"]:
+            raise ValueError("native round-boundary state did not round-trip")
     agents = []
     for seat in range(8):
         # Opponent roles are identical across arms and rotate with the focal seat.
@@ -40,12 +47,15 @@ def play(weights, index, change, start=343410000):
         agent.reset()
         agents.append(agent)
     old_turn = -1
-    actions = 0
-    trace = sha256()
-    boards = {}
+    prefix = bytearray.fromhex(opening["prefix"]) if opening is not None else bytearray()
+    actions = len(prefix)//3
+    trace = sha256(prefix)
+    boards = {int(k):v for k,v in opening["boards"].items()} if opening is not None else {}
     while not game.is_over():
         turn = int(game.turn)
         if turn!=old_turn:
+            if on_turn is not None:
+                on_turn(game,focus,prefix,boards)
             seats = list(range(8))
             random.Random(seed*1000+turn).shuffle(seats)
             old_turn = turn
@@ -56,13 +66,18 @@ def play(weights, index, change, start=343410000):
             if not game.needs_action(seat):
                 continue
             action = int(agents[seat].decide(game,seat).action)
+            if seat==focus and on_focus is not None:
+                on_focus(game, action, trace)
             if not game.legal_mask(seat)[action] or actions >= 50000:
                 raise ValueError("invalid action or unbounded lobby")
             if turn>0 and seat==focus and action==0:
                 frame = capture_eot(game,seat)
                 if frame is not None:
                     boards[turn] = sum(u["atk"]+u["hp"] for u in frame["player"]["board"])
-            trace.update(bytes([turn,seat,action]))
+            step = bytes([turn,seat,action])
+            trace.update(step)
+            if on_turn is not None:
+                prefix.extend(step)
             game.step(seat,action)
             actions += 1
             progress = True
