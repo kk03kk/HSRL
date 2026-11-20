@@ -1,8 +1,6 @@
 """Independently reconstruct adaptive decision effects, restore safeguards, and retain all seeds."""
 import argparse
 from collections import Counter
-from hashlib import sha256
-import json
 import math
 import os
 from pathlib import Path
@@ -43,6 +41,7 @@ def main(run,bank,out):
     report = read(run/"complete.json")
     if plan["bank_plan"]!=file_identity(bank/"plan.json") or plan["bank_seal"]!=file_identity(bank/"complete.json"):
         raise ValueError("bank evidence changed")
+    outcomes = read(bank/"complete.json")["outcomes"]
     cards = read(ROOT/"engine/crates/hsbg-engine/data/cards.json")["cards"]
     fields,hashes = {},{}
     for name in plan["rules"]:
@@ -56,7 +55,13 @@ def main(run,bank,out):
             hashes[i]=digest
             r=read(path)
             a=r["baseline"];arm=r["alternatives"][name];b=arm["result"];e=arm["trigger"]
-            expected=read(bank/f"base-{i}.json")["natural"]
+            base_path=bank/f"base-{i}.json"
+            if file_identity(base_path)!=outcomes[i]:
+                raise ValueError("natural game differs from bank seal")
+            base=read(base_path)
+            if base["opening"]!=file_identity(bank/f"opening-{i}.json"):
+                raise ValueError("opening differs from its natural game")
+            expected=base["natural"]
             if (any(expected[k]!=v for k,v in a.items() if k!="overrides")
                     or a["seed"]!=b["seed"] or a["seed"]!=prior["seed"]+i or a["focus"]!=b["focus"] or a["focus"]!=i%8
                     or any(sorted(g["placements"])!=list(range(1,9)) or g["placements"][i%8]!=g["rank"] for g in (a,b))):
@@ -73,6 +78,16 @@ def main(run,bank,out):
                     tags["cheaper_by_two"]+=d>=2
                 if "kind" in e:
                     tags[e["kind"]]+=1
+                if name=="complete_triple":
+                    changes=b.get("triple_conversion",[])
+                    if (len(changes)!=1 or e["original"]!=1 or not 8<=e["alternative"]<16
+                            or [e["alternative"],e["triple_card"]] not in e["eligible_triples"]
+                            or cards[e["triple_card"]]["golden"]!=cards[e["gold_card"]]["id"]):
+                        raise ValueError("triple purchase does not match eligible shop card")
+                    c=changes[0]
+                    if (c["card"],c["action"],c["before"])!=(e["gold_card"],e["alternative"],e["golden_before"]):
+                        raise ValueError("result refers to another purchase")
+                    tags["immediate_golden"]+=int(c["after"]>c["before"])
             data.append((a,b))
         s=statistics(data);q=report[name]
         for k,v in (("rank_gain","rank_gain"),("utility","utility"),("growth","common_growth"),("log12","common_log12")):
@@ -80,6 +95,8 @@ def main(run,bank,out):
                 raise ValueError("paired statistics differ")
         reach=s["curves"]["candidate"]["12"]["n"]-s["curves"]["base"]["12"]["n"]
         gate=len(triggered)>=12 and s["rank_gain"]["mean"]>=.08 and s["growth"]["mean"]>0 and s["log12"]["mean"]>0 and reach>=-2
+        if name=="complete_triple":
+            gate=gate and tags["immediate_golden"]>=.90*len(triggered)
         fields[name]=dict(all=s,affected=statistics(triggered),tags=tags,passed_screen=gate)
     passing=[k for k in fields if fields[k]["passed_screen"]]
     out.mkdir(exist_ok=False)
