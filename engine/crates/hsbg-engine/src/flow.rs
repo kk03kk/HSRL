@@ -811,7 +811,7 @@ impl Game {
 
     /// 回合末选择沿用上游随机结算；无解/超限必须报告错误并保留待选。
     /// 不能清空整条菜单链后把损坏的回合当作正常战斗继续训练。
-    fn resolve_end_turn_choices(&mut self, p: PlayerId) -> crate::recruit::ActResult {
+    pub(crate) fn resolve_end_turn_choices(&mut self, p: PlayerId) -> crate::recruit::ActResult {
         for _ in 0..256 {
             self.drop_unaffordable_trinket_offers(p);
             let Some(pend) = self.players[p].pending.last() else { return Ok(()) };
@@ -901,6 +901,7 @@ impl Game {
         let o = &self.players[other];
         let seen = Scouted {
             board: Arc::new(o.seen_board.clone()),
+            tier: o.tier,
             turn: self.turn,
         };
         let known = &mut self.players[viewer].scouted;

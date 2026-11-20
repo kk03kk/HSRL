@@ -862,6 +862,9 @@ impl HeroPowerState {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Scouted {
     pub board: Arc<Vec<Minion>>,
+    /// Zero means unknown for encounters loaded from older saves.
+    #[serde(default)]
+    pub tier: u8,
     /// Turn of that combat (0 = the two have not met).
     pub turn: u32,
 }

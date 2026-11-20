@@ -127,10 +127,23 @@ impl Action {
 }
 
 impl Game {
+    pub fn player_clock_expired(&self, p: PlayerId) -> bool {
+        self.cfg.player_view_150 && self.phase == Phase::Recruit
+            && self.players[p].actions_this_turn >= 150
+    }
+
     /// Apply an action for player `p`.
     pub fn apply(&mut self, p: PlayerId, a: Action) -> ActResult {
         if self.phase == Phase::GameOver {
             return Err("game over");
+        }
+        if self.player_clock_expired(p) {
+            if a != Action::EndTurn || !self.needs_action(p) {
+                return Err("recruitment clock expired");
+            }
+            // The environment settles pending offers; no additional agent action is counted.
+            self.resolve_end_turn_choices(p)?;
+            return self.end_turn(p);
         }
         self.players[p].actions_this_turn += 1;
         let r = self.apply_inner(p, a);
@@ -224,6 +237,10 @@ impl Game {
             return m;
         }
         let pl = &self.players[p];
+        if self.player_clock_expired(p) {
+            m[A_END] = true;
+            return m;
+        }
         if let Some(top) = pl.pending.last() {
             for i in 0..top.len().min(N_CHOICE) {
                 m[A_CHOOSE + i] = self.option_legal(p, i);

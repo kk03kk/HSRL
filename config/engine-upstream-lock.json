@@ -11,8 +11,8 @@
       "files": {
         "actions.rs": {
           "upstream_sha256": "c44915a4236a945d0a76e577953e00cad87118b8b78eae341776cd19a1aa9e1d",
-          "fork_sha256": "2293224d9094ef8c16c55ba3ca47965ead7aa698b4f5aec50c5f7b0fba90b8aa",
-          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留 Keep positional Magnetic and standalone play disjoint on a compatible host."
+          "fork_sha256": "5fcf150e8886cd1e8fa1a16eb4c17db7290050556e264a9092c257d21271a1a5",
+          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留 Keep positional Magnetic and standalone play disjoint on a compatible host.; opt-in player clock, accessible card faces and encounter memory"
         },
         "batch.rs": {
           "upstream_sha256": "946bc0f161885e53e5ae4a9afa9a67a447b7c422af430ed1fb636122e09b76d2",
@@ -35,8 +35,8 @@
         },
         "config.rs": {
           "upstream_sha256": "b4f497252393744b76e6710affbea3b087349562bee94d6ef9348e3e592107c3",
-          "fork_sha256": "8bcc3ca8aa9f59e0ae0eea04bbd01c79f5d4fa77c9388a58df53f3111f872924",
-          "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史 37.0.3 server hotfix and current Battlegrounds bans."
+          "fork_sha256": "590bf18b20e4465ea2b09e2c4e92b826735af32ac7a789dd4b74170e0713df30",
+          "reason": "2026-11-04 暴雪已确认在线禁用清单，显式配置可复现历史 37.0.3 server hotfix and current Battlegrounds bans.; opt-in player clock, accessible card faces and encounter memory"
         },
         "content/aberrations.rs": {
           "upstream_sha256": "37ad12070fb79d552f8f0db2a2c9d79fdda57c06673d60c73de9763019f812a1",
@@ -303,8 +303,8 @@
         },
         "debug.rs": {
           "upstream_sha256": "0c44f1e64779f7ee0ed980c4a96098927ff455ddee47d3fda0e40d5b3571aa28",
-          "fork_sha256": "9dd5d7f07e10f547a1f3442dce3f84fb8825398a27748ac477ec606814316f3d",
-          "reason": "版本输出跟随固定数据 meta"
+          "fork_sha256": "da1e77cd21119bc82983f29a89718f91097b2b0ce90c80446aaab89b51abe9a8",
+          "reason": "版本输出跟随固定数据 meta; opt-in player clock, accessible card faces and encounter memory"
         },
         "engine.rs": {
           "upstream_sha256": "50b0d8d42c00e087fd12fa69ec71e5ee598f96602d6b0fa135378e72dbe1f440",
@@ -326,8 +326,8 @@
         },
         "flow.rs": {
           "upstream_sha256": "16186657f8fd65997d28eaca5e5385ff561f28ce2049b5416204a8afad923f16",
-          "fork_sha256": "acb983d33671eafec1da76918a180ae0dcbd254722d9fea6caf9f655e1d14aa2",
-          "reason": "HSRL 快照推进接口；待选修复、在线禁用池过滤、回合末失败保留现场；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记"
+          "fork_sha256": "283111b4a6bfdada5399e0ca103a9e555017a9944231320de393be954632deec",
+          "reason": "HSRL 快照推进接口；待选修复、在线禁用池过滤、回合末失败保留现场；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记; opt-in player clock, accessible card faces and encounter memory"
         },
         "guard.rs": {
           "upstream_sha256": "005604a828d377950c59ac77dbd6a476bd90f68969c5c9c2ca058f21f98cc7d8",
@@ -346,7 +346,8 @@
         },
         "obs.rs": {
           "upstream_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1",
-          "fork_sha256": "906b2612ffc6eec44b7055f27c8fb31807f30477b0065a3df5bfd80808d7faa1"
+          "fork_sha256": "aa2ab779f46dac7e4e0f4ac150cdaf97d4daad0ba5ce6d0412c383ad9e4aea6c",
+          "reason": "opt-in player clock, accessible card faces and encounter memory"
         },
         "recruit.rs": {
           "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
@@ -373,8 +374,8 @@
         },
         "state.rs": {
           "upstream_sha256": "ba8f1cd7191f20f864e91bbac42862537fa53676a4b1ad9a00a752d2f8083e00",
-          "fork_sha256": "e4a5cd3bd28659d27359828b63d49762ecc20f5dc719514c5877d3a086a6e8b4",
-          "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记；满手时空酒馆/伙伴追加等待牌保留原有队列标记"
+          "fork_sha256": "680f24385eced20d04d38e2b9712de101d599831d2d626a84d7f672735628c62",
+          "reason": "弃置/三连/临时卡到期时解除幸存手牌的失效配对引用；招募生命周期收尾解除已移除手牌引用，淘汰时清理队列标记；满手时空酒馆/伙伴追加等待牌保留原有队列标记; opt-in player clock, accessible card faces and encounter memory"
         },
         "turn_search.rs": {
           "upstream_sha256": null,
@@ -440,8 +441,8 @@
         },
         "lib.rs": {
           "upstream_sha256": "043212d44e8e67975e2d1ba3af8db45d65e23aae98b857b5f119272736c64478",
-          "fork_sha256": "bb289e6908abc3101cb650f6e7f26c9a80609b9d469dca186d5f2b3524e21f76",
-          "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口；常数时间公开四项引擎质量诊断，保护采集与评测"
+          "fork_sha256": "c6fd88cbc1324024f74b9dbc38baa7a296018f23ce9361a9b62313bfdc1198c9",
+          "reason": "Python 快照/采集/观测适配、动态版本和构建指纹接口；常数时间公开四项引擎质量诊断，保护采集与评测; opt-in player clock, accessible card faces and encounter memory"
         }
       },
       "upstream_tests": []

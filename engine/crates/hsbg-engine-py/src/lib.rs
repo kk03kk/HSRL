@@ -108,6 +108,13 @@ impl PyGame {
         check_seat(&self.g, p)?;
         Ok(obs_bytes(py, &hsbg_engine::obs::observe(&self.g, p)))
     }
+    fn player_card_faces(&self, py: Python<'_>, p: usize) -> PyResult<String> {
+        check_seat(&self.g, p)?;
+        if !self.g.cfg.player_view_150 {
+            return Err(PyValueError::new_err("player_view_150 rules required"));
+        }
+        Ok(py.detach(|| hsbg_engine::debug::player_card_faces(&self.g, p).to_string()))
+    }
     /// The scripted bot's choice for seat `p` (the game's random stream is not moved).
     fn bot_action(&mut self, p: usize) -> PyResult<usize> {
         check_seat(&self.g, p)?;
