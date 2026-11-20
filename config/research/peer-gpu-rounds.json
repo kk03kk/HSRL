@@ -8,6 +8,11 @@
   "minutes_per_round": 175,
   "save_margin_seconds": 240,
   "monitor": {"seed": 425410000, "games": 512},
+  "round_one_budget_gate": {
+    "maximum_rank_delta_ci95_upper": 0.10,
+    "minimum_growth_delta_ci95_lower": -0.08,
+    "minimum_reach12_delta": -0.02
+  },
   "blind": {"seed": 428410000, "games": 512},
   "adaptive": {"seed": 431410000, "games": 128},
   "smoke": {"rounds": 2, "batches": 2, "games": 8, "train_seed": 439410000,
