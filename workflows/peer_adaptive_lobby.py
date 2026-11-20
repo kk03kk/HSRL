@@ -67,7 +67,9 @@ def play(weights, index, change, start=343410000, *, opening=None, on_turn=None,
                 continue
             action = int(agents[seat].decide(game,seat).action)
             if seat==focus and on_focus is not None:
-                on_focus(game, action, trace)
+                replacement = on_focus(game, action, trace)
+                if replacement is not None:
+                    game = replacement
             if not game.legal_mask(seat)[action] or actions >= 50000:
                 raise ValueError("invalid action or unbounded lobby")
             if turn>0 and seat==focus and action==0:

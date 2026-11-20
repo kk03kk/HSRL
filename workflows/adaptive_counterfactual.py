@@ -116,7 +116,7 @@ class BranchPolicy:
         return p,v
 
 
-def arm(i,specs,apply,opening):
+def arm(i,specs,apply,opening,*,at_branch=None,capture_turns=True):
     actor = ACTORS["intent"]
     policy = BranchPolicy(actor,specs,apply)
     capture = {}
@@ -128,11 +128,13 @@ def arm(i,specs,apply,opening):
         for e in policy.pending.values():
             e["state"] = sha256(game.state_json().encode()).hexdigest()
             e["prefix"] = trace.hexdigest()
+        if at_branch is not None and policy.pending:
+            return at_branch(game,policy.pending)
     original = actor.parent.evaluator
     actor.parent.evaluator = policy
     try:
         result = lobby.play({**ACTORS,"intent":policy},i,True,START,opening=opening,
-            on_turn=None if apply else observe_turn,on_focus=observe_focus)
+            on_turn=observe_turn if capture_turns and not apply else None,on_focus=observe_focus)
     finally:
         actor.parent.evaluator = original
     return result,policy.events,capture
