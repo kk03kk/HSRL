@@ -21,7 +21,8 @@ from workflows.peer_sale_study import RetainMaterial
 from workflows import quilboar_study as native
 
 
-def play(weights, index, change, start=343410000, *, opening=None, on_turn=None, on_focus=None, after_focus=None):
+def play(weights, index, change, start=343410000, *, opening=None, on_turn=None, on_focus=None, after_focus=None,
+         focal_policy=None):
     import hsbg_engine
     seed = start + index
     focus = index%8
@@ -37,7 +38,9 @@ def play(weights, index, change, start=343410000, *, opening=None, on_turn=None,
     agents = []
     for seat in range(8):
         # Opponent roles are identical across arms and rotate with the focal seat.
-        if seat == focus and "intent" in weights:
+        if seat == focus and focal_policy is not None:
+            agent = focal_policy
+        elif seat == focus and "intent" in weights:
             agent = weights["intent" if change else "material"]
         else:
             p = weights["native" if (seat-focus)%8 in (2,4,6) else "peer"]

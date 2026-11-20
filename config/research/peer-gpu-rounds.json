@@ -1,0 +1,26 @@
+{
+  "schema": "hsai.peer-gpu-rounds/v1",
+  "parent_recipe": "config/research/peer-action-budget-ppo.json",
+  "action_profile": "human-turn-3702-economy",
+  "protocol_sha256": "035d2eddcffa36e8092f0975863cf1da93789be7818db5ad14df16941c59bee6",
+  "rounds": 4,
+  "train_seed": 452410000,
+  "minutes_per_round": 175,
+  "save_margin_seconds": 240,
+  "monitor": {"seed": 425410000, "games": 512},
+  "blind": {"seed": 428410000, "games": 512},
+  "adaptive": {"seed": 431410000, "games": 128},
+  "smoke": {"rounds": 2, "batches": 2, "games": 8, "train_seed": 439410000,
+            "monitor_seed": 435410000, "blind_seed": 436410000, "adaptive_seed": 437410000},
+  "environment": {
+    "HSAI_HUMAN_TAIL": "last-observed-v1",
+    "HSAI_ARENA_GAMES": "256", "HSAI_ARENA_PROCS": "8", "HSAI_ARENA_EPOCHS": "1",
+    "HSAI_ARENA_LR": "1.5e-5", "HSAI_ARENA_TARGET_KL": "0.025", "HSAI_ARENA_ENTROPY": "0.001",
+    "HSAI_ARENA_ANCHOR": "0.06", "HSAI_ARENA_ANCHOR_ITERS": "100", "HSAI_ARENA_ANCHOR_TAIL": "0.04",
+    "HSAI_ARENA_RANK_UTILITY": "1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75",
+    "HSAI_ARENA_TIER_COEF": "0", "HSAI_ARENA_WIN_BONUS": "0", "HSAI_ARENA_REQUIRE_DUAL": "1",
+    "HSAI_ARENA_SNAPS": "artifacts/libraries/human-turn-3702-20261118/train",
+    "HSAI_ARENA_RESUME": "0", "HSAI_ARENA_SEGMENTS": "1", "HSAI_ARENA_STOP_DECISIONS": "0",
+    "HSAI_ARENA_LOBBY_EXCLUDE": "", "HSAI_RECRUIT_START_P": "0"
+  }
+}
