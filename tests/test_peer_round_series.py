@@ -61,3 +61,30 @@ def test_failed_budget_monitor_cannot_submit_remaining_jobs(tmp_path, monkeypatc
     series.submit(out, cfg, smoke=False, dry_run=False, continuation=True)
     assert (out / "budget-not-released.json").is_file()
     assert not (out / "continuation.json").exists()
+
+
+def test_day_review_and_explicit_midround_night_handoff(tmp_path, monkeypatch):
+    cfg = settings(False)
+    source = {"commit": "fixture", "tracked_dirty": False}
+    release = tmp_path / "releases" / "fixture"
+    release.mkdir(parents=True)
+    monkeypatch.setattr(series, "ROOT", release)
+    monkeypatch.setattr(series, "source_identity", lambda root: source)
+    calls = []
+    def scheduler(command, **kwargs):
+        if command[0] == "sacct":
+            return "102|PENDING\n"
+        assert command[0] == "sbatch"
+        calls.append(command)
+        return str(100 + len(calls))
+    monkeypatch.setattr(series.subprocess, "check_output", scheduler)
+    out = tmp_path / "run"
+    series.submit(out, cfg, False, False)
+    assert len(calls) == 2 and "--dependency=afterok:101" in calls[1]
+    with pytest.raises(ValueError, match="not ready"):
+        series.submit(out, cfg, False, False, continuation=True)
+    series.submit(out, cfg, False, False, continuation=True, mode="night")
+    assert len(calls) == 10 and "--dependency=afterok:102" in calls[2]
+    assert all("--dependency=afterok:" + str(100 + i) in calls[i] for i in range(1, len(calls)))
+    with pytest.raises(ValueError, match="all planned rounds"):
+        series.submit(out, cfg, False, False, continuation=True, mode="night")

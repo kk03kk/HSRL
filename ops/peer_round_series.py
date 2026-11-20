@@ -91,28 +91,68 @@ def validate_continuation(out, cfg, source, smoke):
     return True
 
 
-def submit(out, cfg, smoke, dry_run, continuation=False):
+def next_review_round(out, cfg, source, smoke, mode):
+    series = read(out / "series.json")
+    if (series["source"]["commit"] != source["commit"] or series["recipe"] != file_identity(RECIPE)
+            or series["smoke"] != smoke):
+        raise ValueError("use the original series release and recipe")
+    for index in range(1, cfg["rounds"] + 1):
+        train = out / f"submit-{index}-train.json"
+        monitor = out / f"submit-{index}-monitor.json"
+        if train.exists() != monitor.exists():
+            raise ValueError("incomplete submission; inspect its scheduler receipts")
+        if not train.exists():
+            break
+    else:
+        raise ValueError("all planned rounds have been submitted")
+    if index == 1:
+        raise ValueError("missing first-round scheduler receipts")
+    receipt = read(out / f"submit-{index-1}-monitor.json")
+    previous = out / f"round-{index-1:02d}/monitor.json"
+    if previous.exists():
+        panel = read(previous)
+        if (panel["job"] != receipt["job"] or panel["n"] != cfg["monitor"]["games"]
+                or panel["protocol"] != cfg["protocol_sha256"] or panel["seed"] != cfg["monitor"]["seed"]
+                or file_identity(panel["report"]) != panel["report_identity"]):
+            raise ValueError("invalid previous monitoring panel")
+    state = subprocess.check_output(
+        ["sacct", "-X", "-n", "-P", "-j", receipt["job"], "--format=JobID,State"], text=True)
+    states = dict(row.split("|")[:2] for row in state.splitlines() if "|" in row)
+    status = states.get(receipt["job"], "")
+    if previous.exists() and status == "COMPLETED":
+        return index, None
+    if mode == "night" and status in ("PENDING", "RUNNING", "COMPLETING", "CONFIGURING"):
+        return index, receipt["job"]
+    raise ValueError("previous monitoring job is not ready for this handoff")
+
+
+def submit(out, cfg, smoke, dry_run, continuation=False, mode=None):
     source = source_identity(ROOT)
     if source["tracked_dirty"]:
         raise ValueError("use a clean, frozen release")
+    start, parent = 1, None
+    legacy = continuation and mode is None and "initial_mode" not in read(out / "series.json")
+    mode = mode or "day"
     if not dry_run:
         if ROOT.parent.name != "releases":
             raise ValueError("submit from an immutable server release")
-        if continuation:
+        if legacy:
             if not validate_continuation(out, cfg, source, smoke):
                 return
+            start = 2
+        elif continuation:
+            start, parent = next_review_round(out, cfg, source, smoke, mode)
+            atomic_json(out / f"dispatch-{start}.json", dict(mode=mode, predecessor=parent))
         else:
             out.mkdir(parents=True, exist_ok=False)
-            atomic_json(out / "series.json", dict(source=source, recipe=file_identity(RECIPE), smoke=smoke))
-    parent = None
+            atomic_json(out / "series.json", dict(source=source, recipe=file_identity(RECIPE),
+                                                  smoke=smoke, initial_mode=mode))
+    last = cfg["rounds"] if legacy or mode == "night" else start
     for index, stage in stages(cfg["rounds"]):
-        if continuation and index == 1:
+        if index < start:
             continue
-        if not dry_run and not continuation and index > 1:
+        if index > last:
             break
-        if dry_run and index == 2 and stage == "train":
-            print("# automatic CPU budget decision after round 1; remaining jobs submitted only on release")
-            parent = None
         cmd = ["sbatch", "--parsable", "-A", "allusers", "-q", "normal", "--propagate=NONE",
                "--kill-on-invalid-dep=yes", "-J", f"peer_r{index}_{stage}",
                "--output=artifacts/runs/slurm/%x-%j.log", *job_args(stage, smoke)]
@@ -130,17 +170,6 @@ def submit(out, cfg, smoke, dry_run, continuation=False):
                 raise ValueError("unexpected scheduler response")
             atomic_json(out / f"submit-{index}-{stage}.json", dict(job=parent, command=cmd))
             print(index, stage, parent, flush=True)
-    if not continuation and not dry_run:
-        cmd = ["sbatch", "--parsable", "-A", "allusers", "-q", "normal", "-p", "normal", "-c", "1",
-               "--mem=1G", "-t", "00:05:00", "-J", "peer_r1_budget", "--output=artifacts/runs/slurm/%x-%j.log",
-               "--dependency=afterok:" + parent, "--kill-on-invalid-dep=yes", "deploy/slurm/peer_round_budget.sh", str(out)]
-        if smoke:
-            cmd.append("--smoke")
-        job = subprocess.check_output(cmd, text=True).strip().split(";")[0]
-        if not job.isdigit():
-            raise ValueError("unexpected scheduler response for budget decision")
-        atomic_json(out / "submit-1-budget.json", dict(job=job, command=cmd))
-        print(1, "budget", job, flush=True)
 
 
 def progress(out):
@@ -179,9 +208,11 @@ if __name__ == "__main__":
     parser.add_argument("action", choices=("preview", "submit", "continue", "progress"))
     parser.add_argument("out", type=Path)
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--mode", choices=("day", "night"), help="One round for review, or all remaining rounds.")
     args = parser.parse_args()
     os.chdir(ROOT)
     if args.action == "progress":
         progress(args.out.resolve())
     else:
-        submit(args.out.resolve(), settings(args.smoke), args.smoke, args.action == "preview", args.action == "continue")
+        submit(args.out.resolve(), settings(args.smoke), args.smoke, args.action == "preview",
+               args.action == "continue", args.mode)
