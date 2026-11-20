@@ -1,5 +1,6 @@
 """Replay triggered paired purchases and measure whether the focal agent uses the golden card."""
 from concurrent.futures import ProcessPoolExecutor
+import argparse
 import json
 import multiprocessing as mp
 import os
@@ -17,7 +18,6 @@ from workflows.adaptive_decision_study import RUNS, read, weights
 BANK = RUNS / "nus-adaptive-triple-openings-20261120-1"
 RUN = RUNS / "nus-adaptive-triple-branch-20261120-1"
 SEAL = RUNS / "nus-adaptive-triple-seal-20261120-1" / "seal.json"
-OUT = RUNS / "nus-adaptive-triple-followthrough-20261120-2"
 RULE = "complete_triple"
 
 
@@ -57,7 +57,8 @@ def replay(i):
         event_differences=[k for k in e if observed.get(k)!=e[k]]
         if differences or event_differences:
             atomic_json(OUT/f"mismatch-{i}-{arm}.json",dict(index=i,arm=arm,fields=differences,events=event_differences,
-                original={k:stored[k] for k in differences},observed={k:clean[k] for k in differences}))
+                original={k:stored[k] for k in differences},observed={k:clean[k] for k in differences},
+                original_event={k:e[k] for k in event_differences},observed_event={k:observed.get(k) for k in event_differences}))
             raise ValueError(f"game {i} {arm} differs: terminal={differences}, event={event_differences}")
         if "start_gold" not in row:
             raise ValueError(f"game {i} {arm} missed decision")
@@ -71,7 +72,9 @@ def replay(i):
     return dict(index=i,turn=e["turn"],card=e["triple_card"],**parts)
 
 
-def main():
+def main(output):
+    global OUT
+    OUT=output
     source=source_identity(ROOT)
     seal=read(SEAL)
     plan=read(BANK/"plan.json")
@@ -88,7 +91,7 @@ def main():
         raise ValueError("no eligible decisions")
     OUT.mkdir(exist_ok=False)
     atomic_json(OUT/"plan.json",dict(source=source,original_seal=file_identity(SEAL),ids=ids,
-                                    job=os.environ["SLURM_JOB_ID"]))
+                                    job=os.environ["SLURM_JOB_ID"],node=os.environ["SLURMD_NODENAME"]))
     branch.START=plan["seed"]
     branch.ACTORS=weights()
     with ProcessPoolExecutor(min(len(ids),int(os.environ["SLURM_CPUS_PER_TASK"])),mp_context=mp.get_context("fork")) as pool:
@@ -113,4 +116,6 @@ def main():
 
 
 if __name__=="__main__":
-    main()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("out",type=Path)
+    main(parser.parse_args().out)
