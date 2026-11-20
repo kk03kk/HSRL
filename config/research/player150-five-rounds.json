@@ -1,0 +1,20 @@
+{
+  "schema": "hsai.player150-series/v1",
+  "profile": "human-turn-3703-player150",
+  "engine": "8bd1f4785018c474",
+  "rounds": 5,
+  "train_seed": 548410000,
+  "minutes": 175,
+  "save_margin_seconds": 240,
+  "monitor": {"split": "hold", "seed": 552410000, "pairs": 256},
+  "external": {"split": "human", "seed": 555410000, "pairs": 256},
+  "environment": {
+    "HSAI_ARENA_GAMES": "256", "HSAI_ARENA_PROCS": "8", "HSAI_ARENA_EPOCHS": "1",
+    "HSAI_ARENA_LR": "1.25e-5", "HSAI_ARENA_TARGET_KL": "0.025", "HSAI_ARENA_ENTROPY": "0.001",
+    "HSAI_ARENA_ANCHOR": "0.06", "HSAI_ARENA_ANCHOR_ITERS": "100", "HSAI_ARENA_ANCHOR_TAIL": "0.04",
+    "HSAI_ARENA_RANK_UTILITY": "1.00,0.35,-1.00,-1.15,-1.30,-1.45,-1.60,-1.75",
+    "HSAI_ARENA_TIER_COEF": "0", "HSAI_ARENA_WIN_BONUS": "0", "HSAI_ARENA_REQUIRE_DUAL": "1",
+    "HSAI_ARENA_RESUME": "0", "HSAI_ARENA_SEGMENTS": "1", "HSAI_ARENA_STOP_DECISIONS": "0",
+    "HSAI_ARENA_LOBBY_EXCLUDE": "", "HSAI_RECRUIT_START_P": "0"
+  }
+}

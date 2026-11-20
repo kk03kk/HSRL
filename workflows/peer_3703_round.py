@@ -55,6 +55,9 @@ def field(split):
     proto.assert_training_contract()
     spec=dict(protocol=proto.as_dict(),library_sha256=man["digest"], tail="last-observed-v1",
               format="paired single learner, seven strict EOT opponents")
+    if os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3703-player150":
+        from hsbg.az.train.player_observation import SCHEMA_SHA
+        spec["public_observation_sha256"] = SCHEMA_SHA
     return proto,man,spec,protocol_sha256_of(spec)
 
 def game_pair(seed):
@@ -106,6 +109,10 @@ def panel(split,models,start,n,out):
                 field=spec,source=source_identity(ROOT),metrics=metrics,
                 rank=estimate([r["candidate"]["rank"]-r["base"]["rank"] for r in rows]),
                 growth=estimate([growth(r["candidate"]["boards"])-growth(r["base"]["boards"]) for r in common]))
+    if os.environ.get("HSAI_ACTION_PROFILE") == "human-turn-3703-player150":
+        for name, k in (("first", 1), ("top4", 4)):
+            result[name] = estimate([int(r["candidate"]["rank"] <= k) - int(r["base"]["rank"] <= k) for r in rows])
+        result["reach12"] = estimate([int(12 in r["candidate"]["boards"]) - int(12 in r["base"]["boards"]) for r in rows])
     atomic_json(out/"complete.json",result)
     print(json.dumps({k:result[k] for k in ("n","rank","growth","protocol_sha256")}),flush=True)
     return result
