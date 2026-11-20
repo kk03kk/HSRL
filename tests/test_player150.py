@@ -83,3 +83,33 @@ def test_native_deadline_and_freeze():
         assert award in available
         choices.add(available.index(award))
     assert len(choices) >= 2
+
+
+def test_visible_rogers_gems_and_opponent_privacy():
+    e = pytest.importorskip("hsbg_engine")
+    if not hasattr(e.Game, "player_card_faces"):
+        pytest.skip("requires player150 native build")
+    from hsbg.az.train.mechanism_obs import _allowed_native_cards, observe
+    from workflows.mirror_hard_gates import _drive_to_turn
+    game = _drive_to_turn(e.Game(seed=20261118, config_json='{"player_view_150":true}'), 4)
+    state = json.loads(game.state_json())
+    own = state["players"][0]
+    cid = next(i for i in _allowed_native_cards() if e.card_info(i+1)[0] == "BG33_823")
+    own["board"] = own["board"][:1]
+    own["board"][0].update(card=cid, counter=0)
+    def sample():
+        g = e.Game.from_json(json.dumps(state))
+        facts = json.loads(g.player_card_faces(0))
+        face = next(row for row in facts["faces"] if row[:2] == [19,"BG33_823"])
+        return tuple(map(bytes, observe(g, 0, public.SCHEMA))), facts, face[2]
+    a, _, first = sample()
+    own["board"][0]["counter"] = 5
+    b, _, second = sample()
+    assert first != second and "9" in first and "4" in second and a[0] != b[0]
+    own["stats"]["gem_atk"] = 17
+    c, own_facts, _ = sample()
+    assert c[0] != b[0] and own_facts["growth"][-2] == 17
+    for player in state["players"][1:]:
+        player.update(gold=31, tier=5, armor=17, hand=[], shop=[], board=[])
+    hidden, _, _ = sample()
+    assert hidden == c
