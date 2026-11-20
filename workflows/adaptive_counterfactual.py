@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+from functools import lru_cache
 from hashlib import sha256
 import json
 import math
@@ -18,7 +19,19 @@ sys.path.insert(0,str(ROOT))
 from hsbg.runtime.artifacts import atomic_json,file_identity
 from hsbg.runtime.provenance import source_identity
 from tools.summarize_peer_finetune import UTILITY,estimate
-from workflows.adaptive_decision_study import POLICY,RANGES,family,lobby,read,weights
+from workflows.adaptive_decision_study import POLICY,RANGES,lobby,read,weights
+
+
+@lru_cache(maxsize=1)
+def golden_versions():
+    cards = read(ROOT/"engine/crates/hsbg-engine/data/cards.json")["cards"]
+    indices = {card["id"]:i for i,card in enumerate(cards)}
+    return {i:indices[card["golden"]] for i,card in enumerate(cards) if card.get("golden") in indices}
+
+
+def count_golden(player,card):
+    units = player["board"]+[h["item"]["Minion"] for h in player["hand"] if "Minion" in h["item"]]
+    return sum(m["card"]==card and m["golden"] for m in units)
 
 
 def public_options(game,seat,p):
@@ -33,7 +46,18 @@ def public_options(game,seat,p):
 
 def select(name,turn,original,player,best,p,game,seat,features):
     from hsbg.env.obs_std import GLOBAL_FIELD_INDEX
-    if name in ("play_first","level_first"):
+    if name=="complete_triple":
+        if original!=1:
+            return None
+        from workflows.adaptive_triple_opportunity import offers
+        eligible = [(a,c) for a,c in offers(game,seat) if p[a]>0 and c in golden_versions()]
+        if not eligible:
+            return None
+        action,card = max(eligible,key=lambda item:p[item[0]])
+        gold_card = golden_versions()[card]
+        return action,dict(triple_card=card,eligible_triples=eligible,gold_card=gold_card,
+                           golden_before=count_golden(player,gold_card))
+    elif name in ("play_first","level_first"):
         family,ratio = ("play",.5) if name=="play_first" else ("level",.2)
         if (original!=1 or family not in best or features[GLOBAL_FIELD_INDEX["refresh_price"]]<=0
                 or best[family][1]<ratio*best["roll"][1]):
@@ -130,11 +154,21 @@ def arm(i,specs,apply,opening,*,at_branch=None,capture_turns=True):
             e["prefix"] = trace.hexdigest()
         if at_branch is not None and policy.pending:
             return at_branch(game,policy.pending)
+    conversions = []
+    def after_focus(game,action):
+        event = policy.pending.get("complete_triple")
+        if event is not None:
+            player = json.loads(game.player_json(i%8))
+            conversions.append(dict(action=action,card=event["gold_card"],before=event["golden_before"],
+                                    after=count_golden(player,event["gold_card"]),gold_after=player["gold"]))
     original = actor.parent.evaluator
     actor.parent.evaluator = policy
     try:
         result = lobby.play({**ACTORS,"intent":policy},i,True,START,opening=opening,
-            on_turn=observe_turn if capture_turns and not apply else None,on_focus=observe_focus)
+            on_turn=observe_turn if capture_turns and not apply else None,on_focus=observe_focus,
+            after_focus=after_focus if apply and "complete_triple" in specs else None)
+        if conversions:
+            result["triple_conversion"] = conversions
     finally:
         actor.parent.evaluator = original
     return result,policy.events,capture

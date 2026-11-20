@@ -21,7 +21,7 @@ from workflows.peer_sale_study import RetainMaterial
 from workflows import quilboar_study as native
 
 
-def play(weights, index, change, start=343410000, *, opening=None, on_turn=None, on_focus=None):
+def play(weights, index, change, start=343410000, *, opening=None, on_turn=None, on_focus=None, after_focus=None):
     import hsbg_engine
     seed = start + index
     focus = index%8
@@ -81,6 +81,8 @@ def play(weights, index, change, start=343410000, *, opening=None, on_turn=None,
             if on_turn is not None:
                 prefix.extend(step)
             game.step(seat,action)
+            if seat==focus and after_focus is not None:
+                after_focus(game,action)
             actions += 1
             progress = True
         if not progress and not game.is_over():
