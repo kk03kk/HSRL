@@ -9,9 +9,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from hsbg.runtime.artifacts import atomic_json, file_identity
-from workflows.peer_3703_field import ENGINE
+from workflows.peer_3703_field import ENGINE, PLAYER150
 
 LIB = Path("artifacts/libraries/peer-3703-human-external-20261120-01")
+if PLAYER150:
+    LIB = Path("artifacts/libraries/player150-human-20261120-01")
 ORIGINAL = Path("artifacts/libraries/human-turn-transfer-20261119-01")
 SOURCE_MANIFEST = "d1581c4c13f9e8ccadad97b06aefbfe1963b4357dc2c63260d4e09d7b022175e"
 
