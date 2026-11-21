@@ -213,7 +213,6 @@ def _run(root,args,run_token):
     trace=GameTrace(out,side='live',store_vectors=True)
     args.live_trace=trace
     last_report=None;last_decision=None;started=time.monotonic();tribe_memory={};ocr=None
-    stale_ledger_checked=False
     status_saved_at=0.;last_status_key=None;closed_unresolved=False;game_completed=False;operator_stopped=False
     data=None;snapshot=None;last_blocker=None
     # Unexpected executor faults must pause input and keep the ledger, never
@@ -253,6 +252,7 @@ def _run(root,args,run_token):
     # different output folders must never authorize two input controllers.
     with (nullcontext() if getattr(args,'client_lock_owned',False) else exclusive(Path(root)/'artifacts/runs/live-client.lock')):
         controller=Controller(policy,Geometry(profile),backend,Path(root)/'artifacts/runs/live-state' if args.enable_input else out/'shadow-state',enable_input=args.enable_input,practical=practical,clock=time.monotonic,trace=trace)
+        stale_ledger_checked=not controller.pending
         fast=None
         reconnect=None
         if practical:
@@ -274,6 +274,7 @@ def _run(root,args,run_token):
         waits=WaitTracker()
         from .operator_control import reset_admission
         control=getattr(args,'operator_control',None)
+        historical_pending=bool(control and controller.pending)
         held=False
         known_connected=False
         reconnect_since=None
@@ -346,7 +347,7 @@ def _run(root,args,run_token):
         while args.seconds<=0 or time.monotonic()-started<args.seconds:
             if backend.stopped():operator_stopped=True;report('STOP/F8 requested');break
             requested=control.poll() if control else 'run'
-            if control and requested=='stop' and not controller.pending:
+            if control and requested=='stop' and (not controller.pending or historical_pending):
                 operator_stopped=True
                 control.publish('stopping','finalizing')
                 if not session_meta['log_sessions']:args.stopped_before_log=True
@@ -359,7 +360,7 @@ def _run(root,args,run_token):
                     session_meta['log_sessions'].append(reader.session.name)
                     session_meta.setdefault('power_offsets',{})[reader.session.name]=getattr(reader,'game_offset',0)
                     save(out/'session.json',session_meta)
-                if control and requested!='run' and controller.pending:
+                if control and requested!='run' and controller.pending and not historical_pending:
                     control.publish('pausing' if requested=='pause' else 'stopping',
                                     'receipt_or_continuation',pending=True,turn=data.get('turn'))
                 if reader.connection=='connected' and reader.caught_up and reader.history_complete:
@@ -422,7 +423,9 @@ def _run(root,args,run_token):
                     else:report('game completed',data)
                     game_completed=True
                     break
-                if control and requested=='pause' and not controller.pending:
+                if historical_pending and not controller.pending:
+                    historical_pending=False
+                if control and requested=='pause' and (not controller.pending or historical_pending):
                     if not held:
                         held=True
                         report('operator paused at transaction boundary',data)
@@ -474,6 +477,11 @@ def _run(root,args,run_token):
                         last_decision=None
                         report(outcome,data);continue
                     if outcome=='halted':report(controller.halted,data);break
+                    if historical_pending:
+                        control.publish('waiting','historical_receipt',pending=True,turn=data.get('turn'))
+                        report('earlier run has an unresolved input; observing receipts only',data)
+                        if controller.pending_timeout()=='halted':report(controller.halted,data);break
+                        time.sleep(.08);continue
                     if practical and not controller.needs_ui(data):
                         report(outcome,data)
                         active_receipt=outcome=='waiting_receipt' and reader.connection=='connected'

@@ -49,6 +49,7 @@ DETAILS = {
     'log_rebuild': '正在读取炉石日志',
     'finalizing': '正在保存运行证据',
     'game_server': '等待炉石客户端的重连和状态确认',
+    'historical_receipt': '上一次运行仍有未确认操作，等待日志核对',
     'action point occluded': '点击位置被遮挡，请关闭挡住炉石的浮层',
     'client connection is not confirmed connected': '正在确认游戏服务器连接',
     'reconnect could not be verified; input stopped and ledger retained': '重连未获确认，已停止输入，请检查炉石',
