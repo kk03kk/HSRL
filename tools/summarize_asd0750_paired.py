@@ -121,6 +121,26 @@ def declared(rows, games):
     return out
 
 
+def tribal_shapes(rows):
+    """Track maintained board type separately from cards that execute a mechanism."""
+    def qualifies(arm, tribe):
+        turns = set()
+        for turn, stage in arm["turns"].items():
+            if int(turn) >= 8 and sum(tribe in CARDS[normal(card[0])].get("races", ()) for card in stage["board"]) >= 4:
+                turns.add(int(turn))
+        return any(t + 1 in turns for t in turns)
+
+    out = {}
+    for i, tribe in enumerate(TYPES):
+        eligible = [r for r in rows if r["0750"]["lobby"] & (1 << i)]
+        if not eligible:
+            continue
+        values = [{m: int(qualifies(row[m], tribe)) for m in MODELS} for row in eligible]
+        out[tribe] = dict(n=len(eligible), counts={m: sum(v[m] for v in values) for m in MODELS},
+                          differences=paired(values, lambda x: x))
+    return out
+
+
 def tendencies(rows):
     out = {}
     for start, end in ((1, 3), (4, 7), (8, 10), (11, 13)):
@@ -190,7 +210,8 @@ def per_panel(records):
         if eligible:
             tribe_strength[tribe] = dict(n=len(eligible), rank=paired(eligible, lambda a: a["rank"]))
     return dict(n=len(rows), results=basic(rows), curves=turns(rows),
-                lineups=declared(rows, games), actions_by_phase=tendencies(rows), tribe_strength=tribe_strength)
+                lineups=declared(rows, games), tribal_shapes=tribal_shapes(rows),
+                actions_by_phase=tendencies(rows), tribe_strength=tribe_strength)
 
 
 def read_phase(root, mode, seal, plan):
