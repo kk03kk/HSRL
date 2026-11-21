@@ -75,7 +75,14 @@ class LivePipeline:
         if self.reader.connection!='connected':raise Blocked('client connection is not confirmed connected')
         with self.metrics.measure('projection'):s=self.projector.build_public(self.reader,data)
         if getattr(self.policy, 'peer_round', False):
-            s['action_profile'] = 'peer-r1'
+            s['action_profile'] = getattr(self.policy,'action_profile','peer-r1')
+        if getattr(self.policy,'player_observation',False):
+            from .player150 import observed_context
+            s['player150_public']=observed_context(self.reader,data)
+            s['approximation']['player150']=dict(
+                card_faces='frozen English card text plus witnessed local counters',
+                opponent='announced encounter only; pre-combat memory unavailable unless certified',
+                missing_fields='masked observation features, never action authorizations')
         return s
     def finish(self,s,visual,*,pinned=None,use_current=True):
         pending=self.pending() if use_current else pinned

@@ -1,4 +1,4 @@
-"""Windows control surface for the local R1 Battlegrounds runner."""
+"""Windows control surface for the local Battlegrounds runner."""
 import ctypes
 from ctypes import wintypes
 from datetime import datetime
@@ -15,13 +15,10 @@ import uuid
 
 from hsrl_agent.live.contracts import Blocked
 from hsrl_agent.live.operator_control import read_state
-from hsrl_agent.live.runtime import exclusive, save
+from hsrl_agent.live.runtime import exclusive, load, save
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE = ROOT.parents[2]
-ENGINE = WORKSPACE / 'artifacts/local/peer-3703-parity/artifacts/local/py3703-final'
-CHECKPOINT = ROOT / 'artifacts/models/peer-r1-647/model.pt'
 GAME = Path(os.environ.get('HSAI_GAME_DIR', r'D:\Hearthstone'))
 PYTHON = Path(sys.executable).with_name('python.exe')
 BG, PANEL, BORDER = '#101722', '#1a2534', '#29394b'
@@ -37,11 +34,12 @@ STATES = {
     'error': ('需要检查', RED),
 }
 DETAILS = {
-    'preparing': '正在验证炉石窗口并加载 R1 模型',
+    'preparing': '正在验证炉石窗口并加载模型',
     'lobby': '正在确认单人酒馆战棋大厅',
     'matchmaking': '炉石正在寻找对手',
     'match': '已连接真实对局',
     'next_turn': '等待客户端进入下一回合',
+    'player150_budget': '已用完本回合的 150 步预算，等待炉石结算',
     'foreground': '请将炉石切回前台',
     'between_matches': '已暂停，恢复后才继续匹配',
     'match_finished': '已记录对局结果，准备返回大厅',
@@ -94,6 +92,11 @@ class Console:
         self.last_error = ''
         self.last_log = ''
         self.mode = tk.StringVar(value='single')
+        self.config = load(ROOT / 'config/live/desktop-models.json')
+        if self.config.get('schema') != 'hsai.desktop-models/v1':
+            raise ValueError('控制台模型配置无效')
+        self.models = {item['label']: item['checkpoint'] for item in self.config['models']}
+        self.model_name = tk.StringVar(value=next(iter(self.models)))
         self.count = tk.StringVar(value='2')
         self.shortcut = tk.StringVar(value='正在注册全局快捷键')
         self.create_widgets()
@@ -134,7 +137,7 @@ class Console:
         header = tk.Frame(body, bg=BG)
         header.pack(fill='x', pady=(0, 16))
         self.label(header, '酒馆战棋控制台', bg=BG, size=19, bold=True).pack(side='left')
-        self.label(header, 'R1  /  单人', bg=BG, color=GOLD, size=10, bold=True).pack(side='right')
+        self.label(header, 'PLAYER150  /  单人', bg=BG, color=GOLD, size=10, bold=True).pack(side='right')
 
         status = tk.Frame(body, bg=PANEL, highlightbackground=BORDER, highlightthickness=1, padx=16, pady=13)
         status.pack(fill='x')
@@ -151,6 +154,12 @@ class Console:
 
         operations = tk.Frame(body, bg=PANEL, highlightbackground=BORDER, highlightthickness=1, padx=16, pady=12)
         operations.pack(fill='x', pady=11)
+        model_row = tk.Frame(operations, bg=PANEL)
+        model_row.pack(fill='x', pady=(0, 9))
+        self.label(model_row, '模型', color=MUTED).pack(side='left', padx=(0, 10))
+        self.model_select = ttk.Combobox(model_row, textvariable=self.model_name, values=list(self.models),
+                                         state='readonly', font=(FONT,10))
+        self.model_select.pack(side='left', fill='x', expand=True)
         modes = tk.Frame(operations, bg=PANEL)
         modes.pack(fill='x', pady=(0, 10))
         self.modes = []
@@ -206,6 +215,7 @@ class Console:
     def update_buttons(self):
         live = self.process is not None
         self.start_button.configure(state='disabled' if live else 'normal')
+        self.model_select.configure(state='disabled' if live else 'readonly')
         for option in self.modes:
             option.configure(state='disabled' if live else 'normal')
         self.spinner.configure(state='normal' if not live and self.mode.get() == 'count' else 'disabled')
@@ -243,7 +253,9 @@ class Console:
                 target = int(self.count.get())
                 if not 2 <= target <= 999:
                     raise ValueError('指定局数请输入 2–999')
-            for path in (ENGINE, CHECKPOINT, GAME / 'Hearthstone.exe', PYTHON):
+            checkpoint = ROOT / self.models[self.model_name.get()]
+            engine = ROOT / self.config['engine']
+            for path in (engine, checkpoint, GAME / 'Hearthstone.exe', PYTHON):
                 if not path.exists():
                     raise FileNotFoundError(path)
             run_id = f'live-control-{datetime.now():%Y%m%d}-{datetime.now():%H%M%S}-{uuid.uuid4().hex[:5]}'
@@ -256,14 +268,15 @@ class Console:
             self.last_error = ''
             command = [str(PYTHON), '-X', 'utf8', '-u', str(ROOT / 'client/live_245.py'), 'autoplay',
                        '--desktop-control', '--enable-input', '--timing', 'fast',
-                       '--checkpoint', str(CHECKPOINT), '--game-dir', str(GAME), '--out', str(self.folder),
+                       '--checkpoint', str(checkpoint), '--action-profile', self.config['action_profile'],
+                       '--game-dir', str(GAME), '--out', str(self.folder),
                        '--games', str(target), '--inference-threads', '8', '--seconds', '0']
-            env = dict(os.environ, PYTHONPATH=str(ENGINE))
+            env = dict(os.environ, PYTHONPATH=str(engine))
             self.process = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                             encoding='utf-8', errors='replace', creationflags=subprocess.CREATE_NO_WINDOW)
             Thread(target=self.collect, args=(self.process, self.folder), daemon=True).start()
-            self.note('已启动本机 R1，等待炉石窗口')
+            self.note('正在加载 ' + self.model_name.get())
             self.show('starting', 'preparing')
         except (OSError, ValueError) as exc:
             self.show('error', str(exc))

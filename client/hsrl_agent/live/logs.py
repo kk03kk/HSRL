@@ -61,6 +61,7 @@ class LogReader:
         self.history_complete=False;self.caught_up=False
         self.power_uses={};self.seen_boards={};self.last_opponent=None;self._generation=0;self._receipt=None;self.trinket_slots={}
         self.combat_seen=False
+        self.encounter_turns={};self._encounter_recorded_turn=None
         self.connection='unknown'
         self.spectating=False
         self.start_latest=False;self.game_offset=0
@@ -79,11 +80,16 @@ class LogReader:
         self.state.feed(line,source=source)
         if self._generation!=self.state.generation:
             self._generation=self.state.generation;self.power_uses={};self.seen_boards={};self.last_opponent=None;self._receipt=None;self.combat_seen=False;self.trinket_slots={}
+            self.encounter_turns={};self._encounter_recorded_turn=None
         if source=='power' and 'GameState.DebugPrintPower()' in line:
             slot=re.search(r'FULL_ENTITY - Creating ID=(\d+) CardID=BG30_Trinket_(1st|2nd)(?:\s|$)',line)
             if slot:self.trinket_slots[int(slot[1])]=0 if slot[2]=='1st' else 1
         game=self.state.entities.get(self.state.game_entity)
-        if game and game.tags.get('BACON_IN_COMBAT_PHASE')=='1': self.combat_seen=True
+        if game and game.tags.get('BACON_IN_COMBAT_PHASE')=='1':
+            self.combat_seen=True
+            if (source=='power' and self.history_complete and not self.spectating
+                    and 'BLOCK_START BlockType=ATTACK' in line):
+                self._note_encounter()
         if self.state.resolutions:
             r=self.state.resolutions[-1]
             key=(self.state.generation,r.log_position)
@@ -93,6 +99,17 @@ class LogReader:
                     self.power_uses[r.source]=self.power_uses.get(r.source,0)+1
         when=line_time(line,anchor if anchor is not None else time.time())
         if when is not None and source=='power': self.latest_time=when if self.latest_time is None else max(self.latest_time,when)
+
+    def _note_encounter(self):
+        state=self.state
+        player=state.entities.get(state.players.get(state.local_player_id))
+        turn=player.tags.get('TURN') if player else None
+        if turn==self._encounter_recorded_turn or not str(turn).isdigit():return
+        from .combat_archive import combat_frame
+        frame=combat_frame(state)
+        if frame['structural_check_passed']:
+            self.encounter_turns[frame['opponent']]=int(turn)
+            self._encounter_recorded_turn=turn
     def poll(self):
         # A failed/partial read must revoke the previous poll's completeness.
         # Retry only temporary sharing/access failures; never skip bytes or
@@ -115,6 +132,7 @@ class LogReader:
             self.tails={};self.latest_time=None;self.history_complete=False
             self.power_uses={};self.seen_boards={};self.last_opponent=None;self._generation=0;self._receipt=None;self.trinket_slots={}
             self.combat_seen=False;self.connection='unknown';self.spectating=False
+            self.encounter_turns={};self._encounter_recorded_turn=None
         all_done=True
         # Power.log already carries Options, choices and client playback. Do not
         # interleave duplicate GameState/PowerTaskList semantic projections.
@@ -138,6 +156,7 @@ class LogReader:
                 self.history_complete=False;self.latest_time=None
                 self._generation=0;self.power_uses={};self.seen_boards={};self.last_opponent=None
                 self._receipt=None;self.combat_seen=False;self.connection='unknown';self.caught_up=False;self.trinket_slots={}
+                self.encounter_turns={};self._encounter_recorded_turn=None
                 # Reset every cursor, not just the replaced file.
                 self.tails={};raise Blocked('log reset: full session reconstruction required')
             all_done &= done

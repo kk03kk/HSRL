@@ -1,5 +1,6 @@
 """Server Options/EntityChoices -> identity-bound 245 actions. No action ranking."""
 from .contracts import Binding,Blocked
+from .action_profiles import peer_actions
 
 def plain_power_options(options,entity):
     return [option for option in options if option.get('entity')==entity and option.get('type')=='POWER'
@@ -38,7 +39,7 @@ def magnetic_host(source, host, public_item):
 
 
 def bind_actions(snapshot):
-    peer_round = snapshot.get("action_profile") == "peer-r1"
+    peer_round = peer_actions(snapshot)
     data=snapshot['client']
     board,hand,shop=(data.get(k,[]) for k in ('board','hand','shop'))
     groups={z:{c['entity_id']:i for i,c in enumerate(data.get(z,[]))} for z in ('board','hand','shop')}

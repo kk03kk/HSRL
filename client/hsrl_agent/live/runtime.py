@@ -199,9 +199,14 @@ def _run(root,args,run_token):
     from .policy import configure_threads
     configure_threads(getattr(args,'inference_threads',None))
     policy=getattr(args,'preloaded_policy',None) or ModelPolicy(args.checkpoint,args.device);info=catalog(root)
+    if getattr(args,'action_profile',None):policy.use_action_profile(args.action_profile)
+    if getattr(policy,'player_observation',False) and not practical:
+        raise Blocked('Player150 observations require the practical autoplay bridge')
     args.preloaded_policy=policy
     session_meta['checkpoint_sha256']=policy.sha
     session_meta['policy_id']=getattr(policy,'policy_id','unspecified-test-policy')
+    session_meta['action_profile']=getattr(policy,'action_profile',None)
+    session_meta['observation_width']=getattr(policy,'input_width',3227)
     session_meta['inference_omitted_auxiliary']=getattr(policy,'meta',{}).get('inference_omitted_auxiliary',[])
     save(out/'session.json',session_meta)
     from .diagnostics import ObservationRecorder,status_payload
@@ -451,9 +456,11 @@ def _run(root,args,run_token):
                 # and re-encode the same quiet board every 150ms.
                 from .lifecycle import owned_selection
                 owned_choice=owned_selection(data)
-                if not controller.pending and controller.ended==(data['game_id'],data.get('turn')) and not owned_choice:
-                    if control:control.publish('waiting','next_turn',turn=data.get('turn'))
-                    report('waiting_next_turn',data);time.sleep(.08);continue
+                if not controller.pending and controller.ended==(data['game_id'],data.get('turn')):
+                    expired=controller.budget_expired(data)
+                    if expired or not owned_choice:
+                        if control:control.publish('waiting','player150_budget' if expired else 'next_turn',turn=data.get('turn'))
+                        report('waiting_budget_native_resolution' if expired else 'waiting_next_turn',data);time.sleep(.08);continue
                 if not args.enable_input:
                     # Diagnose log observability independently of UI guards.
                     # This never bypasses prepare(), encode() or input checks.
@@ -466,7 +473,10 @@ def _run(root,args,run_token):
                     raw=dict(game_id=data['game_id'],revision=data['revision'],client=data)
                     outcome=controller.poll_pending(raw)
                     if control and requested=='run':
-                        control.publish('running','match',turn=data.get('turn'))
+                        if controller.budget_expired(data) and not controller.needs_ui(data):
+                            control.publish('waiting','player150_budget',pending=True,turn=data.get('turn'))
+                        else:
+                            control.publish('running','match',turn=data.get('turn'))
                     if outcome=='waiting_receipt_overdue_no_resend' and fast:fast.record_overdue(data)
                     if outcome=='retry_unsent':
                         report(outcome,data);last_decision=None;time.sleep(.05);continue

@@ -8,6 +8,7 @@ from hsbg.az.train.ppo import forward_model, split_model_outputs
 from hsrl_agent.compat import verify
 from .contracts import Blocked,Decision,state_stamp
 from .encoding import encode
+from .action_profiles import PEER_R1, PLAYER150
 
 CHECKPOINT_SHA256='116eb3df777ac0d0b47921372c4a41cd3ad5bf5fecac36af27354dc227a92dbb'
 CHAMPION_SHA256='0efb6e356300e4e1a23e0f385e048315d21e6fa2b999b77466554c4a84124329'
@@ -52,6 +53,15 @@ for digest, label in (
         POLICY_SPECS[digest]['required_client_build'] = 255790
     else:
         POLICY_SPECS[digest]['offline_only'] = True
+
+PLAYER150_MODELS = {
+    '1cfa3f0d584ad2896b7e1c6f9c1b480e87a01a2be78498a1678324a1febbe094': 'player150-r1-start',
+    'ec955575b4ee2555417541299ebf99434185825660fe01667b9504ec37fbad92': 'player150-round04-2583',
+    '1f3fca0f0d4ded8c1a0d23794b504dc2c2f4bf0f537bf78176fe6e6c7b6f4879': 'player150-round05-2981',
+}
+for digest, label in PLAYER150_MODELS.items():
+    POLICY_SPECS[digest] = dict(id=label, auxiliary=False, parameters=8049759,
+        required_client_build=255790, peer_round=True, player_observation=True)
 
 
 def require_peer_lobby(view):
@@ -110,28 +120,51 @@ class ModelPolicy:
         if spec is None:raise Blocked('checkpoint is not an approved pinned policy')
         self.policy_id=spec['id']
         self.peer_round=spec.get('peer_round', False)
+        self.player_observation=spec.get('player_observation', False)
+        self.action_profile=PLAYER150 if self.player_observation else PEER_R1 if self.peer_round else None
         report = verify()
         if not report['ok']: raise Blocked('observation/card/action contract failed')
-        if self.peer_round and report['engine']['build_info']['source_hash'] not in (
-                'c4c71014e3d41760', 'c1d91053387aeac3'):
+        self.engine_hash=report['engine']['build_info']['source_hash']
+        allowed_engines=('8bd1f4785018c474',) if self.player_observation else (
+            'c4c71014e3d41760', 'c1d91053387aeac3', '8bd1f4785018c474')
+        if self.peer_round and self.engine_hash not in allowed_engines:
             raise Blocked('peer policy has not been verified on this engine build')
         self.device=device
         self.model,self.meta=(load_champion_policy(checkpoint,device) if spec['auxiliary'] else load_checkpoint(str(checkpoint),device=device))
         if sum(p.numel() for p in self.model.parameters())!=spec.get('parameters',14808254): raise Blocked('wrong model architecture')
         self.model.eval()
+        from hsbg.az.train import player_observation
+        self.input_width=player_observation.WIDTH if self.player_observation else 3227
+        if self.player_observation and (self.meta.get('mechanism_schema'),self.meta.get('mechanism_schema_sha256'),
+                self.meta.get('input_floats'))!=(player_observation.SCHEMA,player_observation.SCHEMA_SHA,self.input_width):
+            raise Blocked('Player150 checkpoint observation contract differs')
         for key in ('norm_mean','norm_std'):
             if self.meta.get(key) is not None:
                 value=np.asarray(self.meta[key],np.float32)
-                if value.shape!=(3227,) or not np.isfinite(value).all() or key=='norm_std' and np.any(value<=0):
+                if value.shape!=(self.input_width,) or not np.isfinite(value).all() or key=='norm_std' and np.any(value<=0):
                     raise Blocked('invalid checkpoint normalization:'+key)
         for p in self.model.parameters(): p.requires_grad_(False)
         import hsbg_engine as t
         self.vocabulary={t.card_info(i)[0]:i for i in range(1,t.N_CARDS)}
+        if self.player_observation:
+            import json
+            card_table=Path(__file__).resolve().parents[3]/'engine/crates/hsbg-engine/data/cards.json'
+            self.card_info={c['id']:c for c in json.loads(card_table.read_text(encoding='utf8'))['cards']}
+
+    def use_action_profile(self, profile):
+        if profile is None or profile==self.action_profile:
+            return
+        if profile!=PLAYER150 or self.policy_id!='peer-r1-647' or self.engine_hash!='8bd1f4785018c474':
+            raise Blocked('requested action profile is incompatible with this checkpoint/engine')
+        self.action_profile=PLAYER150
 
     @torch.inference_mode()
     def decide(self,snapshot,bindings):
         if not bindings: raise Blocked('no representable authorized action')
         f,c=encode(snapshot['view'],self.vocabulary)
+        if self.player_observation:
+            from .player150 import encode_observation
+            f,c=encode_observation(f,c,snapshot,self.vocabulary,self.card_info)
         mask=np.zeros(245,bool)
         by_action={}
         for b in bindings:

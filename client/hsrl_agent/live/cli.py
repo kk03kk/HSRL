@@ -16,6 +16,7 @@ def parser(root):
     from .selection import selected_checkpoint
     default=str(selected_checkpoint(root))
     q=sub.add_parser('doctor');q.add_argument('--checkpoint',default=default);q.add_argument('--infer',action='store_true')
+    q.add_argument('--action-profile',choices=('player150',))
     q.add_argument('--profile',default=str(root/'config/live/autoplay-255790.json'));q.add_argument('--game-dir')
     q.add_argument('--out',default=str(root/'artifacts/runs/live-doctor.json'))
     q=sub.add_parser('replay');q.add_argument('--power-log',required=True);q.add_argument('--scene-log')
@@ -23,11 +24,13 @@ def parser(root):
     q.add_argument('--races',nargs=5);q.add_argument('--player-id',type=int)
     q=sub.add_parser('decide');q.add_argument('--snapshot',required=True);q.add_argument('--checkpoint',default=default)
     q.add_argument('--out',required=True);q.add_argument('--device',default='cpu')
+    q.add_argument('--action-profile',choices=('player150',))
     for command in ('run','calibrate','autoplay'):
         q=sub.add_parser(command);q.add_argument('--game-dir',required=True)
         q.add_argument('--profile',required=command!='autoplay',default=str(root/'config/live/autoplay-255790.json'));q.add_argument('--out',required=True);q.add_argument('--player-id',type=int)
         if command in ('run','autoplay'):
             q.add_argument('--checkpoint',default=default);q.add_argument('--device',default='cpu')
+            q.add_argument('--action-profile',choices=('player150',))
             q.add_argument('--facts');q.add_argument('--enable-input',action='store_true');q.add_argument('--seconds',type=float,default=300)
             q.add_argument('--timing',choices=('balanced','conservative','overlap','fast'),default='balanced')
             q.add_argument('--inference-threads',type=int,default=8,help='bounded CPU inference parallelism, 1..32')
@@ -102,12 +105,15 @@ def main(argv=None,root=None):
             if args.infer:
                 from .policy import ModelPolicy
                 policy=ModelPolicy(args.checkpoint)
+                policy.use_action_profile(args.action_profile)
                 report['parameters']=sum(p.numel() for p in policy.model.parameters())
+                report['observation_width']=policy.input_width
+                report['action_profile']=policy.action_profile
                 import torch
                 from hsbg.az.train.ppo import forward_model,split_model_outputs
                 mask=torch.zeros((1,245),dtype=torch.bool);mask[:,0]=True
                 with torch.inference_mode():
-                    logits,_,_=split_model_outputs(forward_model(policy.model,torch.zeros((1,3227)),torch.zeros((1,124),dtype=torch.long),mask))
+                    logits,_,_=split_model_outputs(forward_model(policy.model,torch.zeros((1,policy.input_width)),torch.zeros((1,124),dtype=torch.long),mask))
                 report['synthetic_forward_ok']=list(logits.shape)==[1,245] and bool(torch.isfinite(logits).all())
             report['ok']=report['contract']['ok'] and report['checkpoint_ok']
             report['ready_for_user_test']=bool(report['ok'] and report['profile_ok'] and report['model_profile_compatible'] and all(report['dependencies'].values())
@@ -147,10 +153,11 @@ def main(argv=None,root=None):
             from .actions import bind_actions
             from .policy import ModelPolicy
             s=load(args.snapshot);policy=ModelPolicy(args.checkpoint,args.device)
+            policy.use_action_profile(args.action_profile)
             if policy.peer_round:
                 from .policy import require_peer_lobby
                 require_peer_lobby(s['view'])
-                s = dict(s, action_profile='peer-r1')
+                s = dict(s, action_profile=policy.action_profile)
             decision=policy.decide(s,bind_actions(s))
             save(args.out,asdict(decision));print(json.dumps(asdict(decision),ensure_ascii=False));return 0
         if args.command=='review-profile':

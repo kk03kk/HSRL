@@ -142,8 +142,8 @@ def test_legacy_teacher_action_sequences_remain_unchanged():
         'complete_gold':'f0d22d72c58b4e89c003991adf5d3a560c6ff8636d616903d2b044112ac33a61',
         'missing_privateer':'c827e8b528fcd92edd21627c69b93f209e6caa28f7f0303c768b3b5632b903c6'}
     import hsbg_engine as engine
-    if engine.build_info()['source_hash'] == 'c1d91053387aeac3':
-        # Same teacher, new source lobby: the hotfix changes pool draws for the seed.
+    if engine.build_info()['source_hash'] in ('c1d91053387aeac3','8bd1f4785018c474'):
+        # Both 37.0.3 engines produce the same trace hashes in the legacy fixture.
         expected = {
             'normal':'c84bc2858fe0d69e02a9bec3567f6a775d6db94301ca3608f1fcafbe160fb90e',
             'complete':'e3cf7ad3c475b14163e000e2517bd4ed0c2b93c87444bfd5e3492402d8e823d3',

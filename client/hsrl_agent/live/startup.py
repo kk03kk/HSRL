@@ -112,6 +112,7 @@ def prepare_input(root,args,out):
     model_started=time.monotonic()
     if getattr(args,'preloaded_policy',None) is None:
         args.preloaded_policy=ModelPolicy(args.checkpoint,device=args.device)
+    if getattr(args,'action_profile',None):args.preloaded_policy.use_action_profile(args.action_profile)
     timings=dict(activation_seconds=activation.get('activation_seconds'),
                  model_load_seconds=round(time.monotonic()-model_started,3),
                  preparation_seconds=round(time.monotonic()-started,3))

@@ -15,7 +15,11 @@ class Controller:
         self.out.mkdir(parents=True,exist_ok=True);self.enable_input=enable_input
         self.clock=clock;self.timeout=timeout;self.pending=None;self.ended=None;self.halted=None
         self.practical=practical;self.turn_counts={}
+        from .action_profiles import PEER_R1,PLAYER150,PROFILES
         self.peer_round=getattr(policy, 'peer_round', False)
+        self.action_profile=getattr(policy,'action_profile',PEER_R1 if self.peer_round else None)
+        self.rules=PROFILES[self.action_profile]
+        self.player150=self.action_profile==PLAYER150
         self.recovery_timeout=max(timeout,recovery_timeout) if practical else timeout
         self.overdue=False
         self.target_sent=False
@@ -59,12 +63,14 @@ class Controller:
         # immediate inverse move.  Only applied actions are counted; a
         # cancelled pre-press gesture never consumes a slot.
         self.move_history={}
+        self.charged_transactions={}
         state_file=self.out/'controller-state.json'
         if enable_input and practical and state_file.exists():
             state=json.loads(state_file.read_text(encoding='utf8'))
             self.ended=tuple(state['ended']) if state.get('ended') else None
             self.turn_counts={tuple(row['turn']):row['counts'] for row in state.get('turn_counts',[])}
             self.move_history={tuple(row['turn']):row for row in state.get('move_history',[])}
+            self.charged_transactions={tuple(row['turn']):set(row['keys']) for row in state.get('charged_transactions',[])}
         if enable_input and (self.out/'inflight.json').exists():
             raw=json.loads((self.out/'inflight.json').read_text(encoding='utf-8'))
             decision=raw['decision'];b=decision['binding'];b['targets']=tuple(b.get('targets',()))
@@ -131,19 +137,21 @@ class Controller:
         from .runtime import save
         self.turn_counts=dict(list(self.turn_counts.items())[-4:])
         self.move_history=dict(list(self.move_history.items())[-4:])
+        self.charged_transactions={k:v for k,v in self.charged_transactions.items() if k in self.turn_counts}
         save(self.out/'controller-state.json',dict(ended=self.ended,
             turn_counts=[dict(turn=list(k),counts=v) for k,v in self.turn_counts.items()],
-            move_history=[dict(v,turn=list(k)) for k,v in self.move_history.items()]))
+            move_history=[dict(v,turn=list(k)) for k,v in self.move_history.items()],
+            charged_transactions=[dict(turn=list(k),keys=sorted(v)) for k,v in self.charged_transactions.items()]))
     def _history(self,turn):
         return self.move_history.setdefault(turn,dict(last_action=None,counts={}))
-    def _note_action(self,turn,action):
+    def _note_action(self,turn,action,*,steps=1):
         history=self._history(turn)
         history['last_action']=int(action)
         if 196<=int(action)<245:
             action=int(action)
             history['counts'][str(action)]=history['counts'].get(str(action),0)+1
         counts=self.turn_counts.setdefault(turn,dict(actions=0,moves=0))
-        counts['actions']+=1
+        counts['actions']+=steps
         if action == 2: counts['freezes'] = counts.get('freezes', 0) + 1
         if 196<=int(action)<245:counts['moves']+=1
     def _guarded_bindings(self,snapshot,bindings,*,turn_key=None):
@@ -152,10 +160,10 @@ class Controller:
         history=self._history(turn)
         counts=self.turn_counts.get(turn,dict(actions=0,moves=0))
         end=tuple(b for b in bindings if b.kind=='end')
-        if counts['actions'] >= (300 if self.peer_round else 80) and end:
+        if counts['actions'] >= self.rules.actions and end:
             return end
         last=history.get('last_action');counts_by_action=history.get('counts',{})
-        cap=counts.get('moves',0) >= (10 if self.peer_round else 5)
+        cap=counts.get('moves',0) >= self.rules.moves
         inverse=None
         if isinstance(last,int) and 196<=last<245:
             src=(last-196)//7;dst=(last-196)%7
@@ -163,14 +171,59 @@ class Controller:
         out=[]
         for binding in bindings:
             action=int(binding.action)
-            if self.peer_round and action == 2 and counts.get('freezes', 0) >= 3:
+            if action==2 and self.rules.freezes is not None and counts.get('freezes',0)>=self.rules.freezes:
                 continue
             if not 196<=action<245:
                 out.append(binding);continue
-            if cap or action==inverse or (not self.peer_round and counts_by_action.get(str(action),0)>=2):
+            if cap or action==inverse or (self.rules.repeat_move is not None and
+                    counts_by_action.get(str(action),0)>=self.rules.repeat_move):
                 continue
             out.append(binding)
         return tuple(out)
+
+    @staticmethod
+    def _transaction_steps(binding,target_sent,branch_sent):
+        # A spell's prospective model target is decided before a single drag.
+        # Native training counts that policy choice separately from Play.
+        prospective=bool(binding.targets and binding.target is not None and not target_sent)
+        return 1+int(bool(branch_sent))+int(bool(target_sent) or prospective)
+
+    @staticmethod
+    def _charge_key(decision,before):
+        return digest([decision.stamp,decision.action,before['client'].get('log_position')])
+
+    def _charge_receipt(self,key,decision,before):
+        if not self.player150:
+            self._note_action(key,decision.action)
+            return
+        charged=self.charged_transactions.setdefault(key,set())
+        charge=self._charge_key(decision,before)
+        if charge not in charged:
+            steps=self._transaction_steps(decision.binding,self.target_sent,self.branch_sent)
+            self._note_action(key,decision.action,steps=steps)
+            charged.add(charge)
+
+    def remaining_actions(self,data,*,reserved=0):
+        turn=(data['game_id'],data.get('turn'))
+        spent=self.turn_counts.get(turn,{}).get('actions',0)
+        if self.pending:
+            d,before,_=self.pending
+            if ((d.game_id,before['client'].get('turn'))==turn and
+                    self._charge_key(d,before) not in self.charged_transactions.get(turn,())):
+                spent+=self._transaction_steps(d.binding,self.target_sent,self.branch_sent)
+        for parent in self.parents:
+            before=parent['before']
+            if (before['game_id'],before['client'].get('turn'))==turn:
+                spent+=self._transaction_steps(Binding(**parent['decision']['binding']),
+                                                parent['target_sent'],parent['branch_sent'])
+        return max(0,self.rules.actions-spent-reserved)
+
+    def budget_expired(self,data):
+        return self.player150 and self.remaining_actions(data)==0
+
+    def _policy_snapshot(self,snapshot,*,reserved=0):
+        if not self.player150:return snapshot
+        return dict(snapshot,remaining_actions=self.remaining_actions(snapshot['client'],reserved=reserved))
     def _fresh(self,snapshot,before_send,binding=None):
         if self.enable_input and self.practical and snapshot.get('comparison')=='semantic-v1' and before_send is None:
             raise Blocked('semantic runtime requires a pre-dispatch admission guard')
@@ -220,8 +273,9 @@ class Controller:
         if not self.pending:return False
         if self.halted=='input interrupted; delivery unknown':return False
         from .lifecycle import continuations
-        return bool(continuations(self.pending[0].binding,data,confirm_sent=self.confirm_sent,
-            target_sent=self.target_sent,branch_sent=self.branch_sent))
+        steps=continuations(self.pending[0].binding,data,confirm_sent=self.confirm_sent,
+            target_sent=self.target_sent,branch_sent=self.branch_sent)
+        return bool(steps and (not self.budget_expired(data) or 'selection_confirmation' in steps))
     def retire_stale_inflight(self,snapshot):
         """A ledger restored from a previous run cannot outlive its turn.
 
@@ -411,7 +465,7 @@ class Controller:
                 if state is not None:state['confirmed_at']=self.clock()
                 self.pending_gesture_key=None
             key=(before['game_id'],before['client']['turn'])
-            self._note_action(key,d.action)
+            self._charge_receipt(key,d,before)
             self._save_state()
             self.event(outcome,action=d.action,game_id=d.game_id,action_kind=d.binding.kind,source=d.binding.source,recovered_after_interruption=recovered,
                        receipt_positions=[r['log_position'] for r in snapshot['client'].get('resolutions',[])
@@ -477,6 +531,7 @@ class Controller:
                 and interaction.get('mode')=='choice' and interaction.get('owner')==snapshot['client']['local_player_id']
                 and d.binding.kind!='choose'
                 and (snapshot['client'].get('client_submission_position') or 0)>(before['client'].get('log_position') or 0)):
+            if self.budget_expired(snapshot['client']):return 'waiting_budget_native_resolution'
             if len(self.parents)>=4:raise Blocked('nested choice depth exceeds four')
             parent_flags=(self.target_sent,self.confirm_sent,self.branch_sent)
             parent_trace_id=self.current_decision_id
@@ -496,12 +551,14 @@ class Controller:
                     self.current_trace_stages=parent_stages
                     self.target_sent,self.confirm_sent,self.branch_sent=parent_flags
         if d.binding.branches and not self.branch_sent and interaction.get('mode')=='branch':
+            if self.budget_expired(snapshot['client']):return 'waiting_budget_native_resolution'
             if snapshot.get('view',{}).get('pending')!=3:raise Blocked('branch lacks a complete model observation')
             if interaction.get('source_entity')!=d.binding.source or interaction.get('request_id')!='branch:'+d.stamp:
                 raise Blocked('branch request identity differs')
             if snapshot['client']['turn']!=before['client']['turn']:raise Blocked('branch turn changed')
             if [c['entity_id'] for c in snapshot['client']['choices']]!=[r[0] for r in d.binding.branches]:
                 raise Blocked('branch candidates differ')
+            snapshot=self._policy_snapshot(snapshot)
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
             stage_trace_id=None
             if self.trace is not None and self.current_decision_id:
@@ -589,6 +646,7 @@ class Controller:
             and interaction.get('owner')==snapshot['client'].get('local_player_id')
             and snapshot.get('view',{}).get('pending')==4)
         if d.binding.targets and d.binding.target is None and not self.target_sent and target_ui:
+            if self.budget_expired(snapshot['client']):return 'waiting_budget_native_resolution'
             # Original server target authorization remains pinned. The visual
             # source context may not change while preparing this second decision.
             if snapshot['client']['turn']!=before['client']['turn']: raise Blocked('target turn changed')
@@ -598,6 +656,7 @@ class Controller:
                 raise Blocked('target UI lacks a complete post-action model observation')
             if set(c['entity_id'] for c in snapshot['client']['choices'])!=set(d.binding.targets):
                 raise Blocked('target authorization changed')
+            snapshot=self._policy_snapshot(snapshot)
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
             stage_trace_id=None
             if self.trace is not None and self.current_decision_id:
@@ -789,14 +848,24 @@ class Controller:
         from .lifecycle import owned_selection
         owned_choice=owned_selection(snapshot['client'])
         if self.ended==turn and not owned_choice:return 'waiting_next_turn'
+        if self.budget_expired(snapshot['client']):
+            self.ended=turn
+            self._save_state()
+            return 'waiting_budget_native_resolution'
         if self.peer_round:
             from .policy import require_peer_lobby
             require_peer_lobby(snapshot["view"])
-            snapshot = dict(snapshot, action_profile="peer-r1")
+            snapshot = dict(snapshot, action_profile=self.action_profile)
+        snapshot=self._policy_snapshot(snapshot)
         bindings=bind_actions(snapshot)
         if (self.practical or self.peer_round) and not snapshot['client'].get('choices') and not snapshot['client'].get('interaction'):
             bindings=self._guarded_bindings(snapshot,bindings)
-        budget_end = (self.peer_round and self.turn_counts.get(turn, {}).get('actions', 0) >= 300
+        if self.player150 and snapshot['remaining_actions']==1:
+            targeted_spells={c['entity_id'] for c in snapshot['client'].get('hand',[])
+                             if c['card_type'] in ('SPELL','BATTLEGROUND_SPELL')}
+            bindings=tuple(b for b in bindings if not
+                           (b.kind=='play' and b.targets and b.source in targeted_spells))
+        budget_end = (self.peer_round and self.turn_counts.get(turn, {}).get('actions', 0) >= self.rules.actions
                       and bool(bindings) and all(b.kind == 'end' for b in bindings))
         cache_key=(state_stamp(snapshot),tuple(bindings))
         reused=bool(self.practical and snapshot.get('comparison')=='semantic-v1' and self.candidate and self.candidate[0]==cache_key)
@@ -807,7 +876,8 @@ class Controller:
             source=next((c for c in snapshot['client']['hand'] if c['entity_id']==decision.binding.source),None)
             if source and source['card_type'] in ('SPELL','BATTLEGROUND_SPELL'):
                 from .adaptive import prospective_target
-                context=prospective_target(snapshot,decision);target=self.policy.decide(context,bind_actions(context))
+                context=self._policy_snapshot(prospective_target(snapshot,decision),reserved=1)
+                target=self.policy.decide(context,bind_actions(context))
                 decision=replace(decision,binding=replace(decision.binding,target=target.binding.target))
                 self.event('model_prospective_target',decision=asdict(target),approximation=context.get('approximation'))
         policy_ms=(time.perf_counter()-infer_start)*1000

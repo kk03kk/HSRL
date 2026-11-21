@@ -88,7 +88,7 @@ def decision_semantics(snapshot):
     preview=snapshot.get('target_preview')
     turn=data.get('turn')
     if turn is None and data.get('choices') and all(c['card_type']=='HERO' for c in data['choices']):turn=0
-    return dict(game_id=snapshot['game_id'],build=snapshot.get('build',data.get('build')),
+    result=dict(game_id=snapshot['game_id'],build=snapshot.get('build',data.get('build')),
         view=snapshot['view'],phase=data.get('phase'),turn=turn,
         gates={k:data.get(k) for k in ('mode','local_player_id','ready','warnings','options_pending','client_task_list')},
         interaction=data.get('interaction'),
@@ -97,6 +97,9 @@ def decision_semantics(snapshot):
         target_heroes=[identity(c) for c in snapshot.get('target_heroes',[])],
         preview=dict(source=identity(preview['source']),position=preview['position']) if preview else None,
         bindings=[asdict(b) for b in sorted(bind_actions(snapshot),key=lambda b:b.action)])
+    if 'player150_public' in snapshot:
+        result.update(player150_public=snapshot['player150_public'],remaining_actions=snapshot.get('remaining_actions'))
+    return result
 
 
 def execution_semantics(snapshot):
