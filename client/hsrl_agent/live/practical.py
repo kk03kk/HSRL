@@ -75,6 +75,16 @@ class PracticalGeometry(Geometry):
             for i,c in enumerate(client['hand']):c['position']=i+1
             snapshot={**snapshot,'client':client}
         points,zones=super().locations(snapshot)
+        # The lower text boxes overlap in a crowded fan. The upper artwork
+        # slices retain separate grab areas even with mixed minions and spells.
+        hand=snapshot['client']['hand']
+        grips=self.profile.get('crowded_hand_grips',{}).get(str(len(hand)))
+        if grips and not preview:
+            if len(grips)!=len(hand) or [c['position'] for c in hand]!=list(range(1,len(hand)+1)):
+                raise Blocked('crowded hand does not match calibrated slot order')
+            width,height=self.profile['client_size']
+            for card,(x,y) in zip(hand,grips):
+                points['entity:'+str(card['entity_id'])]=(x/width,y/height)
         # A derived 5/6-card row is only a search window. Once the frame gate
         # has measured the real card rectangles, click their centres rather
         # than the provisional model coordinates.
@@ -86,6 +96,12 @@ class PracticalGeometry(Geometry):
                 and entities==[c['entity_id'] for c in choices]):
             for card,(x,y,w,h) in zip(choices,boxes):
                 points['entity:'+str(card['entity_id'])]=(x+w/2,y+h/2)
+        branch=(snapshot.get('visual') or {}).get('branch_ui') or {}
+        if (snapshot['view']['pending']==3 and branch.get('visible')
+                and branch.get('entities')==[card['entity_id'] for card in choices]
+                and len(branch['boxes'])==len(choices)):
+            for card,(x,y,w,h) in zip(choices,branch['boxes']):
+                points['entity:'+str(card['entity_id'])]=(x+w/2,y+h*.56)
         # Container drop areas exist with both empty and occupied zones.
         points.setdefault('region:board',(.5,.55));points.setdefault('region:hand',(.5,.925))
         points.setdefault('region:bob',(.5,.185))

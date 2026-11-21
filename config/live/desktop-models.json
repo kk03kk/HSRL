@@ -2,18 +2,6 @@
   "schema": "hsai.desktop-models/v1",
   "engine": "artifacts/local/pyplayer150-8bd1f4785018c474",
   "action_profile": "player150",
-  "models": [
-    {
-      "label": "Player150 · 第 5 轮 / 2981 快照",
-      "checkpoint": "artifacts/models/player150-round05-2981/model.pt"
-    },
-    {
-      "label": "R1 原权重 · Player150 规则",
-      "checkpoint": "artifacts/models/peer-r1-647/model.pt"
-    },
-    {
-      "label": "Player150 · 第 4 轮 / 2583 封存",
-      "checkpoint": "artifacts/models/player150-round04-2583/model.pt"
-    }
-  ]
+  "default_label": "Player150 · 第 5 轮末代 3286",
+  "fallback_label": "Player150 · 手动回退 3236"
 }

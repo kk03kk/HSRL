@@ -77,6 +77,12 @@ def branch_snapshot(snapshot,pending,visual):
         raise Blocked('branch panel source identity is unproven')
     branch_ids=[r[0] for r in b.branches]
     if visual.get('branch_entities')!=branch_ids:raise Blocked('visible branches differ from pinned authorization')
+    root=next((row for row in snapshot['options'] if row.get('id')==b.option_id
+               and row.get('entity')==b.source and row.get('error')=='NONE'),None)
+    authorized=tuple((row['entity'],row['id'],row['error'],tuple(row.get('targets',())))
+                     for row in root.get('sub_options',())) if root else ()
+    if authorized!=tuple((entity,index,error,tuple(targets)) for entity,index,error,targets in b.branches):
+        raise Blocked('current server sub-options differ from the opened branch')
     current={c['entity_id']:c for c in data.get('branches',[])}
     if any(e not in current for e in branch_ids):raise Blocked('fresh branch entities are unavailable')
     result=copy.deepcopy(snapshot)

@@ -81,17 +81,50 @@ def inspect(image,profile,data,pending):
     for eid,(x,y,w,h) in zip(ids,boxes):
         px,py=points['entity:'+str(eid)]
         if not x+w*.15<=px<=x+w*.85 or not y+h*.15<=py<=y+h*.85:return dict(visible=False,boxes=[])
-    import cv2
-    hsv=cv2.cvtColor(np.asarray(image.convert('RGB')),cv2.COLOR_RGB2HSV)
-    colored=cv2.inRange(hsv,np.array([12,95,100]),np.array([112,255,255]));selectable=[]
-    for x,y,w,h in boxes:
-        supports=[]
-        for left in (x,x+w*.9):
-            rail=colored[round((y+h*.18)*image.height):round((y+h*.82)*image.height),round(left*image.width):round((left+w*.1)*image.width)]
-            supports.append(float(np.mean(np.any(rail>0,axis=1))) if rail.size else 0)
-        selectable.append(min(supports)>=.65)
+    # The frame locates the two actual cards. Highlight colours depend on
+    # the option art and current hover, including on legal targeted branches.
+    # Availability comes from the same root's server SubOptions, rechecked by
+    # branch_snapshot before a model decision and before dispatch.
+    selectable=[error=='NONE' for _,_,error,_ in b.branches]
     return dict(visible=True,boxes=boxes,selectable=selectable,source_card_id=source['card_id'],entities=ids,
                 evidence=evidence)
+
+
+def matches_admitted_row(before, current, boxes, hit):
+    """Check both admitted art patches when hover changes the border contour."""
+    import cv2
+    if len(boxes)!=2 or before.size!=current.size:return False
+    width,height=before.size
+    located=False
+    for index,(x,y,w,h) in enumerate(boxes):
+        selected=x<hit[0]<x+w and y<hit[1]<y+h
+        # Hovering a branch previews its generated card between the two
+        # options. The preview can cover the inner half of the other card.
+        # Verify the selected art and the unobstructed outer side of its peer.
+        left_fraction,right_fraction=(.25,.75) if selected else ((.16,.36) if index==0 else (.64,.84))
+        left,top=round((x+w*left_fraction)*width),round((y+h*.20)*height)
+        right,bottom=round((x+w*right_fraction)*width),round((y+h*.43)*height)
+        margin_x,margin_y=round(w*width*.15),round(h*height*.16)
+        search_left,search_top=max(0,left-margin_x),max(0,top-margin_y)
+        patch=np.asarray(before.crop((left,top,right,bottom)).convert('L'))
+        search=np.asarray(current.crop((search_left,search_top,min(width,right+margin_x),
+                                       min(height,bottom+margin_y))).convert('L'))
+        if min(patch.shape)<16 or patch.std()<12:return False
+        score,dx,dy=0.,0.,0.
+        for scale in (1.,.92,1.08,.84,1.16):
+            template=cv2.resize(patch,None,fx=scale,fy=scale)
+            if any(s<t for s,t in zip(search.shape,template.shape)):continue
+            _,candidate,_,(tx,ty)=cv2.minMaxLoc(cv2.matchTemplate(search,template,cv2.TM_CCOEFF_NORMED))
+            if candidate>score:
+                score=candidate
+                dx=(search_left+tx+template.shape[1]/2-(left+right)/2)/width
+                dy=(search_top+ty+template.shape[0]/2-(top+bottom)/2)/height
+        if score<.78:return False
+        if selected:
+            if not (x+dx+w*.20<hit[0]<x+dx+w*.80 and y+dy+h*.20<hit[1]<y+dy+h*.80):
+                return False
+            located=True
+    return located
 
 
 class Occlusion:

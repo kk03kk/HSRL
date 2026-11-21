@@ -56,6 +56,9 @@ def main(argv=None,root=None):
     root=Path(root) if root else Path(__file__).resolve().parents[3]
     args=parser(root).parse_args(argv)
     try:
+        if hasattr(args,'checkpoint'):
+            from .selection import validate_local_pin
+            validate_local_pin(root,args.checkpoint)
         if args.command in ('run','autoplay'):
             if not 1<=args.inference_threads<=32:raise Blocked('inference threads must be 1..32')
             from .selection import validate_live_profile
@@ -152,12 +155,14 @@ def main(argv=None,root=None):
         if args.command=='decide':
             from .actions import bind_actions
             from .policy import ModelPolicy
+            from .pipeline import bind_unknown_cards
             s=load(args.snapshot);policy=ModelPolicy(args.checkpoint,args.device)
             policy.use_action_profile(args.action_profile)
             if policy.peer_round:
                 from .policy import require_peer_lobby
                 require_peer_lobby(s['view'])
                 s = dict(s, action_profile=policy.action_profile)
+            bind_unknown_cards(s['view'],policy,s.setdefault('approximation',dict(fields={})))
             decision=policy.decide(s,bind_actions(s))
             save(args.out,asdict(decision));print(json.dumps(asdict(decision),ensure_ascii=False));return 0
         if args.command=='review-profile':

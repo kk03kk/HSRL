@@ -325,6 +325,10 @@ class Controller:
         if (snapshot.get('game_id')!=before.get('game_id')
                 or new.get('local_player_id')!=old.get('local_player_id')
                 or not isinstance(old.get('log_position'),int)):return None
+        if d.binding.branches and new.get('turn')==old.get('turn'):
+            # Opening a local Choose One panel emits no SendOption. Keep the
+            # transaction until a branch can be submitted or the turn changes.
+            return None
         submitted=new.get('client_submission_position')
         if submitted is None:return None
         if (submitted or 0)>(old.get('log_position') or 0):return None
@@ -709,7 +713,7 @@ class Controller:
         """
         if not self.practical or self.halted or self.parents:return False
         b=d.binding;old=before['client'];new=snapshot['client']
-        if b.kind not in ('play','sell','move'):return False
+        if b.kind not in ('play','sell','move') or b.branches:return False
         if self.target_sent or self.branch_sent or self.confirm_sent:return False
         if (snapshot['game_id']!=before['game_id'] or new.get('turn')!=old.get('turn')
                 or new.get('phase')!='recruit' or new.get('local_player_id')!=old.get('local_player_id')

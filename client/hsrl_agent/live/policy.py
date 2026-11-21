@@ -58,6 +58,9 @@ PLAYER150_MODELS = {
     '1cfa3f0d584ad2896b7e1c6f9c1b480e87a01a2be78498a1678324a1febbe094': 'player150-r1-start',
     'ec955575b4ee2555417541299ebf99434185825660fe01667b9504ec37fbad92': 'player150-round04-2583',
     '1f3fca0f0d4ded8c1a0d23794b504dc2c2f4bf0f537bf78176fe6e6c7b6f4879': 'player150-round05-2981',
+    '30cfcfd3fd5020233082f39079f458ef9a40b1e77b2c1fcffa9fe0e404e31fa2': 'player150-round05-3186',
+    '53b238f44685ede791bbdd08d9e173a8314bfce75727687e6c96cebe8e3f6cc6': 'player150-round05-3236',
+    '778cc6f4ca9ba6175ec6f54c2241a030a70ce4e35b7ac7120492666360ba86df': 'player150-round05-3286',
 }
 for digest, label in PLAYER150_MODELS.items():
     POLICY_SPECS[digest] = dict(id=label, auxiliary=False, parameters=8049759,

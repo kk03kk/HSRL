@@ -101,6 +101,9 @@ class FrameGate:
         self.admitted=None;self.sleep=sleep
         self.interruptions=None
         self.out=out;self.saved_blocks=set();self.last_frame=None
+        self.saved_dispatch_layouts=set()
+        self.branch_press_frame=None
+        self.last_branch_wait_saved=-float('inf')
         self.last_hero_probe=None;self.last_branch_probe=None;self.last_hero_wait_saved=-float('inf')
         self.last_choice_probe=None
         self.last_choice_wait_saved=-float('inf')
@@ -136,11 +139,21 @@ class FrameGate:
         path=folder/(name+'.jpg')
         metadata=dict(sequence=self.dispatch_saves,game_id=key[0],turn=key[1],binding=asdict(binding),
             log_position=snapshot['client'].get('log_position'),evidence='compressed final admission frame before hover')
-        if self.frame_writer is not None:
-            self.frame_writer(path,self.last_frame,metadata,quality=85)
-        else:
-            self.last_frame.convert('RGB').save(path,quality=85)
-            save(folder/(name+'.json'),metadata)
+        def archive(frame_path):
+            if self.frame_writer is not None:
+                self.frame_writer(frame_path,self.last_frame,metadata,quality=85)
+            else:
+                self.last_frame.convert('RGB').save(frame_path,quality=85)
+                save(frame_path.with_suffix('.json'),metadata)
+        archive(path)
+        hand=snapshot['client']['hand']
+        hand_slot=next((i for i,card in enumerate(hand,1) if card['entity_id']==binding.source),None)
+        sample='branch' if binding.kind=='branch' else (
+            f'hand-{len(hand)}' if binding.kind in ('play','magnetize') and hand_slot and 7<=len(hand)<=10 else None)
+        if sample and sample not in self.saved_dispatch_layouts:
+            metadata.update(hand_count=len(hand),hand_slot=hand_slot)
+            archive(folder/(sample+'.jpg'))
+            self.saved_dispatch_layouts.add(sample)
         self.dispatch_saved_key=key;self.dispatch_saved_path=str(path)
         return str(path)
     def observe(self,snapshot,pending=None,binding=None,*,revalidate=False):
@@ -328,6 +341,7 @@ class FrameGate:
             # 用最终准入帧刷新模板，避免保留抉择入场时较小的卡图。
             d=pending[0];self.branch_occlusion=((d.game_id,d.binding.source,d.stamp),
                 [Occlusion(image,box) for box in visual['branch_ui']['boxes']])
+            self.branch_press_frame=(key,image)
         visual.update(observed_at=now,admitted=True,region_count=len(boxes),evidence='two fresh frames; exact window/layout; action dependencies')
         return visual,image
     def end_control_probe(self,image,snapshot):
@@ -545,13 +559,36 @@ class FrameGate:
         if mode not in ('branch','target'):return
         if mode=='branch':
             binding=self.admitted_binding
+            admitted=snapshot['visual'].get('branch_ui') or {}
+            from .branch_ui import matches_admitted_row
+            frame=self.branch_press_frame
+            baseline=frame[1] if frame and frame[0]==layout_key(snapshot) else None
             for attempt in range(self.recheck_attempts):
                 image,window=self._recheck_capture(snapshot,'interaction window changed during hover')
                 visual=interpret_frame(image,window,self.profile,snapshot['client'],pending)
                 proof=visual.get('branch_ui') or {}
                 if (proof.get('visible') and binding is not None and binding.source in proof.get('entities',[])
                         and proof['selectable'][proof['entities'].index(binding.source)]):return
+                if (binding is not None and baseline is not None
+                        and admitted.get('visible') and binding.source in admitted['entities']
+                        and admitted['selectable'][admitted['entities'].index(binding.source)]):
+                    point=PracticalGeometry(self.profile).locations(snapshot)[0]['entity:'+str(binding.source)]
+                    if matches_admitted_row(baseline,image,admitted['boxes'],point):
+                        print('Press: both admitted branch card faces confirmed after hover.',flush=True)
+                        return
                 if attempt+1<self.recheck_attempts:self.sleep(self.recheck_settle)
+            if self.out is not None and self.clock()-self.last_branch_wait_saved>=2:
+                from pathlib import Path
+                from .runtime import save
+                path=Path(self.out)/'branch-hover-last.jpg'
+                metadata=dict(game_id=snapshot['game_id'],turn=snapshot['client'].get('turn'),
+                    admitted=admitted,hover=proof,matched_layout=baseline is not None,
+                    source=binding.source if binding else None)
+                if self.frame_writer:self.frame_writer(path,image,metadata,quality=85)
+                else:
+                    image.convert('RGB').save(path,quality=85)
+                    save(path.with_suffix('.json'),metadata)
+                self.last_branch_wait_saved=self.clock()
             raise Blocked('branch row disappeared or disabled during hover; no button down sent')
         image,window=self._recheck_capture(snapshot,'interaction window changed during hover')
         if self.admitted_binding:self.check_branch_occlusion(image,snapshot,pending,self.admitted_binding)

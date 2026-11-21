@@ -14,6 +14,20 @@ def selected_checkpoint(root):
     except ValueError as exc:
         raise Blocked('selected checkpoint must stay inside workspace or its verified asset mount') from exc
 
+def validate_local_pin(root,checkpoint):
+    """A published path must contain its pinned weight even if another model is registered."""
+    from hsbg.runtime.paths import workspace_asset
+    root=Path(root).resolve()
+    config=json.loads((root/'config/live/model.json').read_text(encoding='utf8'))
+    actual=Path(checkpoint).resolve()
+    for key,sha in (('checkpoint','sha256'),('fallback_checkpoint','fallback_sha256')):
+        if key not in config or actual!=workspace_asset(root,config[key]).resolve():
+            continue
+        with actual.open('rb') as source:
+            if hashlib.file_digest(source,'sha256').hexdigest()!=config[sha]:
+                raise Blocked('checkpoint digest differs from the local deployment pin')
+        return
+
 def validate_live_profile(checkpoint,profile):
     """在创建窗口后端之前检查；不把旧版UI配置自动批准为新版。"""
     from .policy import POLICY_SPECS

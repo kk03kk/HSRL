@@ -13,18 +13,34 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import uuid
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 from hsrl_agent.live.contracts import Blocked
 from hsrl_agent.live.operator_control import read_state
 from hsrl_agent.live.runtime import exclusive, load, save
+from hsrl_agent.live.selection import selected_checkpoint
+from hsbg.runtime.paths import workspace_asset
 
 
-ROOT = Path(__file__).resolve().parents[1]
 GAME = Path(os.environ.get('HSAI_GAME_DIR', r'D:\Hearthstone'))
 PYTHON = Path(sys.executable).with_name('python.exe')
 BG, PANEL, BORDER = '#101722', '#1a2534', '#29394b'
 TEXT, MUTED, GOLD = '#f3f5f7', '#a9bacd', '#f5c773'
 GREEN, BLUE, RED = '#71d7b6', '#91befb', '#ff9f9f'
 FONT = 'Microsoft YaHei UI'
+
+
+def desktop_checkpoints(root, config):
+    pin = load(root / 'config/live/model.json')
+    if pin.get('action_profile') != config['action_profile']:
+        raise ValueError('控制台与模型的动作规则不一致')
+    return {
+        config['default_label']: selected_checkpoint(root),
+        config['fallback_label']: workspace_asset(root, pin['fallback_checkpoint']),
+    }
+
+
 STATES = {
     'idle': ('待启动', MUTED), 'starting': ('正在启动', BLUE),
     'running': ('游戏中', GREEN), 'waiting': ('等待中', BLUE),
@@ -95,7 +111,7 @@ class Console:
         self.config = load(ROOT / 'config/live/desktop-models.json')
         if self.config.get('schema') != 'hsai.desktop-models/v1':
             raise ValueError('控制台模型配置无效')
-        self.models = {item['label']: item['checkpoint'] for item in self.config['models']}
+        self.models = desktop_checkpoints(ROOT, self.config)
         self.model_name = tk.StringVar(value=next(iter(self.models)))
         self.count = tk.StringVar(value='2')
         self.shortcut = tk.StringVar(value='正在注册全局快捷键')
@@ -253,7 +269,7 @@ class Console:
                 target = int(self.count.get())
                 if not 2 <= target <= 999:
                     raise ValueError('指定局数请输入 2–999')
-            checkpoint = ROOT / self.models[self.model_name.get()]
+            checkpoint = self.models[self.model_name.get()]
             engine = ROOT / self.config['engine']
             for path in (engine, checkpoint, GAME / 'Hearthstone.exe', PYTHON):
                 if not path.exists():
