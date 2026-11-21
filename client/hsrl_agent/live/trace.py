@@ -79,6 +79,7 @@ class GameTrace:
         self.decisions = 0
         self.executions = 0
         self._last_signature = None
+        self._last_decision_id = None
         self._occurrences: dict = {}
         self._turn_actions: dict = {}
         self._last_seen = None
@@ -235,8 +236,9 @@ class GameTrace:
                 "action": payload.get("action"),
                 "kind": S.action_kind(payload.get("action")),
                 "stamp": stamp,
+                "decision_id": self._last_decision_id,
             })
-            return f"wait-{self.sequence + 1:05d}"
+            return self._last_decision_id
         self._last_signature = signature
         self.sequence += 1
         occurrence = self._occurrences.get((turn, payload.get("action"), stamp), 0)
@@ -250,6 +252,7 @@ class GameTrace:
         did = S.decision_id(side=self.side, game_id=payload.get("game_id"), seat=seat,
                             turn=turn, state=stamp, action=payload.get("action"),
                             occurrence=occurrence)
+        self._last_decision_id = did
         binding = payload.get("binding") or {}
         view = snapshot.get("view") or {}
         zones = {}
@@ -278,6 +281,8 @@ class GameTrace:
             "side": self.side,
             "event": "decision",
             "at": time.time(),
+            "observed_monotonic": snapshot.get('observed_monotonic'),
+            "monotonic": time.monotonic(),
             "sequence": self.sequence,
             "decision_index_in_game": self.decisions,
             "decision_id": did,
@@ -399,6 +404,7 @@ class GameTrace:
             "side": self.side,
             "event": "execution",
             "at": time.time(),
+            "monotonic": time.monotonic(),
             "decision_id": did,
             "attempt": attempt,
             "channel": channel,
@@ -585,6 +591,53 @@ def _percentiles(values: list[float]) -> dict:
     }
 
 
+def _live_confirmations(decisions, executions):
+    """Count sent decision IDs and time only causally paired receipts."""
+    sent = {}
+    receipts = {}
+    for row in executions:
+        key = row['decision_id']
+        if row.get('physical'):
+            sent.setdefault(key, []).append(row)
+        if row.get('outcome') == 'applied':
+            receipts.setdefault(key, row)
+    known = {row['decision_id']: row for row in decisions}
+    paired = sent.keys() & receipts.keys() & known.keys()
+    observation_ms, decision_ms, mouse_up_ms = [], [], []
+    turns = {}
+    for key in sorted(paired, key=lambda k: receipts[k]['at']):
+        decision, receipt = known[key], receipts[key]
+        observed = decision.get('observed_monotonic')
+        decided = decision.get('monotonic')
+        confirmed = receipt.get('monotonic')
+        if observed is not None and confirmed is not None and observed <= confirmed:
+            observation_ms.append((confirmed-observed)*1000)
+        if decided is not None and confirmed is not None and decided <= confirmed:
+            decision_ms.append((confirmed-decided)*1000)
+        elif receipt['at'] >= decision['at']:
+            decision_ms.append((receipt['at']-decision['at'])*1000)
+        native = sent[key][-1].get('native_trace') or {}
+        ups = [event['elapsed_ms'] for event in native.get('events', [])
+               if event['flags'] in (4, 16) and event.get('inserted') == 1]
+        if ups and confirmed is not None:
+            elapsed = (confirmed-native['started'])*1000-max(ups)
+            if elapsed >= 0:
+                mouse_up_ms.append(elapsed)
+        if decision.get('phase') == 'recruit':
+            entry = turns.setdefault(str(decision.get('turn')), dict(confirmed=0, first_at=decision['at']))
+            entry['confirmed'] += 1
+            entry['first_at'] = min(entry['first_at'], decision['at'])
+            entry['last_at'] = receipt['at']
+    return dict(sent_decisions=len(sent), matched_applied=len(paired),
+                unpaired_sent=len(sent.keys()-paired), missing_decision=len(sent.keys()-known.keys()),
+                success_rate=len(paired)/len(sent) if sent else None,
+                observation_to_receipt_ms=_percentiles(observation_ms),
+                decision_to_receipt_ms=_percentiles(decision_ms), mouse_up_to_receipt_ms=_percentiles(mouse_up_ms),
+                recruit_turns={turn: dict(confirmed=row['confirmed'],
+                    first_decision_to_last_receipt_seconds=round(row['last_at']-row['first_at'], 3))
+                    for turn, row in turns.items()})
+
+
 def summarize(out: Path, *, side: str | None = None) -> dict:
     """Build ``decisions-resolved.jsonl`` / ``audit.json`` / ``summary.json`` /
     ``performance.json`` / ``decision-report.md`` from the raw streams."""
@@ -630,6 +683,10 @@ def summarize(out: Path, *, side: str | None = None) -> dict:
         ]),
         "actions_per_decision": (len(physical) / len(real)) if real else None,
     }
+    if side == 'live':
+        confirmations = _live_confirmations(decisions, executions)
+        performance['causal_confirmations'] = confirmations
+        performance['action_success_rate'] = confirmations['success_rate']
     turns = S.turns_summary(decisions)
     summary = {
         "schema": S.SCHEMA,

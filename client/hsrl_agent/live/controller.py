@@ -27,6 +27,7 @@ class Controller:
         self.candidate=None
         self.trace=trace
         self.current_decision_id=None
+        self.current_trace_stages=[]
         # LockAll is an animated toggle.  In the archived 255790 game the
         # second press 1.39 s after the first reached the server, while a third
         # press only 0.94 s after the second was swallowed by the button
@@ -76,6 +77,9 @@ class Controller:
             self.hero_reselected=raw.get('hero_reselected',False)
             if raw.get('delivery_unknown'):self.halted='input interrupted; delivery unknown'
             self.parents=raw.get('parents',[])
+            for parent in self.parents:
+                parent.pop('trace_id', None)
+                parent.pop('trace_stages', None)
             if hasattr(policy,'sha') and any(row.get('checkpoint_sha256')!=policy.sha
                     for row in [decision]+[parent['decision'] for parent in self.parents]):
                 raise Blocked('unresolved input belongs to a different policy; resume its pinned checkpoint before continuation')
@@ -86,7 +90,7 @@ class Controller:
     TRACE_EVENTS=frozenset((
         'suspend_for_server_choice','confirm_model_choice','model_target','model_branch',
         'model_prospective_target','cancelled_before_press','retried_unsent_input',
-        'expired_unsent_input','retired_externally_resolved_play',
+        'expired_unsent_input','expired_unresolved_move','retired_externally_resolved_play',
         'retired_externally_resolved_choice','reselect_unsubmitted_hero',
         'duplicate_gesture_suppressed','waiting_control_settle','halted'))
     def event(self,kind,**data):
@@ -112,6 +116,8 @@ class Controller:
         self.hero_reselected=False;self.hero_unselected_since=None;self.hero_unselected_last=None;self.hero_unselected_key=None
         if self.parents:
             raw=self.parents.pop();decision=raw['decision'];b=decision['binding']
+            self.current_decision_id=raw.get('trace_id')
+            self.current_trace_stages=raw.get('trace_stages',[])
             b['targets']=tuple(b.get('targets',()))
             b['branches']=tuple((r[0],r[1],r[2],tuple(r[3])) for r in b.get('branches',()))
             decision['binding']=Binding(**b)
@@ -179,7 +185,8 @@ class Controller:
                 raise Blocked('two-frame action admission is missing')
             return fresh
         return snapshot
-    def _execute(self,plan,snapshot,*,rollback=None,flags=None):
+    def _execute(self,plan,snapshot,*,rollback=None,flags=None,stage_trace_id=None):
+        trace_id=stage_trace_id or self.current_decision_id
         self.event('input_stage',game_id=snapshot['game_id'],plan=plan,
                    log_position=snapshot['client'].get('log_position'),
                    visual_evidence=snapshot.get('visual',{}).get('dispatch_evidence'))
@@ -200,9 +207,11 @@ class Controller:
             status='delivery_unknown';error=type(exc).__name__+': '+str(exc)
             self.halted='input interrupted; delivery unknown';self.persist();self.event('halted',reason=self.halted);raise
         finally:
+            if stage_trace_id and (physical or status=='delivery_unknown'):
+                self.current_trace_stages.append(stage_trace_id)
             if getattr(self.backend,'last_input_trace',None):self.event('native_input_trace',**self.backend.last_input_trace)
-            if self.trace is not None and self.current_decision_id:
-                try:self.trace.execution(self.current_decision_id,snapshot=snapshot,plan=plan,status=status,error=error,
+            if self.trace is not None and trace_id:
+                try:self.trace.execution(trace_id,snapshot=snapshot,plan=plan,status=status,error=error,
                     timing=getattr(self.backend,'last_timing',None),
                     native_trace=getattr(self.backend,'last_input_trace',None),outcome=outcome,
                     physical=physical or status=='delivery_unknown')
@@ -227,7 +236,13 @@ class Controller:
         d,before,_=self.pending;new=snapshot['client']
         if d.game_id!=snapshot.get('game_id'):reason='different game'
         elif isinstance(new.get('turn'),int) and isinstance(before['client'].get('turn'),int) \
-                and new['turn']>before['client']['turn']:reason='turn advanced while unattended'
+                and new['turn']>before['client']['turn']:
+            if self.practical and verify(d,before,snapshot,require_playback=False,allow_options_boundary=True)=='applied':
+                self.poll_pending(snapshot)
+                self.event('reconciled_restored_input',game_id=d.game_id,action=d.action,
+                           source=d.binding.source,automatic_resend=False)
+                return not self.pending
+            reason='turn advanced while unattended'
         else:return False
         from .runtime import save
         archive=self.out/'retired-stale'/(digest(asdict(d))+'.json')
@@ -390,6 +405,7 @@ class Controller:
         if outcome=='applied':
             recovered=self.halted=='input interrupted; delivery unknown'
             if recovered:self.halted=None
+            self.candidate=None
             if self.pending_gesture_key:
                 state=self.gesture_state.get(self.pending_gesture_key)
                 if state is not None:state['confirmed_at']=self.clock()
@@ -404,12 +420,15 @@ class Controller:
                        receipt_boundaries=[r.get('closed_by') for r in snapshot['client'].get('resolutions',[])
                            if r.get('source')==d.binding.source and r.get('log_position',0)>before['client'].get('log_position',0)])
             if self.trace is not None and self.current_decision_id:
-                try:self.trace.execution(self.current_decision_id,snapshot=None,plan=[],status='receipt',
-                    outcome='applied',after=snapshot.get('client'))
+                try:
+                    for trace_id in (self.current_decision_id,*self.current_trace_stages):
+                        self.trace.execution(trace_id,snapshot=before,plan=[],status='receipt',
+                                             outcome='applied',after=snapshot.get('client'))
                 except Exception:self.trace=None
             self.clear();return outcome
         if outcome=='rejected':
             self.halted='observed action outcome differs from requested action';return 'halted'
+        if self.expire_closed_move(d,before,snapshot):return 'expired_unresolved_move'
         if self.unsent_reconciliation(snapshot):return 'expired_unsent_input'
         if self.rejected_reconciliation(snapshot):return 'expired_unsent_input'
         if self.retire_resolved_hero(snapshot):return 'externally_resolved_hero'
@@ -460,8 +479,11 @@ class Controller:
                 and (snapshot['client'].get('client_submission_position') or 0)>(before['client'].get('log_position') or 0)):
             if len(self.parents)>=4:raise Blocked('nested choice depth exceeds four')
             parent_flags=(self.target_sent,self.confirm_sent,self.branch_sent)
+            parent_trace_id=self.current_decision_id
+            parent_stages=self.current_trace_stages
             self.parents.append(dict(decision=asdict(d),before=before,target_sent=self.target_sent,
-                                     confirm_sent=self.confirm_sent,branch_sent=self.branch_sent,hero_reselected=self.hero_reselected))
+                                     confirm_sent=self.confirm_sent,branch_sent=self.branch_sent,
+                                     hero_reselected=self.hero_reselected,trace_id=parent_trace_id,trace_stages=parent_stages))
             self.pending=None;self.target_sent=self.confirm_sent=self.branch_sent=False
             self.event('suspend_for_server_choice',source=d.binding.source,request_id=interaction['request_id'])
             try:return self.tick(snapshot,before_send=before_send)
@@ -470,6 +492,8 @@ class Controller:
                 # durable. Retain the original parent, including in-memory state.
                 if self.pending is None:
                     self.parents.pop();self.pending=(d,before,started)
+                    self.current_decision_id=parent_trace_id
+                    self.current_trace_stages=parent_stages
                     self.target_sent,self.confirm_sent,self.branch_sent=parent_flags
         if d.binding.branches and not self.branch_sent and interaction.get('mode')=='branch':
             if snapshot.get('view',{}).get('pending')!=3:raise Blocked('branch lacks a complete model observation')
@@ -479,8 +503,9 @@ class Controller:
             if [c['entity_id'] for c in snapshot['client']['choices']]!=[r[0] for r in d.binding.branches]:
                 raise Blocked('branch candidates differ')
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
+            stage_trace_id=None
             if self.trace is not None and self.current_decision_id:
-                try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
+                try:stage_trace_id=self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
                     bindings=bind_actions(snapshot),parent=self.current_decision_id,
                     seat=snapshot['client'].get('local_player_id'),role='model',
                     inputs=getattr(self.policy,'last_inputs',None))
@@ -491,7 +516,8 @@ class Controller:
             self.branch_sent=True
             completed=replace(d,binding=replace(d.binding,sub_option_id=spec[1],targets=tuple(spec[3])))
             self.pending=(completed,before,started);self._progress();self.persist();self.event('model_branch',decision=asdict(selected))
-            self._execute(self.geometry.plan(selected,snapshot),snapshot,rollback=rollback,flags=flags);return 'branch_sent'
+            self._execute(self.geometry.plan(selected,snapshot),snapshot,rollback=rollback,flags=flags,
+                          stage_trace_id=stage_trace_id);return 'branch_sent'
         hero=snapshot.get('visual',{}).get('hero_ui') or {}
         old_choice=before['client'].get('interaction') or {}
         same_candidates=([(c['entity_id'],c['card_id']) for c in snapshot['client'].get('choices',[])]==
@@ -573,8 +599,9 @@ class Controller:
             if set(c['entity_id'] for c in snapshot['client']['choices'])!=set(d.binding.targets):
                 raise Blocked('target authorization changed')
             selected=self.policy.decide(snapshot,bind_actions(snapshot))
+            stage_trace_id=None
             if self.trace is not None and self.current_decision_id:
-                try:self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
+                try:stage_trace_id=self.trace.decision(snapshot,selected,policy_ms=0.,reused=False,
                     bindings=bind_actions(snapshot),parent=self.current_decision_id,
                     seat=snapshot['client'].get('local_player_id'),role='model',
                     inputs=getattr(self.policy,'last_inputs',None))
@@ -584,9 +611,34 @@ class Controller:
             completed=replace(d,binding=replace(d.binding,target=selected.binding.target))
             self.pending=(completed,before,started);self._progress();self.persist()
             self.event('model_target',decision=asdict(selected))
-            self._execute(self.geometry.plan(selected,snapshot),snapshot,rollback=rollback,flags=flags)
+            self._execute(self.geometry.plan(selected,snapshot),snapshot,rollback=rollback,flags=flags,
+                          stage_trace_id=stage_trace_id)
             return 'target_sent'
         return self.pending_timeout()
+
+    def expire_closed_move(self,decision,before,snapshot):
+        """A prior board's submitted reorder cannot be repeated in a fresh turn."""
+        binding=decision.binding;old=before['client'];new=snapshot['client']
+        if (not self.practical or self.parents or binding.kind!='move'
+                or snapshot['game_id']!=before['game_id']
+                or new.get('local_player_id')!=old.get('local_player_id')
+                or not isinstance(old.get('turn'),int) or not isinstance(new.get('turn'),int) or new['turn']<=old['turn']
+                or new.get('phase')!='recruit' or not new.get('ready') or new.get('options_pending')
+                or new.get('client_task_list') is not None or new.get('interaction') or new.get('choices')
+                or (new.get('log_position') or 0)<=(old.get('log_position') or 0)
+                or (new.get('client_submission_position') or 0)<=(old.get('log_position') or 0)
+                or binding.source in {c['entity_id'] for c in new.get('board',[])}):
+            return False
+        from .runtime import save
+        archive=self.out/'expired-unresolved-move'/(digest(asdict(decision))+'.json')
+        save(archive,dict(decision=asdict(decision),before=before,
+                         after={k:new.get(k) for k in ('turn','phase','local_player_id','log_position','board')},
+                         outcome='submitted_reorder_unconfirmed_after_turn_closed_no_resend'))
+        self.event('expired_unresolved_move',source=binding.source,previous_turn=old['turn'],
+                   turn=new['turn'],archive=str(archive),automatic_resend=False)
+        if self.halted=='input interrupted; delivery unknown':self.halted=None
+        self.clear()
+        return True
     def _retry_unsent(self,snapshot,d,before,started):
         """A dropped play/sell/move may be re-decided once on the same turn.
 
@@ -694,7 +746,9 @@ class Controller:
         if self.halted=='input interrupted; delivery unknown':self.halted=None
         self.clear();return True
     def _gesture_key(self,decision,plan):
-        return (decision.game_id,decision.binding.kind,json.dumps(plan,sort_keys=True))
+        binding=decision.binding
+        return (decision.game_id,binding.kind,binding.source,binding.target,binding.position,
+                binding.choice_id,json.dumps(plan,sort_keys=True))
     def _gesture_allowed(self,decision,plan,snapshot):
         """Refuse to replay a gesture whose first dispatch was *confirmed applied*.
 
@@ -706,7 +760,9 @@ class Controller:
         ever suppresses. The window releases by itself, and it never slides.
         """
         kind=decision.binding.kind
-        if kind not in self.repeat_sensitive:return True
+        # R1 already counts exact applied moves and forbids consecutive inverse
+        # moves. Its Freeze toggle has a separate animation dwell.
+        if kind not in self.repeat_sensitive or (self.peer_round and kind in ('freeze','move')):return True
         turn=snapshot['client'].get('turn');now=self.clock()
         key=self._gesture_key(decision,plan)
         state=self.gesture_state.get(key)
@@ -727,14 +783,8 @@ class Controller:
         if self.halted: return 'halted'
         if self.pending:return self.poll_pending(snapshot,before_send=before_send)
         turn=(snapshot['game_id'],snapshot['client']['turn'])
-        if self.freeze_cooldown_key and self.freeze_cooldown_key[:2]==turn:
-            if self.clock()<self.freeze_cooldown_until:
-                if not self.freeze_cooldown_noted:
-                    self.event('waiting_control_settle',control='freeze',
-                               source=self.freeze_cooldown_key[2],
-                               remaining_ms=round((self.freeze_cooldown_until-self.clock())*1000,1))
-                    self.freeze_cooldown_noted=True
-                return 'waiting_control_settle'
+        if self.freeze_cooldown_key and (self.freeze_cooldown_key[:2]!=turn
+                                         or self.clock()>=self.freeze_cooldown_until):
             self.freeze_cooldown_key=None
         from .lifecycle import owned_selection
         owned_choice=owned_selection(snapshot['client'])
@@ -752,6 +802,7 @@ class Controller:
         reused=bool(self.practical and snapshot.get('comparison')=='semantic-v1' and self.candidate and self.candidate[0]==cache_key)
         infer_start=time.perf_counter()
         decision=self.candidate[1] if reused else self.policy.decide(snapshot,bindings)
+        model_inputs=self.candidate[2] if reused else getattr(self.policy,'last_inputs',None)
         if not reused and self.practical and decision.binding.targets and decision.binding.kind=='play':
             source=next((c for c in snapshot['client']['hand'] if c['entity_id']==decision.binding.source),None)
             if source and source['card_type'] in ('SPELL','BATTLEGROUND_SPELL'):
@@ -770,7 +821,14 @@ class Controller:
                 raise Blocked('model decision is inconsistent with current authorized bindings')
             if hasattr(self.policy,'sha') and decision.checkpoint_sha256!=self.policy.sha:
                 raise Blocked('decision checkpoint identity differs from loaded policy')
-        if self.practical:self.candidate=(cache_key,decision)
+        if self.practical:self.candidate=(cache_key,decision,model_inputs)
+        if (decision.binding.kind=='freeze' and self.freeze_cooldown_key
+                and decision.binding.source==self.freeze_cooldown_key[2]):
+            if not self.freeze_cooldown_noted:
+                self.event('waiting_control_settle',control='freeze',source=decision.binding.source,
+                           remaining_ms=round(max(0.,self.freeze_cooldown_until-self.clock())*1000,1))
+                self.freeze_cooldown_noted=True
+            return 'waiting_control_settle'
         self.event('decision_reused' if reused else 'model_decision',decision=asdict(decision),snapshot=compact_snapshot(snapshot) if self.practical else snapshot,policy_ms=policy_ms)
         if self.trace is not None:
             # Every separate model decision gets its own record, including a
@@ -780,8 +838,9 @@ class Controller:
             did=self.trace.decision(snapshot,decision,policy_ms=policy_ms,reused=reused,
                 bindings=bindings,plan=None,
                 seat=snapshot['client'].get('local_player_id'),role='environment' if budget_end else 'model',
-                inputs=getattr(self.policy,'last_inputs',None))
+                inputs=model_inputs)
             self.current_decision_id=did
+            self.current_trace_stages=[]
         if self.peer_round and decision.binding.kind == 'end':
             self.ended = turn
             self._save_state()

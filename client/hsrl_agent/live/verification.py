@@ -162,7 +162,37 @@ def settled_upgrade(decision,old,new,r):
                for eid,tag,a,v in r.get('entity_changes',[]))
 
 
-def settled_activation(decision,old,new,receipt):
+def _wrathguard_progress(binding,old,post):
+    if binding.kind!='activate' or binding.target is not None or binding.sub_option_id is not None:
+        return False
+    def card(state):
+        return next((c for c in state.get('board',[]) if c['entity_id']==binding.source
+                     and c.get('card_id')=='BG36_362' and c.get('controller')==old['local_player_id']),None)
+    original,changed=card(old),card(post)
+    if not original or not changed or not isinstance(old.get('gold'),int) or post.get('gold')!=old['gold']-1:
+        return False
+    tags=('TAG_SCRIPT_DATA_NUM_1','TAG_SCRIPT_DATA_NUM_2')
+    previous=[str(original['tags'].get(k,'')) for k in tags]
+    latest=[str(changed['tags'].get(k,'')) for k in tags]
+    return (all(value.isdecimal() for value in previous+latest)
+            and [int(b)-int(a) for a,b in zip(previous,latest)]==[2,1])
+
+
+def _paid_activation_reward(binding,old,post,receipt):
+    owner=old['local_player_id']
+    source=next((c for c in old.get('board',[]) if c['entity_id']==binding.source and c.get('controller')==owner),None)
+    if source is None:return False
+    cost=str(source.get('tags',{}).get('INTERACTABLE_OBJECT_COST',''))
+    if not (cost.isdecimal() and int(cost)>0 and isinstance(old.get('gold'),int)
+            and post.get('gold')==old['gold']-int(cost)):
+        return False
+    prior={c['entity_id'] for c in old.get('hand',[])}
+    admitted={c['entity_id'] for c in post.get('hand',[]) if c.get('controller')==owner and c['entity_id'] not in prior}
+    return any(eid in admitted and tag=='ZONE' and prev=='SETASIDE' and value=='HAND'
+               for eid,tag,prev,value in receipt.get('entity_changes',[]))
+
+
+def settled_activation(decision,old,new,receipt,previous_options=()):
     """A click-driven activation whose root was closed by the next Options.
 
     The 13:41/13:55 runs used a hero power and an activated object; the server
@@ -179,7 +209,7 @@ def settled_activation(decision,old,new,receipt):
     expected='activate' if b.kind=='dark_gift' else b.kind
     if (r.get('kind')!=expected or r.get('block_type')!='PLAY' or r.get('source')!=b.source
             or r.get('target')!=b.target or r.get('sub_option_id')!=b.sub_option_id
-            or not s or s.get('source')!=b.source or s.get('option_id')!=b.option_id
+            or not s or s.get('source')!=b.source
             or s.get('owner')!=old.get('local_player_id')
             or s.get('sub_option_id')!=(-1 if b.sub_option_id is None else b.sub_option_id)
             or s.get('target')!=(b.target or 0)
@@ -197,6 +227,19 @@ def settled_activation(decision,old,new,receipt):
           or post.get('turn')!=old.get('turn')):return False
     if (new.get('mode')!='GT_BATTLEGROUNDS' or new.get('local_player_id')!=old.get('local_player_id')
             or new.get('turn',0)<old.get('turn')):return False
+    # The options-list ordinal can change while Unity resolves a click. For
+    # this exact single untargeted ability, source + cost + both rendered
+    # numbers establish the effect independently of a renumbered ordinal.
+    if type(s.get('option_id')) is int and s['option_id']>=0 and _wrathguard_progress(b,old,post):
+        return True
+    if s.get('option_id')!=b.option_id:
+        from .actions import secondary_plain_power
+        prior=secondary_plain_power(previous_options,b.source)
+        if (b.kind!='activate' or b.target is not None or b.sub_option_id is not None
+                or prior is None or prior['id']!=b.option_id
+                or s.get('position')!=0):
+            return False
+        return _paid_activation_reward(b,old,post,r)
     changes=r.get('entity_changes',[])
     # The effect must be bound to this root: a zone/controller/tag change, or
     # (hero power) the power becoming exhausted/activated for this turn.
@@ -228,7 +271,7 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
              (settled_refresh(decision,old,new,r) or settled_play(decision,old,new,r)
               or settled_shop_activation(decision,old,new,r) or settled_buy(decision,old,new,r)
               or settled_sell(decision,old,new,r) or settled_upgrade(decision,old,new,r)
-              or settled_activation(decision,old,new,r)))
+              or settled_activation(decision,old,new,r,before.get('options',()))))
         and r.get('log_position',-1)>(old.get('log_position') or 0)
         and (r.get('started_at_log_position') or r.get('log_position',-1))>(old.get('log_position') or 0)]
     if b.kind == 'magnetize' and b.position is not None:
@@ -314,19 +357,13 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
         wanted=ids(old,'board')
         if b.source not in wanted:return 'pending'
         wanted.insert(b.position,wanted.pop(wanted.index(b.source)))
-        if ids(new,'board')==wanted: return 'applied'
-        # The final board order can legitimately differ from the requested slot
-        # when another reorder is interleaved or Unity clamps the insertion.
-        # A completed reorder root for *this exact source* after our intent is
-        # still a server acknowledgement that the drag was received.  Do not
-        # call it "rejected" and then retry the same gesture; the 03:02 game
-        # did exactly that and submitted a duplicate reorder.  Any root that
-        # reports a different source remains unattributed.
-        if any(r.get('source')==b.source
-               and (r.get('log_position') or 0)>(old.get('log_position') or 0)
-               for r in receipts):
+        if ids(new,'board')==wanted or any(ids(r.get('post_state') or {},'board')==wanted for r in receipts):
             return 'applied'
-        if set(ids(new,'board'))==set(wanted): return 'rejected'
+        # A source-matched root proves delivery. An incorrect final order is
+        # a mismatch and stops the controller with its ledger still intact.
+        if (not new.get('options_pending') and new.get('client_task_list') is None
+                and new.get('ready',True) and set(ids(new,'board'))==set(wanted)):
+            return 'rejected'
     elif b.kind in ('choose','target','cancel'):
         if (new.get('interaction') or {}).get('request_id')!=b.choice_id: return 'applied'
     elif b.kind in ('hero_power','activate','dark_gift'):

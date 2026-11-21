@@ -29,7 +29,7 @@ def parser(root):
         if command in ('run','autoplay'):
             q.add_argument('--checkpoint',default=default);q.add_argument('--device',default='cpu')
             q.add_argument('--facts');q.add_argument('--enable-input',action='store_true');q.add_argument('--seconds',type=float,default=300)
-            q.add_argument('--timing',choices=('balanced','conservative'),default='balanced')
+            q.add_argument('--timing',choices=('balanced','conservative','overlap','fast'),default='balanced')
             q.add_argument('--inference-threads',type=int,default=8,help='bounded CPU inference parallelism, 1..32')
             if command=='autoplay':
                 q.set_defaults(seconds=3600);q.add_argument('--shadow',action='store_true');q.add_argument('--no-queue',action='store_true')
@@ -79,7 +79,7 @@ def main(argv=None,root=None):
             report['checkpoint_ok']=report['sha256'] in POLICY_SPECS
             report['policy_id']=POLICY_SPECS.get(report['sha256'],{}).get('id')
             report['live_ready']=False
-            report['live_blockers']=['current runtime still requires user-executed real-game acceptance']
+            report['live_blockers']=['real-game acceptance requires completed matches and verified receipt timing']
             report['input_adapter']='public-approx-v1; explicitly lossy'
             from .selection import validate_live_profile
             import importlib.util

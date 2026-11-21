@@ -11,7 +11,9 @@ def mapping(build):
     if str(build)!='255790':return {}
     p=Path(__file__).with_name('data')/'game_tags_255790.json'
     raw=p.read_bytes()
-    if hashlib.sha256(raw).hexdigest()!='c7e3b9b7ecaaac45bbc4f7e6b74f517c3c70e52291025bf43feb48b6827a9922':
+    # The extraction receipt pins CRLF bytes; Git's live data rule checks out LF.
+    extracted=raw.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')
+    if hashlib.sha256(extracted).hexdigest()!='c7e3b9b7ecaaac45bbc4f7e6b74f517c3c70e52291025bf43feb48b6827a9922':
         raise Blocked('client numeric tag dictionary changed')
     return json.loads(raw)
 

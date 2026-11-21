@@ -103,6 +103,22 @@ def races_from_hero_banner(rows):
     return sorted(TRIBES[word] for word in words)
 
 
+def races_from_recruit_tooltip(rows):
+    """Read only the available list from the two-section Tavern tooltip."""
+    readable = [(r['point'][1], re.sub(r'\s+', '', r['text']).rstrip('：:'))
+                for r in rows if r['confidence'] >= .90]
+    included = [y for y, text in readable if text == '本局对战中有']
+    excluded = [y for y, text in readable if text == '本局对战中没有']
+    if len(included) != 1 or len(excluded) != 1 or included[0] >= excluded[0]:
+        return None
+    # Wrapping can split a tribe name, including 畸变怪, across two lines.
+    text = ''.join(text for y, text in sorted(readable) if included[0] < y < excluded[0])
+    words = re.split(r'[,，、]', text)
+    if len(words) != 5 or len(set(words)) != 5 or any(word not in TRIBES for word in words):
+        return None
+    return sorted(TRIBES[word] for word in words)
+
+
 class Geometry:
     def __init__(self,profile): self.profile=profile
     def family(self,snapshot):
@@ -171,8 +187,8 @@ class Geometry:
             # A staged binding whose power entity is no longer in the current
             # view is an unavailable target, never an IndexError that ends the run.
             if b.kind=='hero_power' and b.source not in powers:raise Blocked('hero power entity is not in the current view')
-            if b.kind=='hero_power' and powers.index(b.source)>0:
-                key='control:hero_power:1'
+            if b.kind=='hero_power' and len(powers)==2:
+                key='control:hero_power:1' if powers.index(b.source) else 'control:hero_power:0:dual'
             return [('click',point(key))]
         source=point('entity:'+str(b.source))
         if b.kind in ('choose','branch','target','activate'): return [('click',source)]

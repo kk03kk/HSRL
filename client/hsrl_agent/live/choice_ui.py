@@ -122,6 +122,26 @@ def gold_only_slots(rows,min_support=.65):
             if min(row['gold'])>min_support and min(row['base'])<=min_support}
 
 
+def _complete_contours(boxes,hits,mask,width,height,scale,min_support):
+    if len(boxes)!=len(hits):return False
+    if max(b[1] for b in boxes)-min(b[1] for b in boxes)>.045:return False
+    if max(b[2] for b in boxes)/min(b[2] for b in boxes)>1.18:return False
+    if max(b[3] for b in boxes)/min(b[3] for b in boxes)>1.15:return False
+    centers=[x+w/2 for x,y,w,h in boxes]
+    if abs((centers[0]+centers[-1])/2-.5)>.12:return False
+    if len(boxes)>1:
+        gaps=np.diff(centers)
+        if min(gaps)<.12 or max(gaps)/min(gaps)>1.2:return False
+        if any(a[0]+a[2]>=b[0] for a,b in zip(boxes,boxes[1:])):return False
+    for (px,py),(x,y,w,h) in zip(hits,boxes):
+        if not x+w*.15<=px<=x+w*.85 or not y+h*.15<=py<=y+h*.85:return False
+        for left in (x,x+w*.9):
+            rail=mask[round((y+h*.25)*height*scale):round((y+h*.75)*height*scale),
+                      round(left*width*scale):round((left+w*.1)*width*scale)]
+            if not rail.size or np.mean(np.any(rail>0,axis=1))<min_support:return False
+    return True
+
+
 def inspect(image,profile,data,*,hovered_entity=None,min_support=.55):
     import cv2
     from .practical import PracticalGeometry
@@ -206,42 +226,15 @@ def inspect(image,profile,data,*,hovered_entity=None,min_support=.55):
         if quest if kind==7 else ordinary:boxes.append((x/width,y/height,w/width,h/height))
     boxes.sort()
     if len(boxes)!=count and kind==5:boxes=power_fragments(mask,count)
-    if len(boxes)==count and (
-            max(b[1] for b in boxes)-min(b[1] for b in boxes)>.045
-            or max(b[2] for b in boxes)/min(b[2] for b in boxes)>1.18
-            or max(b[3] for b in boxes)/min(b[3] for b in boxes)>1.15):
-        # Legendary decorations can split/reshape one contour. In that case
-        # require fresh paired rails for the entire row, not looser box ratios.
-        boxes=[]
-    if len(boxes)!=count:
-        # Attached reward panels, golden cards and card artwork can split or
-        # hide the outer contour. Require both rails at every calibrated card
-        # instead of treating a missing closed contour as a missing panel.
-        if kind not in (2,5):return result
-        hits=[points['entity:'+str(c['entity_id'])] for c in cards]
-        frame_mask=cv2.bitwise_or(mask,(gold_mask.astype(np.uint8)*255))
-        proof=paired_rails(frame_mask,hits,width,height,scale,min_support=min_support)
-        if proof['visible']:
-            return dict(result,**{**proof,'evidence':proof['evidence']+';golden frames allowed'})
-        # Layout variants (large-card rows) place cards off the inherited
-        # spacing; search bounded windows before declaring the row absent.
-        adaptive=adaptive_rails(frame_mask,hits,width,height,scale,min_support=min_support)
-        if adaptive['visible']:return dict(result,**adaptive)
-        return dict(result,**proof)
-    if max(b[1] for b in boxes)-min(b[1] for b in boxes)>.045:return result
-    if max(b[2] for b in boxes)/min(b[2] for b in boxes)>1.18:return result
-    if max(b[3] for b in boxes)/min(b[3] for b in boxes)>1.15:return result
-    centers=[x+w/2 for x,y,w,h in boxes]
-    if abs((centers[0]+centers[-1])/2-.5)>.12:return result
-    if count>1:
-        gaps=np.diff(centers)
-        if min(gaps)<.12 or max(gaps)/min(gaps)>1.2:return result
-        if any(a[0]+a[2]>=b[0] for a,b in zip(boxes,boxes[1:])):return result
-    for card,(x,y,w,h) in zip(cards,boxes):
-        px,py=points['entity:'+str(card['entity_id'])]
-        if not x+w*.15<=px<=x+w*.85 or not y+h*.15<=py<=y+h*.85:return result
-        for left in (x,x+w*.9):
-            rail=mask[round((y+h*.25)*height*scale):round((y+h*.75)*height*scale),
-                      round(left*width*scale):round((left+w*.1)*width*scale)]
-            if not rail.size or np.mean(np.any(rail>0,axis=1))<min_support:return result
-    return dict(result,visible=True,boxes=boxes,evidence='complete_colored_choice_row_at_calibrated_hits')
+    hits=[points['entity:'+str(c['entity_id'])] for c in cards]
+    if _complete_contours(boxes,hits,mask,width,height,scale,min_support):
+        return dict(result,visible=True,boxes=boxes,evidence='complete_colored_choice_row_at_calibrated_hits')
+    if kind not in (2,5):return result
+    # Even the expected contour count can contain a misleading bounding box.
+    # Require independent, paired rails at every hit when the contour proof fails.
+    frame_mask=cv2.bitwise_or(mask,(gold_mask.astype(np.uint8)*255))
+    proof=paired_rails(frame_mask,hits,width,height,scale,min_support=min_support)
+    if proof['visible']:
+        return dict(result,**{**proof,'evidence':proof['evidence']+';golden frames allowed'})
+    adaptive=adaptive_rails(frame_mask,hits,width,height,scale,min_support=min_support)
+    return dict(result,**(adaptive if adaptive['visible'] else proof))

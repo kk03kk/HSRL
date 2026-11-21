@@ -103,7 +103,7 @@ def prepare_input(root,args,out):
     # build the engine in a background thread so both finish while the operator
     # only waits once. A failure surfaces at first use, exactly as before.
     from .vision import AsyncOCR
-    args.prewarmed_ocr=AsyncOCR()
+    args.prewarmed_ocr=AsyncOCR(max_width=1280)
     # Torch and the checkpoint load only after the verified window is foreground.
     # The operator sees the switch at once rather than a silent import pause.
     from .policy import ModelPolicy,configure_threads
@@ -140,6 +140,59 @@ def lobby_ocr_rows(ocr,image):
             if previous is None:del ocr.max_width
             else:ocr.max_width=previous
         except Exception:pass
+
+
+class MatchReconnect:
+    """Recover only from the client's confirmed offline dialog in an active match."""
+
+    def __init__(self, backend, reader, profile, ocr=None, *, clock=time.monotonic):
+        self.backend, self.reader, self.profile, self.ocr = backend, reader, profile, ocr
+        self.clock = clock
+        self.attempts = 0
+        self.next_probe = 0.
+        self.uncertain = False
+
+    def eligible(self, data):
+        return (self.reader.connection == 'disconnected' and self.reader.caught_up
+                and self.reader.history_complete and data.get('mode') == 'GT_BATTLEGROUNDS'
+                and data.get('phase') in ('choice','recruit','combat')
+                and data.get('local_player_id') is not None)
+
+    def poll(self, data):
+        from .lobby import LobbyAction, reconnect_dialog
+        from .vision import OCR
+        if not self.eligible(data) or self.uncertain or self.attempts>=3 or self.clock()<self.next_probe:
+            return False
+        self.next_probe=self.clock()+2.
+        image,window=self.backend.capture()
+        if list(image.size)!=self.profile['client_size'] or window.dpi!=self.profile['dpi']:
+            raise Blocked('reconnect client geometry differs from reviewed profile')
+        self.ocr=self.ocr or OCR(max_width=1280)
+        button=reconnect_dialog(self.ocr.locate(image))
+        if button is None:return False
+        action=LobbyAction('reconnect',tuple(button['point']))
+        tokens=(data['game_id'],data['local_player_id'])
+        def before_press(_):
+            fresh, current_window=self.backend.capture()
+            if current_window.token()!=window.token() or reverify_control(fresh,self.ocr,action) is None:
+                raise Blocked('reconnect dialog changed before mouse down')
+            latest=self.reader.poll()
+            if not self.eligible(latest) or (latest['game_id'],latest['local_player_id'])!=tokens:
+                raise Blocked('match connection or identity changed before mouse down')
+        previous_guard=getattr(self.backend,'pre_press',None)
+        self.backend.pre_press=before_press
+        try:
+            self.backend.execute([('click',list(action.point))], {'visual':{'window_token':window.token()}})
+        except InputNotSent:
+            return False
+        except Blocked:
+            self.uncertain=True
+            raise
+        finally:
+            self.backend.pre_press=previous_guard
+        self.next_probe=self.clock()+(10.,30.,60.)[self.attempts]
+        self.attempts+=1
+        return True
 
 
 def closed_game_proof(reader,data):

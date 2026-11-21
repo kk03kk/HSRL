@@ -13,6 +13,10 @@
   ],
   "max_source_age": 15,
   "settle_seconds": 0.25,
+  "lobby_tooltip": {
+    "hover": [0.875, 0.34],
+    "crop": [0.75, 0.31, 0.14, 0.22]
+  },
   "scene_guards": {
     "recruit": {
       "rect": [
@@ -241,6 +245,8 @@
           0.016953125000000013,
           0.030999999999999917
         ],
+        "control:hero_power:0:dual": [0.583, 0.784, 0.022, 0.036],
+        "control:hero_power:1": [0.624, 0.714, 0.022, 0.036],
         "control:refresh": [
           0.573125,
           0.114375,

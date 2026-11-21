@@ -13,6 +13,7 @@ class InputTiming:
     double_gap:float=.09
     steps:int=12
     name:str='balanced-v2'
+    overlap_release:bool=False
 
     def __post_init__(self):
         for name,minimum in (('hover',.04),('hold',.04),('drag',.096),('release',.10),('double_gap',.06)):
@@ -24,11 +25,15 @@ class InputTiming:
 
 BALANCED=InputTiming()
 CONSERVATIVE=InputTiming(hover=.08,drag=.24,release=.18,name='conservative-v2')
+OVERLAP=InputTiming(name='overlap-v1',overlap_release=True)
+FAST=InputTiming(hover=.04,hold=.04,drag=.096,steps=10,name='fast-v1',overlap_release=True)
 
 
 def timing_for(name):
     if name=='balanced':return BALANCED
     if name=='conservative':return CONSERVATIVE
+    if name=='overlap':return OVERLAP
+    if name=='fast':return FAST
     raise Blocked('unknown input timing profile:'+str(name))
 
 

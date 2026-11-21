@@ -24,6 +24,8 @@ class NativeBackend:
         self.executable=str(Path(executable).resolve()).casefold();self.stop_file=Path(stop_file)
         self.enabled=enable_input;self.held=False
         self.timing=timing_for(timing);self.clock=time.monotonic;self.sleep=time.sleep
+        self.pointer_ready_at=0.
+        self.deferred_park=None
         self.u=C.WinDLL('user32',use_last_error=True);self.k=C.WinDLL('kernel32',use_last_error=True)
         self.u.SetThreadDpiAwarenessContext.argtypes=[C.c_void_p]
         self.u.SetThreadDpiAwarenessContext.restype=C.c_void_p
@@ -111,14 +113,16 @@ class NativeBackend:
         return Window(int(hwnd),pid,created,executable,(point.x,point.y,rect.right,rect.bottom),self.u.GetDpiForWindow(hwnd))
     def capture(self):
         from PIL import ImageGrab
-        before=self.window();x,y,w,h=before.rect
+        before=self.window()
+        self._park_pointer(before)
+        x,y,w,h=before.rect
         image=ImageGrab.grab(bbox=(x,y,x+w,y+h),all_screens=True)
         after=self.window()
         if before.token()!=after.token(): raise Blocked('window changed during capture')
         return image,after
     def _check(self,token):
         if self.window().token()!=token: raise Blocked('window identity/geometry/focus changed')
-    def _event(self,flags,point=None,token=None,*,check_position=True):
+    def _event(self,flags,point=None,token=None,*,check_position=True,record=True):
         if not self.enabled: raise Blocked('input backend is disabled')
         if token is not None:self._check(token)
         class Mouse(C.Structure):
@@ -139,7 +143,7 @@ class NativeBackend:
         C.set_last_error(0)
         inserted=self.u.SendInput(1,C.byref(event),C.sizeof(event))
         trace=getattr(self,'last_input_trace',None)
-        if trace is not None:
+        if record and trace is not None:
             trace['events'].append(dict(flags=flags,point=list(point) if point else None,inserted=int(inserted),
                 win_error=C.get_last_error(),elapsed_ms=(self.clock()-trace['started'])*1000))
         if inserted!=1: raise Blocked('SendInput not accepted; never retry blindly')
@@ -151,6 +155,16 @@ class NativeBackend:
                 if abs(actual.x-point[0])<=3 and abs(actual.y-point[1])<=3:break
                 if clock()>=deadline:raise Blocked(f'cursor coordinate mismatch: requested={point}, actual={(actual.x,actual.y)}')
                 pause(.002)
+    def _park_pointer(self,window):
+        pending=self.deferred_park
+        self.deferred_park=None
+        if pending is None or pending[0]!=window.token() or self.stopped():return
+        token,point=pending
+        self.sleep(max(0.,self.pointer_ready_at-self.clock()))
+        if self.stopped() or any(self.u.GetAsyncKeyState(k)&0x8000 for k in (1,2,0x10,0x11,0x12)):return
+        owner=self.u.GetAncestor(self.u.WindowFromPoint(W.POINT(*point)),2)
+        if int(owner or 0)!=window.hwnd:raise Blocked('pointer return point occluded')
+        self._event(0,point,token,record=False)
     def _neutral(self,token,rect):
         """Leave the hovered card after an unsent press; never click anything."""
         try:
@@ -181,12 +195,18 @@ class NativeBackend:
         try:
             for row in plan:
                 for point in row[1:]:absolute(point)
-            for event in plan:
+            if self.deferred_park:
+                self._park_pointer(window)
+            if timing.overlap_release and plan:
+                remaining=self.pointer_ready_at-self.clock()
+                if remaining>0:self.sleep(remaining)
+            for index,event in enumerate(plan):
                 kind=event[0];start=absolute(event[1])
                 self._event(0,start,token);hovered=True
                 if kind=='move_pointer':continue
                 self.sleep(timing.hover)
                 if getattr(self,'pre_press',None):self.pre_press(snapshot)
+                if self.stopped():raise Blocked('STOP/F8 requested before mouse down')
                 if any(self.u.GetAsyncKeyState(k)&0x8000 for k in (1,2,0x10,0x11,0x12)):
                     raise Blocked('human mouse button/modifier changed before press')
                 absolute(event[1])
@@ -211,12 +231,20 @@ class NativeBackend:
                     if kind=='double_click':
                         self.sleep(timing.double_gap)
                         if getattr(self,'pre_press',None):self.pre_press(snapshot)
+                        if self.stopped():raise Blocked('STOP/F8 requested before second mouse down')
                         absolute(event[1]);self._event(0,start,token)
                         self.held=True;self._event(0x0002,token=token)
                         self.sleep(timing.hold);self._event(0x0004,token=token);self.held=False
                 # Let Unity consume button-up while the pointer is still on
                 # the control. Moving away in the same frame loses clicks.
-                self.sleep(timing.release)
+                if timing.overlap_release:
+                    self.pointer_ready_at=self.clock()+timing.release
+                    if index+2==len(plan) and plan[-1][0]=='move_pointer':
+                        self.deferred_park=(token,absolute(plan[-1][1]))
+                        self.last_input_trace['deferred_pointer_return']=True
+                        break
+                if not timing.overlap_release or index+1<len(plan):
+                    self.sleep(timing.release)
             self.last_input_trace['completed']=True
         except Blocked as exc:
             if not down_sent:

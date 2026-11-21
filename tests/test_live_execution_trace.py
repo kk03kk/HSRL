@@ -315,10 +315,78 @@ def test_move_receipt_is_not_retried_when_final_slot_differs():
     after["client"]["resolutions"] = [dict(
         kind="reorder", source=1, complete=True, log_position=120,
         started_at_log_position=110)]
-    # A server root for the exact source proves delivery even when the
-    # observed final order differs from the requested slot.  Treating it as
-    # unsent caused the duplicate drag in the 03:02 game.
-    assert verify(decision, before, after, require_playback=True) == "applied"
+    # The server delivered the operation but the board order is different.
+    assert verify(decision, before, after, require_playback=True) == "rejected"
+
+
+def test_witnessed_wrathguard_activation_recovers_from_options_boundary():
+    from hsrl_agent.live.verification import verify
+    source = 5048
+    board_card = dict(entity_id=source, card_id='BG36_362', controller=4,
+                      tags={'TAG_SCRIPT_DATA_NUM_1':'2','TAG_SCRIPT_DATA_NUM_2':'1'})
+    before_client = dict(turn=9, mode='GT_BATTLEGROUNDS', local_player_id=4,
+                         log_position=147511, gold=15, board=[board_card])
+    after_card = {**board_card, 'tags':{'TAG_SCRIPT_DATA_NUM_1':'4','TAG_SCRIPT_DATA_NUM_2':'2'}}
+    post = dict(before_client, gold=14, board=[after_card])
+    receipt = dict(kind='activate', source=source, target=None, block_type='PLAY', complete=False,
+                   closed_by='next_options', started_at_log_position=147514, log_position=147652,
+                   submission=dict(log_position=147512, option_id=25, source=source, owner=4,
+                                   sub_option_id=-1,target=0), post_state=post, entity_changes=[])
+    before = dict(game_id='game-1', revision=1, client=before_client)
+    after = dict(game_id='game-1', revision=2, client=dict(post, turn=10, resolutions=[receipt]))
+    decision = _decision(action=24, kind='activate', source=source)
+    from dataclasses import replace
+    decision = replace(decision, binding=Binding(24,'activate',source=source,option_id=25))
+    assert verify(decision,before,after,allow_options_boundary=True)=='applied'
+    receipt['submission']['option_id']=26
+    assert verify(decision,before,after,allow_options_boundary=True)=='applied'
+    after_card['tags']['TAG_SCRIPT_DATA_NUM_2']='1'
+    assert verify(decision,before,after,allow_options_boundary=True)=='pending'
+
+
+def test_untargeted_paid_activation_requires_root_bound_reward_when_index_differs():
+    from dataclasses import replace
+    from hsrl_agent.live.verification import verify
+
+    source, reward = 1374, 1725
+    card = dict(entity_id=source, card_id='BG36_342', controller=6,
+                tags={'INTERACTABLE_OBJECT_COST':'2'})
+    old = dict(mode='GT_BATTLEGROUNDS', local_player_id=6, turn=4, log_position=30147,
+               gold=6, board=[card], hand=[])
+    options = [dict(id=i, entity=source, type='POWER', error=error)
+               for i,error in ((3,'NONE'),(4,'NONE'),(21,'REQ_ATTACKER_CAN_ATTACK'))]
+    post = dict(old,gold=4,hand=[dict(entity_id=reward,controller=6)])
+    receipt = dict(kind='activate', source=source, block_type='PLAY', complete=False,
+                   closed_by='next_options', started_at_log_position=30157, log_position=30739,
+                   submission=dict(option_id=3,source=source,owner=6,sub_option_id=-1,
+                                   target=0,position=0,log_position=30148),
+                   post_state=post,entity_changes=[(reward,'ZONE','SETASIDE','HAND')])
+    before = dict(game_id='game-1',revision=1,client=old,options=options)
+    after = dict(game_id='game-1',revision=2,client=dict(post,turn=5,resolutions=[receipt]))
+    decision = replace(_decision(action=24,kind='activate',source=source),
+                       binding=Binding(24,'activate',source=source,option_id=4))
+    assert verify(decision,before,after,allow_options_boundary=True)=='applied'
+    receipt['entity_changes']=[(999,'ZONE','SETASIDE','HAND')]
+    assert verify(decision,before,after,allow_options_boundary=True)=='pending'
+
+
+def test_expired_move_archives_only_after_a_new_ready_turn(tmp_path):
+    from hsrl_agent.live.controller import Controller
+
+    controller = Controller(_NoPolicy(),_NoGeometry(),_NoBackend(),tmp_path,practical=True)
+    decision = _decision(action=203,kind='move',source=1)
+    old = dict(turn=7,local_player_id=6,log_position=61216,board=[dict(entity_id=1)])
+    before = dict(game_id='game-1',revision=1,client=old)
+    new = dict(old,turn=8,phase='recruit',log_position=74838,client_submission_position=61217,
+               ready=True,board=[dict(entity_id=2)])
+    after = dict(game_id='game-1',revision=2,client=new)
+    controller.pending = (decision,before,0.)
+    assert not controller.expire_closed_move(decision,before,dict(after,client=dict(new,ready=False)))
+    assert not controller.expire_closed_move(decision,before,dict(after,client=dict(new,board=old['board'])))
+    assert controller.expire_closed_move(decision,before,after)
+    assert controller.pending is None
+    evidence = json.loads(next((tmp_path/'expired-unresolved-move').glob('*.json')).read_text(encoding='utf8'))
+    assert evidence['outcome']=='submitted_reorder_unconfirmed_after_turn_closed_no_resend'
 
 
 class _NoPolicy:
@@ -408,6 +476,33 @@ def test_trace_writes_async_bounded_and_reports_identities(tmp_path):
     assert (out / "decision-report.md").is_file()
     assert (out / "frames" / "sample.jpg").is_file()
     assert (out / "frames" / "sample.json").is_file()
+
+
+def test_overlap_defers_pointer_return_until_after_release_dwell():
+    from types import SimpleNamespace
+    from hsrl_agent.live.timing import OVERLAP
+    from hsrl_agent.live.windows import NativeBackend
+
+    now = [0.]
+    events = []
+    window = SimpleNamespace(hwnd=1, rect=(0,0,2560,1600), token=lambda:'window')
+    backend = NativeBackend.__new__(NativeBackend)
+    backend.u = SimpleNamespace(GetAsyncKeyState=lambda _:0, WindowFromPoint=lambda _:1,
+                                GetAncestor=lambda hwnd, _:hwnd)
+    backend.timing, backend.held = OVERLAP, False
+    backend.pointer_ready_at, backend.deferred_park = 0., None
+    backend.clock = lambda: now[0]
+    backend.sleep = lambda delay: now.__setitem__(0, now[0]+delay)
+    backend.window = lambda: window
+    backend.stopped = lambda: False
+    backend._event = lambda flags, point=None, token=None, **kwargs: events.append((flags, point, now[0]))
+    backend.execute([('click',[.5,.5]),('move_pointer',[.96,.91])], {'visual':{'window_token':'window'}})
+    assert events[-1][0] == 4
+    released_at = now[0]
+    assert backend.last_input_trace['deferred_pointer_return']
+    backend._park_pointer(window)
+    assert events[-1][:2] == (0,(2457,1455))
+    assert events[-1][2] == pytest.approx(released_at+OVERLAP.release)
 
 
 def test_five_card_choice_trace_keeps_full_model_snapshot(tmp_path):

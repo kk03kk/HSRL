@@ -1,7 +1,7 @@
 """Evidence-only context enrichment. Missing engine counters are explicit blockers."""
 import copy
 from .contracts import Blocked
-from .projection import number
+from .projection import number,ordered_hero_powers
 
 def context_facts(reader,data,card_info,*,lobby_races=None,supplied=None):
     """Supplied facts must name the exact game/revision; never reused across frames."""
@@ -47,8 +47,7 @@ def context_facts(reader,data,card_info,*,lobby_races=None,supplied=None):
         view['deity']=deity;g.update(deity_present=1,deity_atk=number(own,'BACON_OLD_GOD_ATTACK'),
             deity_hp=number(own,'BACON_OLD_GOD_HEALTH'))
         provenance['deity']='owned_sigil:'+str(sigils[0].id)+'+explicit_player_stats+global_dbf'
-    powers=[c for c in data['controls'] if c['card_type']=='HERO_POWER']
-    for i,p in enumerate(sorted(powers,key=lambda c:(c['position'],c['entity_id']))[:2]):
+    for i,p in enumerate(ordered_hero_powers(data)):
         if 'NUM_TIMES_HERO_POWER_USED_THIS_GAME' in p['tags']:
             g[f'power{i}_uses_game']=number(p['tags'],'NUM_TIMES_HERO_POWER_USED_THIS_GAME')
         elif reader.history_complete:

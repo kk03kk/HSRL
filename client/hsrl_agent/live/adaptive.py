@@ -6,7 +6,7 @@ server authorizations, identities, turn/playback and transaction gates stay real
 import copy
 from hsbg.env import obs_std as O
 from .contracts import Blocked
-from .projection import Projector,number,RACE_IDS
+from .projection import Projector,number,RACE_IDS,ordered_hero_powers
 from .facts import context_facts
 
 
@@ -90,9 +90,7 @@ class AdaptiveProjector(Projector):
                         'explicit shield count or static prior')
                     put('MODEL_ATTACHED_COUNT',0,'engine attachment count not reconstructed')
                 entity_tags[str(c['entity_id'])]=patch
-        powers=sorted((c for c in data['controls'] if c['card_type']=='HERO_POWER'),key=lambda c:(c['position'],c['entity_id']))
-        for i,c in enumerate(powers[:2]):
-            entity_tags.setdefault(str(c['entity_id']),{})['MODEL_POWER_SLOT']=str(i)
+        for i,c in enumerate(ordered_hero_powers(data)):
             g[f'power{i}_price']=number(c['tags'],'INTERACTABLE_OBJECT_COST',number(c['tags'],'COST',
                 self.info.get(c['card_id'],{}).get('cost',0)))
         if choices:

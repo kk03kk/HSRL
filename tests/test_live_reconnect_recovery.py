@@ -113,6 +113,48 @@ def test_reconnect_attempts_are_bounded():
         flow.inspect(OFFLINE_ROWS, 't', 100.0)
 
 
+def test_active_match_reconnect_revalidates_window_and_log(monkeypatch):
+    from types import SimpleNamespace
+    from hsrl_agent.live import startup
+    from hsrl_agent.live.contracts import InputNotSent
+
+    window = SimpleNamespace(dpi=144, token=lambda: 'target')
+    frame = SimpleNamespace(size=(2560,1600))
+    match = dict(mode='GT_BATTLEGROUNDS', phase='recruit', game_id='match-1', local_player_id=2)
+    reader = SimpleNamespace(connection='disconnected', caught_up=True, history_complete=True,
+                             poll=lambda: dict(match, game_id='changed'))
+    class Backend:
+        pre_press = None
+        sent = []
+
+        def capture(self):
+            return frame, window
+
+        def execute(self, plan, snapshot):
+            try:
+                self.pre_press(snapshot)
+            except Blocked as exc:
+                raise InputNotSent(str(exc)) from exc
+            self.sent.append(plan)
+
+    ocr=SimpleNamespace(locate=lambda image: OFFLINE_ROWS)
+    monkeypatch.setattr(startup, 'reverify_control', lambda *args: True)
+    now = [0.]
+    backend = Backend()
+    recovery = startup.MatchReconnect(backend, reader, dict(client_size=[2560,1600],dpi=144),
+                                      ocr, clock=lambda:now[0])
+    assert not recovery.poll(match) and not backend.sent
+    assert backend.pre_press is None
+    now[0] = 3.
+    reader.poll = lambda: match
+    assert recovery.poll(match)
+    assert backend.sent == [[('click',[.4072265625,.75625])]]
+    assert recovery.attempts == 1 and not recovery.poll(match)
+    reader.connection = 'connected'
+    now[0] = 100.
+    assert not recovery.poll(match) and len(backend.sent) == 1
+
+
 def test_dialog_clearing_resets_to_lobby_and_requests_restart():
     flow = LobbyFlow(max_restarts=3)
     flow.inspect(OFFLINE_ROWS, 't', 100.0)

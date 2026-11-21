@@ -130,3 +130,30 @@ def test_peer_refuses_a_missing_lobby_at_decision_time():
     with pytest.raises(Blocked, match="five observed"):
         require_peer_lobby({"lobby_races":[0]*11})
     require_peer_lobby({"lobby_races":[1]*5+[0]*6})
+
+
+def test_pinned_numeric_dictionary_reads_from_lf_checkout():
+    from hsrl_agent.live.tags import symbolic_line
+    assert symbolic_line('tag=3919 value=1', 255790) == 'tag=ADDITIONAL_HERO_POWER_INDEX value=1'
+    assert symbolic_line('tag=3919 value=1', 256589) == 'tag=3919 value=1'
+
+
+def test_recruit_tooltip_reads_wrapped_available_list_only():
+    from hsrl_agent.live.vision import races_from_recruit_tooltip
+    rows = [dict(text=text, confidence=.99, point=(.5, y)) for y, text in enumerate((
+        '本局对战中有：', '恶魔，机械，海盗，畸', '变怪，野兽',
+        '本局对战中没有：', '亡灵，元素，野猪人，', '鱼人，龙'))]
+    assert races_from_recruit_tooltip(rows) == ['ABERRATION','BEAST','DEMON','MECHANICAL','PIRATE']
+    assert races_from_recruit_tooltip(rows[:3]) is None
+    assert races_from_recruit_tooltip(rows[:1]+rows[2:]) is None
+
+
+def test_secondary_power_uses_hero_link_not_entity_order():
+    from hsrl_agent.live.projection import ordered_hero_powers
+    primary = dict(entity_id=2806, card_type='HERO_POWER', tags={})
+    secondary = dict(entity_id=226, card_type='HERO_POWER', tags={'ADDITIONAL_HERO_POWER_INDEX':'1'})
+    data = dict(controls=[secondary, primary], hero={'tags':{'ADDITIONAL_HERO_POWER_ENTITY_1':'226'}})
+    assert ordered_hero_powers(data) == [primary, secondary]
+    data['hero']['tags']['ADDITIONAL_HERO_POWER_ENTITY_1'] = '2806'
+    with pytest.raises(Blocked, match='explicit slot identity'):
+        ordered_hero_powers(data)

@@ -84,7 +84,50 @@ class LivePipeline:
         bind_unknown_cards(s['view'],self.policy,s['approximation'])
         s['visual']=visual
         return s
+    def recover_lobby(self, data, visual):
+        from .vision import OCR, crop_box, races_from_recruit_tooltip
+        tooltip = self.profile.get('lobby_tooltip')
+        if (not tooltip or not getattr(self.backend, 'enabled', False) or self.pending()
+                or not getattr(self.policy, 'peer_round', False) or self.projector.lobby_races
+                or self.profile.get('review_state') != 'reviewed' or data.get('phase') != 'recruit'
+                or visual.get('phase') != 'recruit' or data.get('interaction') or data.get('choices')
+                or time.monotonic() < self.next_banner_read):
+            return None
+        self.next_banner_read = time.monotonic() + 2.0
+        self.lobby_ocr = self.lobby_ocr or OCR(max_width=1280)
+        snapshot = {'visual': visual}
+        self.backend.execute([('move_pointer', tooltip['hover'])], snapshot)
+        try:
+            time.sleep(.35)
+            image, window = self.backend.capture()
+            if window.token() != visual['window_token']:
+                raise Blocked('window changed while reading the Tavern tooltip')
+            crop = image.crop(crop_box(tooltip['crop'], image.size))
+            rows = self.lobby_ocr.locate(crop)
+            races = races_from_recruit_tooltip(rows)
+        finally:
+            self.backend.execute([('move_pointer', (.96, .91))], snapshot)
+            self.gate.previous = None
+            self.gate.admitted = None
+        current = self.reader.poll()
+        if (not self.reader.caught_up or self.reader.connection != 'connected'
+                or any(data.get(k) != current.get(k) for k in ('game_id', 'turn', 'phase'))
+                or current.get('interaction') or current.get('choices')):
+            raise Blocked('recruit context changed while reading the Tavern tooltip')
+        if not races:
+            raise Blocked('waiting for a readable available-type Tavern tooltip')
+        import hashlib
+        from .runtime import save
+        self.projector.observe_lobby(current['game_id'], races)
+        evidence = dict(game_id=current['game_id'], turn=current['turn'], revision=current['revision'], races=races,
+                        source='reviewed_recruit_tavern_tooltip', rows=rows,
+                        frame_sha256=hashlib.sha256(image.tobytes()).hexdigest())
+        save(self.out/'lobby-observation.json', evidence)
+        if self.gate.frame_writer:
+            self.gate.frame_writer(self.out/'lobby-tooltip.jpg', image, evidence, quality=90)
+        return current
     def prepare(self,data):
+        observed_at = time.monotonic()
         s=self.project(data)
         with self.metrics.measure('visual_evidence'):visual,image=self.gate.observe(s,self.pending())
         if (visual.get('phase') == 'hero' and not self.projector.lobby_races
@@ -108,7 +151,11 @@ class LivePipeline:
                 save(self.out/'lobby-observation.json', dict(game_id=data['game_id'], revision=data['revision'],
                      races=races, source=source, frame_sha256=hashlib.sha256(image.tobytes()).hexdigest()))
                 s = self.project(data)
+        recovered = self.recover_lobby(data, visual)
+        if recovered is not None:
+            return self.prepare(recovered)
         s=self.finish(s,visual);key=state_stamp(s)
+        s['observed_monotonic']=observed_at
         if key!=self.saved_key:
             from .runtime import save
             save(self.out/'approximation.json',s['approximation'])

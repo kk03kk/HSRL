@@ -20,6 +20,23 @@ def control_cost(card):
     # Client action-control quote overrides raw card COST; no universal price.
     return number(card['tags'],'INTERACTABLE_OBJECT_COST',card.get('cost'))
 
+def ordered_hero_powers(data):
+    powers=[c for c in data['controls'] if c['card_type']=='HERO_POWER']
+    if len(powers)>2:raise Blocked('hero power slot overflow')
+    if len(powers)<2:return powers
+    slots=[number(c['tags'],'MODEL_POWER_SLOT') for c in powers]
+    if set(slots)=={0,1}:
+        return [powers[slots.index(0)],powers[slots.index(1)]]
+    hero_tags=(data.get('hero') or {}).get('tags',{})
+    additional_id=number(hero_tags,'ADDITIONAL_HERO_POWER_ENTITY_1')
+    secondary=[c for c in powers if c['entity_id']==additional_id
+               and number(c['tags'],'ADDITIONAL_HERO_POWER_INDEX')==1]
+    primary=[c for c in powers if c['entity_id']!=additional_id
+             and number(c['tags'],'ADDITIONAL_HERO_POWER_INDEX',0)==0]
+    if len(primary)!=1 or len(secondary)!=1:
+        raise Blocked('two power slots require explicit slot identity')
+    return primary+secondary
+
 def rogers_remaining(card):
     """The public tooltip on Rogers shows the remaining gold, per entity."""
     if card.get('card_id') not in ('BG33_823', 'BG33_823_G'):
@@ -145,13 +162,7 @@ class Projector:
                 slot_prices.setdefault(row['entity'],set()).add(control_cost(source))
         # A slot-specific discount/free card does not establish the model's
         # global minion_price. Keep it unknown without a separate producer.
-        powers=sorted([c for c in controls if c['card_type']=='HERO_POWER'],key=lambda c:(c['position'],c['entity_id']))
-        if len(powers)>2: raise Blocked('hero power slot overflow')
-        if len(powers)>1:
-            if any('MODEL_POWER_SLOT' not in c['tags'] for c in powers):
-                raise Blocked('two power slots require explicit slot identity')
-            powers=sorted(powers,key=lambda c:number(c['tags'],'MODEL_POWER_SLOT'))
-            if [number(c['tags'],'MODEL_POWER_SLOT') for c in powers]!=[0,1]:raise Blocked('invalid power slots')
+        powers=ordered_hero_powers(data)
         for i in range(2):
             if i>=len(powers):
                 global_values.update({f'power{i}_usable':0,f'power{i}_price':0,f'power{i}_uses_game':0})

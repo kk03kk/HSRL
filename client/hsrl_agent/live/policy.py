@@ -41,14 +41,17 @@ POLICY_SPECS={CHECKPOINT_SHA256:dict(id='original-14.8m',auxiliary=False),
                   required_client_build=255790,trained_engine_version='37.0.2.256589')}
 
 # Both checkpoints share the verified public actor and the R1 action budget.
-# Real input still requires a separately calibrated, accepted peer profile.
+# R1 can be selected explicitly for trials on the reviewed 255790 client.
 for digest, label in (
     ('55f6665c0b357860eefd6b6916620a0118e1dc2c5d5e77bbea9136f64f48c5a9', 'peer-parent'),
     ('1bcb12c6038f0d07223d925893c58a4be244531769f32e9820eeb2e9f10e134a', 'peer-r1-647'),
 ):
     POLICY_SPECS[digest] = dict(id=label, auxiliary=False, parameters=7999364,
-                                trained_engine_version='37.0.2.256589', peer_round=True,
-                                offline_only=True)
+                                trained_engine_version='37.0.2.256589', peer_round=True)
+    if label == 'peer-r1-647':
+        POLICY_SPECS[digest]['required_client_build'] = 255790
+    else:
+        POLICY_SPECS[digest]['offline_only'] = True
 
 
 def require_peer_lobby(view):

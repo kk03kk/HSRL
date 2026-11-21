@@ -189,6 +189,7 @@ def _run(root,args,run_token):
     save(out/'session.json',session_meta)
     backend=getattr(args,'preloaded_backend',None) or NativeBackend(exe,getattr(args,'stop_file',out/'STOP'),enable_input=args.enable_input,timing=getattr(args,'timing','balanced'))
     practical=bool(getattr(args,'practical',False))
+    overlap_receipts=practical and getattr(getattr(backend,'timing',None),'overlap_release',False)
     if practical:
         from .adaptive import AdaptiveProjector
         from .practical import PracticalGeometry
@@ -253,14 +254,22 @@ def _run(root,args,run_token):
     with (nullcontext() if getattr(args,'client_lock_owned',False) else exclusive(Path(root)/'artifacts/runs/live-client.lock')):
         controller=Controller(policy,Geometry(profile),backend,Path(root)/'artifacts/runs/live-state' if args.enable_input else out/'shadow-state',enable_input=args.enable_input,practical=practical,clock=time.monotonic,trace=trace)
         fast=None
+        reconnect=None
         if practical:
             from .pipeline import LivePipeline
             fast=LivePipeline(reader,projector,backend,profile,policy,lambda:controller.pending,out)
             args.pipeline_stats=fast.metrics
             backend.pre_press=fast.pre_press
             from .interruptions import InterruptionGuard
-            fast.gate.interruptions=InterruptionGuard(getattr(args,'lobby_ocr',None))
+            ocr=getattr(args,'lobby_ocr',None)
+            if ocr is None and getattr(args,'prewarmed_ocr',None) is not None:
+                ocr=args.prewarmed_ocr.get()
+            fast.lobby_ocr=ocr
+            fast.gate.interruptions=InterruptionGuard(ocr)
             fast.gate.frame_writer=trace.frame
+            if args.enable_input:
+                from .startup import MatchReconnect
+                reconnect=MatchReconnect(backend,reader,profile,ocr)
         from .execution_status import WaitTracker
         waits=WaitTracker()
         last_health=0.
@@ -345,7 +354,7 @@ def _run(root,args,run_token):
                     # 120 s wait (and a halt) into this run.
                     stale_ledger_checked=True
                     if controller.retire_stale_inflight(dict(game_id=data['game_id'],revision=data['revision'],client=data)):
-                        report('retired stale inflight ledger from an earlier turn')
+                        report('settled restored inflight ledger from an earlier turn')
                 if practical and data['phase']=='game_over':
                     player=reader.state.entities.get(reader.state.players.get(data['local_player_id']))
                     game=reader.state.entities.get(reader.state.game_entity)
@@ -371,6 +380,14 @@ def _run(root,args,run_token):
                     else:report('game completed',data)
                     game_completed=True
                     break
+                if reconnect and reconnect.eligible(data):
+                    if reconnect.poll(data):
+                        controller.event('match_reconnect_sent',game_id=data['game_id'],turn=data['turn'],
+                                         attempt=reconnect.attempts,pending_input_preserved=bool(controller.pending))
+                    report('game server disconnected; waiting for verified reconnect',data)
+                    if controller.pending and controller.pending_timeout()=='halted':
+                        report(controller.halted,data);break
+                    time.sleep(.15);continue
                 # A model EndTurn is a durable wait, not a request to re-capture
                 # and re-encode the same quiet board every 150ms.
                 from .lifecycle import owned_selection
@@ -393,10 +410,16 @@ def _run(root,args,run_token):
                         report(outcome,data);last_decision=None;time.sleep(.05);continue
                     if outcome=='duplicate_gesture_suppressed':
                         report(outcome,data);time.sleep(.25);continue
-                    if outcome in ('applied','context_changed','expired_unsent_input','externally_resolved_hero','externally_resolved_choice','externally_resolved_play'):report(outcome,data);continue
+                    if outcome in ('applied','context_changed','expired_unsent_input','expired_unresolved_move',
+                                   'externally_resolved_hero','externally_resolved_choice','externally_resolved_play'):
+                        last_decision=None
+                        report(outcome,data);continue
                     if outcome=='halted':report(controller.halted,data);break
                     if practical and not controller.needs_ui(data):
-                        report(outcome,data);time.sleep(.05);continue
+                        report(outcome,data)
+                        active_receipt=outcome=='waiting_receipt' and reader.connection=='connected'
+                        time.sleep(.02 if overlap_receipts and active_receipt else .05)
+                        continue
                     try:snapshot,image=prepare(data)
                     except Blocked as exc:
                         last_blocker=dict(reason=str(exc),game_id=data['game_id'],turn=data.get('turn'))
@@ -407,12 +430,18 @@ def _run(root,args,run_token):
                     stamp=state_stamp(snapshot)
                     if stamp==last_decision:time.sleep(.15);continue
                     outcome=controller.tick(snapshot,before_send=guard)
-                    if outcome!='dry_run' or not args.enable_input:last_decision=stamp
+                    if outcome in ('duplicate_gesture_suppressed','waiting_control_settle'):
+                        # This state may become dispatchable as the cooldown elapses.
+                        last_decision=None
+                    elif outcome!='dry_run' or not args.enable_input:
+                        last_decision=stamp
                 if outcome in ('sent','applied','branch_sent','target_sent','confirm_sent','waiting_next_turn'):
                     last_blocker=None;internal_errors=0;last_internal=None;progress_at=time.monotonic()
                 if outcome=='retry_unsent':last_decision=None
                 report(controller.halted if outcome=='halted' and controller.halted else outcome,data,snapshot)
                 if controller.halted and controller.halted!='input interrupted; delivery unknown':break
+                if overlap_receipts and outcome in ('sent','branch_sent','target_sent','confirm_sent'):
+                    continue
             except Blocked as exc:
                 last_blocker=dict(reason=str(exc),game_id=(data or {}).get('game_id'),turn=(data or {}).get('turn'))
                 capture_layout_evidence(str(exc),data)

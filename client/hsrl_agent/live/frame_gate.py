@@ -47,7 +47,7 @@ def dependency_regions(profile,snapshot,binding=None):
     # 仍核验真实Options、按钮局部双帧、遮罩及悬停后状态。
     controls=kind in ('refresh','freeze','upgrade','hero_power','dark_gift') or (kind=='activate' and binding.source in {c['entity_id'] for c in data.get('controls',[])})
     zones=() if controls else {'buy':('shop','hand'),'play':('hand','board'),'sell':('board','hand'),
-        'move':('board',),'magnetize':('hand','board'),'refresh':('shop',),'freeze':('shop',),
+        'move':(),'magnetize':('hand','board'),'refresh':('shop',),'freeze':('shop',),
         'upgrade':('shop',),'target':('hand','board','shop')}.get(kind,('hand','board','shop'))
     # A minion insertion only depends on the two neighbours that define the
     # destination slot. Requiring the *whole* board strip to be pixel-idle
@@ -80,7 +80,9 @@ def dependency_regions(profile,snapshot,binding=None):
             for x,y in points:
                 x0=max(0,x-.04);y0=max(0,y-.06)
                 result.append([x0,y0,min(.08,1-x0),min(.12,1-y0)])
-        if insertion:
+        # A reorder depends on its source, the drop slot and the neighbouring
+        # cards defining that slot. The log stamp still pins the whole order.
+        if insertion or kind=='move':
             located,_=PracticalGeometry(profile).locations(snapshot)
             board=data.get('board',[])
             for index in {binding.position-1,binding.position}:

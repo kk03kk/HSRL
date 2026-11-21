@@ -163,8 +163,9 @@ def test_wait_polls_never_reach_the_decision_stream(tmp_path):
                            bindings=[Binding(46, "play", source=401)])
     # 同一状态 + 同一动作 + 缓存命中 = 等待轮询
     for _ in range(5):
-        trace.decision(_snapshot(), _decision(), policy_ms=0.0, reused=True,
-                       bindings=[Binding(46, "play", source=401)])
+        retry = trace.decision(_snapshot(), _decision(), policy_ms=0.0, reused=True,
+                               bindings=[Binding(46, "play", source=401)])
+        assert retry == first
     # 状态真的变了（新 stamp）就是新决策
     second = trace.decision(_snapshot(gold=2), _decision(action=16, kind="sell", stamp="stamp2"),
                             policy_ms=11.0, reused=False,

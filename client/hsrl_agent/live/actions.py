@@ -1,6 +1,16 @@
 """Server Options/EntityChoices -> identity-bound 245 actions. No action ranking."""
 from .contracts import Binding,Blocked
 
+def plain_power_options(options,entity):
+    return [option for option in options if option.get('entity')==entity and option.get('type')=='POWER'
+            and not option.get('has_targets') and not option.get('targets') and not option.get('sub_options')]
+
+def secondary_plain_power(options,entity):
+    plain=plain_power_options(options,entity)
+    if len(plain)>=2 and plain[1]['error']=='NONE' and all(row['error']!='NONE' for row in plain[2:]):
+        return plain[1]
+    return None
+
 def magnetic_host(source, host, public_item):
     from .projection import RACE_IDS
     tags = source.get('tags', {})
@@ -134,8 +144,7 @@ def bind_actions(snapshot):
             out.append(Binding(4+powers.index(eid),'hero_power',source=eid,option_id=oid,targets=targets,branches=branches))
         elif eid in groups['board']:
             i=groups['board'][eid]
-            plain_moves=[o for o in snapshot['options'] if o.get('entity')==eid and o.get('type')=='POWER'
-                         and not o.get('has_targets') and not o.get('targets') and not o.get('sub_options')]
+            plain_moves=plain_power_options(snapshot['options'],eid)
             is_move=bool(plain_moves and option is plain_moves[0])
             if c.get('tags',{}).get('INTERACTABLE_OBJECT')=='1' and not is_move:
                 out.append(Binding(23+i,'activate',source=eid,option_id=oid,targets=targets))
