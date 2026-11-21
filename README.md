@@ -72,6 +72,8 @@ Rust 构建与 GPU 验证在 Slurm 计算节点进行。
 
 ### 实机（真实游戏自动化）
 
+在已安装实机工作树的 Windows 本机，双击 `client/start-ai-control.cmd` 打开控制台。默认使用 Player150 末代 3286，下拉菜单可手动选择 3236。权重、离线回放和训练状态见[部署与停训交接](docs/analysis/PLAYER150_PROMOTION_20261121.md)。
+
 前置：`D:\Hearthstone` 安装正确（`Hearthstone.exe` 与 profile SHA 一致）、游戏已登录并停在大厅、
 分辨率 2560×1600 / DPI 144。
 

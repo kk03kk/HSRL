@@ -1,7 +1,19 @@
 ﻿# 默认离线检查；不启动游戏、不创建窗口后端、不发送输入。
-param([ValidateSet('Doctor','Rehearsal','Decide')][string]$Mode='Doctor',[string]$Snapshot='')
+param(
+ [ValidateSet('Doctor','Rehearsal','Decide')][string]$Mode='Doctor',
+ [string]$Snapshot='',
+ [string]$Trace='',
+ [string]$GameDir='',
+ [switch]$Legacy
+)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
+if(-not $Legacy){
+ $current=Join-Path $root 'artifacts/local/r1-player150-live/client/start.ps1'
+ if(-not (Test-Path -LiteralPath $current)){throw '缺少本地 Player150 实机工作树。历史模型需显式指定 -Legacy。'}
+ & $current -Mode $Mode -Snapshot $Snapshot -Trace $Trace -GameDir $GameDir
+ return
+}
 $python=Join-Path $root '.venv/Scripts/python.exe'
 if(-not (Test-Path -LiteralPath $python)){throw '请先运行deploy/setup_windows.ps1安装本工作区环境'}
 $env:PYTHONDONTWRITEBYTECODE='1';$env:PYTHONUTF8='1'
