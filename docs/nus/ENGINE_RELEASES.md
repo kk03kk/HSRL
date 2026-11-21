@@ -3,7 +3,7 @@
 ```yaml
 status: confirmed
 owner: server
-updated: 2026-11-11 14:55 +0800
+updated: 2026-11-21
 base_commit: b6c4624
 ```
 
@@ -13,11 +13,13 @@ base_commit: b6c4624
 
 | 日期 | git commit | source_hash | db_info | 变更摘要 |
 |---|---|---|---|---|
-| 2026-11-10 | `402480b` | `c4c71014e3d41760` | `[3983, "37.0.2.256589", "37.0.2"]`（`N_CARDS=3984`） | 当前服务器构建。2026-11-09 审计修复 `Jar o' Gems` 每战斗触发一次后的指纹；`build_info().source_hash=c4c71014e3d41760`，`build_is_current=True`；`engine/python/hsbg_engine/_core.abi3.so` 构建于 2026-11-09 08:55。训练/评测/回归均使用此二进制。 |
-| 2026-11-09（审计前） | — | `c7b5f27d6f40d1d2` | `[3983, "37.0.2.256589", "37.0.2"]`（`N_CARDS=3984`） | 本地 Windows 扩展仍是此版本（2026-11-06 构建）。不用于当前服务器训练/评测；旧 live-v1 报告/榜单锚定此指纹，已降级为历史证据（D-011）。 |
+| 2026-11-21 | `f132288` | `6340d5120e9ddda5` | `[3983, "37.0.2.256589", "37.0.3"]` | NUS 已验收的独立训练规则基线，修复战斗先手、Talent Scout、副厨贴纸和吞噬之爪交互。[构建与验收记录](../analysis/SIMULATOR_PARITY_QUALIFICATION_20261121.md) |
+| 2026-11-21 | `cb9587a` | `8bd1f4785018c474` | `[3983, "37.0.2.256589", "37.0.3"]` | Player150 的 3286 冻结训练及 Windows 部署构建。[晋级记录](../analysis/PLAYER150_PROMOTION_20261121.md) |
+| 2026-11-10 | `402480b` | `c4c71014e3d41760` | `[3983, "37.0.2.256589", "37.0.2"]`（`N_CARDS=3984`） | 主检出 37.0.2 基线。2026-11-09 审计修复 `Jar o' Gems` 每战斗触发一次后的指纹；`build_info().source_hash=c4c71014e3d41760`，`build_is_current=True`；`engine/python/hsbg_engine/_core.abi3.so` 构建于 2026-11-09 08:55。旧 37.0.2 训练、评测和回归锚定此二进制。 |
+| 2026-11-09（审计前） | — | `c7b5f27d6f40d1d2` | `[3983, "37.0.2.256589", "37.0.2"]`（`N_CARDS=3984`） | 历史 Windows 扩展（2026-11-06 构建）。不用于当前服务器训练/评测；旧 live-v1 报告/榜单锚定此指纹，已降级为历史证据（D-011）。 |
 
 ## 备注
 
 - `source_hash` 由 `engine/crates/hsbg-engine/src`、`engine/crates/hsbg-engine-py/src` 与编译期卡表计算；换数据或改源码后必须重编译并重跑回归。
-- `db_info()` 实测返回 `(3983, '37.0.2.256589', '37.0.2')`；`N_CARDS=3984`（含空位）。
-- `config/live/engine.json` 已建立：`expected_source_hash=c4c71014e3d41760`，`matches_server=true`，Windows wheel SHA `524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f`（D-023）。
+- 主检出基线的 `db_info()` 返回 `(3983, '37.0.2.256589', '37.0.2')`；`N_CARDS=3984`（含空位）。
+- 主检出的历史 `config/live/engine.json`：`expected_source_hash=c4c71014e3d41760`，`matches_server=true`，Windows wheel SHA `524d6871e436d38750edb669b9d4afd7e281c334adf44086a60cf73ad9266e9f`（D-023）。

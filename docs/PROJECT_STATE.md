@@ -8,7 +8,8 @@
 |---|---|
 | Windows 默认入口 | `client/start-ai-control.cmd` 委托给 `artifacts/local/r1-player150-live/`。离线使用 `client/start.ps1`。生效 pin 在独立工作树的 `config/live/model.json`。[部署交接](analysis/PLAYER150_PROMOTION_20261121.md) |
 | Player150 模型与恢复 | Windows 本地登记目录为 `artifacts/models/player150-round05-3286/`。NUS 权威模型与 Trainer 位于五轮训练第 5 轮的 `snapshots/final_003286/`。[训练记录](analysis/PLAYER150_FIVE_20261120.md) |
-| Player150 规则 | 37.0.3，独立构建指纹 `8bd1f4785018c474`。4,967 浮点数、124 卡槽、245 原生动作。模型、引擎锁、观测和正式协议摘要见[晋级记录](analysis/PLAYER150_PROMOTION_20261121.md)。 |
+| Windows Player150 规则 | 37.0.3，独立构建指纹 `8bd1f4785018c474`。4,967 浮点数、124 卡槽、245 原生动作。模型、引擎锁、观测和正式协议摘要见[晋级记录](analysis/PLAYER150_PROMOTION_20261121.md)。 |
+| NUS 模拟器验收基线 | 37.0.3 修订构建 `6340d5120e9ddda5`，冻结发布 `artifacts/releases/sim-parity-candidate-20261121-04/`，独立 wheel 和作业见[规则校验与修复](analysis/SIMULATOR_PARITY_QUALIFICATION_20261121.md)。已通过 CPU 训练入口验收，正式新版本训练和棋力评测尚未运行。 |
 | 主检出旧基线 | [引擎源码锁](../config/engine-upstream-lock.json)对应 37.0.2.256589 和 `c4c71014e3d41760`。[旧 pin](../config/live/model.json) 指向 14858。 |
 | 实时作业 | `python ops/hsai_ops.py state` 或 `python ops/hsai_ops.py jobs`。 |
 
@@ -16,6 +17,7 @@
 
 | 决策 | 结论与证据 |
 |---|---|
+| D-204 37.0.3 模拟器校验 | 修正战斗先手、Talent Scout 合法动作与两处饰品交互。独立 76 场的等量盘面中高、低酒馆等级各先手 38 场。通过 Rust、Python、6,845 帧真人战团及 8 局 CPU 训练验收。[原始证据与发布](analysis/SIMULATOR_PARITY_QUALIFICATION_20261121.md) |
 | D-202 海盗首次机会接管 | 复现 576 条旧轨迹。两场共 320 个开局，两回合接管的盲验终局效用差 −0.243［−0.375，−0.107］。保留 3286 和冻结教师，未进入蒸馏。[实验记录](analysis/PIRATE_TAKEOVER_20261121.md) |
 | D-201 0750 配对与机制验证 | 960 局独立配对，在两场复核发现海盗、磁力机械和圣盾龙，另精确复放 24 局。0750 保留为冻结专项参照。[协议与结果](analysis/ASD_POLICY0750_PAIRED_20261121.md) |
 | D-200 3286 对原版 R1 | 两场各 192 对，名次差区间跨零。同一成熟野猪人起点 T13 P50 提高 43.2%，自然成型稳定提升待确认。[策略评测](analysis/PLAYER150_STRATEGY_EVAL_20261121.md) |

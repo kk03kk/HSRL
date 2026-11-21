@@ -5,7 +5,7 @@
 
 | 模块 | 规范和入口 | 研究与历史证据 |
 |---|---|---|
-| 模拟器与卡牌规则 | [发版记录](nus/ENGINE_RELEASES.md)、[主检出源码锁](../config/engine-upstream-lock.json) | [规则一致性与补丁验收](analysis/SIMULATOR_RULE_PARITY_20261121.md)、[37.0.3 隔离训练](analysis/PEER_3703_ROUND_20261120.md) |
+| 模拟器与卡牌规则 | [发版记录](nus/ENGINE_RELEASES.md)、[主检出源码锁](../config/engine-upstream-lock.json) | [规则校验与修复结果](analysis/SIMULATOR_PARITY_QUALIFICATION_20261121.md)、[实现与补丁验收流程](analysis/SIMULATOR_RULE_PARITY_20261121.md) |
 | 观测、动作与模型 | [工程验收](ENGINEERING.md)、[现役攻略](battlegrounds_strategy_guide.md) | [Player150 五轮配方](analysis/PLAYER150_FIVE_20261120.md)、[0750 兼容性](analysis/ASD_POLICY0750_COMPAT_20261121.md) |
 | 回放、对手与课程数据 | [数据资产](DATA_BANKS.md) | [真人回合面板](analysis/HUMAN_TURN_BASELINE_20261118.md)、[对手实际覆盖](analysis/HUMAN_FIELD_BY_TURN_20261119.md) |
 | 策略训练与恢复 | [训练配方](TRAINING_RECIPE.md)、[冻结发布与恢复](ENGINEERING.md) | [历史负结果](NEGATIVE_RESULTS.md)、[持续学习研究](analysis/CONTINUAL_RL_ROADMAP_20261121.md) |
