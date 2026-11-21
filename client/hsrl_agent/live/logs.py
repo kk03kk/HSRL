@@ -9,11 +9,14 @@ from .contracts import Blocked
 from .legacy_protocol.power import PowerState
 
 class RawState(PowerState):
+    options_position=0
     def _actions(self,*args): return []  # Own action mapper replaces legacy policy-facing actions.
     def feed(self,line,*,source=None):
         from .tags import symbolic_line
         super().feed(symbolic_line(line,self.build),source=source)
     def _options(self,body):
+        if re.fullmatch(r'id=\d+',body):
+            self.options_position=self.power_lines
         super()._options(body)
         # Preserve denied target identity for observation/price reconstruction;
         # denied targets never enter the legal `targets` list.

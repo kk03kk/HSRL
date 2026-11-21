@@ -214,7 +214,10 @@ class NativeBackend:
             self._check(token);x,y,w,h=window.rect;rect=window.rect
         except Blocked as exc:raise InputNotSent(str(exc)) from exc
         primitive=next((row[0] for row in plan if row[0]!='move_pointer'),None)
-        timing=FAST if primitive in getattr(self,'degraded_gestures',()) else self.timing
+        timing=self.timing
+        if timing==RAPID and (primitive in getattr(self,'degraded_gestures',())
+                              or primitive=='drag' and snapshot['visual'].get('multipart_drag')):
+            timing=FAST
         started=self.clock()
         def absolute(p):
             if not all(0<v<1 for v in p): raise Blocked('point outside client')

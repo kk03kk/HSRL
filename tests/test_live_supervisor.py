@@ -15,8 +15,8 @@ from hsrl_agent.live.runtime import settle_placement
 from hsrl_agent.live.supervisor import FailureBudget, classify_run_end, signature
 
 
-def _decision(action=46, kind="play", source=41, turn=3):
-    binding = Binding(action, kind, source=source, position=0)
+def _decision(action=46, kind="play", source=41, turn=3, *, option_id=None):
+    binding = Binding(action, kind, source=source, position=0, option_id=option_id)
     return Decision("game-1", 7, "stamp", action, binding, "ckpt", "logits")
 
 
@@ -177,13 +177,16 @@ def _legal_snapshot(turn=3, submitted=120, extra_resolution=False):
                 client_submission_position=submitted, board=[], hand=[], shop=[], controls=[],
                 choices=[], interaction=None,
                 resolutions=([dict(source=41, log_position=130, complete=True)] if extra_resolution else []))
-    return dict(game_id="game-1", client=data, view=dict(pending=0))
+    return dict(game_id="game-1", client=data, view=dict(pending=0), options=[],
+                recovery_submission=dict(log_position=submitted, option_id=7, position=0,
+                                         owner=1, sub_option_id=-1, source=41, target=0),
+                recovery_options_position=135)
 
 
 def test_submitted_but_still_legal_option_is_retired(tmp_path, monkeypatch):
     import hsrl_agent.live.controller as controller_module
     controller, clock = _controller(tmp_path)
-    decision = _decision(action=46, kind="play")
+    decision = _decision(action=46, kind="play", option_id=7)
     controller.pending = (decision, _before(), clock[0] - 8.0)
     monkeypatch.setattr(controller_module, "bind_actions", lambda snap: (decision.binding,))
     assert controller.rejected_reconciliation(_legal_snapshot()) is True
@@ -191,6 +194,27 @@ def test_submitted_but_still_legal_option_is_retired(tmp_path, monkeypatch):
     archived = list((Path(tmp_path) / "expired-unsent").glob("*.json"))
     proof = json.loads(archived[0].read_text(encoding="utf-8"))["proof"]
     assert proof["kind"] == "server_did_not_take_still_legal"
+
+
+def test_submitted_raw_snapshot_does_not_rebind_or_retire_before_projection(tmp_path, monkeypatch):
+    import hsrl_agent.live.controller as controller_module
+    controller, clock = _controller(tmp_path)
+    decision = _decision(action=46, kind="play", option_id=7)
+    controller.pending = (decision, _before(), clock[0] - 8.0)
+    full = _legal_snapshot()
+    raw = {k: v for k, v in full.items() if k not in ("view", "options")}
+    monkeypatch.setattr(controller_module, "bind_actions", lambda snap: (decision.binding,))
+    assert controller.needs_rejection_snapshot(raw)
+    assert controller.rejected_reconciliation(raw) is None
+    assert controller.pending is not None
+    stale_options = dict(full, recovery_options_position=119)
+    assert controller.rejected_reconciliation(stale_options) is None
+    wrong_submission = dict(full, recovery_submission=dict(full["recovery_submission"], source=42))
+    assert controller.rejected_reconciliation(wrong_submission) is None
+    wrong_position = dict(full, recovery_submission=dict(full["recovery_submission"], position=5))
+    assert controller.rejected_reconciliation(wrong_position) is None
+    assert controller.pending is not None
+    assert controller.rejected_reconciliation(full) is True
 
 
 def test_submitted_option_with_a_root_is_never_retired(tmp_path, monkeypatch):

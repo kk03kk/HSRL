@@ -8,10 +8,14 @@ from .contracts import Blocked
 TRIBES={'野兽':'BEAST','恶魔':'DEMON','龙':'DRAGON','元素':'ELEMENTAL','机械':'MECHANICAL',
         '鱼人':'MURLOC','海盗':'PIRATE','野猪人':'QUILBOAR','亡灵':'UNDEAD','畸变怪':'ABERRATION','纳迦':'NAGA'}
 
-def stable(first,second,box,threshold=3.):
-    if first.size!=second.size: return False
+def pixel_motion(first,second,box):
+    if first.size!=second.size:return float('inf')
     diff=ImageChops.difference(first.crop(box).convert('RGB'),second.crop(box).convert('RGB'))
-    return max(ImageStat.Stat(diff).mean)<=threshold
+    return max(ImageStat.Stat(diff).mean)
+
+
+def stable(first,second,box,threshold=3.):
+    return pixel_motion(first,second,box)<=threshold
 
 def crop_box(rect,size):
     w,h=size;x,y,rw,rh=rect

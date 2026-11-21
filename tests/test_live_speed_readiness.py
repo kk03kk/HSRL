@@ -3,11 +3,15 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
 
 from hsrl_agent.live.logs import LogReader
 from hsrl_agent.live.actions import bind_actions
-from hsrl_agent.live.timing import RAPID
+from hsrl_agent.live.contracts import Binding, Blocked
+from hsrl_agent.live.frame_gate import FrameGate, inside_hit
+from hsrl_agent.live.timing import FAST, RAPID
 from hsrl_agent.live.windows import NativeBackend
 
 
@@ -62,6 +66,9 @@ def test_pointer_parks_during_receipt_wait_only_after_safe_dwell():
     last = list(movements)
     backend.service_pointer()
     assert movements == last
+    backend.execute([('drag', [.40,.50], [.50,.60])],
+                    {'visual': {'window_token': 'old', 'multipart_drag': True}})
+    assert backend.last_timing['profile'] == FAST.name
 
 
 def test_untargeted_secondary_power_does_not_replace_witnessed_choose_one_play():
@@ -94,3 +101,23 @@ def test_only_a_certified_unsent_matching_gesture_can_degrade_rapid_timing():
     snapshot['client']['log_position'] = 42
     assert backend.note_unsent(snapshot) == 'drag'
     assert backend.degraded_gestures == {'drag'}
+
+
+def test_early_discover_uses_common_interior_and_rejects_a_shifted_hit(monkeypatch):
+    assert inside_hit((.50,.42),(.39,.23,.20,.34))
+    assert inside_hit((.50,.42),(.42,.25,.18,.32))
+    assert not inside_hit((.50,.42),(.48,.23,.19,.34))
+    from hsrl_agent.live import choice_ui
+    gate=FrameGate(None,{})
+    gate.recheck_attempts=1
+    gate.admitted_binding=Binding(31,'choose',source=20)
+    monkeypatch.setattr(gate,'_recheck_capture',lambda *_:(None,None))
+    monkeypatch.setattr(gate,'highlight_moved',lambda *_:False)
+    view={'client':{},'visual':{'early_choice_hit':[.50,.42],'choice_ui':{'entities':[10,20,30]}}}
+    proof={'visible':True,'entities':[10,20,30],'boxes':[(.12,.23,.19,.34),
+           (.42,.25,.18,.32),(.68,.23,.19,.34)]}
+    monkeypatch.setattr(choice_ui,'inspect',lambda *args,**kwargs:proof)
+    gate.recheck_choice(view)
+    proof['boxes'][1]=(.48,.23,.19,.34)
+    with pytest.raises(Blocked,match='moved away'):
+        gate.recheck_choice(view)

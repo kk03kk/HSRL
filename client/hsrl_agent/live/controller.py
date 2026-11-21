@@ -47,9 +47,8 @@ class Controller:
         # above one frame/animation tick so a late submit can never be mistaken
         # for a swallowed click.
         self.unsent_grace=2.5
-        # A submitted-but-rejected option leaves the same option authorized and
-        # produces no root. Six seconds is ~60x the observed client/server update
-        # latency; the 120 s hard stop stays as the last resort.
+        # Check rejected submissions only when a later Options block repeats
+        # the same authorization without an applicable root.
         self.rejected_grace=6.0
         # Identical gesture repeats: only a *confirmed applied* repeat is
         # suppressed (see _gesture_allowed), so a swallowed first click can
@@ -253,7 +252,14 @@ class Controller:
         status='sent';error=None;outcome=None
         physical=False
         try:
-            self.backend.execute(plan,snapshot)
+            if (self.pending and plan and plan[0][0]=='drag'
+                    and self.pending[0].binding.branches):
+                # A Choose One drag only opens another transaction stage.
+                # Keep the previously validated gesture dwell for that opening.
+                native={**snapshot,'visual':{**snapshot['visual'],'multipart_drag':True}}
+            else:
+                native=snapshot
+            self.backend.execute(plan,native)
             physical=True
             if getattr(self.backend,'last_timing',None):self.event('input_timing',**self.backend.last_timing)
         except InputNotSent as exc:
@@ -356,30 +362,43 @@ class Controller:
             self.event('gesture_timing_degraded',primitive=primitive,action_kind=d.binding.kind,
                        reason='no_client_submission',automatic_resend=False)
         self.clear();return True
-    def rejected_reconciliation(self,snapshot):
-        """Retire a submitted option the server never took.
-
-        A rejected option (board full, illegal target, out-of-gold, animation
-        swallow) produces no Power.log root at all. The client cursor advanced,
-        so this is *not* the never-submitted case, and silence alone must never
-        be called success. The distinguishing evidence is that the **exact same
-        option is still authorized**: if the server had taken it, the card would
-        have left the hand, the slot would be empty or the shop would differ.
-        After a grace far above any observed update latency, the durable intent
-        is archived as not applied and the model decides again from live state.
-        """
-        if not self.practical or not self.pending or self.parents:return None
-        if self.target_sent or self.confirm_sent or self.branch_sent:return None
+    def needs_rejection_snapshot(self,snapshot):
+        """Cheap raw-log precondition for checking a submitted ordinary option."""
+        if not self.practical or not self.pending or self.parents:return False
+        if self.target_sent or self.confirm_sent or self.branch_sent:return False
         d,before,started=self.pending
-        if self.clock()-started<self.rejected_grace:return None
+        if d.binding.branches or self.clock()-started<self.rejected_grace:return False
         new=snapshot['client'];old=before['client']
         if (snapshot.get('game_id')!=before.get('game_id')
                 or new.get('local_player_id')!=old.get('local_player_id')
-                or new.get('turn')!=old.get('turn') or new.get('phase')!=old.get('phase')):return None
+                or new.get('turn')!=old.get('turn') or new.get('phase')!=old.get('phase')):return False
         submitted=new.get('client_submission_position')
-        if submitted is None or (submitted or 0)<=(old.get('log_position') or 0):return None
-        if any((r.get('log_position') or 0)>(old.get('log_position') or 0)
-               for r in new.get('resolutions',[])):return None
+        return (submitted is not None and submitted>(old.get('log_position') or 0)
+                and not any((r.get('log_position') or 0)>(old.get('log_position') or 0)
+                            for r in new.get('resolutions',[])))
+    def rejected_reconciliation(self,snapshot):
+        """Retire only after the full current observation still binds the submitted option."""
+        if 'view' not in snapshot or 'options' not in snapshot or not self.needs_rejection_snapshot(snapshot):
+            return None
+        d,before,_=self.pending
+        new=snapshot['client'];old=before['client']
+        submitted=new['client_submission_position']
+        b=d.binding
+        receipt=snapshot.get('recovery_submission') or {}
+        options_at=snapshot.get('recovery_options_position') or 0
+        if (not submitted<options_at<=(new.get('log_position') or 0)
+                or receipt.get('log_position')!=submitted
+                or receipt.get('option_id')!=b.option_id or b.option_id is None
+                or receipt.get('owner')!=new.get('local_player_id')
+                or receipt.get('sub_option_id')!=-1):
+            return None
+        if b.kind in ('buy','sell'):
+            if receipt.get('target')!=b.source:return None
+        elif receipt.get('source')!=b.source or receipt.get('target')!=(b.target or 0):
+            return None
+        if b.position is not None:
+            valid_positions={b.position+1} | ({0} if b.position==0 else set())
+            if receipt.get('position') not in valid_positions:return None
         try:current=bind_actions(snapshot)
         except Blocked:return None
         if not any(binding==d.binding for binding in current):return None
@@ -389,7 +408,8 @@ class Controller:
             save(archive,dict(decision=asdict(d),before=before,parents=self.parents,
                 proof=dict(kind='server_did_not_take_still_legal',grace_seconds=self.rejected_grace,
                     log_position_at_dispatch=old.get('log_position'),
-                    client_submission_position=submitted,turn=new.get('turn'),phase=new.get('phase')),
+                    client_submission_position=submitted,options_reissued_position=options_at,
+                    turn=new.get('turn'),phase=new.get('phase')),
                 outcome='submitted_option_still_authorized_archived_not_applied'))
         self.event('expired_unsent_input',action=d.action,action_kind=d.binding.kind,
             source=d.binding.source,proof='server_did_not_take_still_legal',archive=str(archive))

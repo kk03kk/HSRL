@@ -2,6 +2,12 @@
 import time
 
 
+def status_reason(reason):
+    if reason.startswith('action-dependent card layout is still moving ('):
+        return 'action-dependent card layout is still moving'
+    return reason
+
+
 def wait_code(reason):
     text=reason.lower()
     if 'foreground' in text or 'human mouse' in text:return 'focus_or_operator'

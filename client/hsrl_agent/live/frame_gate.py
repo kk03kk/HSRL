@@ -1,8 +1,9 @@
 """Bounded, action-local two-frame evidence. All backends are injected."""
 import time
+from functools import cached_property
 import numpy as np
 from .contracts import Blocked,digest,state_stamp
-from .vision import crop_box,stable
+from .vision import crop_box,pixel_motion
 from .practical import PracticalGeometry,interpret_frame
 
 
@@ -38,12 +39,12 @@ def layout_key(snapshot):
                for z in ('hand','board','shop','choices','branches')}))
 
 
-def dependency_regions(profile,snapshot,binding=None,*,action_local=False):
+def dependency_regions(profile,snapshot,binding=None,*,action_local=False,geometry=None):
     data=snapshot['client']
     regions={'board':[.20,.46,.63,.23],'hand':[.20,.78,.61,.21],'shop':[.20,.27,.49,.20]}
     kind=binding.kind if binding else None
     if data.get('choices') and snapshot['view']['pending']!=4:
-        points,_=PracticalGeometry(profile).locations(snapshot);result=[]
+        points,_=(geometry or PracticalGeometry(profile)).locations(snapshot);result=[]
         for c in data['choices']:
             x,y=points['entity:'+str(c['entity_id'])]
             x0=max(0,x-.08);y0=max(0,y-.18)
@@ -79,7 +80,8 @@ def dependency_regions(profile,snapshot,binding=None,*,action_local=False):
     # Source/target controls and insertion points must also remain still.
     if binding and kind!='end':
         from .contracts import Decision,state_stamp
-        plan=PracticalGeometry(profile).plan(Decision(snapshot['game_id'],snapshot['revision'],state_stamp(snapshot),
+        geometry=geometry or PracticalGeometry(profile)
+        plan=geometry.plan(Decision(snapshot['game_id'],snapshot['revision'],state_stamp(snapshot),
             binding.action,binding,'',''),snapshot)
         # A targeted spell dropped on an existing minion animates exactly at its
         # destination (blood gems: the +1/+1 sparkle). Requiring that small box
@@ -100,7 +102,7 @@ def dependency_regions(profile,snapshot,binding=None,*,action_local=False):
         # A reorder depends on its source, the drop slot and the neighbouring
         # cards defining that slot. The log stamp still pins the whole order.
         if insertion or kind=='move':
-            located,_=PracticalGeometry(profile).locations(snapshot)
+            located,_=geometry.locations(snapshot)
             board=data.get('board',[])
             for index in {binding.position-1,binding.position}:
                 if not 0<=index<len(board):continue
@@ -144,6 +146,9 @@ class FrameGate:
         self.frame_writer=None
         self.end_ocr=None
         self.action_local=getattr(getattr(backend,'timing',None),'name',None)=='rapid-v1'
+    @cached_property
+    def geometry(self):
+        return PracticalGeometry(self.profile)
     def save_dispatch(self,snapshot,binding):
         """Two rotating diagnostic frames, separate from input authorization."""
         if self.out is None or self.last_frame is None or binding is None:return None
@@ -225,7 +230,7 @@ class FrameGate:
             raise Blocked('client geometry differs from autoplay profile')
         choice_regions=[];data=snapshot['client'];interaction=data.get('interaction') or {}
         if data.get('choices') and interaction.get('mode')=='choice' and interaction.get('owner')==data.get('local_player_id'):
-            points,_=PracticalGeometry(self.profile).locations(snapshot)
+            points,_=self.geometry.locations(snapshot)
             for c in data['choices']:
                 x,y=points['entity:'+str(c['entity_id'])]
                 choice_regions.append([max(0,x-.025),max(0,y-.065),.05,.13])
@@ -328,7 +333,7 @@ class FrameGate:
             # Rail maxima can move inside a thick glowing rim while the hit
             # and artwork stay still. Allow a small resolution-scaled rim band;
             # the source hit patch below must still pass the pixel comparison.
-            x,y=PracticalGeometry(self.profile).locations(stage)[0]['entity:'+str(binding.source)]
+            x,y=self.geometry.locations(stage)[0]['entity:'+str(binding.source)]
             interaction=stage['client'].get('interaction') or {}
             if (self.action_local and stage['view'].get('pending')==2 and len(current_choice['entities'])==3
                     and interaction.get('mode')=='choice' and interaction.get('display_state') not in ('hidden','waiting')
@@ -351,19 +356,13 @@ class FrameGate:
                         self.admitted=None;raise Blocked('choice row geometry is still moving')
             boxes=[] if early_choice else [[x-.02,y-.03,.04,.06]]
             if visual.get('confirm_enabled'):boxes.append([.43,.74,.14,.10])
-        else:boxes=dependency_regions(self.profile,stage,binding,action_local=self.action_local)
-        if not all(stable(old[1],image,crop_box(box,image.size),10.) for box in boxes):
+        else:boxes=dependency_regions(self.profile,stage,binding,action_local=self.action_local,geometry=self.geometry)
+        motion=[pixel_motion(old[1],image,crop_box(box,image.size)) for box in boxes]
+        if any(value>10. for value in motion):
             # Name the boxes that moved: the next run can then say whether it
             # was the source card, a neighbour or a whole-zone animation.
-            from PIL import ImageChops,ImageStat
-            failed=[]
-            for index,box in enumerate(boxes):
-                region=crop_box(box,image.size)
-                if stable(old[1],image,region,10.):continue
-                stat=ImageStat.Stat(ImageChops.difference(old[1].crop(region).convert('RGB'),
-                                                         image.crop(region).convert('RGB')))
-                failed.append(dict(box=index,mean=round(max(stat.mean),1),
-                                   rect=[round(value,3) for value in box]))
+            failed=[dict(box=index,mean=round(value,1),rect=[round(v,3) for v in box])
+                    for index,(box,value) in enumerate(zip(boxes,motion)) if value>10.]
             self.admitted=None;self.last_motion=dict(failed=failed,boxes=len(boxes))
             detail=','.join('box%d=%s'%(row['box'],row['mean']) for row in failed[:3])
             raise Blocked('action-dependent card layout is still moving ('+detail+')')
@@ -392,7 +391,7 @@ class FrameGate:
         data=snapshot['client'];interaction=data.get('interaction') or {}
         if data.get('phase')!='recruit' or interaction or not data.get('ready'):
             raise Blocked('end-turn control is not available in a ready recruit phase')
-        points,_=PracticalGeometry(self.profile).locations(snapshot)
+        points,_=self.geometry.locations(snapshot)
         point=points.get('control:end')
         if point is None:raise Blocked('end-turn control is not calibrated')
         x,y=point
@@ -555,7 +554,7 @@ class FrameGate:
         # very same art is still displayed at the calibrated slots. Compare with
         # the admitted frame's patches; a different card/panel cannot correlate.
         if self.previous and self.admitted and self.previous[0]==layout_key(snapshot):
-            admitted=self.previous[1];points,_=PracticalGeometry(self.profile).locations(snapshot)
+            admitted=self.previous[1];points,_=self.geometry.locations(snapshot)
             scores=[]
             for index,row in enumerate(snapshot['client'].get('choices',[])):
                 point=points.get('entity:'+str(row['entity_id']))
@@ -592,7 +591,7 @@ class FrameGate:
         if not binding or binding.kind!='target' or not pending or not pending[0].binding.branches:return
         d=pending[0];key=(d.game_id,d.binding.source,d.stamp)
         if self.branch_occlusion and self.branch_occlusion[0]==key:
-            point=PracticalGeometry(self.profile).locations(snapshot)[0]['entity:'+str(binding.target)]
+            point=self.geometry.locations(snapshot)[0]['entity:'+str(binding.target)]
             if any(guard.blocks(image,point) for guard in self.branch_occlusion[1]):
                 raise Blocked('target is covered by the previous branch card; input paused')
     def recheck_interaction(self,snapshot,pending):
@@ -614,7 +613,7 @@ class FrameGate:
                 if (binding is not None and baseline is not None
                         and admitted.get('visible') and binding.source in admitted['entities']
                         and admitted['selectable'][admitted['entities'].index(binding.source)]):
-                    point=PracticalGeometry(self.profile).locations(snapshot)[0]['entity:'+str(binding.source)]
+                    point=self.geometry.locations(snapshot)[0]['entity:'+str(binding.source)]
                     if matches_admitted_row(baseline,image,admitted['boxes'],point):
                         print('Press: both admitted branch card faces confirmed after hover.',flush=True)
                         return

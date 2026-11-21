@@ -231,9 +231,10 @@ class LivePipeline:
         if old['visual'].get('phase')=='hero':self.gate.recheck_hero(old,self.admission[1])
         self.gate.recheck_choice(old)
         self.gate.recheck_interaction(old,self.admission[1])
-        if (old['client'].get('interaction') or {}).get('mode')=='branch':
+        if ((old['client'].get('interaction') or {}).get('mode')=='branch'
+                or old['visual'].get('early_choice_hit') is not None):
             latest=self.finish(self.project(self.reader.poll()),old['visual'],pinned=self.admission[1],use_current=False)
             if execution_stamp(latest)!=self.admission[0]:
-                raise Blocked('branch authorization changed during hover; no button down sent')
+                raise Blocked('choice or branch authorization changed during hover; no button down sent')
         if self.gate.evidence_at is None or self.gate.clock()-self.gate.evidence_at>self.gate.max_age:
             raise Blocked('visual admission expired during pre-press checks')

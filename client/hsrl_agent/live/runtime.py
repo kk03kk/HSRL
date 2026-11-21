@@ -276,7 +276,7 @@ def _run(root,args,run_token):
             if args.enable_input:
                 from .startup import MatchReconnect
                 reconnect=MatchReconnect(backend,reader,profile,ocr)
-        from .execution_status import WaitTracker
+        from .execution_status import WaitTracker,status_reason
         waits=WaitTracker()
         from .operator_control import reset_admission
         control=getattr(args,'operator_control',None)
@@ -293,6 +293,7 @@ def _run(root,args,run_token):
         def report(reason,data=None,snapshot=None):
             nonlocal last_report,status_saved_at,last_status_key,last_health
             execution=waits.update(reason,data,controller.pending)
+            display=status_reason(reason)
             from .lifecycle import protocol_state
             execution.update(protocol_state(controller,data or {}))
             if time.monotonic()-last_health>=5.:
@@ -301,13 +302,13 @@ def _run(root,args,run_token):
                     from .supervisor import health_payload
                     save(out/'health.json',health_payload(reason=reason,data=data,controller=controller,waits=waits))
                 except Exception:pass
-            if reason!=last_report:
+            if display!=last_report:
                 text=('unknown public fields (see observation-status.json and coverage.json)' if reason.startswith('unknown public fields:') else reason)
                 if reason.startswith('uncalibrated layout:'):
                     text=(reason+' — this choice row has no calibrated click geometry; input is paused. '
                           'Fill it in by hand; a frame was saved under visual-evidence/.')
-                print(text,flush=True);controller.event('status',reason=reason);last_report=reason
-            key=(reason,(data or {}).get('game_id'),(data or {}).get('turn'),(data or {}).get('phase'))
+                print(text,flush=True);controller.event('status',reason=reason);last_report=display
+            key=(display,(data or {}).get('game_id'),(data or {}).get('turn'),(data or {}).get('phase'))
             if key!=last_status_key or time.monotonic()-status_saved_at>=1.:
                 status_data=data
                 if practical and data:
@@ -475,6 +476,16 @@ def _run(root,args,run_token):
                     # features to acknowledge a past input.
                     raw=dict(game_id=data['game_id'],revision=data['revision'],client=data)
                     outcome=controller.poll_pending(raw)
+                    if (fast and outcome in ('waiting_receipt','waiting_receipt_overdue_no_resend')
+                            and controller.needs_rejection_snapshot(raw)):
+                        try:
+                            legal=fast.project(data)
+                            legal.update(recovery_submission=reader.state.last_option_submission,
+                                         recovery_options_position=reader.state.options_position)
+                        except Blocked:pass
+                        else:
+                            if controller.rejected_reconciliation(legal):
+                                outcome='expired_unsent_input'
                     if control and requested=='run':
                         if controller.budget_expired(data) and not controller.needs_ui(data):
                             control.publish('waiting','player150_budget',pending=True,turn=data.get('turn'))
@@ -530,7 +541,7 @@ def _run(root,args,run_token):
             except Blocked as exc:
                 last_blocker=dict(reason=str(exc),game_id=(data or {}).get('game_id'),turn=(data or {}).get('turn'))
                 if control and requested=='run' and control.command=='run':
-                    control.publish('waiting',str(exc),pending=controller.pending,turn=(data or {}).get('turn'))
+                    control.publish('waiting',status_reason(str(exc)),pending=controller.pending,turn=(data or {}).get('turn'))
                 capture_layout_evidence(str(exc),data)
                 report(str(exc),data,snapshot)
                 if controller.pending and controller.pending_timeout()=='halted':
