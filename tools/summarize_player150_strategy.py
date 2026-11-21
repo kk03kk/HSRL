@@ -155,6 +155,32 @@ def economy(rows):
     return cohorts
 
 
+def growth_components(rows):
+    """Separate net EOT growth of retained entities from additions and departures."""
+    result = {}
+    for turn in range(7, 13):
+        cohort = [r for r in rows if all(eot(r[a],t) for a in ARMS for t in (turn,turn+1))]
+        if not cohort:
+            continue
+        def parts(arm):
+            old,new = ({unit[3]: unit[1]+unit[2] for unit in eot(arm,t)["board"]} for t in (turn,turn+1))
+            kept = old.keys() & new.keys()
+            values = dict(retained_growth=sum(new[i]-old[i] for i in kept),
+                          incoming=sum(new[i] for i in new.keys()-old.keys()),
+                          outgoing=sum(old[i] for i in old.keys()-new.keys()),
+                          retained=len(kept))
+            values["roster_change"] = values["incoming"] - values["outgoing"]
+            assert values["retained_growth"]+values["roster_change"]==eot(arm,turn+1)["strength"]-eot(arm,turn)["strength"]
+            return values
+        details = {a:[parts(r[a]) for r in cohort] for a in ARMS}
+        result[f"{turn}-{turn+1}"] = {
+            key:dict(p50={a:median(v[key] for v in details[a]) for a in ARMS},
+                     delta=estimate([new[key]-old[key] for old,new in zip(details["r1"],details["final"])]))
+            for key in details["r1"][0]
+        }
+    return result
+
+
 def prevalent(arm, catalog, normalize):
     given = max(arm["turns"], key=int)
     if int(given) < 9:
@@ -187,7 +213,7 @@ def paired_exploration(panels, normalize):
             results.append(dict(cards=ids,counts=counts,
                 delta={p:estimate([int(ids in fields["final"][seed])-int(ids in fields["r1"][seed])
                                   for seed in fields["r1"]]) for p,fields in occurrence.items()}))
-    return sorted(results, key=lambda x: -sum(x["delta"][p]["mean"] for p in panels))
+    return sorted(results, key=lambda x: (-sum(x["delta"][p]["mean"] for p in panels), x["cards"]))
 
 
 def opening_stats(path):
@@ -225,6 +251,7 @@ def main():
         same_hero = [r for r in rows if all(eot(r[a],1) for a in ARMS) and
                      eot(r["r1"],1)["hero"] is not None and eot(r["r1"],1)["hero"]==eot(r["final"],1)["hero"]]
         report[panel] = dict(scores=pair_stats(rows), turns=turn_stats(rows), economy=economy(rows),
+                             growth_components=growth_components(rows),
                              identical_hero=dict(n=len(same_hero),rank_delta=matched(same_hero,lambda a:a["rank"])),
                              lineups=lineups(rows, normalize),
                              dominant_tribes={race:rates(for_tribe(rows, race),
