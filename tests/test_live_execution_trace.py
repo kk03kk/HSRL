@@ -319,14 +319,18 @@ def test_move_receipt_is_not_retried_when_final_slot_differs():
     assert verify(decision, before, after, require_playback=True) == "rejected"
 
 
-def test_witnessed_wrathguard_activation_recovers_from_options_boundary():
+@pytest.mark.parametrize(('card_id','initial','upgraded'), [
+    ('BG36_362',('2','1'),('4','2')),
+    ('BG36_362_G',('22','11'),('26','13')),
+])
+def test_witnessed_wrathguard_activation_recovers_from_options_boundary(card_id,initial,upgraded):
     from hsrl_agent.live.verification import verify
     source = 5048
-    board_card = dict(entity_id=source, card_id='BG36_362', controller=4,
-                      tags={'TAG_SCRIPT_DATA_NUM_1':'2','TAG_SCRIPT_DATA_NUM_2':'1'})
+    tags=('TAG_SCRIPT_DATA_NUM_1','TAG_SCRIPT_DATA_NUM_2')
+    board_card = dict(entity_id=source, card_id=card_id, controller=4,tags=dict(zip(tags,initial)))
     before_client = dict(turn=9, mode='GT_BATTLEGROUNDS', local_player_id=4,
                          log_position=147511, gold=15, board=[board_card])
-    after_card = {**board_card, 'tags':{'TAG_SCRIPT_DATA_NUM_1':'4','TAG_SCRIPT_DATA_NUM_2':'2'}}
+    after_card = {**board_card, 'tags':dict(zip(tags,upgraded))}
     post = dict(before_client, gold=14, board=[after_card])
     receipt = dict(kind='activate', source=source, target=None, block_type='PLAY', complete=False,
                    closed_by='next_options', started_at_log_position=147514, log_position=147652,
@@ -340,7 +344,7 @@ def test_witnessed_wrathguard_activation_recovers_from_options_boundary():
     assert verify(decision,before,after,allow_options_boundary=True)=='applied'
     receipt['submission']['option_id']=26
     assert verify(decision,before,after,allow_options_boundary=True)=='applied'
-    after_card['tags']['TAG_SCRIPT_DATA_NUM_2']='1'
+    after_card['tags']['TAG_SCRIPT_DATA_NUM_2']=initial[1]
     assert verify(decision,before,after,allow_options_boundary=True)=='pending'
 
 

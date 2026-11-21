@@ -165,17 +165,19 @@ def settled_upgrade(decision,old,new,r):
 def _wrathguard_progress(binding,old,post):
     if binding.kind!='activate' or binding.target is not None or binding.sub_option_id is not None:
         return False
+    increments={'BG36_362':[2,1],'BG36_362_G':[4,2]}
     def card(state):
         return next((c for c in state.get('board',[]) if c['entity_id']==binding.source
-                     and c.get('card_id')=='BG36_362' and c.get('controller')==old['local_player_id']),None)
+                     and c.get('card_id') in increments and c.get('controller')==old['local_player_id']),None)
     original,changed=card(old),card(post)
-    if not original or not changed or not isinstance(old.get('gold'),int) or post.get('gold')!=old['gold']-1:
+    if (not original or not changed or original['card_id']!=changed['card_id']
+            or not isinstance(old.get('gold'),int) or post.get('gold')!=old['gold']-1):
         return False
     tags=('TAG_SCRIPT_DATA_NUM_1','TAG_SCRIPT_DATA_NUM_2')
     previous=[str(original['tags'].get(k,'')) for k in tags]
     latest=[str(changed['tags'].get(k,'')) for k in tags]
     return (all(value.isdecimal() for value in previous+latest)
-            and [int(b)-int(a) for a,b in zip(previous,latest)]==[2,1])
+            and [int(b)-int(a) for a,b in zip(previous,latest)]==increments[original['card_id']])
 
 
 def _paid_activation_reward(binding,old,post,receipt):
