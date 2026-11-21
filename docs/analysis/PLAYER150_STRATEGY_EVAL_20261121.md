@@ -16,7 +16,7 @@
 
 正式自然局共 384 对，768 局，CPU 作业正常结束。每局验证对手快照注入，非法动作、截断、快照回退和卡池失衡均为零。两个面板均无尾轮补齐。附加诊断覆盖 4 类 T9 初始局面，各 12 对，双方均在受保护的同一重建棋盘上运行到 T13。自然局的同种子大厅会在模型决策后产生不同商店和英雄经营历史。阵容出现频率与最终名次无法单独归因到某一张牌。
 
-本地[完整统计 JSON](../../artifacts/runs/local-player150-strategy-eval-20261121-01/summary.json)、[逐局阵容和动作数据](../../artifacts/runs/local-player150-strategy-eval-20261121-01/pairs.jsonl.gz)、[起点诊断](../../artifacts/runs/local-player150-strategy-eval-20261121-01/openings.json)、[逐回合趋势图](../../artifacts/runs/local-player150-strategy-eval-20261121-01/progress.png)。归档压缩文件 SHA-256 `17bd006d75733eec2d020bd9e9c4321125548daaa079474739b49e55191e1ad1` 与服务器回执一致。
+本地完整统计 JSON `artifacts/runs/local-player150-strategy-eval-20261121-01/summary.json`、逐局阵容和动作数据 `artifacts/runs/local-player150-strategy-eval-20261121-01/pairs.jsonl.gz`、起点诊断 `artifacts/runs/local-player150-strategy-eval-20261121-01/openings.json`、逐回合趋势图 `artifacts/runs/local-player150-strategy-eval-20261121-01/progress.png`。归档压缩文件 SHA-256 `17bd006d75733eec2d020bd9e9c4321125548daaa079474739b49e55191e1ad1` 与服务器回执一致。
 
 ## 评测方法
 

@@ -1,12 +1,14 @@
 # 训练配方（冻结版）
 
+**现任 3286 的配方入口。** Player150 五轮已完成，训练暂停。复现查[五轮冻结配置与发布](analysis/PLAYER150_FIVE_20261120.md)和[模型交接](analysis/PLAYER150_PROMOTION_20261121.md)，核对对应运行的已解析配置、环境与记录。以下分别记录群友系列与 v1.4 基线。
+
 **D-188 昼夜接力。** 白天每次提交一轮三小时训练和固定评测，随后汇报并暂停。用户切换至夜间接力后，服务器在已登记的四轮范围内逐轮评测并恢复下一轮。模型、奖励、动作契约和判强标准沿用 D-185。[系列配置](../config/research/peer-gpu-rounds.json) · [提交入口与准备报告](analysis/PEER_GPU_ROUNDS_20261120.md)
 
 **2026-11-20 群友模型续训使用 D-184 的新动作标准。** 每回合 300 步、换位 10 次、冻结与解冻合计 3 次。群友原模型开局，不限制买卖、升本和阵容。扩大剂量的短训固定为 120 批，每批 256 局。服务器在冻结发布目录执行 `sbatch deploy/slurm/peer_action_budget_ppo.sbatch <全新输出目录>`。[配方与协议](../config/research/peer-action-budget-ppo.json) · [限额对照与理由](analysis/PEER_ACTION_BUDGET_20261120.md)
 
 2026-11-18 的真人场长训使用 D-140 [独立配方](../config/research/human-turn-3702-ppo.json)和[冻结入口与续训操作](analysis/HUMAN_OVERNIGHT_AUDIT_20261118.md)。下文记录 v1.4 基线。
 
-状态：**当前生效并冻结**（2026-11-14 用户确认）。入口脚本：[`deploy/slurm/stage_arena.sbatch`](../deploy/slurm/stage_arena.sbatch)。
+v1.4 基线：**该版本配方冻结**（2026-11-14 用户确认）。入口脚本：[`deploy/slurm/stage_arena.sbatch`](../deploy/slurm/stage_arena.sbatch)。
 
 **2026-11-17 D-081更新**：用户授权Agent自主研究和改变科学配方。本文及现役stage脚本保留为
 v1.4基线，新实验用独立配置、固定提交与新输出目录记录；不原地改写历史配置或恢复资产。
@@ -17,8 +19,8 @@ v1.4基线，新实验用独立配置、固定提交与新输出目录记录；�
 > **⚠️ 参数真值不在这里（2026-11-17 审计）。** 本文件曾在 §2.3（场地）与 §2.6（奖励）
 > 上整体滞后一代：场地表写的是 v7 目标（实际 v14 高 1.5–2.6 倍）、奖励节写的是 v4 的
 > 升本塑形（实际 coef=0，已换成"只奖励前二"的名次效用整表）。
-> **要改/要复现配方，只看两处**：`deploy/slurm/stage_arena.sbatch` 的实际取值，以及
-> [`DECISIONS.md`](DECISIONS.md) 最新一条 `D-###`。本文件中已过期的段落都加了
+> **复现 v1.4 配方时**，查对应冻结发布中 `deploy/slurm/stage_arena.sbatch` 的实际取值和
+> [`DECISIONS.md`](DECISIONS.md) 中该版本适用的决议。本文件中已过期的段落都加了
 > "历史/已停用"标记，保留它们只为解释"为什么当初这么定"。
 
 ---

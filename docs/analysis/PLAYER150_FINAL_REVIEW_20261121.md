@@ -8,7 +8,7 @@
 
 开训前，两场各 16 对行为等价检验通过。工程资格作业通过 946 项 Rust 测试、两批各 256 局的端到端训练检查及完整 Trainer 恢复检验。五轮训练回执均记录了新增的全局、场上和物件三组输入投影权重发生更新。现有评测同时包含规则迁移后的续训与新增输入的学习，单项贡献需要单独的对照。见[训练与评测协议](PLAYER150_FIVE_20261120.md)。
 
-[趋势图](../../artifacts/runs/local-player150-review-20261121-01/progress.png) · [五轮训练与六份评测回执 JSON](../../artifacts/runs/local-player150-review-20261121-01/evaluation-receipts.json)
+趋势图 `artifacts/runs/local-player150-review-20261121-01/progress.png` · 五轮训练与六份评测回执 JSON `artifacts/runs/local-player150-review-20261121-01/evaluation-receipts.json`
 
 ## 比较对象
 

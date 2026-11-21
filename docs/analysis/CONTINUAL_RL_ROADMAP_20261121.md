@@ -39,7 +39,7 @@
 
 0750 在固定场拿到 29 个冠军，也有 41 局第七或第八。共享 196 动作时，发现海盗双核在可用海盗的两个场成型 14/49 和 14/45，R1、3286 均为零；8 条抽取的海盗回放有 101 次可追踪的正向成长。磁力路线有实际购买、附着与回投记录。圣盾龙亦有持续成型，部分跨战斗增益的归因待确认。共享和原生评测复用了 0750 的相同轨迹，合计 960 局独立完整对局。早升六、后期幸存者身材高和整局高风险可以同时成立。[逐局评测与机制取证](ASD_POLICY0750_PAIRED_20261121.md)
 
-**本次额外核查了“用悖论体替狮鹫”。** 当前卡表中，猎头狮鹫进击给野兽，黑暗悖论体有多个形态，其中 `BG36_360t5` 及金版进击给己方最多种族的随从。按普通与金版归一，在 0750 共享动作的两个面板各 96 个独立种子逐局查招募结束战团：生成型悖论体连续留场至少两回合分别为 13、8 局；狮鹫为 8、7 局。21 局使用该形态的对局中，20 局的已记录回合末战团都未见狮鹫。这个结果直接支持持续使用该形态；牌是否同时可买、能否得到等价的有效组件、替换对终局的增益和学会的时间仍待确认。后续可按可见报价、主种族、触发次数和生成物逐项核实，并配对比较买悖论体、买狮鹫及两者都不买。[逐局原始记录](../../artifacts/runs/local-asd0750-paired-eval-20261121-01/shared.jsonl.gz) · [当前卡表](../../artifacts/local/player-150/engine/crates/hsbg-engine/data/cards.json)
+**本次额外核查了“用悖论体替狮鹫”。** 当前卡表中，猎头狮鹫进击给野兽，黑暗悖论体有多个形态，其中 `BG36_360t5` 及金版进击给己方最多种族的随从。按普通与金版归一，在 0750 共享动作的两个面板各 96 个独立种子逐局查招募结束战团：生成型悖论体连续留场至少两回合分别为 13、8 局；狮鹫为 8、7 局。21 局使用该形态的对局中，20 局的已记录回合末战团都未见狮鹫。这个结果直接支持持续使用该形态；牌是否同时可买、能否得到等价的有效组件、替换对终局的增益和学会的时间仍待确认。后续可按可见报价、主种族、触发次数和生成物逐项核实，并配对比较买悖论体、买狮鹫及两者都不买。逐局原始记录 `artifacts/runs/local-asd0750-paired-eval-20261121-01/shared.jsonl.gz` · 当前卡表 `artifacts/local/player-150/engine/crates/hsbg-engine/data/cards.json`
 
 ## 四、选择训练方法
 
@@ -82,8 +82,8 @@ AutoTavern 论文中，同起点同预算换成现实校准对手后，主考试
 | 标识 | 本次对照 |
 | --- | --- |
 | 现役源码锁 | 卡表 37.0.2.256589、服务端规则 37.0.3，指纹 `8bd1f4785018c474`，引擎源码锁 SHA-256 `03031a660c1461696b5007bf528257ab9054baba3b5bc1c709b7ec3f3739b4d5` |
-| 实际桌面 pin / 3286 manifest | 权重 `778cc6f4ca9ba6175ec6f54c2241a030a70ce4e35b7ac7120492666360ba86df`，manifest 文件 SHA-256 `d99efd4dbd1fd47d5e1583eefb62818247df692ab29cd869f8b720944f38f0d8`。[生效 pin](../../artifacts/local/r1-player150-live/config/live/model.json) · [模型 manifest](../../artifacts/models/player150-round05-3286/manifest.json) |
+| 实际桌面 pin / 3286 manifest | 权重 `778cc6f4ca9ba6175ec6f54c2241a030a70ce4e35b7ac7120492666360ba86df`，manifest 文件 SHA-256 `d99efd4dbd1fd47d5e1583eefb62818247df692ab29cd869f8b720944f38f0d8`。生效 pin `artifacts/local/r1-player150-live/config/live/model.json` · 模型 manifest `artifacts/models/player150-round05-3286/manifest.json` |
 | 3286 原正式场协议 | 固定场 `5361375f96441316237a792205b5ff76587bff27a9fd80d7cad25307075927d9`，真人快照场 `24d387ec449479425bd356b61c639b35f6095b4a32cab700519a0a62a04581f4` |
-| D-201 独立研究协议 | 共享 196 为 `e2da8dbd9d649a79021f1968c27c175748b957706f4fe4118273f9fa17992aab`，各自原生为 `b3b5ab147ff34126909bf02262909d2b3e3172d3e13670ec7be76f2e4c7cef96`。[原始计划与各权重摘要](../../artifacts/runs/local-asd0750-paired-eval-20261121-01/plan.json) |
+| D-201 独立研究协议 | 共享 196 为 `e2da8dbd9d649a79021f1968c27c175748b957706f4fe4118273f9fa17992aab`，各自原生为 `b3b5ab147ff34126909bf02262909d2b3e3172d3e13670ec7be76f2e4c7cef96`。原始计划与各权重摘要 `artifacts/runs/local-asd0750-paired-eval-20261121-01/plan.json` |
 
-独立复算办法：D-201 的 `shared.jsonl.gz` 与 `native.jsonl.gz` 各按 `panel,seed` 去重，读 `arms[模型].rank` 与 `turns["12"].strength`，逐面板取均值或中位数。悖论体附加分析仅取 shared，每个面板 96 局，每个模型每局最多计一次，顺序遍历 `turns` 的回合末 `board`，牌 ID 为每个实体首字段。D-200 的 `pairs.jsonl.gz` 同理比较 `r1` 与 `final`。[D-201 逐局目录](../../artifacts/runs/local-asd0750-paired-eval-20261121-01) · [D-200 逐局目录](../../artifacts/runs/local-player150-strategy-eval-20261121-01)
+独立复算办法：D-201 的 `shared.jsonl.gz` 与 `native.jsonl.gz` 各按 `panel,seed` 去重，读 `arms[模型].rank` 与 `turns["12"].strength`，逐面板取均值或中位数。悖论体附加分析仅取 shared，每个面板 96 局，每个模型每局最多计一次，顺序遍历 `turns` 的回合末 `board`，牌 ID 为每个实体首字段。D-200 的 `pairs.jsonl.gz` 同理比较 `r1` 与 `final`。D-201 逐局目录 `artifacts/runs/local-asd0750-paired-eval-20261121-01` · D-200 逐局目录 `artifacts/runs/local-player150-strategy-eval-20261121-01`

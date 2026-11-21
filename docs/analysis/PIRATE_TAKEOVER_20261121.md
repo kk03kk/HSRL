@@ -24,7 +24,7 @@
 
 海盗双核为机智的船难海盗（BG36_342）和掠夺大师钩牙（BG36_344），含金版。两回合持续共存和有一次实测收益各自独立计数，所以后者可多于前者。3286 的目标动作实际可用，仍未观察到选择；这 70 个编号涵盖多种目标行为。0750 在两个面板分别有 29、25 局观察到直接目标操作后附着物增加。决赛针对牌只跟踪火车王、剧毒孢子、Operatic Belcher 和 Transmuted Bramblewitch 的获取机会，不能据此推断模型对所有下毒、破盾或换位选择的能力。低血指生命加护甲不超过 15；低血时双方到达的局面不同，上表是描述性结果。
 
-给定成熟野猪人时的保留基准另取 D-200：同样 12 个 T9 起点，双方均有 12/12 至少两个回合发动连锁，T13 总攻血 P50 分别为 R1 的 10,553.5、3286 的 15,116。它衡量已有组件后的兑现，自然成型见上表。机器可读基线另含各回合 M1 和到达数，以及元素双核成型率。[P0 汇总](../../artifacts/runs/local-pirate-capability-20261121-01/baseline.json) · [原始成熟起点](../../artifacts/runs/local-player150-strategy-eval-20261121-01/openings.json)
+给定成熟野猪人时的保留基准另取 D-200：同样 12 个 T9 起点，双方均有 12/12 至少两个回合发动连锁，T13 总攻血 P50 分别为 R1 的 10,553.5、3286 的 15,116。它衡量已有组件后的兑现，自然成型见上表。机器可读基线另含各回合 M1 和到达数，以及元素双核成型率。P0 汇总 `artifacts/runs/local-pirate-capability-20261121-01/baseline.json` · 原始成熟起点 `artifacts/runs/local-player150-strategy-eval-20261121-01/openings.json`
 
 ## P1 · 预设比较与统计口径
 
@@ -65,7 +65,7 @@ P0 发现 3286 首次海盗机会处于低血的仅 6/92 局。为单独测量�
 
 P0 作业 1176707；主实验 1176713、1176714 各四个分片；独立低血检验 1176731 两个分片。11 个计算任务均为 COMPLETED，退出码 0:0。两套 P1 共 400 个自然完整开局，174 个触发来源、2,784 条分叉续局；174 个原始未来的学生对照均复现分叉前整局记录的完整后缀动作与名次。各运行检查非法动作、截断、注入和卡池，11 份逐局文件均按服务器完成回执核对字节数与 SHA-256。仅固定场种子 691210007 涉及已登记的末回合快照延用；真人快照盲验和低血补充场均无延用。低血源码 `a807082`，单独协议 `3728056b7e4b676eaabb5e94c6a730ac902d0981a6a9c7330c8012d9b3d591b6`。区间衡量本批源局和对手场内的不确定性，不能直接外推至新版本或真实天梯。
 
-本地证据目录包含各分片 `plan.json`、`rows.jsonl`、`complete.json`、独立记忆检查及合并统计。复算入口位于研究分支 `codex/pirate-takeover-20261121` 的 `tools/pirate_takeover_report.py`，以此目录作唯一参数。[逐局结果与回执](../../artifacts/runs/local-pirate-capability-20261121-01) · [统计汇总](../../artifacts/runs/local-pirate-capability-20261121-01/summary.json)
+本地证据目录包含各分片 `plan.json`、`rows.jsonl`、`complete.json`、独立记忆检查及合并统计。复算入口位于研究分支 `codex/pirate-takeover-20261121` 的 `tools/pirate_takeover_report.py`，以此目录作唯一参数。逐局结果与回执 `artifacts/runs/local-pirate-capability-20261121-01` · 统计汇总 `artifacts/runs/local-pirate-capability-20261121-01/summary.json`
 
 ## 版本与证据
 

@@ -61,11 +61,12 @@ history、Trainer 代数和张量，再复制成不可覆盖的候选模型目�
 模型或 Trainer；恢复使用计算节点、新输出目录和已登记完整配置。版本清单不等于所有依赖轮子
 的离线镜像，冷备份也不包含全部训练库。完整库与逐动作证据仍以服务器封存资产为准。
 
-## 4. 唯一正式评测执行器
+## 4. 标准面板评测执行器
 
 新评测先提交 `config/evaluation/*.json` 计划，显式记录模型/SHA、局数、种子、分片、协议选项
 与停止规则。入口 `workflows/evaluate_suite.py`，Slurm 包装为 `deploy/slurm/evaluate_suite.sbatch`。
 旧 `eval_shard_parallel.sbatch` 只把旧环境变量转换成相同执行器的计划，保留原科学默认值。
+Player150 多轮训练的编排由对应冻结发布定义，入口及两套正式面板见[五轮训练记录](analysis/PLAYER150_FIVE_20261120.md)。
 
 执行器用商余数分配局数，覆盖每个计划 seed 恰好一次。所有子进程须成功；缺分片、重复 seed、
 不同权重或协议、缺行数据、非法/截断对局、输入在运行中变化，均不能产生 `complete.json`。
