@@ -30,7 +30,7 @@ fn duplicate_sous_chef_stickers_grant_only_one_extra_hero_power_use() {
 #[test]
 fn urzul_sticker_consume_does_not_trigger_consuming_claw() {
     let mut g = game(370306);
-    set_board(&mut g, 0, &["BGS_004"]);
+    set_board(&mut g, 0, &["BG26_174"]);
     g.players[0].trinkets = vec![cid("BG35_MagicItem_154"), cid("BG36_MagicItem_801")];
     let make_shop = |g: &mut Game| {
         let snack = minion(g, 0, "BGS_034");
@@ -40,7 +40,7 @@ fn urzul_sticker_consume_does_not_trigger_consuming_claw() {
     };
     let (a0, h0) = stats(&g, 0)[0];
     let (a1, h1) = make_shop(&mut g);
-    give(&mut g, 0, "BGS_004");
+    give(&mut g, 0, "BG26_174");
     play_last(&mut g, 0);
     assert!(g.players[0].shop.is_empty());
     assert_eq!(stats(&g, 0)[0], (a0 + a1, h0 + h1));
