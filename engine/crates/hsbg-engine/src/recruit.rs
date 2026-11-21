@@ -1842,6 +1842,14 @@ impl Game {
         }
     }
 
+    /// The live 37.0.3 Talent Scout restriction checks the warband, not the Tavern.
+    pub(crate) fn minion_play_allowed(&self, p: PlayerId, card: CardId) -> bool {
+        db().normal_of(card) != crate::cardid!("BG25_HERO_105_Buddy")
+            || self.players[p].board.iter().any(|m| {
+                m.alive() && db().get(m.card).id.contains("_Buddy")
+            })
+    }
+
     pub fn play(&mut self, p: PlayerId, hand_idx: usize, pos: usize) -> ActResult {
         self.check_turn(p)?;
         let h = self.players[p]
@@ -1849,9 +1857,12 @@ impl Game {
             .get(hand_idx)
             .ok_or("no such hand card")?;
         match &h.item {
-            Item::Minion(_) => {
+            Item::Minion(minion) => {
                 if self.players[p].board.len() >= self.cfg.board_size {
                     return Err("board is full");
+                }
+                if !self.minion_play_allowed(p, minion.card) {
+                    return Err("Talent Scout requires a Buddy in the warband");
                 }
                 if self.can_magnetize(p, hand_idx, pos) {
                     return Err("use the magnetize action for a drop left of a compatible host");
@@ -1971,7 +1982,7 @@ impl Game {
         let Item::Minion(m) = &h.item else {
             return false;
         };
-        if !m.has(Kw::MAGNETIC) || h.locked > 0 {
+        if !m.has(Kw::MAGNETIC) || h.locked > 0 || !self.minion_play_allowed(p, m.card) {
             return false;
         }
         if m.is_card_id(crate::cardid!("BG_DEEP_015")) {

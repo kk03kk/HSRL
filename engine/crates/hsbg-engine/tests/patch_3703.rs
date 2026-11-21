@@ -11,6 +11,35 @@ fn kill(g: &mut Game, idx: usize) {
 }
 
 #[test]
+fn ordinary_first_attack_uses_warband_size_without_a_tier_tiebreak() {
+    let mut lower_first = 0;
+    for seed in 0..64 {
+        let mut g = game(seed);
+        g.cfg.record_log = true;
+        g.players[0].tier = 1;
+        g.players[1].tier = 6;
+        set_board(&mut g, 0, &["BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let lower = g.players[0].board[0].eid;
+        let higher = g.players[1].board[0].eid;
+        fight(&mut g);
+        let first_attacker = g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0;
+        assert!(first_attacker == lower || first_attacker == higher);
+        lower_first += usize::from(first_attacker == lower);
+
+        set_board(&mut g, 0, &["BGS_039", "BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let leftmost = g.players[0].board[0].eid;
+        fight(&mut g);
+        assert_eq!(
+            g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0,
+            leftmost
+        );
+    }
+    assert!((16..=48).contains(&lower_first), "lower tier opened {lower_first}/64");
+}
+
+#[test]
 fn champion_and_shark_use_hotfix_rules() {
     for (card, scale) in [("BG23_017", 1), ("BG23_017_G", 2)] {
         let mut g = game(392034);

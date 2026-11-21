@@ -2,7 +2,7 @@
   "schema": "hsrl.upstream_source_lock/v1",
   "repository": "https://github.com/MCG-NJU/AutoTavern",
   "commit": "1c2086a997afde46d68c6c5992cab194ddcfce88",
-  "checked_on": "2026-11-20",
+  "checked_on": "2026-11-21",
   "normalization": "LF; taverngym namespace -> hsbg_engine",
   "groups": [
     {
@@ -11,8 +11,8 @@
       "files": {
         "actions.rs": {
           "upstream_sha256": "c44915a4236a945d0a76e577953e00cad87118b8b78eae341776cd19a1aa9e1d",
-          "fork_sha256": "5fcf150e8886cd1e8fa1a16eb4c17db7290050556e264a9092c257d21271a1a5",
-          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留 Keep positional Magnetic and standalone play disjoint on a compatible host.; opt-in player clock, accessible card faces and encounter memory"
+          "fork_sha256": "d11540ab7c624061d94d7019b09f5b0429dfb091c3c3397958eb81163cd58802",
+          "reason": "HSRL 动作收尾的付费待选检查；245 动作顺序保留 Keep positional Magnetic and standalone play disjoint on a compatible host.; opt-in player clock, accessible card faces and encounter memory Require a controlled Buddy for Talent Scout in the legal mask."
         },
         "batch.rs": {
           "upstream_sha256": "946bc0f161885e53e5ae4a9afa9a67a447b7c422af430ed1fb636122e09b76d2",
@@ -31,7 +31,8 @@
         },
         "combat.rs": {
           "upstream_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd",
-          "fork_sha256": "101b429ab3c8153d7f03daa634d8301612b22b36591399f3cd199ffaac29a3cd"
+          "fork_sha256": "80e3bbc02b34f0f3b13160be424436a27fa2d8839ec6c9435003abb98c760113",
+          "reason": "Raw 37.0.3 replays show either Tavern Tier can open when warband counts are equal."
         },
         "config.rs": {
           "upstream_sha256": "b4f497252393744b76e6710affbea3b087349562bee94d6ef9348e3e592107c3",
@@ -351,8 +352,8 @@
         },
         "recruit.rs": {
           "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
-          "fork_sha256": "9583d023207024b431ce2b13fc280e27d96d9000ca2a6300e373633e7461a99a",
-          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans. Keep positional Magnetic and standalone play disjoint on a compatible host."
+          "fork_sha256": "d88874d86fc6b5c73ac1ebf00c5b70a57dea4cffe0add291c36daa489b1c8d90",
+          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans. Keep positional Magnetic and standalone play disjoint on a compatible host. Enforce the live 37.0.3 Talent Scout play prerequisite."
         },
         "rng.rs": {
           "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",

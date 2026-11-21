@@ -285,8 +285,8 @@ impl Game {
                 continue;
             }
             match &card.item {
-                Item::Minion(_) => {
-                    if !board_full {
+                Item::Minion(minion) => {
+                    if !board_full && self.minion_play_allowed(p, minion.card) {
                         for pos in 0..=pl.board.len().min(N_POS - 1) {
                             m[A_PLAY + h * N_POS + pos] = true;
                         }

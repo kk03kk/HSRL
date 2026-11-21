@@ -1,7 +1,7 @@
 //! Automatic combat.
 //!
-//! Flow: snapshot both warbands -> first attacker = side with more minions, then the higher Tavern
-//! Tier, then random -> Start of Combat (trinkets, Rewards and Quests, Hero Powers, Tavern-spell
+//! Flow: snapshot both warbands -> first attacker = side with more minions, or a random side
+//! on equal counts -> Start of Combat (trinkets, Rewards and Quests, Hero Powers, Tavern-spell
 //! effects, minions in hand, minions on the board) -> alternate attacks, each attacker chosen left
 //! to right, target random among legal (Taunt first, Stealth excluded) -> deaths, Deathrattles,
 //! Reborn, Avenge after every attack -> end when a side is empty or nobody can attack. Survivors'
@@ -313,14 +313,11 @@ fn restore_visible_combat_memory(ctx: &mut Ctx) {
     }
 }
 
-/// More minions attacks first; on a tie the higher Tavern Tier; then random.
+/// More minions attacks first; equal warbands can open from either side at any Tavern Tier.
 fn first_attacker(ctx: &mut Ctx) -> Side {
     let (a, b) = (ctx.boards[0].len(), ctx.boards[1].len());
-    let (ta, tb) = (ctx.cs[0].tier, ctx.cs[1].tier);
     if a != b {
         usize::from(b > a)
-    } else if ta != tb {
-        usize::from(tb > ta)
     } else {
         ctx.g.rng.below(2)
     }

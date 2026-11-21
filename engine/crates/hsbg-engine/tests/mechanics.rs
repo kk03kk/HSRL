@@ -11034,13 +11034,23 @@ fn talent_scout_and_baby_nzoth_make_the_chosen_minion_golden() {
     give(&mut g, 0, "BG25_HERO_105_Buddy_G");
     play_last_on(&mut g, 0, 1);
     assert_eq!(goldens(&g, 0), [true, true, false, true]);
-    // No Buddy to choose: it is simply played.
-    let mut g = game(21);
-    set_board(&mut g, 0, &[plain]);
-    give(&mut g, 0, "BG25_HERO_105_Buddy");
-    play_last(&mut g, 0);
-    assert!(g.players[0].pending.is_empty());
-    assert_eq!(goldens(&g, 0), [false, false]);
+    // The live 37.0.3 restriction requires a Buddy in the warband.
+    for scout in ["BG25_HERO_105_Buddy", "BG25_HERO_105_Buddy_G"] {
+        let mut g = game(21);
+        set_board(&mut g, 0, &[plain]);
+        let buddy = minion(&mut g, 0, frostwolf);
+        g.players[0].shop = vec![hsbg_engine::state::ShopSlot::new(buddy.eid, Item::Minion(buddy))];
+        g.players[0].hand.clear();
+        give(&mut g, 0, scout);
+        let action = Action::Play { hand: 0, pos: 1 };
+        assert!(!g.legal_mask(0)[action.encode()]);
+        let clock = g.players[0].actions_this_turn;
+        assert!(g.apply(0, action).is_err());
+        assert_eq!(g.players[0].actions_this_turn, clock);
+        assert!(g.players[0].pending.is_empty());
+        assert_eq!(g.players[0].hand.len(), 1);
+        assert_eq!(goldens(&g, 0), [false]);
+    }
 
     // Baby N'Zoth: the chosen Deathrattle minion; the Golden one takes them all and asks
     // for no target.
