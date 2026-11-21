@@ -86,6 +86,7 @@ def prepare_input(root,args,out):
         raise Blocked('Hearthstone executable differs from calibrated build')
     startup=out/'startup';startup.mkdir(parents=True,exist_ok=True);args.queue_prepared=True
     backend=NativeBackend(exe,getattr(args,'stop_file',out/'STOP'),enable_input=True,timing=getattr(args,'timing','balanced'))
+    if getattr(args,'operator_control',None):backend.optional_pointer_park=True
     activation=dict(status='blocked',reason='not attempted')
     try:
         started=time.monotonic()
@@ -148,6 +149,9 @@ class MatchReconnect:
     def __init__(self, backend, reader, profile, ocr=None, *, clock=time.monotonic):
         self.backend, self.reader, self.profile, self.ocr = backend, reader, profile, ocr
         self.clock = clock
+        self.reset()
+
+    def reset(self):
         self.attempts = 0
         self.next_probe = 0.
         self.uncertain = False
@@ -274,7 +278,8 @@ def reverify_control(image,ocr,action,tolerance=.01):
     return None
 
 
-def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=time.sleep,context=None,ocr=None):
+def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=time.sleep,context=None,ocr=None,return_lobby=False):
+    from .operator_control import OperatorStop
     from .logs import LogReader
     from .vision import OCR
     reader=LogReader(args.game_dir,args.player_id);reader.start_latest=True
@@ -285,10 +290,12 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
     started=clock();startup=out/'startup';startup.mkdir(parents=True,exist_ok=True)
     image=None;window=None;rows=[];last_status=None;last_power_status=None;current={}
     focus_paused=False;inputs_sent=0;next_progress=5.
-    clicked_at=None
+    clicked_at=None;clicked_elapsed=None
     overlay_grace=float(getattr(args,'lobby_overlay_grace',20.))
     idle_since=None;overlay_reported=False
     retirement_flow=LobbyFlow()
+    control=getattr(args,'operator_control',None)
+    pause_at=None
     def event(kind,**fields):
         # Callers may pass their own ``state`` (e.g. overlay_suspected). Building the
         # payload first and letting ``fields`` win keeps that override from turning
@@ -309,7 +316,24 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
         focus_paused=True
     try:
         while clock()-started<timeout:
-            if backend.stopped():raise Blocked('autoplay stopped before queue')
+            if backend.stopped():
+                if control:raise OperatorStop('emergency stop in lobby')
+                raise Blocked('autoplay stopped before queue')
+            if control:
+                requested=control.poll()
+                if requested=='stop':raise OperatorStop('safe stop in lobby')
+                if requested=='pause':
+                    if pause_at is None:
+                        pause_at=clock();event('operator_paused')
+                    control.publish('paused','matchmaking' if clicked_at is not None else 'lobby')
+                    before=clock()
+                    sleep(.1)
+                    started+=clock()-before
+                    continue
+                if pause_at is not None:
+                    flow.proof=None;retirement_flow.proof=None;idle_since=None
+                    pause_at=None;event('operator_resumed')
+                control.publish('waiting','return_lobby' if return_lobby else 'matchmaking' if clicked_at is not None else 'lobby')
             current=context()
             power_status=current.get('power_status','unknown')
             if power_status!=last_power_status:
@@ -319,15 +343,17 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                 last_power_status=power_status
             if current['rebuilding']:sleep(.05);continue
             if current['active']:
+                if return_lobby:raise Blocked('an active game appeared while returning to lobby')
                 elapsed=round(clock()-started,1)
                 save(startup/'queue-report.json',dict(status='game_ready',restarts=flow.restarts,actions=flow.actions,
                     inputs_sent=inputs_sent,match_started_seconds=elapsed,
-                    start_clicked_seconds=None if clicked_at is None else round(clicked_at-started,1)))
+                    start_clicked_seconds=clicked_elapsed))
                 print('Lobby: match running after %.1f s (%d lobby input(s)).'%(elapsed,inputs_sent),flush=True)
                 event('game_ready',seconds=elapsed)
                 args.lobby_ocr=ocr;return
             try:image,window=backend.capture()
             except FocusUnavailable as exc:
+                if control:control.publish('waiting','foreground')
                 pause_focus(exc);sleep(.25);continue
             if focus_paused:
                 focus_paused=False;flow.proof=None
@@ -355,6 +381,13 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                         pending=False
                     else:sleep(.25);continue
             action=flow.inspect(rows,window.token(),clock(),pending_gameplay=pending,completed_gameplay=current.get('completed',False))
+            if return_lobby and action:
+                if action.kind=='start':
+                    event('lobby_ready',inputs_sent=inputs_sent)
+                    save(startup/'queue-report.json',dict(status='lobby_ready',inputs_sent=inputs_sent))
+                    return
+                if action.kind not in ('dismiss_result','reconnect','dismiss_quests'):
+                    raise Blocked('unexpected control while returning to the Battlegrounds lobby')
             # No calibrated lobby control, no popup, no match: the client is on
             # an overlay we cannot name (shop/quest/collection). A live probe on
             # 2026-11-10 showed Escape in this lobby opens 游戏菜单 and a second
@@ -419,12 +452,17 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                         raise Blocked('game context changed before lobby mouse down')
                     if action.kind=='dismiss_result' and (not latest.get('completed') or latest.get('closed_game')!=current.get('closed_game')):
                         raise Blocked('completed-game context changed before result dismissal')
+                    if control:control.require_new_input()
                 backend.pre_press=before_press
                 try:
                     backend.execute([('click',list(action.point)),('move_pointer',[.96,.91])],dict(visual=dict(window_token=window.token())))
                 except InputNotSent as exc:
                     event('cancelled_before_press',reason=str(exc),action=action.kind)
                     cause=exc.__cause__
+                    if control and control.command!='run':
+                        for key,value in rollback.items():setattr(flow,key,value)
+                        flow.proof=None
+                        continue
                     if isinstance(cause,FocusUnavailable):
                         # Known unsent: restore logical state but retain the
                         # monotonic attempt index and its evidence files.
@@ -441,8 +479,9 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                 inputs_sent+=1
                 if action.kind=='start':
                     clicked_at=clock()
+                    clicked_elapsed=round(clicked_at-started,1)
                     print('Lobby: start clicked after %.1f s; the client now owns matchmaking.'
-                          %(clicked_at-started),flush=True)
+                          %clicked_elapsed,flush=True)
                 event('input_sent',action=action.kind,seconds=round(clock()-started,1))
             elapsed=clock()-started
             if elapsed>=next_progress:
@@ -451,10 +490,11 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
                     print('Lobby: waiting for a usable lobby button (%.0f s, state=%s)'%(elapsed,flow.state),flush=True)
                 else:
                     print('Lobby: client matchmaking in progress (%.0f s since start click; no script stall)'
-                          %(elapsed-(clicked_at-started)),flush=True)
+                          %(clock()-clicked_at),flush=True)
                 event('queue_wait',seconds=round(elapsed,1),inputs_sent=inputs_sent)
             sleep(.25 if flow.state in ('idle','error_proof','dismiss_pending','waiting_lobby') else .75)
-        if focus_paused:raise Blocked('queue timeout while foreground unavailable; input remained paused, no focus stealing or resend')
+        if focus_paused:raise Blocked('lobby timeout while foreground unavailable; input remained paused, no focus stealing or resend')
+        if return_lobby:raise Blocked('return to Battlegrounds lobby was not verified within the bounded wait')
         if current.get('power_status')=='awaiting_first_game':
             if len(current.get('signature',()))>1 and current['signature'][1]=='empty':
                 raise Blocked('Power.log stayed empty within bounded queue timeout; gameplay was not started; check the queue click and client logging')
@@ -466,7 +506,7 @@ def wait_for_match(root,args,backend,profile,out,*,clock=time.monotonic,sleep=ti
             save(startup/'blocked-last.json',dict(rows=rows,reason=str(exc),state=flow.state))
         save(startup/'queue-report.json',dict(status='stopped',reason=str(exc),restarts=flow.restarts,actions=flow.actions,
                                             power_status=current.get('power_status','unknown'),inputs_sent=inputs_sent,focus_paused=focus_paused,
-                                            start_clicked_seconds=None if clicked_at is None else round(clicked_at-started,1),
+                                            start_clicked_seconds=clicked_elapsed,
                                             elapsed_seconds=round(clock()-started,1)))
         event('stopped',reason=str(exc))
         try:

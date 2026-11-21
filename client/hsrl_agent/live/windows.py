@@ -163,13 +163,18 @@ class NativeBackend:
         self.sleep(max(0.,self.pointer_ready_at-self.clock()))
         if self.stopped() or any(self.u.GetAsyncKeyState(k)&0x8000 for k in (1,2,0x10,0x11,0x12)):return
         owner=self.u.GetAncestor(self.u.WindowFromPoint(W.POINT(*point)),2)
-        if int(owner or 0)!=window.hwnd:raise Blocked('pointer return point occluded')
+        if int(owner or 0)!=window.hwnd:
+            if getattr(self,'optional_pointer_park',False):return
+            raise Blocked('pointer return point occluded')
         self._event(0,point,token,record=False)
     def _neutral(self,token,rect):
         """Leave the hovered card after an unsent press; never click anything."""
         try:
             x,y,w,h=rect
             point=(x+round(.96*(w-1)),y+round(.91*(h-1)))
+            if getattr(self,'optional_pointer_park',False):
+                owner=self.u.GetAncestor(self.u.WindowFromPoint(W.POINT(*point)),2)
+                if int(owner or 0)!=self.window().hwnd:return False
             self._event(0,point,token)
             return True
         except Blocked:
@@ -192,16 +197,26 @@ class NativeBackend:
             if int(owner or 0)!=window.hwnd: raise Blocked('action point occluded')
             return pt
         down_sent=False;hovered=False
+        optional_park=getattr(self,'optional_pointer_park',False)
+        def park_point(point):
+            try:return absolute(point)
+            except Blocked:
+                if not optional_park:raise
+                self.last_input_trace['pointer_park_skipped']=True
+                return None
         try:
             for row in plan:
-                for point in row[1:]:absolute(point)
+                if row[0]!='move_pointer' or not optional_park:
+                    for point in row[1:]:absolute(point)
             if self.deferred_park:
                 self._park_pointer(window)
             if timing.overlap_release and plan:
                 remaining=self.pointer_ready_at-self.clock()
                 if remaining>0:self.sleep(remaining)
             for index,event in enumerate(plan):
-                kind=event[0];start=absolute(event[1])
+                kind=event[0]
+                start=park_point(event[1]) if kind=='move_pointer' else absolute(event[1])
+                if start is None:continue
                 self._event(0,start,token);hovered=True
                 if kind=='move_pointer':continue
                 self.sleep(timing.hover)
@@ -210,6 +225,8 @@ class NativeBackend:
                 if any(self.u.GetAsyncKeyState(k)&0x8000 for k in (1,2,0x10,0x11,0x12)):
                     raise Blocked('human mouse button/modifier changed before press')
                 absolute(event[1])
+                if not down_sent and getattr(self,'before_first_down',None):
+                    self.before_first_down()
                 self._event(0,start,token)  # Verify the intended point after hover.
                 if kind=='right_click':
                     down_sent=True
@@ -240,8 +257,10 @@ class NativeBackend:
                 if timing.overlap_release:
                     self.pointer_ready_at=self.clock()+timing.release
                     if index+2==len(plan) and plan[-1][0]=='move_pointer':
-                        self.deferred_park=(token,absolute(plan[-1][1]))
-                        self.last_input_trace['deferred_pointer_return']=True
+                        point=park_point(plan[-1][1])
+                        if point is not None:
+                            self.deferred_park=(token,point)
+                            self.last_input_trace['deferred_pointer_return']=True
                         break
                 if not timing.overlap_release or index+1<len(plan):
                     self.sleep(timing.release)

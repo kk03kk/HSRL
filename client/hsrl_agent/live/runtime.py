@@ -96,7 +96,7 @@ def run(root,args):
             import sys
             archived=False
             print('Run finalization failed: '+str(exc),file=sys.stderr,flush=True)
-    return result if archived else 2
+    return result if archived or getattr(args,'stopped_before_log',False) else 2
 
 
 def _finalize_run(root,args,token,result,failure):
@@ -272,6 +272,16 @@ def _run(root,args,run_token):
                 reconnect=MatchReconnect(backend,reader,profile,ocr)
         from .execution_status import WaitTracker
         waits=WaitTracker()
+        from .operator_control import reset_admission
+        control=getattr(args,'operator_control',None)
+        held=False
+        known_connected=False
+        reconnect_since=None
+        new_action=False
+        if control:
+            def operator_first_down():
+                if new_action:control.require_new_input()
+            backend.before_first_down=operator_first_down
         last_health=0.
         def report(reason,data=None,snapshot=None):
             nonlocal last_report,status_saved_at,last_status_key,last_health
@@ -335,6 +345,13 @@ def _run(root,args,run_token):
         guard=fast or fresh
         while args.seconds<=0 or time.monotonic()-started<args.seconds:
             if backend.stopped():operator_stopped=True;report('STOP/F8 requested');break
+            requested=control.poll() if control else 'run'
+            if control and requested=='stop' and not controller.pending:
+                operator_stopped=True
+                control.publish('stopping','finalizing')
+                if not session_meta['log_sessions']:args.stopped_before_log=True
+                report('operator stopped at transaction boundary',data)
+                break
             data=None;snapshot=None
             try:
                 data=reader.poll()
@@ -342,7 +359,32 @@ def _run(root,args,run_token):
                     session_meta['log_sessions'].append(reader.session.name)
                     session_meta.setdefault('power_offsets',{})[reader.session.name]=getattr(reader,'game_offset',0)
                     save(out/'session.json',session_meta)
+                if control and requested!='run' and controller.pending:
+                    control.publish('pausing' if requested=='pause' else 'stopping',
+                                    'receipt_or_continuation',pending=True,turn=data.get('turn'))
+                if reader.connection=='connected' and reader.caught_up and reader.history_complete:
+                    known_connected=True
+                    if reconnect_since is not None:
+                        reconnect_since=None
+                        last_decision=None
+                        reset_admission(controller,fast)
+                        if reconnect:
+                            reconnect.reset()
+                            controller.event('match_connection_restored',game_id=data['game_id'],turn=data.get('turn'),
+                                             pending_input_preserved=bool(controller.pending))
+                elif known_connected and reader.connection!='connected':
+                    if reconnect_since is None:reconnect_since=time.monotonic()
+                    if control and requested=='run':
+                        control.publish('reconnecting','game_server',pending=controller.pending,turn=data.get('turn'))
+                    if (control and reconnect and (requested!='pause' or controller.pending)
+                            and (reconnect.uncertain or time.monotonic()-reconnect_since>=150.)):
+                        controller.halted='reconnect could not be verified; input stopped and ledger retained'
+                        report(controller.halted,data)
+                        break
                 if not reader.caught_up:
+                    if control and requested=='pause' and not controller.pending:
+                        held=True
+                        control.publish('paused','log_rebuild',turn=data.get('turn'))
                     report('reconstructing complete log history')
                     if controller.pending and controller.pending_timeout()=='halted':report(controller.halted,data);break
                     # An incomplete trailing line is common while Unity writes.
@@ -380,7 +422,21 @@ def _run(root,args,run_token):
                     else:report('game completed',data)
                     game_completed=True
                     break
+                if control and requested=='pause' and not controller.pending:
+                    if not held:
+                        held=True
+                        report('operator paused at transaction boundary',data)
+                    control.publish('paused','match',turn=data.get('turn'))
+                    time.sleep(.08)
+                    continue
+                if held:
+                    held=False
+                    last_decision=None
+                    reset_admission(controller,fast)
+                    report('operator resumed with fresh game state',data)
                 if reconnect and reconnect.eligible(data):
+                    if control and requested=='run':
+                        control.publish('reconnecting','game_server',pending=controller.pending,turn=data.get('turn'))
                     if reconnect.poll(data):
                         controller.event('match_reconnect_sent',game_id=data['game_id'],turn=data['turn'],
                                          attempt=reconnect.attempts,pending_input_preserved=bool(controller.pending))
@@ -393,6 +449,7 @@ def _run(root,args,run_token):
                 from .lifecycle import owned_selection
                 owned_choice=owned_selection(data)
                 if not controller.pending and controller.ended==(data['game_id'],data.get('turn')) and not owned_choice:
+                    if control:control.publish('waiting','next_turn',turn=data.get('turn'))
                     report('waiting_next_turn',data);time.sleep(.08);continue
                 if not args.enable_input:
                     # Diagnose log observability independently of UI guards.
@@ -405,6 +462,8 @@ def _run(root,args,run_token):
                     # features to acknowledge a past input.
                     raw=dict(game_id=data['game_id'],revision=data['revision'],client=data)
                     outcome=controller.poll_pending(raw)
+                    if control and requested=='run':
+                        control.publish('running','match',turn=data.get('turn'))
                     if outcome=='waiting_receipt_overdue_no_resend' and fast:fast.record_overdue(data)
                     if outcome=='retry_unsent':
                         report(outcome,data);last_decision=None;time.sleep(.05);continue
@@ -429,7 +488,10 @@ def _run(root,args,run_token):
                     snapshot,image=prepare(data)
                     stamp=state_stamp(snapshot)
                     if stamp==last_decision:time.sleep(.15);continue
-                    outcome=controller.tick(snapshot,before_send=guard)
+                    if control:control.require_new_input()
+                    new_action=True
+                    try:outcome=controller.tick(snapshot,before_send=guard)
+                    finally:new_action=False
                     if outcome in ('duplicate_gesture_suppressed','waiting_control_settle'):
                         # This state may become dispatchable as the cooldown elapses.
                         last_decision=None
@@ -437,6 +499,8 @@ def _run(root,args,run_token):
                         last_decision=stamp
                 if outcome in ('sent','applied','branch_sent','target_sent','confirm_sent','waiting_next_turn'):
                     last_blocker=None;internal_errors=0;last_internal=None;progress_at=time.monotonic()
+                    if control and requested=='run':
+                        control.publish('running','match',turn=data.get('turn'))
                 if outcome=='retry_unsent':last_decision=None
                 report(controller.halted if outcome=='halted' and controller.halted else outcome,data,snapshot)
                 if controller.halted and controller.halted!='input interrupted; delivery unknown':break
@@ -444,6 +508,8 @@ def _run(root,args,run_token):
                     continue
             except Blocked as exc:
                 last_blocker=dict(reason=str(exc),game_id=(data or {}).get('game_id'),turn=(data or {}).get('turn'))
+                if control and requested=='run' and control.command=='run':
+                    control.publish('waiting',str(exc),pending=controller.pending,turn=(data or {}).get('turn'))
                 capture_layout_evidence(str(exc),data)
                 report(str(exc),data,snapshot)
                 if controller.pending and controller.pending_timeout()=='halted':

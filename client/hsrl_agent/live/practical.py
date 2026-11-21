@@ -252,21 +252,41 @@ def _autoplay_locked(root,args):
     from pathlib import Path
     from .runtime import save,load
     from .supervisor import FailureBudget,append_incident,classify_run_end
+    from .operator_control import OperatorControl,OperatorStop
     count=getattr(args,'games',1)
     if count<0:raise Blocked('games must be zero or positive')
-    if count==1:return _one_game(root,args)
+    desktop=getattr(args,'desktop_control',False)
+    if count==1 and not desktop:return _one_game(root,args)
     out=Path(args.out).resolve()
-    if out.exists() and any(out.iterdir()):raise Blocked('autoplay requires a new output directory')
+    if desktop:
+        if args.shadow:raise Blocked('desktop control requires the real input runner')
+        if not out.is_relative_to(Path(root).resolve()/'artifacts/runs'):
+            raise Blocked('desktop control output must live under artifacts/runs')
+        if not (out/'command.json').is_file() or {p.name for p in out.iterdir()}-{'command.json','command.json.tmp','process.log'}:
+            raise Blocked('desktop control requires a new output directory with its operator mailbox')
+        args.operator_control=OperatorControl(out)
+    elif out.exists() and any(out.iterdir()):raise Blocked('autoplay requires a new output directory')
+    control=getattr(args,'operator_control',None)
     out.mkdir(parents=True,exist_ok=True);results=[];i=0
     budget=FailureBudget(max_total=getattr(args,'max_failures',3),
                          max_same=getattr(args,'max_same_failure',2))
-    while count==0 or i<count:
+    import time
+    while count==0 or (control.completed if control else i)<count:
         if (out/'STOP').exists():break
+        if control:
+            while control.poll()=='pause':
+                control.publish('paused','between_matches')
+                time.sleep(.1)
+            if control.poll()=='stop':break
+            control.match=i+1
+            control.publish('starting','preparing')
         i+=1;child=copy.copy(args);child.out=str(out/f'match-{i:04d}');child.games=1
         child.stop_file=str(out/'STOP');child.no_queue=args.no_queue if i==1 else False
         if i>1:child.no_auto_focus=True  # Startup activation, never a focus tug-of-war.
         failure=None
         try:code=_one_game(root,child)
+        except OperatorStop:
+            break
         except Blocked as exc:
             # Lobby/queue/preflight failures happen before a run exists, so the
             # reason must be carried to the classifier explicitly.
@@ -276,19 +296,48 @@ def _autoplay_locked(root,args):
         # reader, controller and visual evidence remain new per match.
         if getattr(child,'preloaded_policy',None):args.preloaded_policy=child.preloaded_policy
         result=load(p) if p.exists() else None
+        if control and result and result.get('terminal'):
+            control.completed+=1
+        if control and code==0 and not result:
+            results.append(dict(match=i,exit_code=0,result=None,severity='ok',reason='operator stopped input'))
+            save(out/'matches.json',results)
+            break
         incident=classify_run_end(Path(child.out),code,result,reason=failure)
         budget.record(incident);append_incident(out,incident,match=i)
         results.append(dict(match=i,exit_code=code,result=result,severity=incident['severity'],
                             signature=incident.get('signature',''),reason=incident.get('reason','')))
         save(out/'matches.json',results)
+        if control:
+            if code!=0 or failure:
+                control.publish('error',incident['reason'] or f'exit {code}')
+                save(out/'batch-stop.json',dict(match=i,severity=incident['severity'],
+                     reason=incident['reason'],why='desktop stopped on match failure',results=results))
+                return code or 2
+            if control.poll()=='stop' or (out/'STOP').exists():break
+            control.publish('waiting','match_finished')
         allowed,why=budget.allow(incident)
         if not allowed:
             save(out/'batch-stop.json',dict(at=__import__('time').time(),match=i,severity=incident['severity'],
                 reason=incident.get('reason',''),why=why,budget=budget.snapshot(),results=results))
             return code or 2
         if (out/'STOP').exists():break
+    if control and count and control.completed>=count and control.poll()!='stop' and not (out/'STOP').exists():
+        from .startup import wait_for_match
+        try:
+            wait_for_match(root,child,child.preloaded_backend,load(child.profile),out/'return-lobby',
+                           ocr=getattr(child,'lobby_ocr',None),return_lobby=True)
+        except OperatorStop:
+            save(out/'batch-stop.json',dict(match=i,severity='ok',why='operator stopped final lobby return',results=results))
+            control.publish('stopped','')
+            return 0
+        except Blocked as exc:
+            control.publish('error',f'completed games; lobby return: {exc}')
+            save(out/'batch-stop.json',dict(match=i,severity='S3',reason=str(exc),
+                 why='games completed; final lobby return unverified',results=results))
+            return 2
     save(out/'batch-stop.json',dict(at=__import__('time').time(),match=i,severity='ok',why='batch finished',
         budget=budget.snapshot(),results=results))
+    if control:control.publish('finished' if count and control.completed>=count and control.poll()!='stop' else 'stopped','')
     return 0
 
 

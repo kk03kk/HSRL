@@ -34,6 +34,7 @@ def parser(root):
             if command=='autoplay':
                 q.set_defaults(seconds=3600);q.add_argument('--shadow',action='store_true');q.add_argument('--no-queue',action='store_true')
                 q.add_argument('--games',type=int,default=1,help='games to run; zero runs until STOP/F8')
+                q.add_argument('--desktop-control',action='store_true',help='require the local desktop operator mailbox in the run directory')
                 q.add_argument('--no-auto-focus',action='store_true',help='leave window activation to the operator')
                 q.add_argument('--queue-retries',type=int,default=3,help='maximum verified failed-match restarts')
                 q.add_argument('--queue-timeout',type=float,default=240,help='total bounded lobby/matchmaking seconds')
