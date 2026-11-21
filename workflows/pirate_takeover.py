@@ -111,9 +111,10 @@ def copy_guard(policy):
 class Prefix:
     turn = 1
 
-    def __init__(self, student, teacher):
+    def __init__(self, student, teacher, max_hp=None):
         self.student = student
         self.teacher = teacher
+        self.max_hp = max_hp
 
     def __call__(self, game, policy, strict):
         self.context = strict
@@ -129,7 +130,7 @@ class Prefix:
         if self.fork is None:
             player = json.loads(game.player_json(seat))
             offered = options(player, mask, PIRATES)
-            if offered:
+            if offered and (self.max_hp is None or player["health"] + player["armor"] <= self.max_hp):
                 strict = self.context
                 if strict.turn != game.turn:
                     raise RuntimeError("unprepared opponent at opportunity")
@@ -224,10 +225,10 @@ def evaluate(policy, bank, seed, seat, **config):
 def trial(job):
     import hsbg_engine
     from hsbg.az.train.evaluate import _mix_seed
-    panel, seed, seat = job
+    panel, seed, seat, *hp_limit = job
     actors = ref.ACTORS[panel]
     bank = ref.PANELS[panel]["bank"]
-    prefix = Prefix(actors["3286"], actors["0750"])
+    prefix = Prefix(actors["3286"], actors["0750"], *hp_limit)
     natural = evaluate(prefix, bank, seed, seat, research_capture_strict=prefix)
     row = dict(panel=panel, seed=seed, seat=seat, natural=natural, opportunity=None, futures=[])
     fork = prefix.fork
@@ -263,7 +264,7 @@ def trial(job):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("stage",choices=("baseline","hold","human"))
+    p.add_argument("stage",choices=("baseline","hold","human","low"))
     p.add_argument("out",type=Path)
     p.add_argument("--workers",type=int,required=True)
     p.add_argument("--start",type=int,default=0)
@@ -289,6 +290,9 @@ def main():
        seeds=SEEDS,futures=4,low_hp=15,primary_duration=2,utility=[1,.35,-1,-1.15,-1.30,-1.45,-1.60,-1.75],
        gate="blind source-clustered 95% lower utility above zero and positive mechanism evidence; report both windows, all sources",
        hidden="force executed supported sources; omit unsupported Move tokens; retain post-move observation")
+    if args.stage=="low":
+        protocol.update(secondary="new human-panel seeds; first eligible decision at effective HP <=15, regardless of earlier offers",
+                        low_seeds=[695210000,695210079],blind_primary_unmodified=True)
     atomic_json(args.out/"plan.json",dict(protocol=protocol,protocol_sha256=digest(protocol),identity=identity,
                                           stage=args.stage,start=args.start,count=args.count))
     if args.stage=="baseline":
@@ -299,6 +303,11 @@ def main():
         with gzip.open(path,"rt") as stream:
             jobs=[(row,m) for row in map(json.loads,stream) for m in ref.SHAS]
         worker=census
+    elif args.stage=="low":
+        verify_memory(args.out)
+        if args.start+args.count>80:raise ValueError("invalid low stress block")
+        jobs=[("human",695210000+i,i%8,15) for i in range(args.start,args.start+args.count)]
+        worker=trial
     else:
         start,n=SEEDS[args.stage]
         if args.start+args.count>n:
@@ -312,6 +321,35 @@ def main():
                 out.flush()
                 if i%8==0: print(args.stage,i,len(jobs),flush=True)
     atomic_json(args.out/"complete.json",dict(rows=len(jobs),evidence=file_identity(args.out/"rows.jsonl")))
+
+
+def verify_memory(out):
+    """Check teacher on its own archived trajectory and compare forced-source states exactly."""
+    with gzip.open(SOURCE/"shared.jsonl.gz","rt") as stream:
+        expected=next(json.loads(line) for line in stream if '"panel":"human"' in line)
+    panel=expected["panel"]
+    actor=ref.ACTORS[panel]["0750"]
+    model=actor.model_policy
+    original=model.act
+    checked=[]
+    def verified(floats, cards, mask, *args, **kwargs):
+        before=model.hidden
+        action=original(floats,cards,mask,*args,**kwargs)
+        hidden=conditioned(model,before,floats,cards,mask,action)
+        if not all(torch.equal(a,b) for a,b in zip(model.hidden,hidden)):
+            raise ValueError("forced and naturally selected source disagree")
+        checked.append(action)
+        return action
+    model.act=verified
+    try:
+        result=ref.play(ref.PolicyArm(actor,True),ref.PANELS[panel]["bank"],expected["seed"],expected["seat"],196)
+    finally:
+        model.act=original
+    result["turns"]={str(k):v for k,v in result["turns"].items()}
+    if result!=expected["arms"]["0750"] or len(checked)!=result["decisions"]:
+        raise ValueError("recurrent teacher did not reproduce archive")
+    atomic_json(out/"memory-check.json",dict(seed=expected["seed"],panel=panel,decisions=len(checked),
+        exact_hidden=True, rank=result["rank"], matching_full_trajectory=True))
 
 
 if __name__=="__main__":
