@@ -65,8 +65,8 @@
         },
         "content/demons.rs": {
           "upstream_sha256": "9c835db9229a52791717bf2613450080d0add5ce2eebdf90ed4389ffc1d5f749",
-          "fork_sha256": "c25157ba5e26999c095a83f18875d5cd3e9972b407a91b589bab81fb2bcf227d",
-          "reason": " 37.0.3 server hotfix and current Battlegrounds bans."
+          "fork_sha256": "d492f9d0ecc6f9617a0216a3f6c5736064b4a63eba7fbbc7f4faab75876d61f4",
+          "reason": " 37.0.3 server hotfix and current Battlegrounds bans. Suppress Consuming Claw's bonus on direct Ur'zul Sticker consumes in 37.0.3."
         },
         "content/demons_p1.rs": {
           "upstream_sha256": "415aa38525acbc91691d631003c7cfb6660c2fbfad034919a1610b7343e9c102",
@@ -318,7 +318,8 @@
         },
         "event.rs": {
           "upstream_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e",
-          "fork_sha256": "39f9340aa58ac89b374580af607f194ad8b24524ed5e0ad4778ee1a7e38b2d7e"
+          "fork_sha256": "7ef060c1d9f8e884cb4c0c5556fa83b859ea68ca25d162aa044e4dab060373bd",
+          "reason": "Record the initiating consume script so listeners can distinguish Ur'zul Sticker."
         },
         "experimental.rs": {
           "upstream_sha256": "3c174ea10d152d683ab52f3352f796018f3403edb9f4ad3f68b69848b8ac929b",
@@ -352,8 +353,8 @@
         },
         "recruit.rs": {
           "upstream_sha256": "fb26e83d4531603662d591475d129c7d003e8a00521c660f37004423578330c7",
-          "fork_sha256": "d88874d86fc6b5c73ac1ebf00c5b70a57dea4cffe0add291c36daa489b1c8d90",
-          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans. Keep positional Magnetic and standalone play disjoint on a compatible host. Enforce the live 37.0.3 Talent Scout play prerequisite."
+          "fork_sha256": "f1d24802c01cd9c8e391fafc62f602c68e29561e029128207f44103ab3d00fc9",
+          "reason": "所有选择出口检查不可负担菜单；弃置/三连/临时卡到期时解除幸存手牌的失效配对引用 37.0.3 server hotfix and current Battlegrounds bans. Keep positional Magnetic and standalone play disjoint on a compatible host. Enforce the live 37.0.3 Talent Scout play prerequisite. Track the initiating consume script and limit duplicate Sous Chef Sticker uses in 37.0.3."
         },
         "rng.rs": {
           "upstream_sha256": "cf0a954f165814f746b3eb478797b3ed39d47ff8362b289d1926764a981bcb2e",

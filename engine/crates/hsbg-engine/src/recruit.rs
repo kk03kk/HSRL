@@ -538,6 +538,7 @@ impl Ctx<'_> {
         self.emit(Event::Consumed {
             side,
             eater,
+            source: self.src,
             tavern,
             card: m.card,
             atk,
@@ -2188,8 +2189,8 @@ impl Game {
             .filter(|m| m.is_card_id(sous_chef))
             .map(|m| if m.golden { 2 } else { 1 })
             .sum::<u32>()
-            // Sous Chef Sticker: an extra use each turn.
-            + pl.trinket_count(crate::cardid!("BG35_MagicItem_801"));
+            // In 37.0.3 duplicate Sous Chef Stickers grant one extra use in total.
+            + u32::from(pl.has_trinket_id(crate::cardid!("BG35_MagicItem_801")));
         if h.uses_turn >= s.hero_power_uses + extra || h.cooldown > 0 {
             return false;
         }

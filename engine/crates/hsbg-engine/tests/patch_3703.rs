@@ -11,32 +11,46 @@ fn kill(g: &mut Game, idx: usize) {
 }
 
 #[test]
-fn ordinary_first_attack_uses_warband_size_without_a_tier_tiebreak() {
-    let mut lower_first = 0;
-    for seed in 0..64 {
-        let mut g = game(seed);
-        g.cfg.record_log = true;
-        g.players[0].tier = 1;
-        g.players[1].tier = 6;
-        set_board(&mut g, 0, &["BGS_039"]);
-        set_board(&mut g, 1, &["BGS_039"]);
-        let lower = g.players[0].board[0].eid;
-        let higher = g.players[1].board[0].eid;
-        fight(&mut g);
-        let first_attacker = g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0;
-        assert!(first_attacker == lower || first_attacker == higher);
-        lower_first += usize::from(first_attacker == lower);
-
-        set_board(&mut g, 0, &["BGS_039", "BGS_039"]);
-        set_board(&mut g, 1, &["BGS_039"]);
-        let leftmost = g.players[0].board[0].eid;
-        fight(&mut g);
-        assert_eq!(
-            g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0,
-            leftmost
-        );
+fn duplicate_sous_chef_stickers_grant_only_one_extra_hero_power_use() {
+    let mut g = game(370305);
+    g.players[0].gold = 10;
+    g.players[0].set_hero_power(0, cid("TB_BaconShop_HP_010"));
+    set_board(&mut g, 0, &["BGS_039"]);
+    let sticker = cid("BG35_MagicItem_801");
+    for copies in 0..=2 {
+        g.players[0].trinkets = vec![sticker; copies];
+        let extra = u32::from(copies > 0);
+        g.players[0].powers[0].uses_turn = extra;
+        assert!(g.can_hero_power(0, 0));
+        g.players[0].powers[0].uses_turn = extra + 1;
+        assert!(!g.can_hero_power(0, 0));
     }
-    assert!((16..=48).contains(&lower_first), "lower tier opened {lower_first}/64");
+}
+
+#[test]
+fn urzul_sticker_consume_does_not_trigger_consuming_claw() {
+    let mut g = game(370306);
+    set_board(&mut g, 0, &["BGS_004"]);
+    g.players[0].trinkets = vec![cid("BG35_MagicItem_154"), cid("BG36_MagicItem_801")];
+    let make_shop = |g: &mut Game| {
+        let snack = minion(g, 0, "BGS_034");
+        let (atk, hp) = (snack.atk, snack.hp);
+        g.players[0].shop = vec![hsbg_engine::state::ShopSlot::new(snack.eid, Item::Minion(snack))];
+        (atk, hp)
+    };
+    let (a0, h0) = stats(&g, 0)[0];
+    let (a1, h1) = make_shop(&mut g);
+    give(&mut g, 0, "BGS_004");
+    play_last(&mut g, 0);
+    assert!(g.players[0].shop.is_empty());
+    assert_eq!(stats(&g, 0)[0], (a0 + a1, h0 + h1));
+    assert!(!g.players[0].board[0].has(Kw::DIVINE_SHIELD));
+
+    let (a2, h2) = make_shop(&mut g);
+    let eater = g.players[0].board[0].eid;
+    g.with_recruit(0, |ctx| ctx.consume_random(0, eater, 1)).unwrap();
+    assert_eq!(stats(&g, 0)[0], (a0 + a1 + a2 + 5, h0 + h1 + h2 + 5));
+    assert!(g.players[0].board[0].has(Kw::DIVINE_SHIELD));
 }
 
 #[test]

@@ -396,9 +396,11 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
             Script {
                 on_event: Some(|c, me, e| {
                     if let Event::Consumed {
-                        side, eater, kw, ..
+                        side, eater, kw, source, ..
                     } = e
                         && *side == me.side
+                        // The live 37.0.3 interaction omits the bonus on Ur'zul Sticker consumes.
+                        && *source != Some(crate::cardid!("BG35_MagicItem_154"))
                         && c.minion(*eater).is_some_and(|m| m.is(Races::DEMON))
                     {
                         c.give_kw(*eater, bonus_keywords(*kw));

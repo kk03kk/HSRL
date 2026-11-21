@@ -4624,18 +4624,32 @@ fn m19_deathrattles_summon_where_their_minion_died() {
 }
 
 #[test]
-fn n1_higher_tier_attacks_first_on_equal_boards() {
-    for seed in 0..10 {
-        let mut g = game(800 + seed);
+fn ordinary_first_attack_uses_warband_size_without_a_tier_tiebreak() {
+    let mut lower_first = 0;
+    for seed in 0..64 {
+        let mut g = game(seed);
         g.cfg.record_log = true;
-        set_board(&mut g, 0, &["BG36_345"]);
-        set_board(&mut g, 1, &["BG36_345"]);
-        g.players[1].tier = 3;
-        g.log.clear();
-        g.simulate_combat(0, Some(1), None);
-        let first = g.log.iter().find(|l| l.contains(" attacks ")).unwrap();
-        assert!(first.contains("p1"), "{first}");
+        g.players[0].tier = 1;
+        g.players[1].tier = 6;
+        set_board(&mut g, 0, &["BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let lower = g.players[0].board[0].eid;
+        let higher = g.players[1].board[0].eid;
+        fight(&mut g);
+        let first_attacker = g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0;
+        assert!(first_attacker == lower || first_attacker == higher);
+        lower_first += usize::from(first_attacker == lower);
+
+        set_board(&mut g, 0, &["BGS_039", "BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let leftmost = g.players[0].board[0].eid;
+        fight(&mut g);
+        assert_eq!(
+            g.last_frames.iter().flat_map(|frame| &frame.attacks).next().unwrap().0,
+            leftmost
+        );
     }
+    assert!((16..=48).contains(&lower_first), "lower tier opened {lower_first}/64");
 }
 
 #[test]
