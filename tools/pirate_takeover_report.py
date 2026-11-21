@@ -56,6 +56,9 @@ def groups(rows):
     opp=[r for r in rows if r["opportunity"]]
     return dict(all=rows,opportunities=opp,low=[r for r in opp if r["opportunity"]["hp"]<=15],
         higher=[r for r in opp if r["opportunity"]["hp"]>15],
+        through_t5=[r for r in opp if r["opportunity"]["turn"]<=5],
+        t6_to_t8=[r for r in opp if 6<=r["opportunity"]["turn"]<=8],
+        after_t8=[r for r in opp if r["opportunity"]["turn"]>=9],
         castaway=[r for r in opp if "BG36_342" in r["opportunity"]["offered"].values()],
         hooktusk=[r for r in opp if "BG36_344" in r["opportunity"]["offered"].values()])
 
@@ -72,6 +75,10 @@ def compare(rows, window):
             pairs=[(row["natural"],row["natural"])]
         control=[score(a,turn) for a,_ in pairs]
         test=[score(b,turn) for _,b in pairs]
+        for metrics,arm in zip(control,[a for a,_ in pairs]):
+            metrics["post_window_payout"]=int(any(t>=turn+window for t,_,_ in arm["events"]))
+        for metrics,arm in zip(test,[b for _,b in pairs]):
+            metrics["post_window_payout"]=int(any(t>=turn+window for t,_,_ in arm["events"]))
         for key in control[0]:
             values.setdefault(key,[]).append(mean(s[key]-c[key] for c,s in zip(control,test)))
             totals.setdefault(key,[]).append([mean(c[key] for c in control),mean(s[key] for s in test)])
@@ -90,7 +97,7 @@ def compare(rows, window):
 
 
 def main(root):
-    rows={}; protocols=set();seen=set(); receipts={}
+    rows={}; protocols={};seen=set(); receipts={}
     for folder in sorted(root.iterdir()):
         if not folder.is_dir():continue
         plan=json.loads((folder/"plan.json").read_bytes())
@@ -105,10 +112,10 @@ def main(root):
             if ident in seen:raise ValueError(ident)
             seen.add(ident)
         rows.setdefault(stage,[]).extend(batch)
-        protocols.add(plan["protocol_sha256"])
+        protocols.setdefault("low" if stage=="low" else "primary",set()).add(plan["protocol_sha256"])
         receipts[folder.name]=done
-    if len(protocols)!=1 or len(rows["baseline"])!=576:raise ValueError("incomplete/mixed baseline")
-    out=dict(protocol_sha256=protocols.pop(),receipts=receipts,baseline={},p1={})
+    if any(len(v)!=1 for v in protocols.values()) or len(rows["baseline"])!=576:raise ValueError("incomplete/mixed baseline")
+    out=dict(protocol_sha256={k:next(iter(v)) for k,v in protocols.items()},receipts=receipts,baseline={},p1={})
     for panel,start in (("hold",691210000),("human",692210000)):
         data=rows[panel]
         if {r["seed"] for r in data}!=set(range(start,start+160)):raise ValueError(panel)
@@ -123,6 +130,13 @@ def main(root):
            turns=dict(Counter(r["opportunity"]["turn"] for r in opp)),
            no_opportunity_rank=dict(Counter(r["natural"]["rank"] for r in data if not r["opportunity"])),
            windows={k:{str(d):compare(g,d) for d in (1,2,100)} for k,g in groups(data).items() if g})
+    if "low" in rows:
+        data=rows["low"]
+        if {r["seed"] for r in data}!=set(range(695210000,695210080)):raise ValueError("incomplete low stress")
+        opp=[r for r in data if r["opportunity"]]
+        if any(r["opportunity"]["hp"]>15 for r in opp):raise ValueError("low stress health mismatch")
+        out["low_stress"]=dict(games=len(data),exposed=len(opp),
+            windows={str(d):compare(opp,d) for d in (1,2,100)})
     (root/"summary.json").write_text(json.dumps(out,indent=2),encoding="utf8")
 
 
