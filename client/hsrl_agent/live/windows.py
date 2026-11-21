@@ -167,6 +167,14 @@ class NativeBackend:
             if getattr(self,'optional_pointer_park',False):return
             raise Blocked('pointer return point occluded')
         self._event(0,point,token,record=False)
+    def service_pointer(self):
+        """Park during receipt polling, once Unity has consumed button-up."""
+        if self.deferred_park is None or self.clock()<self.pointer_ready_at:
+            return
+        try:self._park_pointer(self.window())
+        except FocusUnavailable:
+            # No pointer input on another window, including if focus returns.
+            self.deferred_park=None
     def _neutral(self,token,rect):
         """Leave the hovered card after an unsent press; never click anything."""
         try:

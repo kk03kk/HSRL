@@ -361,6 +361,8 @@ def _run(root,args,run_token):
             data=None;snapshot=None
             try:
                 data=reader.poll()
+                if practical and args.enable_input and requested!='stop':
+                    backend.service_pointer()
                 if reader.session and reader.session.name not in session_meta['log_sessions']:
                     session_meta['log_sessions'].append(reader.session.name)
                     session_meta.setdefault('power_offsets',{})[reader.session.name]=getattr(reader,'game_offset',0)

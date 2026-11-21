@@ -32,7 +32,7 @@ def parser(root):
             q.add_argument('--checkpoint',default=default);q.add_argument('--device',default='cpu')
             q.add_argument('--action-profile',choices=('player150',))
             q.add_argument('--facts');q.add_argument('--enable-input',action='store_true');q.add_argument('--seconds',type=float,default=300)
-            q.add_argument('--timing',choices=('balanced','conservative','overlap','fast'),default='balanced')
+            q.add_argument('--timing',choices=('balanced','conservative','overlap','fast','rapid'),default='balanced')
             q.add_argument('--inference-threads',type=int,default=8,help='bounded CPU inference parallelism, 1..32')
             if command=='autoplay':
                 q.set_defaults(seconds=3600);q.add_argument('--shadow',action='store_true');q.add_argument('--no-queue',action='store_true')

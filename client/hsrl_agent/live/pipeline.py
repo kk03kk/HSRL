@@ -45,6 +45,10 @@ class LivePipeline:
         self.policy=policy;self.pending=pending;self.out=out;self.gate=gate or FrameGate(backend,profile,out=out/'visual-evidence')
         self.metrics=Measurements();self.saved_key=None
         self.admission=None
+        self.projected_data=None
+        self.projected_lobby=None
+        self.projected_public=None
+        self.diagnostics_at=0.
         self.lobby_ocr=None
         self.next_banner_read = 0.0
         self.overdue_evidence=deque(maxlen=2);self.overdue_saves=0
@@ -73,6 +77,11 @@ class LivePipeline:
         save(folder/(name+'.json'),evidence)
     def project(self,data):
         if self.reader.connection!='connected':raise Blocked('client connection is not confirmed connected')
+        lobby=(getattr(self.projector,'lobby_game',None),getattr(self.projector,'lobby_races',None))
+        shareable=(getattr(self.reader,'_observation',None) is data
+                   and self.reader.live_tail_current())
+        if shareable and data is self.projected_data and lobby==self.projected_lobby:
+            return self.copy_projection(self.projected_public)
         with self.metrics.measure('projection'):s=self.projector.build_public(self.reader,data)
         if getattr(self.policy, 'peer_round', False):
             s['action_profile'] = getattr(self.policy,'action_profile','peer-r1')
@@ -83,7 +92,18 @@ class LivePipeline:
                 card_faces='frozen English card text plus witnessed local counters',
                 opponent='announced encounter only; pre-combat memory unavailable unless certified',
                 missing_fields='masked observation features, never action authorizations')
+        if shareable:
+            self.projected_data=data
+            self.projected_lobby=(getattr(self.projector,'lobby_game',None),getattr(self.projector,'lobby_races',None))
+            self.projected_public=s
+            return self.copy_projection(s)
         return s
+    @staticmethod
+    def copy_projection(snapshot):
+        # The log snapshot and its model view are read-only. The transaction
+        # stages add visual evidence and may annotate vocabulary misses.
+        approximation=snapshot['approximation']
+        return {**snapshot,'approximation':{**approximation,'fields':dict(approximation['fields'])}}
     def finish(self,s,visual,*,pinned=None,use_current=True):
         pending=self.pending() if use_current else pinned
         s=branch_snapshot(s,pending,visual)
@@ -163,11 +183,12 @@ class LivePipeline:
             return self.prepare(recovered)
         s=self.finish(s,visual);key=state_stamp(s)
         s['observed_monotonic']=observed_at
-        if key!=self.saved_key:
+        if key!=self.saved_key and observed_at>=self.diagnostics_at:
             from .runtime import save
             save(self.out/'approximation.json',s['approximation'])
             save(self.out/'coverage.json',dict(game_id=s['game_id'],revision=s['revision'],unknown=s['view'].get('unknown',[])))
             self.saved_key=key
+            self.diagnostics_at=observed_at+.25
         return s,image
     def check_action(self,old,binding=None):
         with self.metrics.measure('pre_dispatch'):

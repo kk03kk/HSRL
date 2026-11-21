@@ -66,7 +66,9 @@ class LogReader:
         self.spectating=False
         self.start_latest=False;self.game_offset=0
         self.last_complete_poll_at=None
+        self._observation=None
     def feed(self,line,source='power',anchor=None):
+        self._observation=None
         if 'Spectating' in line or 'Spectator Game' in line:self.spectating=True
         if source=='network':
             if 'Network.OnGameServerDisconnectEvent()' in line:self.connection='disconnected'
@@ -129,6 +131,7 @@ class LogReader:
         session=max(sessions,key=lambda p:p.name)
         if session!=self.session:
             self.session=session;self.state=RawState(self.player_id);self.epoch+=1
+            self._observation=None
             self.tails={};self.latest_time=None;self.history_complete=False
             self.power_uses={};self.seen_boards={};self.last_opponent=None;self._generation=0;self._receipt=None;self.trinket_slots={}
             self.combat_seen=False;self.connection='unknown';self.spectating=False
@@ -153,6 +156,7 @@ class LogReader:
             reset,rows,done=tail.poll()
             if reset:
                 self.state=RawState(self.player_id);self.epoch+=1
+                self._observation=None
                 self.history_complete=False;self.latest_time=None
                 self._generation=0;self.power_uses={};self.seen_boards={};self.last_opponent=None
                 self._receipt=None;self.combat_seen=False;self.connection='unknown';self.caught_up=False;self.trinket_slots={}
@@ -168,11 +172,15 @@ class LogReader:
             for row in rows: self.feed(row,source,anchor)
         self.caught_up=all_done
         if all_done:self.last_complete_poll_at=time.monotonic()
-        obs=self.state.observe(source_updated_at=self.latest_time)
-        data=obs.to_dict()
-        prefix=f'{session.name}:game@{self.game_offset}' if self.start_latest else session.name
-        data['game_id']=f'{prefix}:{self.epoch}:{data["game_id"]}'
-        return data
+        if self._observation is None:
+            data=self.state.observe(source_updated_at=self.latest_time).to_dict()
+            prefix=f'{session.name}:game@{self.game_offset}' if self.start_latest else session.name
+            data['game_id']=f'{prefix}:{self.epoch}:{data["game_id"]}'
+            self._observation=data
+        # All logs were read and completeness was recomputed even when the
+        # immutable public state did not change. A partial line cannot renew
+        # authority or cause an old snapshot to pass the freshness checks.
+        return self._observation
     def live_tail_current(self):
         """Acquisition freshness, distinct from the time of last game activity."""
         if (not self.start_latest or not self.caught_up or not self.history_complete or self.connection!='connected'

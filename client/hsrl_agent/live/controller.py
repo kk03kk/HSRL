@@ -101,7 +101,13 @@ class Controller:
         'duplicate_gesture_suppressed','waiting_control_settle','halted'))
     def event(self,kind,**data):
         with (self.out/'events.jsonl').open('a',encoding='utf-8') as f:
-            f.write(json.dumps(dict(at=time.time(),event=kind,**data),ensure_ascii=False)+'\n');f.flush();os.fsync(f.fileno())
+            f.write(json.dumps(dict(at=time.time(),event=kind,**data),ensure_ascii=False)+'\n')
+            # Inflight state is independently fsynced before any gesture.
+            # Diagnostic records need process-visible ordering, not a disk
+            # barrier per mouse stage, model inference or status update.
+            if kind not in ('status','model_decision','decision_reused','input_stage',
+                            'native_input_trace','input_timing','model_prospective_target'):
+                f.flush();os.fsync(f.fileno())
         if self.trace is not None and kind in self.TRACE_EVENTS:
             try:self.trace.note(kind,**data)
             except Exception:self.trace=None
