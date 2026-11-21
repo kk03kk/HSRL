@@ -165,10 +165,11 @@ class Recorder:
             raise ValueError(("invalid native game", rank, quality))
 
 
-def play(policy, bank, seed, seat, max_action):
+def play(policy, bank, seed, seat, max_action, recorder=None):
     from hsbg.az.train.evaluate import EvalConfig, evaluate_policy
 
-    recorder = Recorder()
+    if recorder is None:
+        recorder = Recorder()
     result = evaluate_policy(policy, EvalConfig(
         games=1, seed=seed, policy_seat=seat, mirror_pool=bank, mirror_strict=bank is not None,
         collect_economy=True, decision_recorder=recorder))
