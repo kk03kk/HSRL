@@ -13,8 +13,9 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import uuid
 
+from hsrl_agent.live.contracts import Blocked
 from hsrl_agent.live.operator_control import read_state
-from hsrl_agent.live.runtime import save
+from hsrl_agent.live.runtime import exclusive, save
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -371,15 +372,25 @@ class Console:
             self.window.destroy()
 
 
-if __name__ == '__main__':
+def main():
     try:
         ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
     except AttributeError:
         pass
-    window = tk.Tk()
     try:
-        Console(window)
-    except Exception as error:
-        messagebox.showerror('HSAI 控制台启动失败', str(error), parent=window)
-        raise SystemExit(1) from error
-    window.mainloop()
+        with exclusive(ROOT / 'artifacts/runs/live-console.lock'):
+            window = tk.Tk()
+            try:
+                Console(window)
+            except Exception as error:
+                messagebox.showerror('HSAI 控制台启动失败', str(error), parent=window)
+                return 1
+            window.mainloop()
+    except Blocked:
+        ctypes.windll.user32.MessageBoxW(None, '控制台已打开，请从任务栏切回已有窗口。', 'HSAI', 0x40)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

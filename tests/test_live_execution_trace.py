@@ -348,6 +348,29 @@ def test_witnessed_wrathguard_activation_recovers_from_options_boundary(card_id,
     assert verify(decision,before,after,allow_options_boundary=True)=='pending'
 
 
+def test_wrong_full_hand_source_is_rejected_only_on_fresh_local_play_proof():
+    from hsrl_agent.live.verification import verify
+    decision = _decision(action=115, source=8517)
+    old = dict(turn=10, phase='recruit', local_player_id=3, log_position=222706,
+               hand=[dict(entity_id=8517), dict(entity_id=8519)])
+    submission = dict(log_position=222707, source=8519, owner=3, position=6)
+    receipt = dict(kind='play', block_type='PLAY', source=8519, complete=True,
+                   submission=submission, log_position=222778)
+    new = dict(old, hand=[dict(entity_id=8517)], resolutions=[receipt],
+               client_submission_position=222707)
+    before = dict(game_id='game-1', revision=1, client=old)
+    after = dict(game_id='game-1', revision=2, client=new)
+    assert verify(decision, before, after, allow_options_boundary=True) == 'rejected'
+    submission['owner'] = 4
+    assert verify(decision, before, after, allow_options_boundary=True) == 'pending'
+    submission['owner'] = 3
+    receipt['block_type'] = 'TRIGGER'
+    assert verify(decision, before, after, allow_options_boundary=True) == 'pending'
+    receipt['block_type'] = 'PLAY'
+    new['client_submission_position'] = 222779
+    assert verify(decision, before, after, allow_options_boundary=True) == 'pending'
+
+
 def test_untargeted_paid_activation_requires_root_bound_reward_when_index_differs():
     from dataclasses import replace
     from hsrl_agent.live.verification import verify

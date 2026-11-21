@@ -292,8 +292,25 @@ def verify(decision,before,after,*,require_playback=True,allow_options_boundary=
     if b.kind=='choose':
         receipts=[r for r in receipts if r.get('block_type')=='CHOICE:'+str(b.choice_id)
                   and r.get('choice_owner') in (None,old.get('local_player_id'))]
-    if not receipts: return 'pending'
     def ids(data,zone): return [c['entity_id'] for c in data.get(zone,[])]
+    if not receipts:
+        # A completed, locally submitted PLAY on a different hand entity is
+        # decisive when our source is still in hand. Triggers and stale roots
+        # lack the fresh matching submission and remain unverified.
+        if b.kind in ('play','magnetize') and old.get('turn')==new.get('turn') and new.get('phase')=='recruit':
+            before_hand=set(ids(old,'hand'));after_hand=set(ids(new,'hand'))
+            cutoff=old.get('log_position') or 0
+            if b.source in before_hand and b.source in after_hand:
+                for receipt in new.get('resolutions',[]):
+                    played=receipt.get('source');submission=receipt.get('submission') or {}
+                    submitted_at=submission.get('log_position') or 0
+                    if (receipt.get('kind')=='play' and receipt.get('block_type')=='PLAY' and receipt.get('complete')
+                            and played!=b.source and played in before_hand and played not in after_hand
+                            and submission.get('source')==played and submission.get('owner')==old.get('local_player_id')
+                            and submitted_at==new.get('client_submission_position')
+                            and cutoff<submitted_at<=(receipt.get('log_position') or 0)):
+                        return 'rejected'
+        return 'pending'
     if b.kind=='buy':
         if b.source in ids(new,'hand')+ids(new,'board') and b.source not in ids(new,'shop'): return 'applied'
         # Immediate triple: follow the matching root's explicit copy graph only.
