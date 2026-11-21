@@ -1,7 +1,7 @@
 # HSAI 文档索引
 
 开工先读 [AGENTS.md](../AGENTS.md)，按 [OPERATIONS.md](OPERATIONS.md) 核对双端状态。
-[PROJECT_STATE.md](PROJECT_STATE.md) 记录当前模型和研究交接，[ARCHITECTURE.md](ARCHITECTURE.md) 给出七个模块和阅读顺序。
+[PROJECT_STATE.md](PROJECT_STATE.md) 记录当前模型和研究交接，[ARCHITECTURE.md](ARCHITECTURE.md) 给出七个模块和阅读顺序。[Player150 现役基线](PLAYER150_BASELINE.md) 登记正式模型、模拟器、观测与动作契约。
 
 | 模块 | 规范和入口 | 研究与历史证据 |
 |---|---|---|
