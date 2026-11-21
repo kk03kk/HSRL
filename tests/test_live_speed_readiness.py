@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
 
 from hsrl_agent.live.logs import LogReader
+from hsrl_agent.live.actions import bind_actions
 from hsrl_agent.live.timing import RAPID
 from hsrl_agent.live.windows import NativeBackend
 
@@ -61,3 +62,35 @@ def test_pointer_parks_during_receipt_wait_only_after_safe_dwell():
     last = list(movements)
     backend.service_pointer()
     assert movements == last
+
+
+def test_untargeted_secondary_power_does_not_replace_witnessed_choose_one_play():
+    card = dict(entity_id=2419, card_id='BG30_123', card_type='MINION', tags={'CHOOSE_ONE': '1'})
+    branch = dict(id=1, entity=2419, type='POWER', error='NONE', targets=[], has_targets=False,
+                  sub_options=[dict(id=0, entity=2420, error='NONE', targets=[]),
+                               dict(id=1, entity=2421, error='NONE', targets=[])])
+    plain = dict(id=2, entity=2419, type='POWER', error='NONE', targets=[], has_targets=False)
+    board = [dict(entity_id=11, card_id='TEST', card_type='MINION')]
+    snapshot = dict(client=dict(hand=[card], board=board), view={}, action_profile='player150')
+    for options in ([branch, plain], [plain, branch]):
+        bindings = bind_actions(dict(snapshot, options=options))
+        assert [b.action for b in bindings] == [0, 46, 47]
+        assert [(b.option_id, b.branches) for b in bindings[1:]] == [
+            (1, ((2420, 0, 'NONE', ()), (2421, 1, 'NONE', ())))] * 2
+
+    # Without the witnessed card tag, only the ambiguous slots are masked.
+    card['tags'].clear()
+    assert [b.action for b in bind_actions(dict(snapshot, options=[branch, plain]))] == [0]
+
+
+def test_only_a_certified_unsent_matching_gesture_can_degrade_rapid_timing():
+    backend = NativeBackend.__new__(NativeBackend)
+    backend.timing = RAPID
+    backend.degraded_gestures = set()
+    backend.last_gesture = ('drag', ('session', 6, 42), RAPID.name)
+    snapshot = {'game_id': 'session', 'client': {'turn': 6, 'log_position': 43}}
+    assert backend.note_unsent(snapshot) is None
+    assert backend.degraded_gestures == set()
+    snapshot['client']['log_position'] = 42
+    assert backend.note_unsent(snapshot) == 'drag'
+    assert backend.degraded_gestures == {'drag'}

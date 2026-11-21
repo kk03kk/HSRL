@@ -1,4 +1,6 @@
 """Server Options/EntityChoices -> identity-bound 245 actions. No action ranking."""
+from dataclasses import replace
+
 from .contracts import Binding,Blocked
 from .action_profiles import peer_actions
 
@@ -10,6 +12,21 @@ def secondary_plain_power(options,entity):
     plain=plain_power_options(options,entity)
     if len(plain)>=2 and plain[1]['error']=='NONE' and all(row['error']!='NONE' for row in plain[2:]):
         return plain[1]
+    return None
+
+
+def choose_one_play(first, second, entities):
+    """A Choose One card can have a second, untargeted POWER row in hand."""
+    if (first.kind!=second.kind or first.kind!='play' or first.source!=second.source
+            or str(entities[first.source].get('tags',{}).get('CHOOSE_ONE'))!='1'):
+        return None
+    branch,plain=sorted((first,second),key=lambda b:bool(b.branches),reverse=True)
+    if (branch.branches and not plain.branches and not branch.targets and not plain.targets
+            and replace(branch,option_id=None,branches=())==replace(plain,option_id=None)):
+        # The structured authorization names both physical choices. Using
+        # the plain row would discard the second step's entity/suboption
+        # proof even though the same hand-to-board drag opens the popup.
+        return branch
     return None
 
 def magnetic_host(source, host, public_item):
@@ -155,14 +172,24 @@ def bind_actions(snapshot):
         elif eid==snapshot['view'].get('dark_gift_entity'):
             out.append(Binding(6,'dark_gift',source=eid,option_id=oid,targets=targets))
     unique={}
+    ambiguous=set()
     for b in out:
         if not 0<=b.action<245: raise Blocked('action overflow')
+        if b.action in ambiguous:continue
         if b.action in unique and unique[b.action]!=b:
-            from dataclasses import replace
             # Multiple DragBuy authorizers can have different COST/option IDs
             # while authorizing the same entity/UI gesture. Never merge targets
             # or branches that give one flat action different meanings.
             if replace(unique[b.action],option_id=None)==replace(b,option_id=None): continue
+            if chosen:=choose_one_play(unique[b.action],b,entities):
+                unique[b.action]=chosen
+                continue
+            if snapshot.get('action_profile')=='player150':
+                # An unsupported slot cannot authorize any physical action,
+                # but does not invalidate other independently proven slots.
+                unique.pop(b.action)
+                ambiguous.add(b.action)
+                continue
             raise Blocked('ambiguous server action')
         unique[b.action]=b
     return tuple(unique.values())

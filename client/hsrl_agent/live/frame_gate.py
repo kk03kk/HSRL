@@ -21,6 +21,13 @@ def patch_correlation(first,second):
     return float((a*b).sum()/denominator)
 
 
+def inside_hit(point,box):
+    x,y=point
+    left,top,width,height=box
+    return (width>0 and height>0 and left+.18*width<=x<=left+.82*width
+            and top+.18*height<=y<=top+.82*height)
+
+
 def layout_key(snapshot):
     data=snapshot['client']
     synthetic=(data.get('interaction') or {}).get('authority') in ('pinned_server_option','pinned_server_subOptions')
@@ -31,7 +38,7 @@ def layout_key(snapshot):
                for z in ('hand','board','shop','choices','branches')}))
 
 
-def dependency_regions(profile,snapshot,binding=None):
+def dependency_regions(profile,snapshot,binding=None,*,action_local=False):
     data=snapshot['client']
     regions={'board':[.20,.46,.63,.23],'hand':[.20,.78,.61,.21],'shop':[.20,.27,.49,.20]}
     kind=binding.kind if binding else None
@@ -58,6 +65,16 @@ def dependency_regions(profile,snapshot,binding=None):
         c.get('entity_id')==binding.source and c.get('card_type')=='MINION'
         for c in data.get('hand',[])))
     if insertion:zones=('hand',)
+    if action_local and binding:
+        if kind=='buy' and len(data.get('hand',()))<7:
+            # The hand drop point is still checked below. Animation elsewhere
+            # in the hand cannot change the shop entity selected by the drag.
+            zones=('shop',)
+        elif kind=='sell':
+            zones=('board',)
+        elif kind=='play' and not binding.target and not binding.targets and not binding.branches:
+            # An untargeted spell uses the container, not a minion in the row.
+            zones=('hand',)
     result=[regions[z] for z in zones]
     # Source/target controls and insertion points must also remain still.
     if binding and kind!='end':
@@ -126,6 +143,7 @@ class FrameGate:
         # before the press; the image is evidence, not an input precondition.
         self.frame_writer=None
         self.end_ocr=None
+        self.action_local=getattr(getattr(backend,'timing',None),'name',None)=='rapid-v1'
     def save_dispatch(self,snapshot,binding):
         """Two rotating diagnostic frames, separate from input authorization."""
         if self.out is None or self.last_frame is None or binding is None:return None
@@ -302,6 +320,7 @@ class FrameGate:
         measured_choice=bool(binding and binding.kind=='choose' and current_choice.get('visible') and old_choice
             and old_choice.get('visible') and current_choice['entities']==old_choice['entities']
             and len(current_choice['boxes'])==len(old_choice['boxes']))
+        early_choice=False
         if measured_choice:
             # The old executor checks measured card geometry instead of waiting
             # for all art/particles to stop. Keep two fresh complete rows, stable
@@ -309,16 +328,30 @@ class FrameGate:
             # Rail maxima can move inside a thick glowing rim while the hit
             # and artwork stay still. Allow a small resolution-scaled rim band;
             # the source hit patch below must still pass the pixel comparison.
-            for previous_box,current_box in zip(old_choice['boxes'],current_choice['boxes']):
-                if max(abs(a-b)*scale for a,b,scale in zip(previous_box,current_box,
-                        (image.width,image.height,image.width,image.height)))>(max(4,image.width*.008) if
-                            current_choice.get('evidence')=='paired_straight_discovery_rails_at_every_calibrated_hit'
-                            and old_choice.get('evidence')==current_choice.get('evidence') else 4):
-                    self.admitted=None;raise Blocked('choice row geometry is still moving')
             x,y=PracticalGeometry(self.profile).locations(stage)[0]['entity:'+str(binding.source)]
-            boxes=[[x-.02,y-.03,.04,.06]]
+            interaction=stage['client'].get('interaction') or {}
+            if (self.action_local and stage['view'].get('pending')==2 and len(current_choice['entities'])==3
+                    and interaction.get('mode')=='choice' and interaction.get('display_state') not in ('hidden','waiting')
+                    and not visual.get('confirm_enabled')):
+                # The same server-owned row is visible in both frames. A
+                # click safely inside the selected card in both measured
+                # rectangles need not wait for artwork or adjacent cards.
+                index=current_choice['entities'].index(binding.source)
+                left,top,width,height=current_choice['boxes'][index]
+                hit=(left+width/2,top+height/2)
+                early_choice=all(inside_hit(hit,proof['boxes'][index]) for proof in (old_choice,current_choice))
+                if early_choice:x,y=hit
+            if not early_choice:
+                for previous_box,current_box in zip(old_choice['boxes'],current_choice['boxes']):
+                    limit=(max(4,image.width*.008) if
+                        current_choice.get('evidence')=='paired_straight_discovery_rails_at_every_calibrated_hit'
+                        and old_choice.get('evidence')==current_choice.get('evidence') else 4)
+                    if max(abs(a-b)*scale for a,b,scale in zip(previous_box,current_box,
+                            (image.width,image.height,image.width,image.height)))>limit:
+                        self.admitted=None;raise Blocked('choice row geometry is still moving')
+            boxes=[] if early_choice else [[x-.02,y-.03,.04,.06]]
             if visual.get('confirm_enabled'):boxes.append([.43,.74,.14,.10])
-        else:boxes=dependency_regions(self.profile,stage,binding)
+        else:boxes=dependency_regions(self.profile,stage,binding,action_local=self.action_local)
         if not all(stable(old[1],image,crop_box(box,image.size),10.) for box in boxes):
             # Name the boxes that moved: the next run can then say whether it
             # was the source card, a neighbour or a whole-zone animation.
@@ -343,6 +376,9 @@ class FrameGate:
                 [Occlusion(image,box) for box in visual['branch_ui']['boxes']])
             self.branch_press_frame=(key,image)
         visual.update(observed_at=now,admitted=True,region_count=len(boxes),evidence='two fresh frames; exact window/layout; action dependencies')
+        if early_choice:
+            visual['early_choice_hit']=[x,y]
+            visual['evidence']='two complete owned rows; selected hit inside both card rectangles'
         return visual,image
     def end_control_probe(self,image,snapshot):
         """Classify the calibrated end-turn neighbourhood without blind clicks.
@@ -488,11 +524,17 @@ class FrameGate:
             proof=inspect(image,self.profile,snapshot['client'],hovered_entity=hovered)
             self.last_choice_probe=proof
             if proof['visible'] and proof['entities']==expected:
+                early=snapshot['visual'].get('early_choice_hit')
+                if early is not None and (hovered not in expected
+                        or not inside_hit(early,proof['boxes'][expected.index(hovered)])):
+                    raise Blocked('selected choice moved away from the admitted hit; no button down sent')
                 if self.highlight_moved(snapshot,image):
                     raise Blocked('another slot was highlighted after admission; no button down sent')
                 if attempt:print('Press: choice row confirmed after hover settle retry %d.'%(attempt+1),flush=True)
                 return
             if attempt+1<self.recheck_attempts:self.sleep(self.recheck_settle)
+        if snapshot['visual'].get('early_choice_hit') is not None:
+            raise Blocked('selected choice no longer has a visible hit; no button down sent')
         # Bounded continuity fallback. The row identity is pinned by the server
         # choice and the exact semantic stamp was re-checked around this capture,
         # so only the rail-support bar is relaxed to tolerate hover shading,

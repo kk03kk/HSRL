@@ -248,7 +248,8 @@ class Controller:
         trace_id=stage_trace_id or self.current_decision_id
         self.event('input_stage',game_id=snapshot['game_id'],plan=plan,
                    log_position=snapshot['client'].get('log_position'),
-                   visual_evidence=snapshot.get('visual',{}).get('dispatch_evidence'))
+                   visual_evidence=snapshot.get('visual',{}).get('dispatch_evidence'),
+                   early_choice=snapshot.get('visual',{}).get('early_choice_hit'))
         status='sent';error=None;outcome=None
         physical=False
         try:
@@ -350,6 +351,10 @@ class Controller:
                 outcome='client_never_submitted_archived_no_resend'))
         self.event('expired_unsent_input',action=d.action,action_kind=d.binding.kind,
             source=d.binding.source,proof='client_never_submitted',archive=str(archive))
+        adapt=getattr(self.backend,'note_unsent',None)
+        if adapt and (primitive:=adapt(before)):
+            self.event('gesture_timing_degraded',primitive=primitive,action_kind=d.binding.kind,
+                       reason='no_client_submission',automatic_resend=False)
         self.clear();return True
     def rejected_reconciliation(self,snapshot):
         """Retire a submitted option the server never took.

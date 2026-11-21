@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import time
 from .contracts import Blocked,InputNotSent,FocusUnavailable,digest
-from .timing import timing_for,validate_plan
+from .timing import FAST,RAPID,timing_for,validate_plan
 
 @dataclass(frozen=True)
 class Window:
@@ -26,6 +26,8 @@ class NativeBackend:
         self.timing=timing_for(timing);self.clock=time.monotonic;self.sleep=time.sleep
         self.pointer_ready_at=0.
         self.deferred_park=None
+        self.degraded_gestures=set()
+        self.last_gesture=None
         self.u=C.WinDLL('user32',use_last_error=True);self.k=C.WinDLL('kernel32',use_last_error=True)
         self.u.SetThreadDpiAwarenessContext.argtypes=[C.c_void_p]
         self.u.SetThreadDpiAwarenessContext.restype=C.c_void_p
@@ -175,6 +177,20 @@ class NativeBackend:
         except FocusUnavailable:
             # No pointer input on another window, including if focus returns.
             self.deferred_park=None
+    @staticmethod
+    def gesture_context(snapshot):
+        client=snapshot.get('client',{})
+        return snapshot.get('game_id'),client.get('turn'),client.get('log_position')
+    def note_unsent(self,snapshot):
+        """Restore proven timing for this primitive after a certified no-submit."""
+        gesture=self.last_gesture
+        if self.timing!=RAPID or not gesture or gesture[1]!=self.gesture_context(snapshot):
+            return None
+        primitive,_,name=gesture
+        if name!=RAPID.name:
+            return None
+        self.degraded_gestures.add(primitive)
+        return primitive
     def _neutral(self,token,rect):
         """Leave the hovered card after an unsent press; never click anything."""
         try:
@@ -197,7 +213,9 @@ class NativeBackend:
             window=self.window();token=snapshot['visual']['window_token']
             self._check(token);x,y,w,h=window.rect;rect=window.rect
         except Blocked as exc:raise InputNotSent(str(exc)) from exc
-        timing=self.timing;started=self.clock()
+        primitive=next((row[0] for row in plan if row[0]!='move_pointer'),None)
+        timing=FAST if primitive in getattr(self,'degraded_gestures',()) else self.timing
+        started=self.clock()
         def absolute(p):
             if not all(0<v<1 for v in p): raise Blocked('point outside client')
             pt=(x+round(p[0]*(w-1)),y+round(p[1]*(h-1)))
@@ -273,6 +291,8 @@ class NativeBackend:
                 if not timing.overlap_release or index+1<len(plan):
                     self.sleep(timing.release)
             self.last_input_trace['completed']=True
+            if primitive is not None:
+                self.last_gesture=(primitive,self.gesture_context(snapshot),timing.name)
         except Blocked as exc:
             if not down_sent:
                 # A cancelled pre-press check has already moved the real pointer

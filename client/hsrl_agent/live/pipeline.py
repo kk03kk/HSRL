@@ -43,6 +43,9 @@ class LivePipeline:
     def __init__(self,reader,projector,backend,profile,policy,pending,out,*,gate=None):
         self.reader=reader;self.projector=projector;self.backend=backend;self.profile=profile
         self.policy=policy;self.pending=pending;self.out=out;self.gate=gate or FrameGate(backend,profile,out=out/'visual-evidence')
+        if gate is None and getattr(getattr(backend,'timing',None),'name',None)=='rapid-v1':
+            self.gate.recheck_settle=.065
+            self.gate.recheck_attempts=4
         self.metrics=Measurements();self.saved_key=None
         self.admission=None
         self.projected_data=None

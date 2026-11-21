@@ -190,6 +190,7 @@ def _run(root,args,run_token):
     backend=getattr(args,'preloaded_backend',None) or NativeBackend(exe,getattr(args,'stop_file',out/'STOP'),enable_input=args.enable_input,timing=getattr(args,'timing','balanced'))
     practical=bool(getattr(args,'practical',False))
     overlap_receipts=practical and getattr(getattr(backend,'timing',None),'overlap_release',False)
+    rapid=practical and getattr(getattr(backend,'timing',None),'name',None)=='rapid-v1'
     if practical:
         from .adaptive import AdaptiveProjector
         from .practical import PracticalGeometry
@@ -360,9 +361,9 @@ def _run(root,args,run_token):
                 break
             data=None;snapshot=None
             try:
-                data=reader.poll()
                 if practical and args.enable_input and requested!='stop':
                     backend.service_pointer()
+                data=reader.poll()
                 if reader.session and reader.session.name not in session_meta['log_sessions']:
                     session_meta['log_sessions'].append(reader.session.name)
                     session_meta.setdefault('power_offsets',{})[reader.session.name]=getattr(reader,'game_offset',0)
@@ -502,7 +503,7 @@ def _run(root,args,run_token):
                     try:snapshot,image=prepare(data)
                     except Blocked as exc:
                         last_blocker=dict(reason=str(exc),game_id=data['game_id'],turn=data.get('turn'))
-                        report(str(exc),data);time.sleep(.15);continue
+                        report(str(exc),data);time.sleep(.04 if rapid else .15);continue
                     outcome=controller.poll_pending(snapshot,before_send=guard)
                 else:
                     snapshot,image=prepare(data)
@@ -569,7 +570,7 @@ def _run(root,args,run_token):
                 report('internal error while revalidating; input paused, no retry of uncertain input',data)
                 time.sleep(.2);continue
             except KeyboardInterrupt:operator_stopped=True;report('user interrupted');break
-            time.sleep(.06 if practical else .15)
+            time.sleep(.03 if rapid else .06 if practical else .15)
     if fast:save(out/'latency.json',fast.metrics.report())
     save(out/'wait-summary.json',dict(seconds_by_category=waits.totals,diagnostic_only=True))
     # Closed in _finalize_run, after the event log and session archives are
