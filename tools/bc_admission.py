@@ -124,6 +124,8 @@ def admit(args):
         or digest(path) != report["checkpoint_sha256"]
         or not check["same_weights_ratio"] or not check["finite_log_probabilities_value_and_gradients"]
         or check["optimizer_updates"] != 0 or check["valid_samples"] < 192
+        or set(check["stochastic"]) != set(FIELDS)
+        or any(check["stochastic"][name]["games"] < 1024 for name in FIELDS)
     ):
         raise ValueError("The candidate has not passed both BC admission checks")
     copy(path, args.out / "ppo-init.pt")

@@ -484,7 +484,7 @@ def train(args):
 
 
 @torch.inference_mode()
-def play(model, seeds, field, batch_size, workers, failures=None, recorder=None):
+def play(model, seeds, field, batch_size, workers, failures=None, recorder=None, *, sample=False):
     model.eval()
     games = []
     for left in range(0, len(seeds), batch_size):
@@ -508,7 +508,15 @@ def play(model, seeds, field, batch_size, workers, failures=None, recorder=None)
                     cards = np.frombuffer(c, dtype="<i4").reshape(n, OBS_CARDS)
                     with torch.autocast(DEVICE, torch.bfloat16):
                         out = model(*tensors(features[choice], cards[choice], mask[choice]))
-                    actions[choice] = out.logits.argmax(dim=1).cpu().numpy()
+                    if sample:
+                        distribution = torch.distributions.Categorical(logits=out.logits)
+                        picked = distribution.sample()
+                        log_prob = distribution.log_prob(picked)
+                        if not torch.isfinite(log_prob).all() or not torch.isfinite(out.value).all():
+                            raise RuntimeError("Nonfinite sampled log probability or value")
+                    else:
+                        picked = out.logits.argmax(dim=1)
+                    actions[choice] = picked.cpu().numpy()
                 if recorder:
                     actions = recorder.step(arena, slots, f, c, mask, actions, choice)
                 arena.step(actions.tolist())
