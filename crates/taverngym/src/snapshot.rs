@@ -30,7 +30,7 @@ use crate::actions::N_SHOP;
 use crate::cards::{CardId, CardKind, db};
 use crate::engine::{Game, Phase};
 use crate::invariants;
-use crate::state::{Item, Minion, Player, QueueMark};
+use crate::state::{Item, Minion, Pending, Player, QueueMark};
 use crate::types::EntityId;
 
 /// 人类战团（board-only）注入的结果（Python 侧转成 dict；拒绝不抛异常）。
@@ -449,9 +449,30 @@ impl Game {
         p.shop.clear();
         p.hand_queue.clear();
         p.hand_queue_marks.clear();
-        p.pending.clear();
         p.scheduled.clear();
         p.owed.clear();
+    }
+
+    /// Combat-created recruitment offers at external seats are replaced by the
+    /// next donor frame. Return every reserved draft instance before dropping offers.
+    pub(crate) fn release_warband_offers(&mut self, seat: usize) {
+        for pending in std::mem::take(&mut self.players[seat].pending) {
+            match pending {
+                Pending::Discover { options, .. } => {
+                    for m in options.iter().filter_map(Item::as_minion) {
+                        self.pool.return_minion(m);
+                    }
+                }
+                Pending::Timewarp { options, .. } => {
+                    for (item, _) in options {
+                        if let Some(m) = item.as_minion() {
+                            self.pool.return_minion(m);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     pub(crate) fn install_warband(

@@ -370,6 +370,7 @@ impl Game {
         for p in 0..self.players.len() {
             if self.players[p].alive {
                 if self.warband_seat(p) {
+                    self.release_warband_offers(p);
                     if self.turn == self.warband_start {
                         self.clear_for_warband(p);
                     }

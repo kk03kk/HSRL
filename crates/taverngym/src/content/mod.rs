@@ -1121,7 +1121,11 @@ pub fn after_discover(
 pub fn on_eliminated(g: &mut Game, dead: PlayerId, board: Vec<Minion>) {
     let kitty = cid("TB_BaconShop_HP_080");
     for q in 0..g.players.len() {
-        if q == dead || !g.players[q].alive || g.players[q].power_of(kitty).is_none() {
+        if q == dead
+            || !g.players[q].alive
+            || g.warband_seat(q)
+            || g.players[q].power_of(kitty).is_none()
+        {
             continue;
         }
         let board = board.clone();
