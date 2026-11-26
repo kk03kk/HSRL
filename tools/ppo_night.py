@@ -178,6 +178,7 @@ class Night:
 
     def run_segment(self, number, seconds):
         check((self.root/"preflight-receipt.json").exists(),"CPU preflight has not succeeded")
+        check((self.root/"gpu-preflight.json").exists(),"GPU preflight has not succeeded")
         with (self.root/"controller.lock").open("a") as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
             try:
@@ -231,7 +232,7 @@ class Night:
                         break
                     self.branch(state,"safe")
                     continue
-            if current < target or deadline-time.time() < 130:
+            if deadline-time.time() < 130 or (current < target and (number != 3 or current-reviewed < 8)):
                 break
             name = f"{key}-{current:04d}"
             checkpoint = self.freeze(branch,current)
@@ -277,7 +278,33 @@ class Night:
                             if state["accepted"]["recipe"]!=branch["recipe"] else "hybrid")
             elif state["flat"]>=3 and branch["recipe"]=="safe" and state["accepted"]["recipe"]!="safe":
                 self.branch(state,state["accepted"]["recipe"])
+            if current < target:
+                break
         self.event("segment_end", segment=number, accepted=state["accepted"], stop=state.get("stop"))
+
+    def smoke(self):
+        check((self.root/"preflight-receipt.json").exists(), "CPU preflight has not succeeded")
+        branch={"name":"gpu-preflight","recipe":"hybrid","anchor":self.refs()["checkpoint"],
+                "first":184500000,"seed":413909}
+        check(not self.train(branch,1,360,cap=2,snapshot=1), "GPU smoke first iteration failed")
+        check(not self.train(branch,2,360,cap=2,snapshot=1), "GPU smoke resume failed")
+        out=self.root/"branches"/branch["name"]
+        r=read(out/"iteration-002.json")
+        score=r["optimization"]["before"]["max_abs_log_ratio"]
+        check(r["sampling"]["terminal_events"]==1024 and score<1e-4
+              and r["sampling"]["fields"]["d"]["warband"]["frames"]>0
+              and read(out/"summary.json")["from_iteration"]==1, "GPU smoke parity mismatch")
+        first=torch.load(out/"snapshot-001.pt",map_location="cpu",weights_only=False)
+        second=torch.load(out/"latest.pt",map_location="cpu",weights_only=False)
+        info=read(self.root/"preflight-receipt.json")["parent"]
+        minimum=min(float(v["step"]) for v in first["optimizer"]["state"].values())
+        check(minimum>info["optimizer_step_min"]
+              and second["next_game_seed"]-first["next_game_seed"]==1024,
+              "Adam or game seed did not resume")
+        atomic(self.root/"gpu-preflight.json",{"gpu":torch.cuda.get_device_name(),"iteration":2,
+               "engine":ENGINE,"probability_replay_error":score,"adam_steps_min":minimum,
+               "frames":r["sampling"]["fields"]["d"]["warband"]["frames"],
+               "confirmed_resume":True})
 
     def control(self, lane):
         recipe="script" if lane==0 else "hybrid"
@@ -305,13 +332,16 @@ class Night:
         for name, checkpoint in candidates.items():
             check(digest(checkpoint["path"])==checkpoint["sha256"],f"Digest mismatch {name}")
         fresh=(self.root/"fresh-bank-receipt.json").is_file()
-        receipt={"candidates":candidates,"fields":["original","mixed","human","fresh" if fresh else "bank"],
+        fields=["original","mixed","human","bank"]+(["fresh"] if fresh else [])
+        receipt={"candidates":candidates,"fields":fields,
                  "state":state, "created":time.time(), "engine":ENGINE}
         atomic(self.root/"final-selection.json",receipt)
         self.event("final_selection", checkpoints=candidates, fresh_bank=fresh)
 
     def final_field(self, slot):
         receipt = read(self.root/"final-selection.json")
+        if slot >= len(receipt["fields"]):
+            return
         field=receipt["fields"][slot]
         for name,checkpoint in receipt["candidates"].items():
             for attempt in range(2):
@@ -445,13 +475,13 @@ def main():
     p=argparse.ArgumentParser()
     for key in ("root","assets","bc","parent"):
         p.add_argument(key,type=Path)
-    p.add_argument("mode",choices=("verify","segment","control","seal","evaluate","report"))
+    p.add_argument("mode",choices=("verify","smoke","segment","control","seal","evaluate","report"))
     p.add_argument("number",type=int,nargs="?",default=0)
     p.add_argument("seconds",type=int,nargs="?",default=10680)
     args=p.parse_args()
     torch.set_num_threads(2)
     n=Night(args.root,args.assets,args.bc,args.parent)
-    {"verify":n.verify,"segment":lambda:n.run_segment(args.number,args.seconds),
+    {"verify":n.verify,"smoke":n.smoke,"segment":lambda:n.run_segment(args.number,args.seconds),
      "control":lambda:n.control(args.number),"seal":n.seal,"evaluate":lambda:n.final_field(args.number),
      "report":lambda:report(args.root)}[args.mode]()
 
