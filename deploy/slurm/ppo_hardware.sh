@@ -42,6 +42,14 @@ case "$stage" in
             "$run/full-host/latest.pt" "$run/full-resident/latest.pt"
         ;;
     mig)
+        # Slurm's numbered MIG mask can enumerate only one instance. Use the
+        # exact two UUIDs visible to this job before importing CUDA.
+        mapfile -t uuids < <(nvidia-smi -L | sed -n 's/.*(UUID: \(MIG-[^)]*\)).*//p')
+        if [[ ${#uuids[@]} -ne 2 ]]; then
+            printf 'Expected exactly two allocated MIG UUIDs, got %s\n' "${#uuids[@]}" >&2
+            exit 1
+        fi
+        export CUDA_VISIBLE_DEVICES="${uuids[0]},${uuids[1]}"
         watch_gpu
         common=(--workers 10 --expected-gpu 'NVIDIA H100 NVL MIG 3g.47gb' --resident-rollout)
         small=(--first-seed 11000000 --games 128 --concurrent 128 --iterations 2 --actors 2)
