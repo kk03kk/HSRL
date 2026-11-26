@@ -47,7 +47,10 @@ def main():
     parser.add_argument("data", type=Path, nargs="+")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--device", default="cuda", choices=("cuda", "cpu"))
+    parser.add_argument("--batch", type=int, default=64)
     args = parser.parse_args()
+    if args.batch < 2:
+        parser.error("--batch must be at least two")
 
     assert taverngym.build_is_current(Path.cwd()) is True
     torch.set_num_threads(2)
@@ -55,9 +58,14 @@ def main():
     if args.device == "cuda":
         configure(2601126)
     data = Demonstrations(args.data, load_rows=True)
-    sample = np.concatenate([np.array(t[:16]) for t in data.tables])
     rng = np.random.default_rng(473)
-    selected = rng.choice(len(sample), size=min(64, len(sample)), replace=False)
+    samples = []
+    for table in data.tables:
+        eligible = np.flatnonzero(table["flags"] & 4)
+        indexes = rng.choice(eligible, size=min(args.batch, len(eligible)), replace=False)
+        samples.append(table[indexes])
+    sample = np.concatenate(samples)
+    selected = rng.choice(len(sample), size=args.batch, replace=False)
     rows = sample[selected]
     assert rows.dtype == ROW and len(rows) > 0
 
@@ -74,21 +82,27 @@ def main():
     target = torch.from_numpy(rows["action"].astype("i8")).to(device)
     rank = torch.from_numpy(rows["rank"].astype("i8") - 1).to(device)
     utility = torch.tensor(REWARD, device=device)
+    if args.device == "cuda":
+        torch.cuda.reset_peak_memory_stats()
     with torch.autocast(args.device, dtype=torch.bfloat16, enabled=args.device == "cuda"):
         out = model(*inputs)
+        nll, placement, value = score(out, target, rank, utility)
+        weights = torch.from_numpy((1 + 0.35 * (rows["turn"] >= 8)).astype("f4")).to(device)
+        loss = (nll * weights).sum() / weights.sum() + 0.05 * placement + 0.05 * value
     legal = inputs[-1]
     assert bool(torch.isfinite(out.logits[legal]).all())
     assert bool(torch.isneginf(out.logits[~legal]).all())
-    nll, placement, value = score(out, target, rank, utility)
-    multi = legal.sum(dim=1) > 1
-    loss = nll[multi].mean() + 0.05 * placement + 0.05 * value
+    assert bool((legal.sum(dim=1) > 1).all())
     assert bool(torch.isfinite(loss))
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0, error_if_nonfinite=True)
+    peak_bytes = torch.cuda.max_memory_allocated() if args.device == "cuda" else None
     assert all(bool(torch.isfinite(p.grad).all()) for p in model.parameters() if p.grad is not None)
     assert torch.equal(before, representative)
     closed_loop_games = 0
     checkpoint_roundtrip = False
     if args.device == "cuda":
+        check_inputs = [tensor[:16] for tensor in inputs]
         optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, fused=True)
         checkpoint = io.BytesIO()
         metadata = {"model": {"width": 384, "layers": 8, "heads": 8, "feedforward": 1664}}
@@ -103,7 +117,7 @@ def main():
         model.eval()
         reloaded.eval()
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-            assert torch.equal(model(*inputs).logits, reloaded(*inputs).logits)
+            assert torch.equal(model(*check_inputs).logits, reloaded(*check_inputs).logits)
         checkpoint_roundtrip = True
         for field in ("original", "mixed"):
             seeds = sorted(seed for seed, (kind, _) in data.games.items() if kind == field)[:4]
@@ -116,6 +130,7 @@ def main():
         "placement_utility": REWARD, "device": args.device, "torch": torch.__version__,
         "gpu": torch.cuda.get_device_name() if args.device == "cuda" else None,
         "logits_dtype": str(out.logits.dtype), "engine": taverngym.build_info(),
+        "peak_cuda_allocated_bytes": peak_bytes,
         "checkpoint_roundtrip": checkpoint_roundtrip, "paired_forward_only_games": closed_loop_games,
         "unchanged_games_when_labelling": check_teacher_targets(),
     }

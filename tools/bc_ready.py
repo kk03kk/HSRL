@@ -56,7 +56,7 @@ def main():
     run = args.run
     splits = examine(run)
     cpu = json.loads((run / "preflight-cpu.json").read_text(encoding="utf-8"))
-    gpu = json.loads((run / "preflight-cuda.json").read_text(encoding="utf-8"))
+    gpu = json.loads((run / "preflight-cuda-full.json").read_text(encoding="utf-8"))
     fingerprint = gpu["engine"]["source_hash"]
     for probe in (cpu, gpu):
         if (
@@ -65,12 +65,20 @@ def main():
             or probe["unchanged_games_when_labelling"] != 8
         ):
             raise ValueError("Incomplete model or labelling preflight")
+    if (
+        gpu["input_rows"] != 768 or not gpu["checkpoint_roundtrip"]
+        or gpu["paired_forward_only_games"] != 8 or gpu["peak_cuda_allocated_bytes"] <= 0
+    ):
+        raise ValueError("The production-size CUDA preflight is incomplete")
     if any(x["manifest"]["source_hash"] != fingerprint for x in splits.values()):
         raise ValueError("The prepared shards use a different engine")
     result = {
         "ready_for_bc": True, "optimizer_updates": 0,
         "strategy_evaluator_parity_games": check_evaluator_parity(run, args.parity),
         "engine_fingerprint": fingerprint, "parameters": gpu["parameters"], "gpu": gpu["gpu"],
+        "cuda_batch": gpu["input_rows"], "peak_cuda_allocated_bytes": gpu["peak_cuda_allocated_bytes"],
+        "checkpoint_roundtrip": gpu["checkpoint_roundtrip"],
+        "paired_forward_only_games": gpu["paired_forward_only_games"],
         "train": ["train-original", "train-mixed"], "development": ["dev-original", "dev-mixed"],
         "independent_holdout": ["test-original", "test-mixed"],
         "placement_utility": gpu["placement_utility"],
