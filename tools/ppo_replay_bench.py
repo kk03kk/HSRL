@@ -35,11 +35,13 @@ def main():
     )
     control = None
     rounds = []
-    for defer in (False, True, True, False):
+    for microbatch, defer in (
+        (1024, False), (1024, True), (2048, False), (2048, False), (1024, True), (1024, False)
+    ):
         model = make_model(saved["model"])
         optimizer = torch.optim.AdamW(model.parameters(), lr=9e-6, fused=True, weight_decay=0)
         recipe = SimpleNamespace(
-            seed=2601126, resident_rollout=True, defer_metrics=defer, microbatch=1024, precision="bf16",
+            seed=2601126, resident_rollout=True, defer_metrics=defer, microbatch=microbatch, precision="bf16",
             kl_check_every=4, lr_scale=1.5, bc_kl_scale=1.0, minibatch=2048,
         )
         torch.cuda.synchronize()
@@ -59,11 +61,19 @@ def main():
         )
         if control is None:
             control = state
-        if not equal(state, control):
+        exact = equal(state, control)
+        if microbatch == 1024 and not exact:
             raise RuntimeError("Timing treatment changed weights or optimizer state")
-        row = {"defer_metrics": defer, "seconds": elapsed, "diagnostics": info}
+        max_weight_delta = max(
+            float((tensor - control[0][key]).abs().max())
+            for key, tensor in state[0].items() if tensor.is_floating_point()
+        )
+        row = {
+            "microbatch": microbatch, "defer_metrics": defer, "seconds": elapsed,
+            "same_update": exact, "max_weight_delta": max_weight_delta, "diagnostics": info,
+        }
         rounds.append(row)
-        emit({"defer_metrics": defer, "seconds": elapsed, "exact": True})
+        emit({key: value for key, value in row.items() if key != "diagnostics"})
         del model, optimizer, state
     json_file(args.out, {
         "exact": True, "checkpoint_sha256": digest,
