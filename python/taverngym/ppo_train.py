@@ -576,7 +576,11 @@ def train(args):
         parent = torch.load(args.parent, map_location="cpu", weights_only=False)
         if parent["meta"]["source"] != args.parent_engine or parent["meta"]["model"] != MODEL:
             raise ValueError("Unexpected parent engine or model")
-    initial, fingerprint = load_reference(args.init, args.admission, args.parent_engine)
+    if args.bc_engine and not args.parent:
+        raise ValueError("A compatibility BC engine applies only to a verified parent branch")
+    initial, fingerprint = load_reference(
+        args.init, args.admission, args.bc_engine or args.parent_engine,
+    )
     if parent is not None and (parent["meta"]["initial_sha256"] != fingerprint or
                               tuple(parent["meta"]["placement_utility"]) != UTILITY):
         raise ValueError("Parent does not belong to the admitted BC and reward recipe")
@@ -617,6 +621,7 @@ def train(args):
         meta["branch"] = {
             "parent_iteration": parent["iteration"] if parent else None,
             "parent_sha256": args.parent_sha256, "parent_engine": args.parent_engine,
+            "bc_engine": args.bc_engine,
             "arena_plan": arena_factory.identity if arena_factory else None,
             "temperature": args.temperature, "entropy": args.entropy_coef, "target_kl": args.target_kl,
             "rollback_kl": args.rollback_kl, "continuation_lr": args.continuation_lr,
@@ -903,6 +908,7 @@ def parse():
     training.add_argument("--parent", type=Path)
     training.add_argument("--parent-sha256")
     training.add_argument("--parent-engine")
+    training.add_argument("--bc-engine")
     training.add_argument("--parent-parity", type=Path)
     training.add_argument("--arena-plan", type=Path)
     training.add_argument("--continuation-lr", type=float)
