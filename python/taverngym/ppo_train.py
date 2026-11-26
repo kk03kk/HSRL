@@ -333,19 +333,32 @@ def index_tensors(batch, rows):
 
 
 @torch.no_grad()
-def policy_kl(model, batch, rows, microbatch, precision):
-    total = square = 0.0
-    largest = 0.0
+def policy_kl(model, batch, rows, microbatch, precision, *, defer_metrics=False):
+    if defer_metrics:
+        statistics = torch.zeros(3, device="cuda", dtype=torch.float64)
+        finite = torch.ones((), device="cuda", dtype=torch.bool)
+    else:
+        total = square = largest = 0.0
     for left in range(0, len(rows), microbatch):
         x, y = index_tensors(batch, rows[left : left + microbatch])
         output = model_output(model, *x, precision)
         logp, _ = distribution(output.logits, x[2])
         delta = logp.gather(1, y["actions"][:, None]).squeeze(1) - y["old_logp"]
-        if not torch.isfinite(delta).all():
+        if defer_metrics:
+            finite &= torch.isfinite(delta).all()
+            statistics[0].add_(approximation(delta).sum())
+            statistics[1].add_(delta.square().sum())
+            statistics[2].copy_(torch.maximum(statistics[2], delta.abs().max()))
+        else:
+            if not torch.isfinite(delta).all():
+                raise RuntimeError("Nonfinite policy log ratio")
+            total += float(approximation(delta).sum())
+            square += float(delta.square().sum())
+            largest = max(largest, float(delta.abs().max()))
+    if defer_metrics:
+        if not bool(finite):
             raise RuntimeError("Nonfinite policy log ratio")
-        total += float(approximation(delta).sum())
-        square += float(delta.square().sum())
-        largest = max(largest, float(delta.abs().max()))
+        total, square, largest = statistics.tolist()
     return {
         "kl": total / len(rows),
         "log_ratio_rms": (square / len(rows)) ** 0.5,
@@ -365,7 +378,8 @@ def update(model, reference, optimizer, batch, args, iteration):
     staging_seconds = time.perf_counter() - started
     interval = min(4096, count)
     started = time.perf_counter()
-    before = policy_kl(model, batch, order[:interval], args.microbatch, args.precision)
+    kl_options = {"defer_metrics": args.defer_metrics}
+    before = policy_kl(model, batch, order[:interval], args.microbatch, args.precision, **kl_options)
     initial_kl_seconds = time.perf_counter() - started
     if before["log_ratio_rms"] > 0.03 or before["max_abs_log_ratio"] > 0.15:
         raise RuntimeError(f"Same-weight batch replay differs from rollout: {before}")
@@ -375,7 +389,10 @@ def update(model, reference, optimizer, batch, args, iteration):
         group["lr"] = lr
     anchor = args.bc_kl_scale * 0.10 * min(1.0, max(0.0, (39 - iteration) / 20))
     names = ("policy", "value", "placement", "entropy", "anchor_kl", "clip_fraction", "loss")
-    totals = np.zeros(len(names))
+    totals = (
+        torch.zeros(len(names), device="cuda", dtype=torch.float64)
+        if args.defer_metrics else np.zeros(len(names))
+    )
     steps = trained = 0
     max_grad = 0.0
     stopped = "all_minibatches"
@@ -385,7 +402,7 @@ def update(model, reference, optimizer, batch, args, iteration):
         optimizer.zero_grad(set_to_none=True)
         if left and steps % args.kl_check_every == 0:
             tick = time.perf_counter()
-            probe = policy_kl(model, batch, order[:interval], args.microbatch, args.precision)
+            probe = policy_kl(model, batch, order[:interval], args.microbatch, args.precision, **kl_options)
             probe_seconds += time.perf_counter() - tick
             if probe["kl"] > RECIPE["target_kl"]:
                 stopped = "target_kl"
@@ -418,13 +435,11 @@ def update(model, reference, optimizer, batch, args, iteration):
             n = len(adv)
             (loss * (n / len(rows))).backward()
             fraction = ((ratio - 1).abs() > eps).float().mean()
-            totals += (
-                n
-                * torch.stack((pg, vf, aux, entropy, anchor_kl, fraction, loss))
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            values = torch.stack((pg, vf, aux, entropy, anchor_kl, fraction, loss)).detach()
+            if args.defer_metrics:
+                totals.add_(n * values)
+            else:
+                totals += n * values.cpu().numpy()
             trained += n
         norm = torch.nn.utils.clip_grad_norm_(
             model.parameters(), RECIPE["grad_norm"], error_if_nonfinite=True
@@ -433,11 +448,13 @@ def update(model, reference, optimizer, batch, args, iteration):
         optimizer.step()
         steps += 1
     tick = time.perf_counter()
-    after = policy_kl(model, batch, order, args.microbatch, args.precision)
+    after = policy_kl(model, batch, order, args.microbatch, args.precision, **kl_options)
     if not steps or after["kl"] > RECIPE["rollback_kl"]:
         raise RuntimeError(
             f"Iteration rejected before checkpoint publication: steps={steps}, {after}"
         )
+    if args.defer_metrics:
+        totals = totals.cpu().numpy()
     return dict(
         zip(names, map(float, totals / trained), strict=True),
         lr=lr,
@@ -519,6 +536,7 @@ def train(args):
                 "sample_only",
                 "actors",
                 "resident_rollout",
+                "defer_metrics",
             )
         },
     }
@@ -774,6 +792,7 @@ def parse():
     training.add_argument("--resume", action="store_true")
     training.add_argument("--actors", type=int, choices=(1, 2), default=1)
     training.add_argument("--resident-rollout", action="store_true")
+    training.add_argument("--defer-metrics", action="store_true")
     training.add_argument("--expected-gpu")
     training.add_argument("--original-only", action="store_true")
     training.add_argument("--lr-scale", type=float, default=1.0)
