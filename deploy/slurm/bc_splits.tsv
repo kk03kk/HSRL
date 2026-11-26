@@ -1,0 +1,8 @@
+pilot-original	8100000	128	original	rows
+pilot-mixed	9000200	128	mixed	rows
+train-original	9100000	6144	original	rows
+train-mixed	9200000	6144	mixed	rows
+dev-original	9300000	512	original	rows
+dev-mixed	9310000	512	mixed	rows
+test-original	9400000	8192	original	metrics
+test-mixed	9420000	8192	mixed	metrics
