@@ -14,6 +14,27 @@ export CARGO_TARGET_DIR="$run/native/target"
 native="$run/native/venv/bin/python"
 python="$run/env/venv/bin/python"
 
+check_ready() {
+    test -f "$run/READY_FOR_BC"
+    test -f "$run/env/ENGINE_READY"
+    "$python" - "$run" "$(git rev-parse HEAD)" <<'PYTHON'
+import json
+import sys
+from pathlib import Path
+
+import taverngym
+
+run = Path(sys.argv[1])
+ready = json.loads((run / "preparation.json").read_text())
+if (
+    ready["source_commit"] != sys.argv[2]
+    or ready["engine_fingerprint"] != taverngym.build_info()["source_hash"]
+    or taverngym.build_is_current(Path.cwd()) is not True
+):
+    raise SystemExit("Use the frozen source and native environment recorded in preparation.json")
+PYTHON
+}
+
 case "$mode" in
     native)
         mkdir -p "$run/native/wheels"
@@ -64,8 +85,7 @@ case "$mode" in
         "$python" tools/bc_preflight.py "$run/data/pilot-original" "$run/data/pilot-mixed" --device "$device" --out "$run/preflight-$device.json"
         ;;
     train|resume)
-        test -f "$run/READY_FOR_BC"
-        test -f "$run/env/ENGINE_READY"
+        check_ready
         flags=(--balance-fields --save-epochs --dev-games 256 --late-weight 0.35)
         if [[ "$mode" == resume ]]; then flags+=(--resume); fi
         "$python" -u python/taverngym/bc_train.py train "${flags[@]}" \
@@ -74,7 +94,7 @@ case "$mode" in
             --out "$run/train" --workers "$CARGO_BUILD_JOBS" "$@"
         ;;
     evaluate)
-        test -f "$run/READY_FOR_BC"
+        check_ready
         "$python" -u python/taverngym/bc_train.py evaluate \
             --checkpoint "${1:?checkpoint required}" --out "${2:?output directory required}" \
             --test "$run/data/test-original" "$run/data/test-mixed" --workers "$CARGO_BUILD_JOBS"

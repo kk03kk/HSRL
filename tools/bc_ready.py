@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import subprocess
 from pathlib import Path
 
 SPLITS = Path(__file__).resolve().parents[1] / "deploy" / "slurm" / "bc_splits.tsv"
@@ -72,7 +73,11 @@ def main():
         raise ValueError("The production-size CUDA preflight is incomplete")
     if any(x["manifest"]["source_hash"] != fingerprint for x in splits.values()):
         raise ValueError("The prepared shards use a different engine")
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=SPLITS.parents[2], text=True
+    ).strip()
     result = {
+        "source_commit": commit,
         "ready_for_bc": True, "optimizer_updates": 0,
         "strategy_evaluator_parity_games": check_evaluator_parity(run, args.parity),
         "engine_fingerprint": fingerprint, "parameters": gpu["parameters"], "gpu": gpu["gpu"],
