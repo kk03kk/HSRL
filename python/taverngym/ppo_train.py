@@ -517,6 +517,14 @@ def train(args):
                       args.rollback_kl != RECIPE["rollback_kl"] or args.continuation_lr is not None)
     if (customized and args.actors != 1) or (args.parent and not args.parent_sha256):
         raise ValueError("Use one actor for a customized branch and provide the parent SHA-256")
+    if args.parent_engine and not args.parent:
+        raise ValueError("A compatibility engine applies only to a verified parent branch")
+    if args.parent and args.parent_engine != build_info()["source_hash"]:
+        if args.parent_parity is None:
+            raise ValueError("A native-engine change must have a legacy trajectory parity receipt")
+        parity = json.loads(args.parent_parity.read_text(encoding="utf-8"))
+        if parity.get("identical_trajectory") is not True or parity.get("engine") != build_info()["source_hash"]:
+            raise ValueError("Trajectory parity receipt does not cover the active native wheel")
     for value in (args.temperature, args.entropy_coef, args.target_kl, args.rollback_kl,
                   args.continuation_lr if args.continuation_lr is not None else 1):
         if not math.isfinite(value) or value < 0:
@@ -895,6 +903,7 @@ def parse():
     training.add_argument("--parent", type=Path)
     training.add_argument("--parent-sha256")
     training.add_argument("--parent-engine")
+    training.add_argument("--parent-parity", type=Path)
     training.add_argument("--arena-plan", type=Path)
     training.add_argument("--continuation-lr", type=float)
     training.add_argument("--entropy-coef", type=float, default=RECIPE["entropy"])
