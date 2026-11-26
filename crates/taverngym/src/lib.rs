@@ -21,6 +21,7 @@
 
 pub mod actions;
 pub mod batch;
+pub mod bc;
 pub mod bot;
 pub mod cards;
 pub mod combat;

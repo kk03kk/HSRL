@@ -8,6 +8,7 @@ use pyo3::types::PyBytes;
 
 use taverngym::actions::{Action, N_ACTIONS};
 use taverngym::batch::{BatchEnv, SlotResult};
+use taverngym::bc::Arena as RustBcArena;
 use taverngym::bot;
 use taverngym::cards::db;
 use taverngym::obs::{OBS_CARDS, OBS_FLOATS};
@@ -49,6 +50,64 @@ fn i32_bytes<'py>(py: Python<'py>, v: &[i32]) -> Bound<'py, PyBytes> {
 }
 
 type ObsBytes<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>);
+
+#[pyclass(name = "BcArena", skip_from_py_object)]
+struct PyBcArena(RustBcArena);
+
+#[pymethods]
+impl PyBcArena {
+    #[new]
+    #[pyo3(signature = (seeds, mixed=false, threads=1))]
+    fn new(py: Python<'_>, seeds: Vec<u64>, mixed: bool, threads: usize) -> PyResult<Self> {
+        py.detach(|| RustBcArena::new(seeds, mixed, threads))
+            .map(Self)
+            .map_err(PyValueError::new_err)
+    }
+
+    fn observe<'py>(&self, py: Python<'py>) -> BatchObs<'py> {
+        let batch = py.detach(|| self.0.observe());
+        let indices: Vec<_> = batch.indices.iter().flat_map(|i| i.to_le_bytes()).collect();
+        (
+            PyBytes::new(py, &indices),
+            f32_bytes(py, &batch.floats),
+            i32_bytes(py, &batch.cards),
+            PyBytes::new(py, &batch.legal),
+        )
+    }
+
+    fn step(&mut self, py: Python<'_>, actions: Vec<usize>) -> PyResult<()> {
+        py.detach(|| self.0.step(&actions))
+            .map_err(PyRuntimeError::new_err)
+    }
+
+    fn teacher_targets<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let targets = py
+            .detach(|| self.0.teacher_targets())
+            .map_err(PyRuntimeError::new_err)?;
+        let bytes: Vec<_> = targets
+            .into_iter()
+            .flatten()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        Ok(PyBytes::new(py, &bytes))
+    }
+
+    fn results(&mut self, py: Python<'_>) -> PyResult<String> {
+        py.detach(|| serde_json::to_string(&self.0.results()?).map_err(|e| e.to_string()))
+            .map_err(PyRuntimeError::new_err)
+    }
+
+    fn state_json(&self, py: Python<'_>, index: usize) -> PyResult<String> {
+        py.detach(|| {
+            let g = self
+                .0
+                .snapshot(index)
+                .ok_or("episode index out of range".to_owned())?;
+            serde_json::to_string(g).map_err(|e| e.to_string())
+        })
+        .map_err(PyRuntimeError::new_err)
+    }
+}
 
 fn obs_bytes<'py>(py: Python<'py>, o: &taverngym::obs::Observation) -> ObsBytes<'py> {
     (f32_bytes(py, &o.floats), i32_bytes(py, &o.cards))
@@ -543,12 +602,19 @@ fn hsrl_config_json() -> String {
     serde_json::to_string(&RulesConfig::hsrl()).expect("RulesConfig serializes")
 }
 
+#[pyfunction]
+fn bc_teacher_name() -> &'static str {
+    taverngym::strategy::TEACHER_POLICY.name()
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("N_ACTIONS", N_ACTIONS)?;
     m.add("OBS_FLOATS", OBS_FLOATS)?;
     m.add("OBS_CARDS", OBS_CARDS)?;
     m.add("N_CARDS", db().len() + 1)?;
+    m.add_class::<PyBcArena>()?;
+    m.add_function(wrap_pyfunction!(bc_teacher_name, m)?)?;
     m.add_class::<PyGame>()?;
     m.add_class::<PySoloEnv>()?;
     m.add_class::<PyBatchEnv>()?;
