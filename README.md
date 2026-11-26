@@ -37,7 +37,7 @@ judgment against a fixed set of tasks.
 | [TavernGym](docs/TAVERNGYM.md) | [TavernBench](docs/TAVERNBENCH.md) |
 | :--- | :--- |
 | A deterministic simulator for complete eight-player games. | A benchmark for reasoning about game decisions and rules. |
-| Game content from patch 37.0.2, with [content coverage](docs/CONTENT.md). | 960 tasks in 40 scenarios across eight categories. |
+| Game content from server hotfix 37.0.3, with [content coverage](docs/CONTENT.md). | 960 tasks in 40 scenarios across eight categories. |
 | Rust engine, Python bindings, single-seat and batched environments. | Prompts, labels, saved states, model answers, scoring and tool-use evaluation. |
 
 This is the code and data release for [*Build, Don't Play: Self-Improving LLM Research Agents
@@ -47,10 +47,10 @@ by Changlian Ma and Limin Wang, Nanjing University and Shanghai AI Laboratory.
 The release includes TavernGym and TavernBench. The trained TavernAgent, its weights and
 training code, and the benchmark item generators are not included.
 
-TavernGym now targets **37.0.2**; see the [patch notes](docs/PATCH_37.0.2.md).
+HSRL uses TavernGym with server rules **37.0.3**; see the [simulator baseline](docs/SIMULATOR.md).
 TavernBench keeps the paper's **36.6.3** tasks, labels, saved states and results unchanged.
 Use the `v1.0.0` release for historical simulator-based reproduction; running the tool-use
-harness with the current engine applies 37.0.2 rules.
+harness with the current engine applies 37.0.3 rules.
 
 ## Quick start
 
@@ -98,7 +98,7 @@ simulator build, model access or API key is required.
 
 ## TavernGym
 
-TavernGym reproduces solo Battlegrounds for client **37.0.2.256589**, server rules **37.0.2**.
+TavernGym reproduces solo Battlegrounds for client **37.0.2.256589**, server rules **37.0.3**.
 It exposes the player-visible state, an exact legal action mask, and seeded save and restore.
 
 | Interface | Use it for |

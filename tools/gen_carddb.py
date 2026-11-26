@@ -23,6 +23,7 @@ BUNDLE = Path(os.environ.get("TAVERNGYM_BUNDLE", ROOT / "content_pack"))
 OUT = ROOT / "crates" / "taverngym" / "data" / "cards.json"
 # Patch overlay (37.0.2) on top of the read-only 253216 / 36.6.1 resource pack.
 OVERLAY = ROOT / "tools" / "overlays" / "37.0.2.json"
+HOTFIX = ROOT / "tools" / "overlays" / "37.0.3.json"
 
 KINDS = {
     "minion": "minion",
@@ -286,6 +287,7 @@ def main():
     if OVERLAY.exists():
         db = apply_overlay(db, json.loads(OVERLAY.read_text(encoding="utf-8")))
     db = finish(db)
+    db = apply_overlay(db, json.loads(HOTFIX.read_text(encoding="utf-8")))
     text = render(db)
     if "--check" in sys.argv:
         if not OUT.exists() or OUT.read_text(encoding="utf-8") != text:

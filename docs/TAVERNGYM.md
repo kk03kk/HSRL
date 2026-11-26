@@ -6,8 +6,7 @@ TavernGym exposes one eight-player game, a single-seat environment and a batched
 through Python bindings over a Rust engine. See the [quick start](../README.md#quick-start)
 for installation.
 
-The current engine targets client **37.0.2.256589** and server rules **37.0.2**. Its Python
-interfaces and observation dimensions are unchanged. See [version notes](PATCH_37.0.2.md)
+The current engine targets client **37.0.2.256589** and server rules **37.0.3**. HSRL appends two action-budget features. See [version notes](SIMULATOR.md)
 before comparing saved states or benchmark runs across game patches.
 
 ## One game
@@ -68,7 +67,7 @@ while True:
 - `env.save(i)` / `env.load(i, s)` save and restore game `i` exactly; `env.game(i)` returns an
   independent copy to inspect or search from.
 
-**Observation.** A player view with only what the real client shows: `features` (3,227 floats:
+**Observation.** A player view with only what the real client shows: `features` (3,229 floats:
 global state, warband, hand, Tavern, pending choice, quests, opponents' last seen warbands)
 and `cards` (124 card-embedding indices into the `N_CARDS` card vocabulary, 0 = empty;
 `taverngym.card_info(i)` describes index `i`). `taverngym.layout()` lists the sizes of every

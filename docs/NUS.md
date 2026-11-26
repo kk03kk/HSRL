@@ -1,10 +1,10 @@
 # HSRL 的 NUS 工作区
 
-NUS 上的 `~/projects/HSRL` 用于编辑、构建和实验。Windows 的 `D:\HSRL` 用于保留起始快照和未来的实机测试。旧 HSAI 提供连接工具。
+NUS 上的 `~/projects/HSRL` 用于编辑、构建和实验。Windows 的 `D:\HSRL` 用于保留起始快照和未来的实机测试。Windows 的 SSH 配置提供连接。
 
 ## 连接
 
-从 Windows 执行 `ssh hsai-nus`。遇到连接拒绝时，在 `D:\HSAI` 执行 `python ops/hsai_ops.py tunnel`，然后重新连接。HSAI 的仓库同步命令默认操作 HSAI 自己的目录。进入 HSRL 后，用 `pwd`、`git status --short --branch` 和 `git rev-parse HEAD` 核对位置及版本。
+从 Windows 执行 `ssh hsai-nus`。遇到连接拒绝时，检查 Windows 的 SSH 别名及跳板连接，恢复后重新连接。跳板配置和凭据保存在系统账户下。进入 HSRL 后，用 `pwd`、`git status --short --branch` 和 `git rev-parse HEAD` 核对位置及版本。
 
 ## 接入上游和建基线
 

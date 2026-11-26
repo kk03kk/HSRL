@@ -34,14 +34,14 @@ AutoTavern 将酒馆战棋中的决策放入可复现的研究环境：模拟完
 | [TavernGym](docs/TAVERNGYM.md) | [TavernBench](docs/TAVERNBENCH.md) |
 | :--- | :--- |
 | 支持完整八人对局的确定性模拟器。 | 面向游戏决策与规则推理的评测基准。 |
-| 当前对应游戏版本 37.0.2，详见[内容覆盖](docs/CONTENT.md)。 | 960 道任务、40 个场景、8 个类别。 |
+| 当前对应服务器热修 37.0.3，详见[内容覆盖](docs/CONTENT.md)。 | 960 道任务、40 个场景、8 个类别。 |
 | Rust 引擎、Python 绑定、单席位和批量环境。 | 提示词、标签、保存状态、模型答案、评分及工具调用评测。 |
 
 本仓库是论文 [*Build, Don't Play: Self-Improving LLM Research Agents Develop a Hearthstone Battlegrounds AI That Rivals Top Players*](https://arxiv.org/abs/2610.33845v1) 的代码与数据发布，作者为南京大学、上海人工智能实验室的 Changlian Ma 与 Limin Wang。
 
 发布内容包括 TavernGym 和 TavernBench；**不包含训练后的 TavernAgent、模型权重、训练代码及评测任务生成器**。
 
-TavernGym 已更新至 **37.0.2**，见[版本说明](docs/PATCH_37.0.2.md)。TavernBench 保留论文所用 **36.6.3** 的原始题目、标签、保存状态和评测结果。复现历史模拟器或工具调用实验请使用 `v1.0.0`；使用当前引擎执行工具调用时，采用的是 37.0.2 规则。
+HSRL 当前使用 **37.0.3** 模拟器，见[模拟器基线与验收](docs/SIMULATOR.md)。TavernBench 保留论文所用 **36.6.3** 的原始题目、标签、保存状态和评测结果。复现历史模拟器或工具调用实验请使用 `v1.0.0`；使用当前引擎执行工具调用时，采用的是 37.0.3 规则。
 
 ## 快速开始
 
@@ -86,7 +86,7 @@ python -X utf8 -m tavernbench.report --set data/eval --runs results/eval \
 
 ## TavernGym
 
-当前模拟器对应酒馆战棋客户端 **37.0.2.256589**、服务器规则 **37.0.2**，提供玩家可见状态、精确合法动作掩码，以及带随机种子状态的保存与恢复。
+当前模拟器对应酒馆战棋客户端 **37.0.2.256589**、服务器规则 **37.0.3**，提供玩家可见状态、精确合法动作掩码，以及带随机种子状态的保存与恢复。
 
 | 接口 | 用途 |
 | :--- | :--- |
@@ -136,7 +136,7 @@ pip install ".[bench]"
 | [引擎架构](docs/ARCHITECTURE.md) | 引擎结构、接口与模块协作。 |
 | [内容覆盖](docs/CONTENT.md) | 已实现的随从、英雄、法术、饰品等。 |
 | [时空酒馆](docs/TIMEWARP.md) | 当前默认关闭的时空酒馆系统；部分英雄仍可进入。 |
-| [37.0.2 更新](docs/PATCH_37.0.2.md) | 本次规则更新、数据来源与版本兼容说明。 |
+| [模拟器基线](docs/SIMULATOR.md) | 37.0.3 来源、训练动作规则和复现步骤。 |
 
 开发时可运行 `pip install -e ".[test]"`，再执行 `python -X utf8 -m pytest`。Rust 引擎也可独立验证：`cargo test --release`。
 
