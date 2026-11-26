@@ -1,5 +1,6 @@
 """Exercise the HSRL observation, loss, and arena contracts without updating any model."""
 import argparse
+import io
 import json
 from pathlib import Path
 
@@ -7,7 +8,7 @@ import numpy as np
 import torch
 import taverngym
 from taverngym._core import BcArena
-from taverngym.bc_train import Demonstrations, ROW, configure, score
+from taverngym.bc_train import Demonstrations, ROW, configure, paired, play, score, state
 from taverngym.entity_policy import EntityPolicy
 
 REWARD = [1.0, 0.3, 0.0, -0.05, -0.1, -0.15, -0.2, -0.25]
@@ -85,15 +86,37 @@ def main():
     loss.backward()
     assert all(bool(torch.isfinite(p.grad).all()) for p in model.parameters() if p.grad is not None)
     assert torch.equal(before, representative)
+    closed_loop_games = 0
+    checkpoint_roundtrip = False
     if args.device == "cuda":
         optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, fused=True)
-        assert not optimizer.state
+        checkpoint = io.BytesIO()
+        metadata = {"model": {"width": 384, "layers": 8, "heads": 8, "feedforward": 1664}}
+        torch.save(state(model, optimizer, metadata, 0, 0, 0, None), checkpoint)
+        checkpoint.seek(0)
+        restored = torch.load(checkpoint, map_location="cpu", weights_only=False)
+        reloaded = EntityPolicy(**restored["meta"]["model"]).to(device)
+        reloaded.load_state_dict(restored["model"])
+        new_optimizer = torch.optim.AdamW(reloaded.parameters(), lr=3e-4, fused=True)
+        new_optimizer.load_state_dict(restored["optimizer"])
+        assert restored["updates"] == 0 and not optimizer.state and not new_optimizer.state
+        model.eval()
+        reloaded.eval()
+        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+            assert torch.equal(model(*inputs).logits, reloaded(*inputs).logits)
+        checkpoint_roundtrip = True
+        for field in ("original", "mixed"):
+            seeds = sorted(seed for seed, (kind, _) in data.games.items() if kind == field)[:4]
+            games = play(reloaded, seeds, field, batch_size=4, workers=2)
+            paired(games, data.games, utility=REWARD)
+            closed_loop_games += len(games)
 
     result = {
         "parameters": params, "input_rows": len(rows), "backward_ok": True, "optimizer_updates": 0,
         "placement_utility": REWARD, "device": args.device, "torch": torch.__version__,
         "gpu": torch.cuda.get_device_name() if args.device == "cuda" else None,
-        "dtype": str(out.logits.dtype), "engine": taverngym.build_info(),
+        "logits_dtype": str(out.logits.dtype), "engine": taverngym.build_info(),
+        "checkpoint_roundtrip": checkpoint_roundtrip, "paired_forward_only_games": closed_loop_games,
         "unchanged_games_when_labelling": check_teacher_targets(),
     }
     args.out.write_text(json.dumps(result, indent=2) + "\n")

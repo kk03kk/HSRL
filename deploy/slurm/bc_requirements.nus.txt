@@ -1,3 +1,5 @@
+cuda-bindings==12.9.4
+cuda-pathfinder==1.9.1
 filelock==4.2.4
 fsspec==2026.9.0
 iniconfig==2.3.1
