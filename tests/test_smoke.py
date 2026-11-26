@@ -23,3 +23,12 @@ def test_the_extension_records_the_sources_it_was_built_from():
     # A copied python/ tree has no sources to compare with.
     assert taverngym.source_hash("/nonexistent") is None
     assert taverngym.build_is_current("/nonexistent") is None
+
+
+def test_runtime_card_data_matches_real_hotfix_observations():
+    fixtures = taverngym.REPO_ROOT / "crates" / "taverngym" / "tests" / "fixtures"
+    evidence = json.loads((fixtures / "live_3703_hotfix.json").read_text(encoding="utf-8"))
+    assert taverngym.server_rules_version() == evidence["server_patch_window"]
+    catalog = {card["id"]: card for card in json.loads(taverngym.catalog_json())}
+    for case in evidence["observations"]:
+        assert catalog[case["id"]][case["field"]] == case["value"], case

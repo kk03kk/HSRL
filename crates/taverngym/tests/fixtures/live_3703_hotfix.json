@@ -1,0 +1,10 @@
+{
+  "source": "Local Power.log, 2026-11-24, solo Battlegrounds",
+  "source_sha256": "18cb9a24fc5d97e53b27078b356e2c3c76a5efda3667509d5c813d4002aef4fb",
+  "client_build_in_log": 255790,
+  "server_patch_window": "37.0.3",
+  "observations": [
+    {"id":"BG36_206", "line":1203311, "tag":"TECH_LEVEL", "field":"tier", "value":5},
+    {"id":"BG30_MagicItem_962", "line":1887049, "tag":"COST", "field":"cost", "value":5}
+  ]
+}
