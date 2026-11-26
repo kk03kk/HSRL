@@ -2076,6 +2076,36 @@ fn write_progress_report(
     csv.flush()
 }
 
+fn write_formed_apm_examples(output: &Path, arms: &[Policy], rows: &[ResultRow]) -> io::Result<()> {
+    let mut examples = Vec::new();
+    for (index, policy) in arms.iter().enumerate() {
+        for route in apm::Route::ALL {
+            let case = rows
+                .iter()
+                .filter_map(|row| {
+                    let outcome = &row.outcomes[index];
+                    (outcome.problem.is_none()
+                        && outcome.placement == 1
+                        && outcome.apm.routes[route.index()].final_full)
+                        .then(|| outcome.apm.last.as_ref().map(|board| (row, board)))
+                        .flatten()
+                })
+                .max_by_key(|(_, board)| (board.attack + board.health, board.turn));
+            if let Some((row, board)) = case {
+                examples.push(serde_json::json!({
+                    "policy": policy.name(), "route": route.name(), "seed": row.seed,
+                    "seat": row.seat, "rank": 1, "warband": board
+                }));
+            }
+        }
+    }
+    serde_json::to_writer_pretty(
+        File::create(output.join("formed-apm-boards.json"))?,
+        &examples,
+    )?;
+    Ok(())
+}
+
 fn write_v2_route_comparison(output: &Path, arms: &[Policy], rows: &[ResultRow]) -> io::Result<()> {
     struct RouteEval {
         name: &'static str,
@@ -2504,6 +2534,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arms.contains(&Policy::V2) {
         write_progress_report(output, arms, &rows, "v2-progress")?;
         write_v2_route_comparison(output, arms, &rows)?;
+        write_formed_apm_examples(output, arms, &rows)?;
     } else if arms.contains(&Policy::RushSix) {
         write_progress_report(output, arms, &rows, "rush-six")?;
     }

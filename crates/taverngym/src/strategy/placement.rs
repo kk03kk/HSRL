@@ -81,3 +81,46 @@ pub(super) fn position(game: &Game, seat: usize, action: Action) -> Action {
         .min_by_key(|&(_, cost, distance)| (cost, distance))
         .map_or(action, |(candidate, _, _)| candidate)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cards::db;
+    use crate::engine::Phase;
+    use crate::{RulesConfig, cardid};
+
+    fn setup(cards: &[&str], new_card: &str) -> Game {
+        let mut game = Game::new(77, RulesConfig::hsrl());
+        game.phase = Phase::Recruit;
+        let p = &mut game.players[0];
+        p.pending.clear();
+        p.hand.clear();
+        p.ended_turn = false;
+        p.skipping = false;
+        p.board = cards
+            .iter()
+            .enumerate()
+            .map(|(i, id)| Minion::new(300 + i as u32, db().id(id)))
+            .collect();
+        game.with_recruit(0, |ctx| ctx.give_card(0, db().id(new_card)));
+        game
+    }
+
+    #[test]
+    fn a_new_undead_is_placed_before_the_phantom_and_keeps_it_the_growth_target() {
+        let mut game = setup(&[undead_apm::PHANTOM], undead_apm::HANDLESS);
+        let action = position(&game, 0, Action::Play { hand: 0, pos: 1 });
+        assert_eq!(action, Action::Play { hand: 0, pos: 0 });
+        game.apply(0, action).unwrap();
+        assert!(catalog::is(&game.players[0].board[1], undead_apm::PHANTOM));
+    }
+
+    #[test]
+    fn a_new_rally_minion_is_placed_ahead_of_an_ordinary_attacker() {
+        let mut game = setup(&["BGS_039"], "BG33_924");
+        let action = position(&game, 0, Action::Play { hand: 0, pos: 1 });
+        assert_eq!(action, Action::Play { hand: 0, pos: 0 });
+        game.apply(0, action).unwrap();
+        assert!(game.players[0].board[0].is_card_id(cardid!("BG33_924")));
+    }
+}
