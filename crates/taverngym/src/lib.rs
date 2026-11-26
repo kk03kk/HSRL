@@ -50,6 +50,7 @@ pub mod turn_search;
 pub mod snapshot;
 pub mod strategy;
 pub mod types;
+pub mod warband;
 pub mod workers;
 
 pub use actions::{Action, N_ACTIONS};

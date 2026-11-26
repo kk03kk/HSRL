@@ -4,8 +4,26 @@
 use crate::engine::Phase;
 use crate::obs::{self, OBS_CARDS, OBS_FLOATS};
 use crate::strategy::{PolicyState, TEACHER_POLICY, hsreplay_picks::Decisions};
+use crate::warband::{Bank, Mode, Track, mix};
 use crate::{Action, Game, N_ACTIONS, RulesConfig, bot, workers};
 use serde::Serialize;
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct WarbandPlan {
+    pub bank: Arc<Bank>,
+    pub seats: usize,
+    pub start: u32,
+    pub level: u8,
+    pub mode: Mode,
+}
+
+#[derive(Default, Serialize)]
+struct WarbandCounts {
+    frames: usize,
+    splices: usize,
+    repeats: usize,
+}
 
 #[derive(Serialize)]
 pub struct Round {
@@ -25,6 +43,8 @@ pub struct ResultRow {
     decisions: u32,
     budget_turns: u32,
     rounds: Vec<Round>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    warband: Option<WarbandCounts>,
 }
 
 pub struct Episode {
@@ -39,10 +59,22 @@ pub struct Episode {
     teacher: PolicyState,
     opponents: [Option<PolicyState>; 8],
     picks: Decisions,
+    warband: Option<WarbandPlan>,
+    warband_tracks: [Option<usize>; 8],
+    warband_counts: WarbandCounts,
 }
 
 impl Episode {
     pub fn new(seed: u64, mixed: bool) -> Result<Self, String> {
+        Self::with_plan(seed, mixed, None, false)
+    }
+
+    fn with_plan(
+        seed: u64,
+        mixed: bool,
+        warband: Option<WarbandPlan>,
+        capture: bool,
+    ) -> Result<Self, String> {
         let seat = (seed % 8) as usize;
         let opponents = std::array::from_fn(|i| {
             let offset = (i + 8 - seat) % 8;
@@ -51,8 +83,29 @@ impl Episode {
             (mixed && (offset == first || offset == second))
                 .then(|| PolicyState::new(TEACHER_POLICY))
         });
+        let mut game = Game::new(seed, RulesConfig::hsrl());
+        if capture {
+            game.warband_capture = Some(Default::default());
+        }
+        if let Some(plan) = &warband {
+            if !(1..=7).contains(&plan.seats) || plan.start < 1 || plan.level > 3 {
+                return Err("invalid warband seats, first turn or difficulty".into());
+            }
+            game.warband_start = plan.start;
+            let mut order: Vec<_> = (0..8).filter(|&i| i != seat).collect();
+            // Hybrid preserves first preference for its two V2.0 script seats.
+            order.sort_by_key(|&i| {
+                (
+                    opponents[i].is_some(),
+                    mix(seed ^ ((i as u64 + 1) * 65_537)),
+                )
+            });
+            for &p in order.iter().take(plan.seats) {
+                game.warband_seats |= 1 << p;
+            }
+        }
         let mut episode = Self {
-            game: Game::new(seed, RulesConfig::hsrl()),
+            game,
             seat,
             seed,
             next: 0,
@@ -63,6 +116,9 @@ impl Episode {
             teacher: PolicyState::new(TEACHER_POLICY),
             opponents,
             picks: Decisions::default(),
+            warband,
+            warband_tracks: [None; 8],
+            warband_counts: WarbandCounts::default(),
         };
         episode.advance()?;
         Ok(episode)
@@ -83,8 +139,13 @@ impl Episode {
             if self.game.stopped_reason.is_some() {
                 return Err(self.fail("simulator guard stopped the game"));
             }
+            if self.release_combat_warbands()? {
+                continue;
+            }
             let p = self.next;
-            if !self.game.needs_action(p) {
+            if !self.game.needs_action(p)
+                || (self.game.phase == Phase::Recruit && self.game.warband_seat(p))
+            {
                 self.next = (p + 1) % 8;
             } else if p == self.seat {
                 return Ok(());
@@ -116,6 +177,55 @@ impl Episode {
             }
         }
         Err(self.fail("arena driver exceeded its guard"))
+    }
+
+    fn release_combat_warbands(&mut self) -> Result<bool, String> {
+        let Some(plan) = &self.warband else {
+            return Ok(false);
+        };
+        let game = &mut self.game;
+        if game.phase != Phase::Recruit
+            || game.turn < plan.start
+            || game
+                .players
+                .iter()
+                .any(|p| p.alive && !game.warband_seat(p.id) && !p.ended_turn)
+        {
+            return Ok(false);
+        }
+        let turn = game.turn;
+        let mut drawn = Vec::with_capacity(plan.seats);
+        for p in 0..8 {
+            if !game.players[p].alive || !game.warband_seat(p) || game.players[p].ended_turn {
+                continue;
+            }
+            let previous = self.warband_tracks[p];
+            let key = self.seed ^ ((p as u64 + 1) << 32) ^ (u64::from(turn) << 16);
+            let (id, frame, repeat) = plan.bank.choose(
+                game.lobby_races.0,
+                turn,
+                plan.level,
+                plan.mode,
+                previous,
+                &drawn,
+                key,
+            )?;
+            game.install_warband(p, frame)
+                .map_err(|e| format!("seed {} turn {turn} bank seat {p}: {e}", self.seed))?;
+            drawn.push(id);
+            self.warband_tracks[p] = Some(id);
+            self.warband_counts.frames += 1;
+            self.warband_counts.splices += usize::from(previous.is_some() && previous != Some(id));
+            self.warband_counts.repeats += usize::from(repeat);
+        }
+        if drawn.is_empty() {
+            return Ok(false);
+        }
+        game.fight_when_all_ended();
+        if game.turn == turn && !game.is_over() {
+            return Err(self.fail("external opponents did not release combat"));
+        }
+        Ok(true)
     }
 
     pub fn teacher_action(&mut self) -> Result<usize, String> {
@@ -194,6 +304,10 @@ impl Episode {
             decisions: self.decisions,
             budget_turns: self.budget_turns,
             rounds: std::mem::take(&mut self.rounds),
+            warband: self
+                .warband
+                .as_ref()
+                .map(|_| std::mem::take(&mut self.warband_counts)),
         })
     }
 }
@@ -213,9 +327,19 @@ pub struct Arena {
 
 impl Arena {
     pub fn new(seeds: Vec<u64>, mixed: bool, threads: usize) -> Result<Self, String> {
+        Self::with_plan(seeds, mixed, threads, None, false)
+    }
+
+    pub fn with_plan(
+        seeds: Vec<u64>,
+        mixed: bool,
+        threads: usize,
+        plan: Option<WarbandPlan>,
+        capture: bool,
+    ) -> Result<Self, String> {
         let episodes = seeds
             .into_iter()
-            .map(|seed| Episode::new(seed, mixed))
+            .map(|seed| Episode::with_plan(seed, mixed, plan.clone(), capture))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             active: (0..episodes.len()).collect(),
@@ -317,6 +441,31 @@ impl Arena {
 
     pub fn results(&mut self) -> Result<Vec<ResultRow>, String> {
         self.episodes.iter_mut().map(Episode::result).collect()
+    }
+
+    pub fn take_tracks(&mut self) -> Result<Vec<Track>, String> {
+        self.episodes
+            .iter_mut()
+            .map(|e| {
+                if !e.game.is_over() {
+                    return Err("cannot export incomplete warband game".into());
+                }
+                let mut captures = e.game.warband_capture.take().ok_or("capture unavailable")?;
+                Ok(Track {
+                    seed: e.seed,
+                    lobby: e.game.lobby_races.0,
+                    source: "ppo".into(),
+                    frames: std::mem::take(&mut captures[e.seat]),
+                })
+            })
+            .collect()
+    }
+
+    pub fn formations(&self) -> Vec<Vec<&'static str>> {
+        self.episodes
+            .iter()
+            .map(|e| crate::warband::formations(&e.game.players[e.seat], e.game.lobby_races))
+            .collect()
     }
 
     pub fn snapshot(&self, index: usize) -> Option<&Game> {

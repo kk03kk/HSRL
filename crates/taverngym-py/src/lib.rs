@@ -51,6 +51,19 @@ fn i32_bytes<'py>(py: Python<'py>, v: &[i32]) -> Bound<'py, PyBytes> {
 
 type ObsBytes<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>);
 
+#[pyclass(name = "WarbandBank", skip_from_py_object)]
+struct PyWarbandBank(std::sync::Arc<taverngym::warband::Bank>);
+
+#[pymethods]
+impl PyWarbandBank {
+    #[new]
+    fn new(py: Python<'_>, path: String) -> PyResult<Self> {
+        py.detach(|| taverngym::warband::Bank::open(std::path::Path::new(&path)))
+            .map(|bank| Self(std::sync::Arc::new(bank)))
+            .map_err(PyValueError::new_err)
+    }
+}
+
 #[pyclass(name = "BcArena", skip_from_py_object)]
 struct PyBcArena(RustBcArena);
 
@@ -62,6 +75,47 @@ impl PyBcArena {
         py.detach(|| RustBcArena::new(seeds, mixed, threads))
             .map(Self)
             .map_err(PyValueError::new_err)
+    }
+
+    #[staticmethod]
+    fn with_warbands(
+        py: Python<'_>,
+        seeds: Vec<u64>,
+        mixed: bool,
+        threads: usize,
+        bank: &PyWarbandBank,
+        seats: usize,
+        start: u32,
+        level: u8,
+        mode: &str,
+    ) -> PyResult<Self> {
+        let mode = taverngym::warband::Mode::parse(mode).map_err(PyValueError::new_err)?;
+        let plan = taverngym::bc::WarbandPlan {
+            bank: bank.0.clone(),
+            seats,
+            start,
+            level,
+            mode,
+        };
+        py.detach(|| RustBcArena::with_plan(seeds, mixed, threads, Some(plan), false))
+            .map(Self)
+            .map_err(PyValueError::new_err)
+    }
+
+    #[staticmethod]
+    fn capture(py: Python<'_>, seeds: Vec<u64>, mixed: bool, threads: usize) -> PyResult<Self> {
+        py.detach(|| RustBcArena::with_plan(seeds, mixed, threads, None, true))
+            .map(Self)
+            .map_err(PyValueError::new_err)
+    }
+
+    fn take_tracks(&mut self, py: Python<'_>) -> PyResult<String> {
+        py.detach(|| serde_json::to_string(&self.0.take_tracks()?).map_err(|e| e.to_string()))
+            .map_err(PyRuntimeError::new_err)
+    }
+
+    fn formations(&self, py: Python<'_>) -> Vec<Vec<&'static str>> {
+        py.detach(|| self.0.formations())
     }
 
     fn observe<'py>(&self, py: Python<'py>) -> BatchObs<'py> {
@@ -614,6 +668,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("OBS_CARDS", OBS_CARDS)?;
     m.add("N_CARDS", db().len() + 1)?;
     m.add_class::<PyBcArena>()?;
+    m.add_class::<PyWarbandBank>()?;
     m.add_function(wrap_pyfunction!(bc_teacher_name, m)?)?;
     m.add_class::<PyGame>()?;
     m.add_class::<PySoloEnv>()?;

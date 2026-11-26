@@ -408,6 +408,10 @@ impl Game {
         }
         // ---- 校验阶段（无副作用：不分配 EID、不动 pool、不改玩家） ----
         let p: Player = serde_json::from_str(json).map_err(|e| format!("bad_json: {e}"))?;
+        self.apply_snapshot_player(seat, p)
+    }
+
+    fn apply_snapshot_player(&mut self, seat: usize, p: Player) -> Result<(), String> {
         validate_payload(self, seat, &p)?;
         let ids = payload_entity_ids(&p);
         let id_set = validate_entity_ids(&ids)?;
@@ -432,6 +436,71 @@ impl Game {
         }
         // ---- 提交阶段（此后不再失败） ----
         self.commit_snapshot(seat, p, &ids, &old_parts);
+        Ok(())
+    }
+
+    pub(crate) fn clear_for_warband(&mut self, seat: usize) {
+        let p = &mut self.players[seat];
+        for (card, n) in held_parts(p) {
+            self.pool.put(card, n);
+        }
+        p.board.clear();
+        p.hand.clear();
+        p.shop.clear();
+        p.hand_queue.clear();
+        p.hand_queue_marks.clear();
+        p.pending.clear();
+        p.scheduled.clear();
+        p.owed.clear();
+    }
+
+    pub(crate) fn install_warband(
+        &mut self,
+        seat: usize,
+        frame: &crate::warband::Frame,
+    ) -> Result<(), String> {
+        let target = &self.players[seat];
+        if !self.warband_seat(seat)
+            || !target.alive
+            || target.ended_turn
+            || !target.pending.is_empty()
+            || self.phase != Phase::Recruit
+        {
+            return Err(format!("cannot install warband at seat {seat}"));
+        }
+        let p = &frame.player;
+        self.apply_snapshot_player(seat, p.clone())?;
+        let t = &mut self.players[seat];
+        let history = (
+            t.stats.combats_won,
+            t.stats.combats_lost,
+            t.stats.won_last,
+            t.stats.lost_last,
+            t.stats.tied_last,
+            t.stats.last_damage,
+            t.stats.streak,
+        );
+        t.hero = p.hero.or(t.hero);
+        t.powers.clone_from(&p.powers);
+        t.stats.clone_from(&p.stats);
+        (
+            t.stats.combats_won,
+            t.stats.combats_lost,
+            t.stats.won_last,
+            t.stats.lost_last,
+            t.stats.tied_last,
+            t.stats.last_damage,
+            t.stats.streak,
+        ) = history;
+        t.deity.clone_from(&p.deity);
+        t.effects.clone_from(&p.effects);
+        t.trinkets.clone_from(&p.trinkets);
+        t.quests.clone_from(&p.quests);
+        t.rewards.clone_from(&p.rewards);
+        t.secrets.clone_from(&p.secrets);
+        t.levels.clone_from(&p.levels);
+        t.counters.clone_from(&p.counters);
+        t.turn_data.clone_from(&p.turn_data);
         Ok(())
     }
 

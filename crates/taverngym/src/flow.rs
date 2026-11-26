@@ -315,6 +315,9 @@ impl Game {
             turn_alive: 0,
             log: vec![],
             last_frames: vec![],
+            warband_seats: 0,
+            warband_start: 0,
+            warband_capture: None,
         };
         g.log(|| {
             format!(
@@ -366,8 +369,15 @@ impl Game {
         self.decide_pairs();
         for p in 0..self.players.len() {
             if self.players[p].alive {
-                self.start_turn_player(p);
-                self.flush_hand_queue(p);
+                if self.warband_seat(p) {
+                    if self.turn == self.warband_start {
+                        self.clear_for_warband(p);
+                    }
+                    self.players[p].ended_turn = false;
+                } else {
+                    self.start_turn_player(p);
+                    self.flush_hand_queue(p);
+                }
             }
         }
     }
@@ -806,6 +816,9 @@ impl Game {
             pl.normalize_timewarp_hand_limit(self.cfg.hand_size);
         }
         pl.last_board = pl.board.clone();
+        if let Some(frames) = &mut self.warband_capture {
+            frames[p].push(crate::warband::Frame::capture(self.turn, pl));
+        }
         self.fight_when_all_ended();
         Ok(())
     }

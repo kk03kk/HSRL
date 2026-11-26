@@ -135,9 +135,23 @@ pub struct Game {
     /// Frames of the most recent simulated combat (moved into its `CombatRecord`).
     #[serde(skip)]
     pub last_frames: Vec<CombatFrame>,
+    #[serde(default, skip_serializing_if = "warband_mask_is_empty")]
+    pub(crate) warband_seats: u8,
+    #[serde(default, skip_serializing_if = "diagnostic_is_zero")]
+    pub(crate) warband_start: u32,
+    #[serde(skip)]
+    pub warband_capture: Option<[Vec<crate::warband::Frame>; 8]>,
+}
+
+fn warband_mask_is_empty(mask: &u8) -> bool {
+    *mask == 0
 }
 
 impl Game {
+    pub(crate) fn warband_seat(&self, p: PlayerId) -> bool {
+        self.turn >= self.warband_start && (self.warband_seats >> p) & 1 != 0
+    }
+
     /// Whether this build can play a game that was just read from a saved state: its
     /// configuration is valid and it was written with this card table. A state from another
     /// table would be read as other cards, or panic at the first pool access.
