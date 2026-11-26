@@ -75,6 +75,9 @@ pub use trinkets_p6::{
 pub use trinkets_p8::writhing_tentacles;
 pub use yogg::wheel_of_yogg;
 pub mod helpful;
+mod p3_batch_a;
+mod p3_batch_b;
+mod p3_systems;
 mod putricide;
 mod quilboar;
 mod quilboar_p1;
@@ -192,6 +195,9 @@ pub fn all_scripts() -> Vec<(&'static str, Script)> {
     v.extend(heroes_combat::scripts());
     v.extend(heroes_gen::scripts());
     v.extend(heroes_special::scripts());
+    v.extend(p3_batch_a::scripts());
+    v.extend(p3_batch_b::scripts());
+    v.extend(p3_systems::scripts());
     v.extend(putricide::scripts());
     v.extend(trinkets::scripts());
     v.extend(gifts::scripts());

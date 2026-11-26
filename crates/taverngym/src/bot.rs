@@ -38,7 +38,18 @@ fn item_value(i: &Item) -> i32 {
 /// Choose one action for `p` (always legal when `game.needs_action(p)`).
 pub fn choose_action(g: &mut Game, p: PlayerId) -> Action {
     if let Some(top) = g.players[p].pending.last().cloned() {
-        return Action::Choose(pick_option(g, p, &top));
+        let preferred = Action::Choose(pick_option(g, p, &top));
+        let mask = g.legal_mask(p);
+        if mask[preferred.encode()] {
+            return preferred;
+        }
+        // 空目标可合法取消；不能盲目 Choose(0)。真正零合法动作仍交给调用方
+        // 作为引擎错误处理，不能清空菜单或伪造一次成功行动。
+        return mask
+            .iter()
+            .position(|legal| *legal)
+            .and_then(Action::decode)
+            .unwrap_or(preferred);
     }
     let pl = &g.players[p];
     if g.phase != Phase::Recruit {

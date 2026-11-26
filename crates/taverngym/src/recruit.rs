@@ -538,6 +538,7 @@ impl Ctx<'_> {
         self.emit(Event::Consumed {
             side,
             eater,
+            source: self.src,
             tavern,
             card: m.card,
             atk,
@@ -1107,7 +1108,10 @@ impl Ctx<'_> {
             .copied()
             .filter(|c| {
                 let def = d.get(*c);
-                tiers.contains(&def.tier) && self.g.pool.get(*c) > 0 && gift_discoverable(def, turn)
+                tiers.contains(&def.tier)
+                    && self.g.pool.get(*c) > 0
+                    && gift_discoverable(def, turn)
+                    && late_gift_matches(def, (turn > 9).then_some(common))
             })
             .collect();
         crate::content::slotted_gift_options(self, side, &cand, &slots, &gifts)
@@ -1841,6 +1845,15 @@ impl Game {
         }
     }
 
+    /// The live 37.0.3 Talent Scout restriction checks the warband, not the Tavern.
+    pub(crate) fn minion_play_allowed(&self, p: PlayerId, card: CardId) -> bool {
+        db().normal_of(card) != crate::cardid!("BG25_HERO_105_Buddy")
+            || self.players[p]
+                .board
+                .iter()
+                .any(|m| m.alive() && db().get(m.card).id.contains("_Buddy"))
+    }
+
     pub fn play(&mut self, p: PlayerId, hand_idx: usize, pos: usize) -> ActResult {
         self.check_turn(p)?;
         let h = self.players[p]
@@ -1848,11 +1861,16 @@ impl Game {
             .get(hand_idx)
             .ok_or("no such hand card")?;
         match &h.item {
-            Item::Minion(m) => {
+            Item::Minion(minion) => {
                 if self.players[p].board.len() >= self.cfg.board_size {
                     return Err("board is full");
                 }
-                let _ = m;
+                if !self.minion_play_allowed(p, minion.card) {
+                    return Err("Talent Scout requires a Buddy in the warband");
+                }
+                if self.can_magnetize(p, hand_idx, pos) {
+                    return Err("use the magnetize action for a drop left of a compatible host");
+                }
                 let h = self.take_hand_card(p, hand_idx)?;
                 let tier = self.players[p].tier;
                 self.with_recruit(p, |ctx| {
@@ -1968,7 +1986,7 @@ impl Game {
         let Item::Minion(m) = &h.item else {
             return false;
         };
-        if !m.has(Kw::MAGNETIC) || h.locked > 0 {
+        if !m.has(Kw::MAGNETIC) || h.locked > 0 || !self.minion_play_allowed(p, m.card) {
             return false;
         }
         if m.is_card_id(crate::cardid!("BG_DEEP_015")) {
@@ -2045,9 +2063,19 @@ impl Game {
 
     pub fn move_minion(&mut self, p: PlayerId, from: usize, to: usize) -> ActResult {
         self.check_turn(p)?;
-        let b = &mut self.players[p].board;
+        let pl = &mut self.players[p];
+        let b = &mut pl.board;
         if from >= b.len() || to >= b.len() || from == to {
             return Err("bad move");
+        }
+        if self.cfg.player150_order_guard {
+            let order = pl.recruit_moves.context(b);
+            if !order.allows(from, to) {
+                return Err("player150 board reorder already used");
+            }
+            let before = order.original().to_vec();
+            let after = order.moved(from, to);
+            pl.recruit_moves.record(before, after);
         }
         let m = b.remove(from);
         b.insert(to, m);
@@ -2174,8 +2202,8 @@ impl Game {
             .filter(|m| m.is_card_id(sous_chef))
             .map(|m| if m.golden { 2 } else { 1 })
             .sum::<u32>()
-            // Sous Chef Sticker: an extra use each turn.
-            + pl.trinket_count(crate::cardid!("BG35_MagicItem_801"));
+            // In 37.0.3 duplicate Sous Chef Stickers grant one extra use in total.
+            + u32::from(pl.has_trinket_id(crate::cardid!("BG35_MagicItem_801")));
         if h.uses_turn >= s.hero_power_uses + extra || h.cooldown > 0 {
             return false;
         }
@@ -2322,7 +2350,7 @@ impl Game {
     /// A paid trinket offer that has come to the top with nothing affordable in it is
     /// skipped, as `offer_trinkets` skips one at creation: it cannot be declined, so the
     /// seat would have no legal action.
-    fn drop_unaffordable_trinket_offers(&mut self, p: PlayerId) {
+    pub(crate) fn drop_unaffordable_trinket_offers(&mut self, p: PlayerId) {
         loop {
             let pl = &self.players[p];
             let Some(Pending::Trinket {
@@ -2422,7 +2450,6 @@ impl Game {
                 replace,
             } => {
                 self.take_trinket(p, options[i], free, replace);
-                self.drop_unaffordable_trinket_offers(p);
             }
             Pending::Quest { options, types } => {
                 let (q, r) = options[i];
@@ -2520,6 +2547,8 @@ impl Game {
         if menu {
             self.triples_after_menu(p);
         }
+        // 发现/目标/二选一也可能遮住收费菜单；必须在每一种选择结算后重检。
+        self.drop_unaffordable_trinket_offers(p);
         Ok(())
     }
 
@@ -2542,6 +2571,22 @@ impl Game {
 /// Paradox's gifts stack like on a triple.
 pub fn gift_discoverable(def: &crate::cards::CardDef, turn: u32) -> bool {
     !def.id.starts_with("BG36_360") && gift_compatible(def, turn)
+}
+
+/// On turn ten and later the server limits four picks even in untyped slots.
+/// None means this draw precedes that window; an empty board then matches no type.
+pub fn late_gift_matches(def: &crate::cards::CardDef, common: Option<Races>) -> bool {
+    match common {
+        Some(race)
+            if matches!(
+                def.id.trim_end_matches("_G"),
+                "BG36_356" | "BG35_342" | "BG35_123" | "BG36_102"
+            ) =>
+        {
+            crate::content::goes_with_type(def, race)
+        }
+        _ => true,
+    }
 }
 
 /// Dark Gift minion compatibility (the general rules; examples, not a complete list).
@@ -2740,6 +2785,9 @@ pub fn magnetize_onto(ctx: &mut Ctx, side: Side, host: EntityId, m: Minion) {
 
 /// Effects of discarding a hand card (discard is its own event).
 pub fn discard_effects(ctx: &mut Ctx, side: Side, h: HandCard) {
+    if let Some(p) = ctx.owner[side] {
+        ctx.g.players[p].unlink_removed_hand_card(h.hid);
+    }
     let card = h.item.card();
     if let Item::Minion(m) = &h.item {
         ctx.g.pool.return_minion(m);

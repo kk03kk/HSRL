@@ -225,6 +225,7 @@ impl Game {
         let board = std::mem::take(&mut ctx.boards[0]);
         drop(ctx);
         self.players[p].board = board;
+        self.players[p].prune_removed_hand_links();
         self.trim_shop(p);
         r
     }
@@ -3241,6 +3242,11 @@ impl<'g> Ctx<'g> {
             return;
         }
         let Some(pl) = self.player(side) else { return };
+        // 发第二张牌可能立即触发三连；返回的旧 hid 不一定仍在手牌/等待队列。
+        if !pl.hand.iter().any(|h| h.hid == link) && !pl.queue_marks().iter().any(|m| m.hid == link)
+        {
+            return;
+        }
         if let Some(h) = pl.hand.iter_mut().find(|h| h.hid == hid) {
             h.link = link;
         } else if let Some(m) = pl.queue_marks().iter_mut().find(|m| m.hid == hid) {
@@ -3562,6 +3568,7 @@ impl<'g> Ctx<'g> {
                 have.sort_unstable();
                 have.truncate(need - parts.len());
                 for eid in have {
+                    self.g.players[p].unlink_removed_hand_card(eid);
                     let hand = &mut self.g.players[p].hand;
                     if let Some(i) = hand.iter().position(|h| h.hid == eid) {
                         if let Item::Minion(m) = hand.remove(i).item {

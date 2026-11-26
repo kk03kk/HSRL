@@ -376,6 +376,8 @@ fn bought_inner(c: &mut Ctx, side: Side, item: Item) {
     if c.g.cfg.experimental_mode {
         c.add_timewarp_purchase(side, item);
     } else if c.g.players[p].hand.len() >= c.g.cfg.hand_size {
+        // 追加等待牌时保留已排队卡的配对/赠礼标记，不能触发整队重建。
+        c.g.players[p].queue_marks().push(Default::default());
         c.g.players[p].hand_queue.push(item);
     } else {
         c.add_to_hand(side, item);

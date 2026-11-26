@@ -30,6 +30,7 @@ pub fn discover_with_gift(c: &mut Ctx, side: Side, source: CardId, min: u8, max:
     let trastath = d.get(source).id == "BG36_HERO_101p";
     // Tras'tath's list ignores the turn windows and the state-dependent offer rules.
     let turn = if trastath { 99 } else { c.g.turn };
+    let common = (c.g.turn > 9).then(|| c.most_common_race(side).unwrap_or(Races::NONE));
     let gifts: Vec<CardId> = if trastath {
         super::gifts::TRASTATH_GIFTS
             .iter()
@@ -49,6 +50,7 @@ pub fn discover_with_gift(c: &mut Ctx, side: Side, source: CardId, min: u8, max:
                     && def.tier <= max
                     && c.g.pool.get(*x) > 0
                     && crate::recruit::gift_discoverable(def, turn)
+                    && crate::recruit::late_gift_matches(def, common)
             })
             .collect();
     c.gift_start = trastath;

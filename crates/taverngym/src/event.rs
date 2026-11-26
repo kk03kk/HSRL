@@ -142,6 +142,8 @@ pub enum Event {
     Consumed {
         side: Side,
         eater: EntityId,
+        /// The script that initiated the consume, if any.
+        source: Option<CardId>,
         /// Consumed from the tavern (false: a friendly minion).
         tavern: bool,
         card: CardId,

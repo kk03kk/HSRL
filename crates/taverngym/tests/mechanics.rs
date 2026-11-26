@@ -552,6 +552,39 @@ fn targeted_spell_stays_in_hand_until_target_and_can_cancel() {
 }
 
 #[test]
+fn player150_reserves_a_step_for_targeted_spells() {
+    let mut g = game(20);
+    g.cfg.player_view_150 = true;
+    g.cfg.player150_order_guard = true;
+    set_board(&mut g, 0, &["BG36_345"]);
+    g.with_recruit(0, |c| {
+        c.give_card(0, cid("BG28_897"));
+        c.give_card(0, cid("BG28_810"));
+    });
+    let banana = Action::Play { hand: 0, pos: 0 };
+    let coin = Action::Play { hand: 1, pos: 0 };
+    g.players[0].actions_this_turn = 149;
+    assert!(!g.legal_mask(0)[banana.encode()]);
+    assert!(g.apply(0, banana).is_err());
+    assert_eq!(g.players[0].actions_this_turn, 149);
+    assert!(g.legal_mask(0)[coin.encode()]);
+    assert!(g.legal_mask(0)[Action::EndTurn.encode()]);
+
+    g.players[0].actions_this_turn = 148;
+    assert!(g.legal_mask(0)[banana.encode()]);
+    g.apply(0, banana).unwrap();
+    let target = g.players[0].board[0].eid;
+    let Some(Pending::Target { options, .. }) = g.players[0].pending.last() else {
+        panic!("target menu must remain actionable on decision 150");
+    };
+    let pick = Action::Choose(options.iter().position(|eid| *eid == target).unwrap());
+    assert!(g.legal_mask(0)[pick.encode()]);
+    g.apply(0, pick).unwrap();
+    assert!(g.players[0].pending.is_empty());
+    assert_eq!(g.players[0].actions_this_turn, 150);
+}
+
+#[test]
 fn banana_can_target_tavern_minion() {
     let mut g = game(21);
     g.with_recruit(0, |c| {
@@ -669,7 +702,10 @@ fn pool_tag_rule_excludes_rot_hide_gnoll_by_default() {
         .iter()
         .filter(|c| c.pools.minion && c.pool_tag <= 1)
         .count();
-    assert_eq!(eligible, 244, "245 bundle candidates minus Rot Hide Gnoll");
+    assert_eq!(
+        eligible, 244,
+        "245 minion-pool candidates minus Rot Hide Gnoll"
+    );
     let excl = RulesConfig {
         excluded_cards: vec!["BG25_001".into()],
         ..RulesConfig::default()
@@ -993,14 +1029,20 @@ fn this_game_refresh_effects_stack_and_fire_on_refresh() {
 
 #[test]
 fn extra_offers_apply_on_refresh_but_not_when_unfreezing() {
-    // Ysera needs Dragons in the lobby.
-    let seed = (61..200)
+    // Ysera needs Dragons in the lobby. 37 大厅（10 类随机 5 类）下，seed 选择必须用与
+    // fixture 相同的大厅配置（`game()` 用 `aberration_forced: true`），否则两个 seed 的
+    // 大厅不是同一个（旧断言依赖 36.6.3 的 9 类抽样，已漂移）。
+    let cfg = RulesConfig {
+        aberration_forced: true,
+        ..RulesConfig::default()
+    };
+    let seed = (0..400)
         .find(|s| {
-            Game::new(*s, RulesConfig::default())
+            Game::new(*s, cfg.clone())
                 .lobby_races
                 .intersects(taverngym::types::Races::DRAGON)
         })
-        .unwrap();
+        .expect("an Aberration + Dragon lobby");
     let mut g = game(seed);
     g.players[0].set_hero_power(0, cid("TB_BaconShop_HP_062")); // Ysera
     g.players[0].gold = 10;
@@ -1747,7 +1789,20 @@ fn power_of_spells_cast_when_bought_and_add_a_second_hero_power() {
 
 #[test]
 fn denathrius_quest_progress_and_reward() {
-    let mut g = game(110);
+    // 37 大厅：quest_goal 会按“缺少的类型”缩放（Reward 111 对 MURLOC 有 120% 修正）。
+    // 选一个含 Murloc 的 Aberration 大厅 seed，使 8 × 110% = 9 的期望成立（与旧断言同）。
+    let cfg = RulesConfig {
+        aberration_forced: true,
+        ..RulesConfig::default()
+    };
+    let seed = (0..400)
+        .find(|s| {
+            Game::new(*s, cfg.clone())
+                .lobby_races
+                .intersects(taverngym::types::Races::MURLOC)
+        })
+        .expect("an Aberration + Murloc lobby");
+    let mut g = game(seed);
     g.set_hero_power(0, 0, cid("BG24_HERO_100p"));
     let Some(Pending::Quest { options, .. }) = g.players[0].pending.last().cloned() else {
         panic!("expected a Quest choice")
@@ -3090,7 +3145,7 @@ fn hero_offer_policy() {
             ("BG36_HERO_000", usize::from(aberrations)),
             (
                 "BG36_HERO_002",
-                usize::from(g.lobby_races.intersects(Races::UNDEAD)),
+                usize::from(aberrations && g.lobby_races.intersects(Races::UNDEAD)),
             ),
         ] {
             assert_eq!(
@@ -3239,9 +3294,16 @@ fn tavish_summons_the_minion_when_there_is_space() {
 #[test]
 fn tier7_minions_are_pooled_with_five_copies() {
     let g = game(347);
-    let amalgam = cid("BG34_320"); // all types: always in the lobby
-    assert!(g.universe.contains(&amalgam));
-    assert_eq!(g.pool.get(amalgam), 5);
+    let banned = cid("BG34_320");
+    assert!(!g.universe.contains(&banned));
+    assert_eq!(g.pool.get(banned), 0);
+    let eligible = g
+        .universe
+        .iter()
+        .copied()
+        .find(|id| db().get(*id).pools.tier7)
+        .unwrap();
+    assert_eq!(g.pool.get(eligible), 5);
 }
 
 #[test]
@@ -3459,7 +3521,20 @@ fn combat_ctx(g: &mut Game) -> taverngym::engine::Ctx<'_> {
 #[test]
 fn trinket_avenge_and_first_deathrattle_bonus() {
     // Fridge Magnet: Avenge (3) in combat gets a random Magnetic minion.
-    let mut g = game(410);
+    // 37 大厅：随机 Magnetic 随从来自本局 universe，需要 MECH 类型的大厅（旧 seed 410 的
+    // 大厅变了）；选一个含 Mech 的 Aberration 大厅 seed。
+    let cfg = RulesConfig {
+        aberration_forced: true,
+        ..RulesConfig::default()
+    };
+    let seed = (0..400)
+        .find(|s| {
+            Game::new(*s, cfg.clone())
+                .lobby_races
+                .intersects(taverngym::types::Races::MECH)
+        })
+        .expect("an Aberration + Mech lobby");
+    let mut g = game(seed);
     buy_trinket(&mut g, 0, "BG30_MagicItem_545");
     g.players[0].hand.clear();
     g.players[0].tier = 4; // "random" cards are tier <= yours
@@ -4574,18 +4649,46 @@ fn m19_deathrattles_summon_where_their_minion_died() {
 }
 
 #[test]
-fn n1_higher_tier_attacks_first_on_equal_boards() {
-    for seed in 0..10 {
-        let mut g = game(800 + seed);
+fn ordinary_first_attack_uses_warband_size_without_a_tier_tiebreak() {
+    let mut lower_first = 0;
+    for seed in 0..64 {
+        let mut g = game(seed);
         g.cfg.record_log = true;
-        set_board(&mut g, 0, &["BG36_345"]);
-        set_board(&mut g, 1, &["BG36_345"]);
-        g.players[1].tier = 3;
-        g.log.clear();
-        g.simulate_combat(0, Some(1), None);
-        let first = g.log.iter().find(|l| l.contains(" attacks ")).unwrap();
-        assert!(first.contains("p1"), "{first}");
+        g.players[0].tier = 1;
+        g.players[1].tier = 6;
+        set_board(&mut g, 0, &["BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let lower = g.players[0].board[0].eid;
+        let higher = g.players[1].board[0].eid;
+        fight(&mut g);
+        let first_attacker = g
+            .last_frames
+            .iter()
+            .flat_map(|frame| &frame.attacks)
+            .next()
+            .unwrap()
+            .0;
+        assert!(first_attacker == lower || first_attacker == higher);
+        lower_first += usize::from(first_attacker == lower);
+
+        set_board(&mut g, 0, &["BGS_039", "BGS_039"]);
+        set_board(&mut g, 1, &["BGS_039"]);
+        let leftmost = g.players[0].board[0].eid;
+        fight(&mut g);
+        assert_eq!(
+            g.last_frames
+                .iter()
+                .flat_map(|frame| &frame.attacks)
+                .next()
+                .unwrap()
+                .0,
+            leftmost
+        );
     }
+    assert!(
+        (16..=48).contains(&lower_first),
+        "lower tier opened {lower_first}/64"
+    );
 }
 
 #[test]
@@ -4640,29 +4743,23 @@ fn n10_n11_reborn_goes_right_of_its_summons_as_a_fresh_card() {
 fn a_reborn_creation_is_assembled_from_its_two_cards_again() {
     // A Putricide Creation that comes back from Reborn is not a bare 1/1 without its effects:
     // the Creation is its two cards, so the fresh copy has them again (and their stats and
-    // keywords), but nothing the dead one had gained since. Built through the Hero Power; the picks
-    // are tried until the Creation has Reborn.
-    let picks = (0..3).flat_map(|i| (0..3).map(move |j| (i, j)));
-    let built = (900..940u64)
-        .flat_map(|seed| picks.clone().map(move |(i, j)| (seed, i, j)))
-        .find_map(|(seed, i, j)| {
-            let mut g = game(seed);
-            g.players[0].tier = 4;
-            g.players[0].gold = 10;
-            g.set_hero_power(0, 0, cid("BG25_HERO_100p"));
-            g.apply(0, Action::HeroPower(0)).ok()?;
-            g.apply(0, Action::Choose(i)).ok()?;
-            g.apply(0, Action::Choose(j)).ok()?;
-            let m = g.players[0]
-                .hand
-                .iter()
-                .filter_map(|h| h.item.as_minion())
-                .find(|m| m.is_card("BG25_HERO_100pt"))?
-                .clone();
-            m.has(Kw::REBORN).then_some((g, m))
-        });
-    let (mut g, made) = built.expect("a Creation with Reborn among the picks tried");
-    assert_eq!(made.attached.len(), 2);
+    // keywords), but nothing the dead one had gained since.
+    //
+    // 37.0.0 数据口径：不再靠随机 Hero Power 抽卡（P3 内容陆续入池会改变抽取结果），改为
+    // 手工构造「两张卡拼成的 Creation」：base `BG25_010` + part `BG26_ICC_028`（两者都没有
+    // “被 Reborn 时给新副本加永久增益”的脚本，避免 Jelly Belly 之类污染断言），并显式加
+    // Reborn（原测例由随机 part 提供）。牌面数值以 37 数据为准。
+    let mut g = game(900);
+    let base = cid("BG25_010"); // Handless Forsaken 2/1（亡语）
+    let part = cid("BG26_ICC_028"); // Sunborne Val'kyr 5/4（战吼）
+    let (ba, bp) = (db().get(base), db().get(part));
+    let mut made = minion(&mut g, 0, "BG25_HERO_100pt");
+    made.set_stats(ba.atk + bp.atk, ba.hp + bp.hp);
+    made.give(ba.kw);
+    made.give(bp.kw);
+    made.attached = vec![base, part];
+    made.give(Kw::REBORN); // 原测例的 Creation 带 Reborn（随机 part 提供的）；这里显式给
+
     let mut on_board = made.clone();
     on_board.set_stats(made.atk + 10, made.max_hp + 10); // a buff: not part of the card
     on_board.attached.push(cid("BG35_341")); // a Magnetic part: neither
@@ -4679,14 +4776,13 @@ fn a_reborn_creation_is_assembled_from_its_two_cards_again() {
     assert_eq!(back.attached, made.attached, "its two cards, nothing else");
     assert_eq!(
         (back.atk, back.hp, back.max_hp),
-        (made.atk, 1, made.max_hp),
-        "the two cards' stats, 1 Health"
+        (ba.atk + bp.atk, 1, ba.hp + bp.hp),
+        "the two cards' printed stats, 1 Health"
     );
     assert!(!back.has(Kw::REBORN));
     assert_eq!(back.has(Kw::TAUNT), made.has(Kw::TAUNT));
     assert!(taverngym::script::implemented(cid("BG25_HERO_100pt")));
 }
-
 #[test]
 fn n16_n17_n19_n20_n21_triples() {
     // A locked hand card doesn't triple.
@@ -5178,9 +5274,10 @@ fn cast_without_this_is_your_cast() {
         g.apply(0, Action::Choose(opt)).unwrap();
         let st = &g.players[0].stats;
         assert_eq!((st.spells_cast, st.tavern_spells_cast), (casts, casts));
-        // The Felboar ate one Tavern minion after the third Barrage only.
+        // Three Barrages advance the four-spell counter without consuming a minion.
+        assert_eq!(g.players[0].board[0].counter, casts as i32);
         let ate = shop - g.players[0].shop.len();
-        assert_eq!(ate, if casts == 3 { 1 } else { 0 }, "option {opt}");
+        assert_eq!(ate, 0, "option {opt}");
         if casts == 0 {
             // "This plays" Blood Gems: +3/+3 on the Felboar, nothing counted.
             assert_eq!(stats(&g, 0)[0], (before.0 + 3, before.1 + 3));
@@ -8787,19 +8884,25 @@ fn master_nguyen_is_not_offered_locked_or_quest_powers() {
     }
     // An ordinary power is not excluded.
     assert!(!out(2, "TB_BaconShop_HP_001"));
-    // Nguyen's own offer on Turn 2 holds none of them.
-    for seed in 0..30 {
+    // Nguyen's own offer on Turn 2 holds none of them. 37 大厅/池内容变化后，个别 seed 的
+    // 本局英雄池可能凑不出 2 个可选技能（空 offer）；对每个真正出现的 offer 仍严格断言
+    // 不含被排除项，并要求至少出现一次（不依赖固定 seed 的抽取结果）。
+    let mut offers = 0;
+    for seed in 0..200 {
         let mut g = game(8950 + seed);
         g.lobby_races = no_aberrations();
         g.players[0].hero = Some(cid("BG20_HERO_202"));
         g.turn = 2;
         g.with_recruit(0, |c| taverngym::content::hero_start_of_turn(c, 0));
         let Some(Pending::HeroPowerChoice { options, .. }) = g.players[0].pending.last() else {
-            panic!("a Hero Power choice is expected")
+            continue;
         };
         let banned = taverngym::content::nguyen_excluded(2);
         assert!(options.iter().all(|o| !banned.contains(o)), "seed {seed}");
+        assert!(!options.is_empty());
+        offers += 1;
     }
+    assert!(offers > 0, "Turn 2 应至少出现一次 Hero Power offer");
 }
 
 #[test]
@@ -8921,7 +9024,13 @@ fn quest_reward_rules() {
     g.players[0].quests[0].goal = 1; // Crack the Case: one attack
     set_board(&mut g, 0, &["BG35_155"]);
     set_board(&mut g, 1, &["BG36_345"]);
-    g.players[1].board[0].set_stats(0, 100); // Ensure the quest owner gets to attack.
+    // 37 大厅/内容变化会改变战斗先手（`first_attacker` 的 RNG 流）：旧 seed 下先手是我方。
+    // 这里把对手改成“打不死的低攻靶子”（1 攻 / 50 血），保证双方交替攻击、我方至少攻击
+    // 一次，“Crack the Case: one attack” 的完成不再依赖先手。
+    let tank = &mut g.players[1].board[0];
+    tank.atk = 1;
+    tank.hp = 50;
+    tank.max_hp = 50;
     fight(&mut g);
     assert_eq!(g.players[0].rewards, vec![cid("BG24_Reward_719")]);
     assert_eq!(count(&g, "BG24_Reward_719t"), 0);
@@ -10977,13 +11086,26 @@ fn talent_scout_and_baby_nzoth_make_the_chosen_minion_golden() {
     give(&mut g, 0, "BG25_HERO_105_Buddy_G");
     play_last_on(&mut g, 0, 1);
     assert_eq!(goldens(&g, 0), [true, true, false, true]);
-    // No Buddy to choose: it is simply played.
-    let mut g = game(21);
-    set_board(&mut g, 0, &[plain]);
-    give(&mut g, 0, "BG25_HERO_105_Buddy");
-    play_last(&mut g, 0);
-    assert!(g.players[0].pending.is_empty());
-    assert_eq!(goldens(&g, 0), [false, false]);
+    // The live 37.0.3 restriction requires a Buddy in the warband.
+    for scout in ["BG25_HERO_105_Buddy", "BG25_HERO_105_Buddy_G"] {
+        let mut g = game(21);
+        set_board(&mut g, 0, &[plain]);
+        let buddy = minion(&mut g, 0, frostwolf);
+        g.players[0].shop = vec![taverngym::state::ShopSlot::new(
+            buddy.eid,
+            Item::Minion(buddy),
+        )];
+        g.players[0].hand.clear();
+        give(&mut g, 0, scout);
+        let action = Action::Play { hand: 0, pos: 1 };
+        assert!(!g.legal_mask(0)[action.encode()]);
+        let clock = g.players[0].actions_this_turn;
+        assert!(g.apply(0, action).is_err());
+        assert_eq!(g.players[0].actions_this_turn, clock);
+        assert!(g.players[0].pending.is_empty());
+        assert_eq!(g.players[0].hand.len(), 1);
+        assert_eq!(goldens(&g, 0), [false]);
+    }
 
     // Baby N'Zoth: the chosen Deathrattle minion; the Golden one takes them all and asks
     // for no target.
@@ -11802,6 +11924,107 @@ fn two_trinket_offers_open_at_once_keep_their_own_discounts() {
             "seed {seed}: a seat that has to act has a legal action"
         );
     }
+}
+
+#[test]
+fn nested_discover_cannot_strand_a_paid_eclipse_offer() {
+    // 1078314：下层替换菜单的四项费用为 4/3/3/4，买上层饰品后只剩 2 金。
+    // 上层邪恶邀请先打开发现；只在购买饰品时清理，会漏掉发现结束后露出的菜单。
+    let mut g = game(206160192);
+    g.turn = 9;
+    g.players[0].gold = 6;
+    let eclipse = cid("BG36_MagicItem_412t2");
+    let invitation = cid("BG36_MagicItem_610");
+    let options = [
+        "BG36_MagicItem_611",
+        "BG36_MagicItem_403t",
+        "BG36_MagicItem_417",
+        "BG36_MagicItem_406",
+    ]
+    .into_iter()
+    .map(cid)
+    .collect();
+    g.players[0].trinkets = vec![eclipse];
+    g.players[0].pending = vec![
+        Pending::Trinket {
+            options,
+            free: false,
+            replace: Some(eclipse),
+        },
+        Pending::Trinket {
+            options: vec![invitation],
+            free: false,
+            replace: None,
+        },
+    ];
+    g.apply(0, Action::Choose(0)).unwrap();
+    assert_eq!(g.players[0].gold, 2);
+    assert!(matches!(
+        g.players[0].pending.last(),
+        Some(Pending::Discover { .. })
+    ));
+    // 底层菜单必须等发现结束才处理，不能越过仍可正常选择的发现。
+    assert_eq!(g.players[0].pending.len(), 2);
+    g.apply(0, Action::Choose(0)).unwrap();
+    assert!(
+        g.players[0].pending.is_empty(),
+        "不能留下零合法动作的收费菜单"
+    );
+    assert_eq!(g.players[0].gold, 2, "跳过不可购买菜单不扣钱、不补钱");
+    assert!(g.players[0].trinkets.contains(&eclipse));
+    assert!(g.legal_mask(0)[Action::EndTurn.encode()]);
+}
+
+#[test]
+fn resolving_a_menu_keeps_free_or_affordable_trinkets_and_restores_pivots() {
+    use taverngym::state::Continuation;
+    let expensive = cid("BG36_MagicItem_611");
+    let eclipse = cid("BG36_MagicItem_412t2");
+    for (free, gold, remains) in [(true, 0, true), (false, 4, true), (false, 2, false)] {
+        let mut g = game(9450);
+        g.players[0].gold = gold;
+        g.players[0].pending = vec![
+            Pending::Trinket {
+                options: vec![expensive],
+                free,
+                replace: Some(eclipse),
+            },
+            Pending::Target {
+                options: vec![],
+                cont: Continuation::HeroPower { opt: 0, slot: 0 },
+            },
+        ];
+        g.apply(0, Action::Cancel).unwrap();
+        assert_eq!(!g.players[0].pending.is_empty(), remains);
+        assert_eq!(g.players[0].gold, gold);
+        assert!(g.legal_mask(0).iter().any(|x| *x));
+    }
+    // 买不起的普通菜单弹出后，必须恢复下层普通菜单自己的折扣。
+    let mut g = game(9451);
+    g.players[0].gold = 2;
+    let cheap = cid("BG36_MagicItem_403t"); // 原价 3，折扣后可买。
+    g.players[0].trinket_pivots = vec![];
+    g.players[0].trinket_pivot_stack = vec![vec![cheap]];
+    g.players[0].pending = vec![
+        Pending::Trinket {
+            options: vec![cheap],
+            free: false,
+            replace: None,
+        },
+        Pending::Trinket {
+            options: vec![expensive],
+            free: false,
+            replace: None,
+        },
+        Pending::Target {
+            options: vec![],
+            cont: Continuation::HeroPower { opt: 0, slot: 0 },
+        },
+    ];
+    g.apply(0, Action::Cancel).unwrap();
+    assert_eq!(g.players[0].pending.len(), 1);
+    assert_eq!(g.players[0].trinket_pivots, vec![cheap]);
+    assert!(g.option_legal(0, 0));
 }
 
 #[test]
@@ -13622,6 +13845,14 @@ fn boon_of_light_does_not_target_a_divine_shield() {
     g.players[0].board[0].give(Kw::DIVINE_SHIELD);
     let shielded = g.players[0].board[0].eid;
     let plain = g.players[0].board[1].eid;
+    // 37 池内容变化会改变随机酒馆：显式构造 1 个酒馆随从，让「目标含酒馆随从」的断言
+    // 不依赖随机 roll（目标语义不变）。
+    let tavern_minion = minion(&mut g, 0, "BG23_000");
+    let tavern_sid = tavern_minion.eid;
+    g.players[0].shop = vec![taverngym::state::ShopSlot::new(
+        tavern_sid,
+        Item::Minion(tavern_minion),
+    )];
     g.apply(0, Action::HeroPower(0)).unwrap();
     let Some(Pending::Target { options, .. }) = g.players[0].pending.last().cloned() else {
         panic!("a target")

@@ -518,6 +518,99 @@ fn live_texts(g: &Game, p: PlayerId) -> LiveMap {
     })
 }
 
+/// Player-facing card descriptions in observation-slot order. No hidden counters,
+/// opponent roster, future offers, RNG state, or debug entity IDs are exported.
+pub fn player_card_faces(g: &Game, p: PlayerId) -> Value {
+    let pl = &g.players[p];
+    let live = live_texts(g, p);
+    let mut faces = Vec::new();
+    let mut push = |slot: usize, key: String, card: CardId| {
+        let d = db().get(card);
+        let rendered = live
+            .get(&key)
+            .map_or(d.text.as_str(), |pair| pair.0.as_str());
+        faces.push(json!([slot, d.id, rendered]));
+    };
+    for (i, power) in pl.powers.iter().take(2).enumerate() {
+        push(1 + i, format!("p{i}"), power.card);
+    }
+    for (i, q) in pl.quests.iter().take(3).enumerate() {
+        push(5 + 3 * i, format!("q{i}"), q.card);
+        push(6 + 3 * i, format!("q{i}r"), q.reward);
+    }
+    for (i, r) in pl.rewards.iter().take(3).enumerate() {
+        push(7 + 3 * i, format!("r{i}"), *r);
+    }
+    let mut object = |slot: usize, key: String, card: CardId, m: Option<&Minion>| {
+        push(slot, key.clone(), card);
+        if let Some(m) = m {
+            for (j, a) in m.attached.iter().enumerate() {
+                push(slot, format!("{key}a{j}"), *a);
+            }
+        }
+    };
+    for (i, m) in pl.board.iter().enumerate() {
+        object(19 + i, format!("e{}", m.eid), m.card, Some(m));
+    }
+    for (i, h) in pl.hand.iter().take(10).enumerate() {
+        object(
+            26 + i,
+            format!("h{}", h.hid),
+            h.item.card(),
+            h.item.as_minion(),
+        );
+    }
+    for (i, s) in pl.shop.iter().take(8).enumerate() {
+        object(
+            36 + i,
+            format!("s{}", s.sid),
+            s.item.card(),
+            s.item.as_minion(),
+        );
+    }
+    match pl.pending.last() {
+        Some(Pending::Discover { options, .. }) => {
+            for (i, it) in options.iter().take(16).enumerate() {
+                object(44 + i, format!("o{i}"), it.card(), it.as_minion());
+            }
+        }
+        Some(Pending::Timewarp { options, .. }) => {
+            for (i, (it, _)) in options.iter().take(16).enumerate() {
+                object(44 + i, format!("o{i}"), it.card(), it.as_minion());
+            }
+        }
+        Some(Pending::Quest { options, .. }) => {
+            for (i, (q, r)) in options.iter().take(16).enumerate() {
+                push(44 + i, format!("o{i}"), *q);
+                push(44 + i, format!("o{i}r"), *r);
+            }
+        }
+        Some(Pending::Trinket { options, .. }) => {
+            for (i, t) in options.iter().take(16).enumerate() {
+                push(44 + i, format!("o{i}"), *t);
+            }
+        }
+        _ => {}
+    }
+    for (i, t) in pl.trinkets.iter().take(8).enumerate() {
+        push(60 + i, format!("t{i}"), *t);
+    }
+    let other = if pl.next_is_ghost {
+        g.eliminated.last().copied()
+    } else {
+        pl.next_opponent
+    };
+    let last = other.and_then(|o| pl.scouted.get(o)).map_or(0, |s| s.turn);
+    let health_prices: Vec<_> = (0..pl.shop.len().min(8))
+        .map(|i| g.slot_price(p, i).is_some_and(|x| x.1))
+        .collect();
+    json!({"remaining":150u32.saturating_sub(pl.actions_this_turn), "last_seen_turn":last,
+           "health_prices":health_prices, "faces":faces, "growth":[
+           pl.stats.undead_atk,pl.stats.undead_hp,pl.stats.beetle_atk,pl.stats.beetle_hp,
+           pl.stats.volumizer_atk,pl.stats.volumizer_hp,pl.stats.tavern_elemental_atk,pl.stats.tavern_elemental_hp,
+           pl.stats.gem_atk,pl.stats.gem_hp]})
+}
+
 /// Overwrite `text` / `text_zh` of a card's JSON with its live text, if it has one.
 fn set_live(v: &mut Value, live: &LiveMap, key: String) {
     if let Some((en, zh)) = live.get(&key) {
@@ -763,7 +856,7 @@ fn view_for(g: &Game, p: PlayerId, public: bool, combats: bool) -> Value {
         "seed": g.seed,
         "turn": g.turn,
         "phase": match g.phase { Phase::HeroSelect => "hero_select", Phase::Recruit => "recruit", Phase::GameOver => "game_over" },
-        "version": crate::GAME_VERSION,
+        "version": crate::game_version(),
         "lobby_races": race_names(g.lobby_races),
         "has_aberrations": g.lobby_races.intersects(crate::types::Races::ABERRATION),
         "deity": g.deity.map(card_json),

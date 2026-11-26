@@ -1,5 +1,6 @@
 //! Validation cases T01-T30 of the rules reference the card data was compiled with (written for
-//! 36.6.1; the numbers here follow the 36.6.3 target).
+//! 36.6.1). 当前数据 37.0.0.255790：随轮换变化的内容断言已按 37 数据重算，并在用例旁注明
+//! 口径来源；未变的规则数值保持 36.6.3 基线。
 
 use taverngym::actions::Action;
 use taverngym::cards::{CardKind, cid, db};
@@ -131,12 +132,19 @@ fn t10_dark_gift_button_limits() {
     assert!(!g.can_dark_gift(0), "three per game");
 }
 
-/// Naga-only minions are rotated out; a minion that is also another type may stay.
+/// 37.0.2 的常驻候选中有两张含 NAGA 的双种族卡。
 #[test]
-fn t19_naga_only_minions_are_out_of_the_pool() {
-    for c in db().iter().filter(|c| c.pools.minion || c.pools.tier7) {
-        assert_ne!(c.races, Races::NAGA, "{} {}", c.id, c.name);
-    }
+fn t19_naga_minions_in_current_pool() {
+    let in_pool: Vec<&str> = db()
+        .iter()
+        .filter(|c| {
+            (c.pools.minion || c.pools.tier7)
+                && c.races != Races::ALL
+                && c.races.intersects(Races::NAGA)
+        })
+        .map(|c| c.id.as_str())
+        .collect();
+    assert_eq!(in_pool, vec!["BG31_330", "BG32_820"]);
 }
 
 /// A Y'Shaarj lobby bans four heroes and the Tier 5 / 6 Dark Paradox forms.

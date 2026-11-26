@@ -80,6 +80,7 @@ fn get_choose_one(c: &mut Ctx, side: Side, n: usize) {
 fn discover_gifted(c: &mut Ctx, side: Side, source: CardId, cands: Vec<CardId>, golden: bool) {
     let turn = c.g.turn;
     let dagger = db().get(source).id == "BG36_MagicItem_370";
+    let common = (!dagger && turn > 9).then(|| c.most_common_race(side).unwrap_or(Races::NONE));
     let cands: Vec<CardId> = cands
         .into_iter()
         .filter(|x| {
@@ -88,6 +89,7 @@ fn discover_gifted(c: &mut Ctx, side: Side, source: CardId, cands: Vec<CardId>, 
                 crate::recruit::gift_compatible(def, turn)
             } else {
                 crate::recruit::gift_discoverable(def, turn)
+                    && crate::recruit::late_gift_matches(def, common)
             }
         })
         .collect();

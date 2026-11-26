@@ -192,6 +192,7 @@ impl Game {
         let trinket_universe: Vec<CardId> = d
             .iter()
             .filter(|c| c.pools.trinket && c.kind.is_trinket())
+            .filter(|c| !cfg.excluded_cards.contains(&c.id))
             // Bundle condition `lobby_or_offer_association`: a trinket associated with minion types
             // needs at least one of them in the lobby (exact weights unknown).
             .filter(|c| c.assoc.is_none() || c.assoc.intersects(lobby))
@@ -203,6 +204,7 @@ impl Game {
         let gift_universe: Vec<CardId> = d
             .iter()
             .filter(|c| c.kind == CardKind::DarkGift && c.window.is_some())
+            .filter(|c| !cfg.excluded_cards.contains(&c.id))
             .filter(|c| script(c.cid).is_some())
             .map(|c| c.cid)
             .collect();
@@ -378,6 +380,7 @@ impl Game {
         let pl = &mut self.players[p];
         pl.ended_turn = false;
         pl.actions_this_turn = 0;
+        pl.recruit_moves.reset();
         pl.freezes_this_turn = 0;
         pl.skipping = false;
         pl.turn_data.clear();
@@ -529,6 +532,7 @@ impl Game {
                 }
             });
         }
+        self.drop_unaffordable_trinket_offers(p);
         if self.cfg.record_log {
             self.players[p].turn_events = self.log[log_start..].to_vec();
         }
@@ -751,7 +755,8 @@ impl Game {
     /// condition (e.g. Ancient Wishbone needs an active hero power). Lobby-type association is
     /// applied when the lobby's trinket universe is built.
     pub fn trinket_eligible(&self, p: PlayerId, t: CardId) -> bool {
-        if self.players[p].has_trinket_id(t)
+        if self.cfg.excluded_cards.contains(&db().get(t).id)
+            || self.players[p].has_trinket_id(t)
             || !crate::content::trinket_offers::offer_rule(self, p, &db().get(t).id)
         {
             return false;
@@ -788,21 +793,9 @@ impl Game {
                 ctx.player(0).unwrap().set_frozen(true);
             }
         });
-        // Pending choices created by end-of-turn effects are resolved randomly.
-        let mut guard = 0;
-        while let Some(pend) = self.players[p].pending.last() {
-            let legal: Vec<usize> = (0..pend.len())
-                .filter(|i| self.option_legal(p, *i))
-                .collect();
-            guard += 1;
-            if legal.is_empty() || guard > 256 {
-                self.players[p].pending.clear();
-                break;
-            }
-            let i = legal[self.rng.below(legal.len())];
-            let _ = self.choose(p, i);
-        }
+        let choices = self.resolve_end_turn_choices(p);
         self.ending_turn = false;
+        choices?;
         let pl = &mut self.players[p];
         pl.ended_turn = true;
         pl.chronum_balance = 0;
@@ -817,10 +810,42 @@ impl Game {
         Ok(())
     }
 
+    /// 回合末选择沿用上游随机结算；无解/超限必须报告错误并保留待选。
+    /// 不能清空整条菜单链后把损坏的回合当作正常战斗继续训练。
+    pub(crate) fn resolve_end_turn_choices(&mut self, p: PlayerId) -> crate::recruit::ActResult {
+        for _ in 0..256 {
+            self.drop_unaffordable_trinket_offers(p);
+            let Some(pend) = self.players[p].pending.last() else {
+                return Ok(());
+            };
+            let legal: Vec<usize> = (0..pend.len())
+                .filter(|i| self.option_legal(p, *i))
+                .collect();
+            if legal.is_empty() {
+                if pend.cancellable() {
+                    self.cancel(p)?;
+                } else {
+                    return Err("unresolvable end-of-turn choice");
+                }
+            } else {
+                let i = legal[self.rng.below(legal.len())];
+                self.choose(p, i)?;
+            }
+        }
+        if self.players[p].pending.is_empty() {
+            Ok(())
+        } else {
+            Err("end-of-turn choice guard exceeded")
+        }
+    }
+
     /// After a seat ends its turn: fight once every living seat has ended. A seat its own
     /// end-of-turn effects killed is eliminated first: it never fights as a living seat, whatever
     /// order the seats ended in. `recruit_deaths` starts the round itself when everyone is done.
-    fn fight_when_all_ended(&mut self) {
+    ///
+    /// `pub(crate)`：场面快照注入（`crate::snapshot`）在整批提交后也走这一条统一推进路径，
+    /// 避免每个快照各自推进。
+    pub(crate) fn fight_when_all_ended(&mut self) {
         if self.players.iter().any(|p| p.alive && p.health <= 0) {
             self.recruit_deaths();
         } else if self.players.iter().all(|p| !p.alive || p.ended_turn) {
@@ -833,10 +858,9 @@ impl Game {
     /// done, like `end_turn`.
     pub fn end_turn_silent(&mut self, p: PlayerId) {
         let pl = &mut self.players[p];
-        if !pl.alive || pl.ended_turn || self.phase != Phase::Recruit {
+        if !pl.alive || pl.ended_turn || self.phase != Phase::Recruit || !pl.pending.is_empty() {
             return;
         }
-        pl.pending.clear();
         pl.ended_turn = true;
         pl.chronum_balance = 0;
         pl.drop_temporary_cards();
@@ -885,6 +909,7 @@ impl Game {
         let o = &self.players[other];
         let seen = Scouted {
             board: Arc::new(o.seen_board.clone()),
+            tier: o.tier,
             turn: self.turn,
         };
         let known = &mut self.players[viewer].scouted;
@@ -1168,6 +1193,7 @@ impl Game {
                     m.visit_pool_parts(|c, n| returned.push((c, n)));
                 }
             }
+            pl.hand_queue_marks.clear();
             for s in pl.shop.drain(..) {
                 if let Item::Minion(m) = &s.item {
                     m.visit_pool_parts(|c, n| returned.push((c, n)));
@@ -1239,4 +1265,43 @@ fn pair_search(
         out.pop();
     }
     false
+}
+
+#[cfg(test)]
+mod pending_safety_audit {
+    use super::*;
+    use crate::state::Continuation;
+
+    #[test]
+    fn impossible_end_of_turn_menu_is_retained_and_reported() {
+        let mut g = Game::new(1078314, RulesConfig::default());
+        g.players[0].pending = vec![Pending::Target {
+            options: vec![],
+            cont: Continuation::Spell {
+                card: db().id("BG28_810"),
+                data: 0,
+                opt: 0,
+            },
+        }];
+        let before = serde_json::to_string(&g.players[0].pending).unwrap();
+        assert_eq!(
+            g.resolve_end_turn_choices(0),
+            Err("unresolvable end-of-turn choice")
+        );
+        assert_eq!(
+            serde_json::to_string(&g.players[0].pending).unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn end_of_turn_can_cancel_an_empty_unpaid_target() {
+        let mut g = Game::new(1078314, RulesConfig::default());
+        g.players[0].pending = vec![Pending::Target {
+            options: vec![],
+            cont: Continuation::HeroPower { opt: 0, slot: 0 },
+        }];
+        g.resolve_end_turn_choices(0).unwrap();
+        assert!(g.players[0].pending.is_empty());
+    }
 }

@@ -58,6 +58,23 @@ pub fn check(g: &Game) -> Vec<String> {
         if p.alive && p.health <= 0 {
             bad.push(format!("p{who}: alive with {} Health", p.health));
         }
+        // 配对卡仅引用手牌或受保护等待队列，不允许引用已弃置/三连的旧实体。
+        let hand_ids: std::collections::HashSet<_> = p
+            .hand
+            .iter()
+            .map(|h| h.hid)
+            .chain(p.hand_queue_marks.iter().map(|m| m.hid))
+            .collect();
+        for link in p
+            .hand
+            .iter()
+            .map(|h| h.link)
+            .chain(p.hand_queue_marks.iter().map(|m| m.link))
+        {
+            if link != 0 && !hand_ids.contains(&link) {
+                bad.push(format!("p{who}: dangling hand link {link}"));
+            }
+        }
         let hand = p.hand.iter().filter_map(|h| h.item.as_minion());
         let shop = p.shop.iter().filter_map(|s| s.item.as_minion());
         for (zone, m) in p

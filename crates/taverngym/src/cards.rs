@@ -218,13 +218,18 @@ impl CardDef {
 
 #[derive(Deserialize)]
 struct RawDb {
+    // fork: 数据替换任务可能写出不一样的 meta（甚至缺 meta）；缺失时回落到
+    // lib.rs 的 GAME_VERSION / SERVER_RULES_VERSION 常量，不 panic。
+    #[serde(default)]
     meta: RawMeta,
     cards: Vec<RawCard>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct RawMeta {
+    #[serde(default)]
     pub client_version: String,
+    #[serde(default)]
     pub server_patch: String,
 }
 
@@ -452,7 +457,9 @@ mod tests {
     fn loads_and_links_golden() {
         let d = db();
         assert!(d.len() > 3000);
-        assert_eq!(d.client_version, crate::GAME_VERSION);
+        // 版本由数据 meta 驱动（见 lib.rs::game_version）；换了数据文件这里仍然成立。
+        assert_eq!(d.client_version, crate::game_version());
+        assert_eq!(d.server_patch, crate::server_rules_version());
         let rider = d.id("BG25_001");
         let def = d.get(rider);
         assert_eq!((def.tier, def.atk, def.hp), (1, 2, 1));
@@ -466,12 +473,12 @@ mod tests {
     }
 
     #[test]
-    fn pool_counts_match_current_ruleset() {
+    fn pool_counts_match_bundle() {
         let d = db();
         assert_eq!(d.iter().filter(|c| c.pools.minion).count(), 245);
         assert_eq!(d.iter().filter(|c| c.pools.hero).count(), 116);
         assert_eq!(d.iter().filter(|c| c.pools.spell).count(), 70);
-        assert_eq!(d.iter().filter(|c| c.pools.trinket).count(), 234);
+        assert_eq!(d.iter().filter(|c| c.pools.trinket).count(), 233);
     }
 
     #[test]

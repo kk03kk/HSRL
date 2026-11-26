@@ -224,7 +224,7 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
                 ..E
             },
         ),
-        // Felboar: after you cast 3 spells, consume a tavern minion. (Counter on the minion.)
+        // Felboar: after you cast 4 spells, consume a tavern minion. (Counter on the minion.)
         (
             "BG28_633",
             Script {
@@ -236,15 +236,15 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
                         return;
                     };
                     m.counter += 1;
-                    if m.counter >= 3 {
+                    if m.counter >= 4 {
                         m.counter = 0;
                         c.consume_random(me.side, me.eid, me.g());
                     }
                 }),
                 listens: ev::SPELL_CAST,
-                // "After you cast 3 spells, consume a minion in the Tavern to gain its stats.
-                // (3 left!)"
-                shown: Some(|_, sh| vec![3, (3 - sh.counter()).max(0)]),
+                // "After you cast 4 spells, consume a minion in the Tavern to gain its stats.
+                // (4 left!)"
+                shown: Some(|_, sh| vec![4, (4 - sh.counter()).max(0)]),
                 ..E
             },
         ),
@@ -396,9 +396,11 @@ pub fn scripts() -> Vec<(&'static str, Script)> {
             Script {
                 on_event: Some(|c, me, e| {
                     if let Event::Consumed {
-                        side, eater, kw, ..
+                        side, eater, kw, source, ..
                     } = e
                         && *side == me.side
+                        // The live 37.0.3 interaction omits the bonus on Ur'zul Sticker consumes.
+                        && *source != Some(crate::cardid!("BG35_MagicItem_154"))
                         && c.minion(*eater).is_some_and(|m| m.is(Races::DEMON))
                     {
                         c.give_kw(*eater, bonus_keywords(*kw));

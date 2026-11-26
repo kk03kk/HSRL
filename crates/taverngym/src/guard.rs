@@ -6,7 +6,7 @@
 //! Battlecries, casts, cards added to the hand, Discovers, attacks) call [`Ctx::guard`]: it notes
 //! the entry point in the context's trail and checks the stack against a floor. Below the floor it
 //! panics with the trail - in a runaway recursion, the cycle - and writes the game to a JSON file
-//! (directory `TAVERNGYM_GUARD_DIR`, else the current one).
+//! (directory `HSBG_ENGINE_GUARD_DIR`, else the current one).
 
 use crate::cards::{CardId, db};
 use crate::engine::Ctx;
@@ -204,12 +204,12 @@ impl Ctx<'_> {
         fn json<T: serde::Serialize + ?Sized>(x: &T) -> String {
             serde_json::to_string(x).unwrap_or_else(|e| format!("{:?}", e.to_string()))
         }
-        let dir = std::env::var_os("TAVERNGYM_GUARD_DIR").unwrap_or_else(|| ".".into());
+        let dir = std::env::var_os("HSBG_ENGINE_GUARD_DIR").unwrap_or_else(|| ".".into());
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_nanos());
         let path = std::path::Path::new(&dir).join(format!(
-            "taverngym-guard-{}-{nanos}.json",
+            "hsbg-engine-guard-{}-{nanos}.json",
             std::process::id()
         ));
         let body = format!(

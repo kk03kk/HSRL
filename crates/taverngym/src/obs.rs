@@ -28,6 +28,7 @@ pub const N_OPP: usize = 7;
 /// Opponent warband memory (last seen boards, 7 minions each).
 pub const OPP_BOARD_F: usize = N_OPP * N_BOARD * MINION_F;
 pub const PENDING_KINDS: usize = 9;
+pub const ACTION_BUDGET_F: usize = 2;
 
 pub const OBS_FLOATS: usize = GLOBAL_F
     + N_QUESTS * QUEST_F
@@ -37,7 +38,8 @@ pub const OBS_FLOATS: usize = GLOBAL_F
     + N_SHOP * ITEM_F
     + N_CHOICE * ITEM_F
     + N_OPP * OPP_F
-    + OPP_BOARD_F;
+    + OPP_BOARD_F
+    + ACTION_BUDGET_F;
 /// hero, hero powers, Deity, source of the pending choice, board, hand, shop, choices, owned
 /// trinkets (8), Quests with their Rewards, owned Rewards, Secrets, opponent heroes, opponent
 /// last boards.
@@ -371,7 +373,34 @@ pub fn observe_view(g: &Game, p: PlayerId, all: bool) -> Observation {
         .map(|k| (p + k) % g.players.len())
         .take(N_OPP)
         .collect();
+    let encounter = if pl.next_is_ghost {
+        g.eliminated.last().copied()
+    } else {
+        pl.next_opponent
+    }
+    .filter(|_| g.phase == Phase::Recruit);
     for i in 0..N_OPP {
+        if g.cfg.player_view_150 {
+            if let Some(other) = others.get(i).copied().filter(|o| Some(*o) == encounter) {
+                let seen = pl.scouted.get(other);
+                f.extend([
+                    1.,
+                    0.,
+                    0.,
+                    0.,
+                    seen.map_or(0, |s| s.tier) as f32 / 6.,
+                    seen.map_or(0, |s| s.board.len()) as f32 / 7.,
+                    0.,
+                    0.,
+                    1.,
+                ]);
+                c.push(g.players[other].hero.map(card_index).unwrap_or(0));
+            } else {
+                f.extend([0.; OPP_F]);
+                c.push(0);
+            }
+            continue;
+        }
         match others.get(i).map(|o| &g.players[*o]) {
             Some(o) if g.phase == Phase::HeroSelect && !all => {
                 f.extend([
@@ -409,13 +438,33 @@ pub fn observe_view(g: &Game, p: PlayerId, all: bool) -> Observation {
     }
     for i in 0..N_OPP {
         // Only what this player saw in its last combat against the opponent.
-        let board = others.get(i).map(|o| g.board_shown(p, *o, all).0);
+        let board = if g.cfg.player_view_150 {
+            others
+                .get(i)
+                .filter(|o| Some(**o) == encounter)
+                .and_then(|o| pl.scouted.get(*o))
+                .map(|s| s.board.as_slice())
+        } else {
+            others.get(i).map(|o| g.board_shown(p, *o, all).0)
+        };
         for j in 0..N_BOARD {
             let m = board.and_then(|b| b.get(j));
             push_minion(&mut f, m);
             c.push(m.map(|m| card_index(m.card)).unwrap_or(0));
         }
     }
+    let cap = g.action_cap_of(p);
+    let scale = if cap == u32::MAX {
+        crate::RulesConfig::HSRL_RECRUIT_ACTIONS
+    } else {
+        cap.max(1)
+    };
+    let remaining = if cap == u32::MAX {
+        1.0
+    } else {
+        cap.saturating_sub(pl.actions_this_turn) as f32 / scale as f32
+    };
+    f.extend([pl.actions_this_turn as f32 / scale as f32, remaining]);
     debug_assert_eq!(f.len(), OBS_FLOATS);
     debug_assert_eq!(c.len(), OBS_CARDS);
     Observation {

@@ -127,10 +127,42 @@ impl Action {
 }
 
 impl Game {
+    pub fn player_clock_expired(&self, p: PlayerId) -> bool {
+        self.cfg.player_view_150
+            && self.phase == Phase::Recruit
+            && self.players[p].actions_this_turn >= 150
+    }
+
+    fn player150_spell_needs_budget(&self, p: PlayerId, card: crate::cards::CardId) -> bool {
+        self.cfg.player_view_150
+            && self.cfg.player150_order_guard
+            && self.phase == Phase::Recruit
+            && self.players[p].actions_this_turn == 149
+            && script(card).is_some_and(|effect| effect.spell_target != TargetSpec::None)
+    }
+
     /// Apply an action for player `p`.
     pub fn apply(&mut self, p: PlayerId, a: Action) -> ActResult {
         if self.phase == Phase::GameOver {
             return Err("game over");
+        }
+        if self.cfg.hsrl_actions && matches!(a, Action::Cancel | Action::Move { .. }) {
+            return Err("action disabled by HSRL rules");
+        }
+        if self.player_clock_expired(p) {
+            if a != Action::EndTurn || !self.needs_action(p) {
+                return Err("recruitment clock expired");
+            }
+            // The environment settles pending offers; no additional agent action is counted.
+            self.resolve_end_turn_choices(p)?;
+            return self.end_turn(p);
+        }
+        if let Action::Play { hand, .. } = a
+            && let Some(Item::Spell { card, .. }) =
+                self.players[p].hand.get(hand).map(|slot| &slot.item)
+            && self.player150_spell_needs_budget(p, *card)
+        {
+            return Err("not enough recruitment actions to choose the spell target");
         }
         self.players[p].actions_this_turn += 1;
         let r = self.apply_inner(p, a);
@@ -147,6 +179,13 @@ impl Game {
         if self.players[p].alive && !self.players[p].hand_queue.is_empty() {
             self.flush_hand_queue(p);
         }
+        if r.is_ok() {
+            // 取消、手牌队列和跨席效果也可能暴露下层菜单。仅处理引擎已有的
+            // “收费饰品全部买不起则跳过”规则，不能丢弃其他待选或伪造动作。
+            for seat in 0..self.players.len() {
+                self.drop_unaffordable_trinket_offers(seat);
+            }
+        }
         r
     }
 
@@ -156,13 +195,17 @@ impl Game {
         self.cfg.action_cap(self.turn)
     }
 
+    fn budget_applies(&self, p: PlayerId) -> bool {
+        self.cfg.hsrl_actions || !self.players[p].uncapped
+    }
+
     fn apply_inner(&mut self, p: PlayerId, a: Action) -> ActResult {
         match a {
             Action::Choose(i) => self.choose(p, i),
             Action::Cancel => self.cancel(p),
             _ if self.phase == Phase::HeroSelect => Err("choose a hero first"),
             Action::EndTurn => self.end_turn(p),
-            _ if !self.players[p].uncapped
+            _ if self.budget_applies(p)
                 && self.players[p].actions_this_turn > self.action_cap_of(p) =>
             {
                 Err("action limit for this turn reached")
@@ -217,11 +260,15 @@ impl Game {
             return m;
         }
         let pl = &self.players[p];
+        if self.player_clock_expired(p) {
+            m[A_END] = true;
+            return m;
+        }
         if let Some(top) = pl.pending.last() {
             for i in 0..top.len().min(N_CHOICE) {
                 m[A_CHOOSE + i] = self.option_legal(p, i);
             }
-            m[A_CANCEL] = top.cancellable();
+            m[A_CANCEL] = !self.cfg.hsrl_actions && top.cancellable();
             return m;
         }
         let cfg = &self.cfg;
@@ -229,7 +276,7 @@ impl Game {
         m[A_FREEZE] = self.can_freeze(p);
         // Past the per-turn action cap only End Turn stays legal (`apply` agrees), in a
         // skipped turn too.
-        if !pl.uncapped && pl.actions_this_turn >= self.action_cap_of(p) {
+        if self.budget_applies(p) && pl.actions_this_turn >= self.action_cap_of(p) {
             m[A_FREEZE] = false;
             return m;
         }
@@ -261,25 +308,37 @@ impl Game {
                 continue;
             }
             match &card.item {
-                Item::Minion(_) => {
-                    if !board_full {
+                Item::Minion(minion) => {
+                    if !board_full && self.minion_play_allowed(p, minion.card) {
                         for pos in 0..=pl.board.len().min(N_POS - 1) {
                             m[A_PLAY + h * N_POS + pos] = true;
                         }
                     }
                     for b in 0..pl.board.len().min(N_BOARD) {
-                        m[A_MAGNETIZE + h * N_BOARD + b] = self.can_magnetize(p, h, b);
+                        if self.can_magnetize(p, h, b) {
+                            // A left-side drop fuses to this host. Offer only its native action.
+                            m[A_MAGNETIZE + h * N_BOARD + b] = true;
+                            m[A_PLAY + h * N_POS + b] = false;
+                        }
                     }
                 }
                 Item::Spell { card: c, .. } => {
-                    m[A_PLAY + h * N_POS] = self.spell_playable(p, *c);
+                    m[A_PLAY + h * N_POS] =
+                        !self.player150_spell_needs_budget(p, *c) && self.spell_playable(p, *c);
                 }
             }
         }
         let n = pl.board.len().min(N_BOARD);
+        if self.cfg.hsrl_actions {
+            return m;
+        }
+        let move_order = self
+            .cfg
+            .player150_order_guard
+            .then(|| pl.recruit_moves.context(&pl.board));
         for f in 0..n {
             for t in 0..n {
-                if f != t {
+                if f != t && move_order.as_ref().is_none_or(|order| order.allows(f, t)) {
                     m[A_MOVE + f * N_BOARD + t] = true;
                 }
             }

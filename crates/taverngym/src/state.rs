@@ -5,6 +5,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::cards::{CardId, CardKind, db};
+use crate::move_order::RecruitMoveHistory;
 use crate::types::{EntityId, Kw, PlayerId, Races};
 
 /// One recorded change to a minion's stats (only kept while `cfg.record_log`).
@@ -862,6 +863,9 @@ impl HeroPowerState {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Scouted {
     pub board: Arc<Vec<Minion>>,
+    /// Zero means unknown for encounters loaded from older saves.
+    #[serde(default)]
+    pub tier: u8,
     /// Turn of that combat (0 = the two have not met).
     pub turn: u32,
 }
@@ -990,6 +994,8 @@ pub struct Player {
     #[serde(default)]
     pub sees_all_boards: bool,
     pub actions_this_turn: u32,
+    #[serde(default, skip_serializing_if = "RecruitMoveHistory::is_empty")]
+    pub(crate) recruit_moves: RecruitMoveHistory,
     /// Presses of the Freeze button this turn (`RulesConfig::freeze_presses_per_turn`).
     #[serde(default)]
     pub freezes_this_turn: u32,
@@ -1063,6 +1069,18 @@ impl Player {
     /// End of the turn: temporary cards (Spellcraft spells) leave the hand, and the queue
     /// of cards waiting for hand space; this is not a discard.
     pub fn drop_temporary_cards(&mut self) {
+        let removed: Vec<_> = self
+            .hand
+            .iter()
+            .filter(|h| h.temporary)
+            .map(|h| h.hid)
+            .chain(
+                self.hand_queue_marks
+                    .iter()
+                    .filter(|m| m.temporary)
+                    .map(|m| m.hid),
+            )
+            .collect();
         self.hand.retain(|h| !h.temporary);
         let mut i = 0;
         while i < self.hand_queue.len() {
@@ -1070,6 +1088,52 @@ impl Player {
                 self.queue_take(i);
             } else {
                 i += 1;
+            }
+        }
+        for hid in removed {
+            self.unlink_removed_hand_card(hid);
+        }
+    }
+
+    /// 卡牌因弃置、三连或到期离开后，幸存配对卡不能继续引用其旧实体。
+    /// 这里只解除关系，不把“弃置”误当成“打出另一张”而连带弃牌。
+    pub fn unlink_removed_hand_card(&mut self, hid: EntityId) {
+        if hid == 0 {
+            return;
+        }
+        for h in &mut self.hand {
+            if h.link == hid {
+                h.link = 0;
+            }
+        }
+        for m in self.queue_marks() {
+            if m.link == hid {
+                m.link = 0;
+            }
+        }
+    }
+
+    /// 招募效果完成后的生命周期收尾，也覆盖内容脚本直接移除/替换手牌的路径。
+    pub fn prune_removed_hand_links(&mut self) {
+        self.queue_marks();
+        if !self.hand.iter().any(|h| h.link != 0) && !self.queue_marks().iter().any(|m| m.link != 0)
+        {
+            return;
+        }
+        let ids: Vec<_> = self
+            .hand
+            .iter()
+            .map(|h| h.hid)
+            .chain(self.hand_queue_marks.iter().map(|m| m.hid))
+            .collect();
+        for h in &mut self.hand {
+            if h.link != 0 && !ids.contains(&h.link) {
+                h.link = 0;
+            }
+        }
+        for m in self.queue_marks() {
+            if m.link != 0 && !ids.contains(&m.link) {
+                m.link = 0;
             }
         }
     }
@@ -1131,6 +1195,7 @@ impl Player {
             sees_all_boards: false,
             uncapped: false,
             actions_this_turn: 0,
+            recruit_moves: RecruitMoveHistory::default(),
             freezes_this_turn: 0,
             skipping: false,
             turn_data: Vec::new(),

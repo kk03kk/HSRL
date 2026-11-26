@@ -45,9 +45,10 @@ from pathlib import Path
 import taverngym
 
 assert taverngym.build_is_current(Path.cwd()) is True
+config = taverngym.hsrl_config_json()
 games = []
 for seed in range(16):
-    game = taverngym.Game(seed)
+    game = taverngym.Game(seed, config)
     actions = 0
     while not game.is_over():
         before = actions
@@ -62,7 +63,8 @@ for seed in range(16):
     places = list(game.placements())
     assert sorted(places) == list(range(1, 9)), (seed, places)
     assert not game.turn_limit_end, seed
-    assert game.truncated_combats == 0, seed
+    assert game.truncated_combats == game.truncated_recruit_contexts == 0, seed
+    assert game.stopped_reason is None, seed
     games.append({"seed": seed, "turn": game.turn, "actions": actions, "placements": places})
 
 print(json.dumps({

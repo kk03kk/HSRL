@@ -6,6 +6,17 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 暴雪 2026-11-04 在线禁用项；不修改固定上游卡表和卡牌下标。
+/// 官方来源：https://us.forums.blizzard.com/en/hearthstone/t/bans-what-and-where/151289
+/// 历史实验可显式传 excluded_cards=[] 恢复当时的候选池。
+pub const LIVE_BANNED_CARDS: &[&str] = &[
+    "BG36_MagicItem_412",
+    "BG36_MagicItem_412t2", // Kiri，两种饰品再次禁用。
+    "BG32_MagicItem_300",   // Putricide Sticker（固定卡表中已经不在池）。
+    "BG34_320",             // The Last One Standing, disabled Nov 16, 2026.
+    "BGS_121",              // Gentle Djinni（固定卡表中已经不在池）。
+];
+
 /// Which content may appear in pools.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContentMode {
@@ -60,7 +71,7 @@ pub struct RulesConfig {
     /// unpublished) and it was reported absent from 36.6 by manual testing.
     pub strict_pool_tag: bool,
     /// Extra card ids removed from every pool (manual overrides of the bundle's candidates).
-    /// Empty by default (Flourishing Frostling is out of the pool in the 36.6.3 data).
+    /// 默认含已核实的 2026-11-04 在线禁用项；显式空列表用于历史复现。
     pub excluded_cards: Vec<String>,
     /// Hero Powers never offered by "Discover a Hero Power" effects: Edwin VanCleef and Cariel
     /// Roame (official 27.0 notes), Fungalmancer Flurgl (28.6.2).
@@ -210,6 +221,15 @@ pub struct RulesConfig {
     /// and freezing never advance the game, so a policy without a cap can act forever:
     /// whoever drives one sets this (bots stop at 60 actions by themselves).
     pub turn_action_caps: Vec<u32>,
+    /// Apply the HSRL recruitment budget and disable Move and Cancel for every seat.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hsrl_actions: bool,
+    /// Enable the fixed recruitment clock and encounter-only policy input.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub player_view_150: bool,
+    /// Player150 policy guard: three reorders, with confirmed entity order history.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub player150_order_guard: bool,
     /// The Freeze button answers this many times a turn - freezing and unfreezing the Tavern
     /// each count - and is not available after that (0 = no limit). 10 in the game
     /// (client 36.6.3). Not written while it has its default.
@@ -245,7 +265,10 @@ impl Default for RulesConfig {
             pool_copies_by_tier: [15, 15, 13, 11, 9, 7, 5],
             spell_copies_by_tier: spell_copies(),
             strict_pool_tag: true,
-            excluded_cards: vec![],
+            excluded_cards: LIVE_BANNED_CARDS
+                .iter()
+                .map(|id| (*id).to_owned())
+                .collect(),
             hero_power_discover_excluded: hero_power_discover_excluded(),
             silas_ticket_pct: 30,
             lobby_races: 5,
@@ -285,6 +308,9 @@ impl Default for RulesConfig {
             deity_threshold: 4,
             max_actions_per_turn: max_actions(),
             turn_action_caps: Vec::new(),
+            hsrl_actions: false,
+            player_view_150: false,
+            player150_order_guard: false,
             freeze_presses_per_turn: freeze_presses(),
             max_turns: max_turns(),
             record_log: false,
@@ -293,9 +319,22 @@ impl Default for RulesConfig {
 }
 
 impl RulesConfig {
+    pub const HSRL_RECRUIT_ACTIONS: u32 = 100;
+
+    /// Shared HSRL profile for the teacher, scripted opponents and learning seats.
+    pub fn hsrl() -> Self {
+        Self {
+            hsrl_actions: true,
+            ..Self::default()
+        }
+    }
+
     /// The most actions a seat may take in `turn`: its entry of `turn_action_caps` (at most
     /// `max_actions_per_turn`); `u32::MAX`, no cap, when the table is empty.
     pub fn action_cap(&self, turn: u32) -> u32 {
+        if self.hsrl_actions {
+            return Self::HSRL_RECRUIT_ACTIONS;
+        }
         match self.turn_action_caps.as_slice() {
             [] => u32::MAX,
             caps => {
@@ -327,10 +366,25 @@ impl RulesConfig {
 
     /// The fields that are not written while they have their default (the default config
     /// stays the same): `from_json` knows them by name.
-    const UNWRITTEN_AT_DEFAULT: [&'static str; 3] =
-        ["hero_bans", "freeze_presses_per_turn", "experimental_mode"];
+    const UNWRITTEN_AT_DEFAULT: [&'static str; 6] = [
+        "hero_bans",
+        "freeze_presses_per_turn",
+        "experimental_mode",
+        "player_view_150",
+        "player150_order_guard",
+        "hsrl_actions",
+    ];
 
     pub fn validate(&self) -> Result<(), String> {
+        if self.hsrl_actions && (self.player_view_150 || self.experimental_mode) {
+            return Err(
+                "HSRL actions require the standard action and observation interface".into(),
+            );
+        }
+
+        if self.player150_order_guard && !self.player_view_150 {
+            return Err("player150_order_guard requires player_view_150".into());
+        }
         let (b, h, s) = (self.board_size, self.hand_size, 7 + self.shop_spell_slots);
         if !(1..=7).contains(&b) {
             return Err(format!("board_size {b} must be 1..=7"));

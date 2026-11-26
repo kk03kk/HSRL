@@ -124,6 +124,16 @@ impl PyGame {
     fn truncated_combats(&self) -> u32 {
         self.g.truncated_combats
     }
+    /// Recruitment effects cut short by a simulator guard.
+    #[getter]
+    fn truncated_recruit_contexts(&self) -> u32 {
+        self.g.truncated_recruit_contexts
+    }
+    /// Diagnostic stop without a valid terminal outcome.
+    #[getter]
+    fn stopped_reason(&self) -> Option<&'static str> {
+        self.g.stopped_reason.map(|reason| reason.as_str())
+    }
     /// Whether the game was ended by the `max_turns` guard instead of by the rules.
     #[getter]
     fn turn_limit_end(&self) -> bool {
@@ -460,6 +470,7 @@ fn layout() -> Vec<(&'static str, usize)> {
         ("A_MAGNETIZE", a::A_MAGNETIZE),
         ("A_MOVE", a::A_MOVE),
         ("N_ACTIONS", a::N_ACTIONS),
+        ("ACTION_BUDGET_F", o::ACTION_BUDGET_F),
         ("OBS_FLOATS", o::OBS_FLOATS),
         ("OBS_CARDS", o::OBS_CARDS),
     ]
@@ -527,6 +538,11 @@ fn default_config_json() -> String {
     serde_json::to_string_pretty(&RulesConfig::default()).unwrap()
 }
 
+#[pyfunction]
+fn hsrl_config_json() -> String {
+    serde_json::to_string(&RulesConfig::hsrl()).expect("RulesConfig serializes")
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("N_ACTIONS", N_ACTIONS)?;
@@ -544,6 +560,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(card_info, m)?)?;
     m.add_function(wrap_pyfunction!(run_bot_games, m)?)?;
     m.add_function(wrap_pyfunction!(default_config_json, m)?)?;
+    m.add_function(wrap_pyfunction!(hsrl_config_json, m)?)?;
     m.add_function(wrap_pyfunction!(layout, m)?)?;
     m.add_function(wrap_pyfunction!(card_static, m)?)?;
     m.add_function(wrap_pyfunction!(catalog_json, m)?)?;

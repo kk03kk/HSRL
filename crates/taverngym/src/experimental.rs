@@ -83,6 +83,7 @@ impl Game {
             for _ in 0..count {
                 let item = Item::Minion(c.new_minion(0, card));
                 if c.g.players[p].hand.len() >= c.g.cfg.hand_size {
+                    c.g.players[p].queue_marks().push(Default::default());
                     c.g.players[p].hand_queue.push(item);
                 } else {
                     c.add_to_hand(0, item);

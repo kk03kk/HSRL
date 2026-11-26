@@ -1,6 +1,10 @@
 #![recursion_limit = "256"]
-//! TavernGym: a Hearthstone Battlegrounds solo-mode simulator engine (client 37.0.2.256589,
-//! server rules 37.0.2) with a reinforcement-learning interface.
+//! HSbg Engine: a Hearthstone Battlegrounds solo-mode simulator engine with a
+//! reinforcement-learning interface. This is the vendored fork of the TavernGym engine
+//! (AutoTavern, MIT; see `FORK.md`): action/observation contracts follow upstream;
+//! snapshot injection, audited fixes and dated live bans are explicit fork differences.
+//! The reported game-data version is read from
+//! `data/cards.json`'s `meta` (so replacing the data file updates it).
 //!
 //! Module map:
 //! - `cards`   static card database (`data/cards.json`)
@@ -30,11 +34,19 @@ pub mod experimental;
 pub mod flow;
 pub mod guard;
 pub mod invariants;
+mod move_order;
 pub mod obs;
 pub mod recruit;
 pub mod rng;
 pub mod script;
+// P4-M1：逐步 MCTS 搜索核（新增能力，不改变默认行为；设计与用法见
+// docs/AZ_MCTS_SELFPLAY_DESIGN.md §7 与 hsbg/az/search.py）。
+pub mod search;
 pub mod state;
+pub mod turn_search;
+// 回合末场面快照镜像注入（docs/MIRROR_SNAPSHOT_DESIGN.md）；
+// 默认关闭，只有显式调用 `Game::apply_turn_snapshots` 才生效。
+pub mod snapshot;
 pub mod types;
 pub mod workers;
 
@@ -43,13 +55,39 @@ pub use batch::{BatchEnv, SlotResult};
 pub use config::RulesConfig;
 pub use engine::Game;
 pub use env::SoloEnv;
+pub use snapshot::{BoardInjectReport, SNAPSHOT_SCHEMA_VERSION, SnapshotReport};
 
 /// Simulator library version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Hearthstone client build the simulator replicates.
+/// Hearthstone client build the simulator replicates, as a **fallback**: the authoritative
+/// value is `meta.client_version` of the embedded card data (`data/cards.json`), see
+/// [`game_version`]. The constant keeps upstream's value so a data file without `meta` still
+/// reports a sane version.
 pub const GAME_VERSION: &str = "37.0.2.256589";
-/// Server-side rule overlay applied on top of the client data.
-pub const SERVER_RULES_VERSION: &str = "37.0.2";
+/// Server-side rule overlay, as a **fallback**: the authoritative value is
+/// `meta.server_patch` of the embedded card data, see [`server_rules_version`].
+pub const SERVER_RULES_VERSION: &str = "37.0.3";
+
+/// Hearthstone client build the embedded card data replicates (`meta.client_version` of
+/// `data/cards.json`), or [`GAME_VERSION`] when the data file carries none.
+///
+/// Data-driven on purpose: HSBRSIM 替换卡牌数据（36.6.3 -> 37.0.0.255790）不必改引擎代码，
+/// 上报的版本自动跟随数据文件。
+pub fn game_version() -> &'static str {
+    let v = crate::cards::db().client_version.as_str();
+    if v.is_empty() { GAME_VERSION } else { v }
+}
+
+/// Server-side rule overlay of the embedded card data (`meta.server_patch` of
+/// `data/cards.json`), or [`SERVER_RULES_VERSION`] when the data file carries none.
+pub fn server_rules_version() -> &'static str {
+    let v = crate::cards::db().server_patch.as_str();
+    if v.is_empty() {
+        SERVER_RULES_VERSION
+    } else {
+        v
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -57,8 +95,13 @@ mod tests {
 
     #[test]
     fn versions() {
-        assert_eq!(GAME_VERSION, "37.0.2.256589");
-        assert_eq!(SERVER_RULES_VERSION, "37.0.2");
+        // 版本由数据 meta 驱动，常量只是数据缺 meta 时的 fallback（见 rust/FORK.md）。
+        let d = crate::cards::db();
+        assert_eq!(game_version(), d.client_version.as_str());
+        assert_eq!(server_rules_version(), d.server_patch.as_str());
+        assert!(!game_version().is_empty());
+        assert!(!server_rules_version().is_empty());
+        assert!(game_version().split('.').count() >= 3, "{}", game_version());
         assert!(!VERSION.is_empty());
     }
 }
