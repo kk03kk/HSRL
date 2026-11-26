@@ -21,8 +21,8 @@ ROW = np.dtype([
 ])
 BOARD_START = 3 + A["N_POWERS"] + 3 * A["N_QUESTS"] + A["N_SECRETS"]
 CORES = {
-    "tea": (("BG36_400",), ("BG35_883", "BG36_320")),
-    "azerite_brann": (("BG26_537",), ("BG_LOEA_010",)),
+    "tea": (("BG36_640",), ("BG35_883", "BG36_104")),
+    "azerite_brann": (("BG28_707",), ("BG_LOE_077",)),
     "apm_undead": (("BG33_823",), ("BG33_825",), ("BG34_692",), ("BG36_515",)),
     "apm_magnetic": (("BG33_823",), ("BG33_825",), ("BG36_367",), ("BG26_149",)),
     "apm_deity": (("BG33_823",), ("BG33_825",), ("BG36_111",)),
