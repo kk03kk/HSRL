@@ -1,0 +1,13 @@
+{
+  "source": "Local Power.log, 2026-11-22, solo Battlegrounds",
+  "source_sha256": "cef94472972aa8fdcef55175710207bd06ee296cd411f49a8da3ae588da72ac9",
+  "client_build_in_log": 255790,
+  "server_patch_window": "37.0.3",
+  "cases": [
+    {"action":"buy", "lines":[4724,4811], "turn":1,"gold_before":3,"gold_after":0,"tier_before":1,"tier_after":1,"zone":"PLAY -> HAND"},
+    {"action":"upgrade", "lines":[10343,10394], "turn":2,"gold_before":4,"gold_after":0,"tier_before":1,"tier_after":2},
+    {"action":"freeze", "lines":[18135,18157], "turn":3,"gold_before":1,"gold_after":1,"tier_before":2,"tier_after":2},
+    {"action":"sell", "lines":[70051,70483], "turn":7,"gold_before":4,"gold_after":5,"tier_before":4,"tier_after":4,"zone":"PLAY -> SETASIDE"},
+    {"action":"refresh", "lines":[72005,72834], "turn":7,"gold_before":6,"gold_after":5,"tier_before":4,"tier_after":4}
+  ]
+}
