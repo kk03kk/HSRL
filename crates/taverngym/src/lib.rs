@@ -47,6 +47,7 @@ pub mod turn_search;
 // 回合末场面快照镜像注入（docs/MIRROR_SNAPSHOT_DESIGN.md）；
 // 默认关闭，只有显式调用 `Game::apply_turn_snapshots` 才生效。
 pub mod snapshot;
+pub mod strategy;
 pub mod types;
 pub mod workers;
 

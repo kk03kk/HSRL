@@ -1,0 +1,83 @@
+//! Set the warband order when a minion enters play.
+use crate::script::script;
+use crate::state::Minion;
+use crate::types::{Kw, Races};
+use crate::{Action, Game};
+
+use super::{catalog, undead_apm};
+
+fn attack_priority(minion: &Minion) -> i32 {
+    if minion.atk <= 0 {
+        return -15;
+    }
+    let hooks = script(minion.card);
+    (f64::from(minion.atk).sqrt().min(14.0) as i32)
+        + 12 * i32::from(hooks.is_some_and(|s| s.rally.is_some()))
+        + 10 * i32::from(minion.has(Kw::CLEAVE))
+        + 3 * i32::from(minion.has(Kw::DIVINE_SHIELD))
+        - 11 * i32::from(hooks.is_some_and(|s| s.avenge.is_some()))
+}
+
+fn order_cost(left: &Minion, right: &Minion) -> i32 {
+    if left.is(Races::UNDEAD) && right.is(Races::UNDEAD) {
+        let left_phantom = catalog::is(left, undead_apm::PHANTOM);
+        let right_phantom = catalog::is(right, undead_apm::PHANTOM);
+        let strength = |m: &Minion| (m.max_hp, m.golden, m.atk);
+        if left_phantom && (!right_phantom || strength(left) > strength(right)) {
+            return 1_000;
+        }
+    }
+    (attack_priority(right) - attack_priority(left)).max(0)
+}
+
+fn nearby_value(a: &Minion, b: &Minion) -> i32 {
+    let useful = |engine: &Minion, neighbor: &Minion| {
+        if catalog::is(engine, catalog::EYE)
+            && script(neighbor.card).is_some_and(|s| s.battlecry.is_some())
+        {
+            18
+        } else if catalog::is(engine, catalog::POET)
+            && neighbor.is(Races::DRAGON)
+            && !catalog::is(neighbor, catalog::POET)
+        {
+            14
+        } else {
+            0
+        }
+    };
+    useful(a, b) + useful(b, a)
+}
+
+pub(super) fn position(game: &Game, seat: usize, action: Action) -> Action {
+    let Action::Play { hand, pos: prior } = action else {
+        return action;
+    };
+    let player = &game.players[seat];
+    let Some(minion) = player.hand[hand].item.as_minion() else {
+        return action;
+    };
+    let board = &player.board;
+    let mask = game.legal_mask(seat);
+    (0..=board.len())
+        .filter_map(|pos| {
+            let candidate = Action::Play { hand, pos };
+            if !mask[candidate.encode()] {
+                return None;
+            }
+            let (left, right) = board.split_at(pos);
+            let mut cost = left.iter().map(|m| order_cost(m, minion)).sum::<i32>()
+                + right.iter().map(|m| order_cost(minion, m)).sum::<i32>();
+            if let Some(last) = left.last() {
+                cost -= nearby_value(last, minion);
+            }
+            if let Some(first) = right.first() {
+                cost -= nearby_value(minion, first);
+            }
+            if let (Some(last), Some(first)) = (left.last(), right.first()) {
+                cost += nearby_value(last, first);
+            }
+            Some((candidate, cost, pos.abs_diff(prior)))
+        })
+        .min_by_key(|&(_, cost, distance)| (cost, distance))
+        .map_or(action, |(candidate, _, _)| candidate)
+}
