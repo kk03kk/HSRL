@@ -44,7 +44,7 @@ case "$stage" in
     mig)
         # Slurm's numbered MIG mask can enumerate only one instance. Use the
         # exact two UUIDs visible to this job before importing CUDA.
-        mapfile -t uuids < <(nvidia-smi -L | sed -n 's/.*(UUID: \(MIG-[^)]*\)).*//p')
+        mapfile -t uuids < <(nvidia-smi -L | grep -oE 'MIG-[[:xdigit:]-]+')
         if [[ ${#uuids[@]} -ne 2 ]]; then
             printf 'Expected exactly two allocated MIG UUIDs, got %s\n' "${#uuids[@]}" >&2
             exit 1
