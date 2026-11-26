@@ -629,6 +629,8 @@ def evaluate(args):
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     metrics = {
         "source": meta["source"],
+        "gpu": torch.cuda.get_device_name(),
+        "arena_batch": args.arena_batch,
         "checkpoint_sha256": digest,
         "selected": checkpoint["best"],
         "placement_utility": lookup,

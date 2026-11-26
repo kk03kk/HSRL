@@ -67,6 +67,7 @@ def evaluate(args):
         raise ValueError("Frozen candidate changed")
     fields = {}
     test = []
+    execution = None
     for name, path in zip(FIELDS, args.reports, strict=True):
         report = read(path / "report.json")
         if (
@@ -76,6 +77,10 @@ def evaluate(args):
             or len(report["test"]) != 1
         ):
             raise ValueError(f"Inconsistent field report in {path}")
+        current = (report["gpu"], report["arena_batch"])
+        if execution is not None and current != execution:
+            raise ValueError("Independent fields used different device or arena concurrency")
+        execution = current
         manifest = report["test"][0]["manifest"]
         if manifest["games"] != args.games or manifest["field"] != name or manifest["rows"] != 0:
             raise ValueError(f"Wrong independent split in {path}")
@@ -96,8 +101,14 @@ def evaluate(args):
             raise ValueError(f"Incomplete independent field {name}")
         test.append(report["test"][0])
         fields[name] = report["fields"][name]
+    first, second = [entry["manifest"] for entry in test]
+    if max(first["first_seed"], second["first_seed"]) < min(
+        first["first_seed"] + first["games"], second["first_seed"] + second["games"]
+    ):
+        raise ValueError("The two independent fields share seeds")
     result = {
         "source": source, "checkpoint_sha256": sha,
+        "gpu": execution[0], "arena_batch": execution[1],
         "placement_utility": prepared["placement_utility"],
         "test": test, "fields": fields,
         "ppo_gate": all((
