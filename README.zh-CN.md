@@ -9,7 +9,7 @@
 <p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
 
 <p align="center">面向《炉石传说：酒馆战棋》的高速模拟器与决策评测基准。</p>
-<p align="center"><a href="docs/NUS.md">HSRL 的 NUS 工作区</a></p>
+<p align="center"><a href="docs/NUS.md">HSRL 的 NUS 工作区</a> · <a href="docs/STRATEGY.md">策略 Bot</a></p>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2610.33845v1"><img src="https://img.shields.io/badge/arXiv-2610.33845-b31b1b?style=flat-square" alt="arXiv 论文"></a>

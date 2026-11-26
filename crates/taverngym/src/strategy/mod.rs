@@ -15,3 +15,6 @@ pub mod tea;
 pub mod undead_apm;
 pub mod v2;
 pub use policy::{Policy, PolicyState};
+
+/// HSRL teacher selected on the development panel and confirmed on held-out games.
+pub const TEACHER_POLICY: Policy = Policy::V2Placed;

@@ -46,6 +46,22 @@ def summarize(directory: Path):
             raise ValueError(f"{policy}: invalid game")
         ranks[policy] = panel_metrics(values)
 
+    with (directory / "v2-progress.csv").open(encoding="utf-8", newline="") as stream:
+        progress = list(csv.DictReader(stream))
+    if len(progress) != len(rows) * len(policies):
+        raise ValueError("incomplete formation telemetry")
+    for policy in policies:
+        policy_rows = sorted(
+            (row for row in progress if row["policy"] == policy),
+            key=lambda row: int(row["seed"]),
+        )
+        if [int(row["seed"]) for row in policy_rows] != seeds:
+            raise ValueError(f"{policy}: missing formation rows")
+        ranks[policy]["formed"] = [int(bool(row["formed_routes"])) for row in policy_rows]
+        ranks[policy]["formed_and_first"] = [
+            int(bool(row["formed_routes"]) and row["rank"] == "1") for row in policy_rows
+        ]
+
     metrics = {policy: {key: statistics.fmean(values) for key, values in scans.items()}
                for policy, scans in ranks.items()}
     comparisons = {}
@@ -56,17 +72,6 @@ def summarize(directory: Path):
                 for key, values in ranks[candidate].items()
             }
 
-    with (directory / "v2-progress.csv").open(encoding="utf-8", newline="") as stream:
-        progress = list(csv.DictReader(stream))
-    if len(progress) != len(rows) * len(policies):
-        raise ValueError("incomplete formation telemetry")
-    for policy in policies:
-        policy_rows = [row for row in progress if row["policy"] == policy]
-        if sorted(int(row["seed"]) for row in policy_rows) != seeds:
-            raise ValueError(f"{policy}: missing formation rows")
-        made = [row for row in policy_rows if row["formed_routes"]]
-        metrics[policy]["formed"] = len(made) / len(rows)
-        metrics[policy]["formed_and_first"] = sum(row["rank"] == "1" for row in made) / len(rows)
 
     return {
         "seed_start": seeds[0],
