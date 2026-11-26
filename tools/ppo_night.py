@@ -244,11 +244,17 @@ class Night:
             except (subprocess.TimeoutExpired,RuntimeError) as exc:
                 # An unavailable or invalid development panel never promotes a candidate.
                 state["reviewed"][key] = current
+                state["monitor_failures"] = state.get("monitor_failures",0)+1
+                if state["monitor_failures"]>=2 and branch["recipe"]=="safe":
+                    state["stop"]="no_valid_development_panel"
                 self.event("monitor_failed",branch=key,iteration=current,error=str(exc))
                 atomic(self.path,state)
+                if state.get("stop"):
+                    break
                 if branch["recipe"]!="safe":
                     self.branch(state,"safe")
                 continue
+            state["monitor_failures"]=0
             decision, severe, score = assess(comparison,origin)
             state["reviewed"][key]=current
             state["streak"] = state["streak"]+1 if (origin["human"]["utility"]["lo"]>0
@@ -301,10 +307,20 @@ class Night:
         check(minimum>info["optimizer_step_min"]
               and second["next_game_seed"]-first["next_game_seed"]==1024,
               "Adam or game seed did not resume")
+        checkpoint=self.identify(out/"latest.pt")
+        hop={"name":"gpu-preflight-hop","recipe":"safe","anchor":checkpoint,
+             "first":184600000,"seed":413910}
+        check(not self.train(hop,1,360,cap=1,snapshot=1), "GPU smoke recipe transition failed")
+        switched=torch.load(self.root/"branches/gpu-preflight-hop/latest.pt",
+                            map_location="cpu",weights_only=False)
+        check(switched["meta"]["branch"]["parent_sha256"]==checkpoint["sha256"]
+              and min(float(v["step"]) for v in switched["optimizer"]["state"].values()) >
+              min(float(v["step"]) for v in second["optimizer"]["state"].values()),
+              "New parent or Adam state lost in recipe transition")
         atomic(self.root/"gpu-preflight.json",{"gpu":torch.cuda.get_device_name(),"iteration":2,
                "engine":ENGINE,"probability_replay_error":score,"adam_steps_min":minimum,
                "frames":r["sampling"]["fields"]["d"]["warband"]["frames"],
-               "confirmed_resume":True})
+               "confirmed_resume":True,"confirmed_recipe_switch":True})
 
     def control(self, lane):
         recipe="script" if lane==0 else "hybrid"
