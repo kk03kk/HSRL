@@ -646,6 +646,9 @@ def compare(args):
             return len(a) == len(b) and all(equal(x, y) for x, y in zip(a, b, strict=True))
         return a == b
 
+    if args.compare_residency:
+        for checkpoint in (first, second):
+            checkpoint["meta"] = {k: v for k, v in checkpoint["meta"].items() if k != "resident_rollout"}
     different = [k for k in first if k not in second or not equal(first[k], second[k])]
     if different or first.keys() != second.keys():
         raise RuntimeError(f"Resumed run differs in {different}")
@@ -765,6 +768,7 @@ def parse():
     evaluation.add_argument("--test", type=Path, nargs="+", required=True)
     evaluation.add_argument("--arena-batch", type=int, default=192)
     evaluation.add_argument("--panel", choices=("preflight", "development", "holdout"), default="preflight")
+    comparison.add_argument("--compare-residency", action="store_true")
     comparison.add_argument("checkpoints", type=Path, nargs=2)
     return parser.parse_args()
 
