@@ -78,7 +78,7 @@ with target.with_suffix(".tmp").open("w") as f:
             eligible = [r for r in turns[t] if all(mask & part for part in r[0])]
             randomizer.seed(35_971 + mask*37 + t)
             unique_sizes[mask][t] = len({x[2] for x in eligible})
-            if len(eligible) < 3:
+            if unique_sizes[mask][t] < span:
                 break
             ordered = list(range(span))
             randomizer.shuffle(ordered)
@@ -88,7 +88,7 @@ with target.with_suffix(".tmp").open("w") as f:
                     max(len(eligible)*slice_id//span+1,len(eligible)*(slice_id+1)//span)]
                     if x[2] not in originals]
                 if not available:
-                    available = [x for x in eligible if x[2] not in originals] or eligible
+                    available = [x for x in eligible if x[2] not in originals]
                 _,_,original,player = randomizer.choice(available)
                 originals.add(original)
                 used[t].add(original)
