@@ -17,7 +17,7 @@ case "$mode" in
     screen)
         out="${1:?development output directory required}"
         shift
-        "$python" -u python/taverngym/bc_screen.py --out "$out" --gate \
+        "$python" -u tools/run_frozen_python.py python/taverngym/bc_screen.py --out "$out" --gate \
             --panel "$data/screen-original" "$data/screen-mixed" --workers "$workers" \
             --arena-batch "$arena" --checkpoints "$@"
         ;;
@@ -28,14 +28,14 @@ case "$mode" in
             1) field=mixed; first=9610000 ;;
             *) exit 2 ;;
         esac
-        "$python" -u python/taverngym/bc_dagger.py --checkpoint "$checkpoint" \
+        "$python" -u tools/run_frozen_python.py python/taverngym/bc_dagger.py --checkpoint "$checkpoint" \
             --field "$field" --first "$first" --games 1536 --beta 0.10 \
             --batch "$arena" --workers "$workers" --out "$data/dagger-$field"
         ;;
     refine)
         checkpoint="${1:?initial checkpoint required}"
         shift
-        "$python" -u python/taverngym/bc_train.py train --balance-fields --save-epochs \
+        "$python" -u tools/run_frozen_python.py python/taverngym/bc_train.py train --balance-fields --save-epochs \
             --dev-games 256 --arena-batch "$arena" --late-weight 0.5 --correction-weight 0.75 \
             --lr 6e-5 --epochs 2 --save-every 36 --workers "$workers" --initialize "$checkpoint" \
             --train "$data/train-original" "$data/train-mixed" "$data/dagger-original" "$data/dagger-mixed" \
@@ -48,13 +48,13 @@ case "$mode" in
             1) field=mixed ;;
             *) exit 2 ;;
         esac
-        "$python" -u python/taverngym/bc_train.py evaluate --checkpoint "$out/selected.pt" \
+        "$python" -u tools/run_frozen_python.py python/taverngym/bc_train.py evaluate --checkpoint "$out/selected.pt" \
             --test "$data/${2:-test}-$field" --out "$out/field-$field" \
             --arena-batch "$arena" --workers "$workers"
         ;;
     handoff)
         out="${1:?frozen selection output directory required}"
-        "$python" -u tools/bc_handoff.py "$out" --workers "$workers" --arena-batch "$arena"
+        "$python" -u tools/run_frozen_python.py tools/bc_handoff.py "$out" --workers "$workers" --arena-batch "$arena"
         python3 tools/bc_admission.py admit "$out"
         ;;
     *)
