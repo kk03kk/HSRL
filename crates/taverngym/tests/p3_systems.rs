@@ -1,7 +1,7 @@
 //! P3 系统类内容回归：Queen Azshara 主技能（`BG22_HERO_007p/+p2`）+ Dark Paradox 37 决策
 //! （**保持 AT 5 形态机制**，证据见 `rust/FORK.md` §7 与 `docs/RUST_ENGINE.md` §8）。
 //!
-//! 运行：`cargo test --release -p hsbg-engine --test p3_systems`
+//! 运行：`cargo test --release -p taverngym --test p3_systems`
 
 use std::collections::HashSet;
 

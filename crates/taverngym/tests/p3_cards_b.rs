@@ -4,7 +4,7 @@
 //! 覆盖普通与金色行为差异；随机效果通过收窄 `Game::spell_universe`（引擎真实随机入口）
 //! 变成确定性断言，不 mock 随机。
 //!
-//! 运行：cargo test --release -p hsbg-engine --test p3_cards_b
+//! 运行：cargo test --release -p taverngym --test p3_cards_b
 
 mod common;
 

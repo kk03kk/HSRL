@@ -1,5 +1,5 @@
 //! Run one bot game with the event log enabled and print it.
-//! Usage: cargo run --release -p hsbg-engine --example play -- [seed]
+//! Usage: cargo run --release -p taverngym --example play -- [seed]
 
 use taverngym::RulesConfig;
 use taverngym::bot::run_bot_game;

@@ -1,5 +1,5 @@
 //! Throughput benchmark: full bot games and isolated combats.
-//! Usage: cargo run --release -p hsbg-engine --example bench -- [games]
+//! Usage: cargo run --release -p taverngym --example bench -- [games]
 
 use std::time::Instant;
 
