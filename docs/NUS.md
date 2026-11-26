@@ -1,0 +1,34 @@
+# HSRL 的 NUS 工作区
+
+NUS 上的 `~/projects/HSRL` 用于编辑、构建和实验。Windows 的 `D:\HSRL` 用于保留起始快照和未来的实机测试。旧 HSAI 提供连接工具。
+
+## 连接
+
+从 Windows 执行 `ssh hsai-nus`。遇到连接拒绝时，在 `D:\HSAI` 执行 `python ops/hsai_ops.py tunnel`，然后重新连接。HSAI 的仓库同步命令默认操作 HSAI 自己的目录。进入 HSRL 后，用 `pwd`、`git status --short --branch` 和 `git rev-parse HEAD` 核对位置及版本。
+
+## 接入上游和建基线
+
+每次接入新上游时先记录 URL、完整提交、上游分支、游戏补丁和卡表版本。首次直接在 NUS 克隆，在该提交创建研究分支。已有研究目录时，在独立分支和检出中验证新版本，保留旧运行所需的 wheel 和产物。当前演练使用的上游提交为 `1c2086a997afde46d68c6c5992cab194ddcfce88`。
+
+## 构建和冒烟测试
+
+登录节点只做轻量操作。以下命令在登录节点准备冻结检出并提交 CPU 作业，编译和测试由 Slurm 执行。
+
+```bash
+cd ~/projects/HSRL
+git status --short --branch
+commit=$(git rev-parse HEAD)
+release="$PWD/artifacts/releases/$commit"
+run="$PWD/artifacts/bootstrap/$(date -u +%Y%m%dT%H%M%SZ)-${commit:0:12}"
+mkdir -p "$PWD/artifacts/releases"
+if [ ! -d "$release" ]; then
+    git worktree add --detach "$release" "$commit"
+fi
+mkdir -p "$run"
+sbatch --chdir="$release" --output="$run/slurm-%j.log" \
+    "$release/deploy/slurm/bootstrap.sh" "$run"
+```
+
+用 `squeue -u "$USER"` 看当前状态，用 `sacct -j <作业号> --format=JobID,State,ExitCode,Elapsed` 查最终结果，失败时读对应日志。脚本在独立 Python 环境构建 Linux release wheel，安装后直接验证轮子和对局，再运行上游 Python 测试。运行目录保留 wheel、哈希、环境版本、固定种子结果和作业日志。构建产物留在共享盘。
+
+GPU 作业提交前用 `sinfo` 查分区和时限，并在作业内记录实际 GPU 型号和显存。CPU 建基线作业使用 `normal`，无需申请 GPU。作业依赖卡住时，先查前置作业是否成功及其输出路径是否可写。

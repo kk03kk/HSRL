@@ -48,3 +48,6 @@ guard-*.json
 *.npz
 *.npy
 *.pkl
+
+# NUS worktrees and run artifacts
+/artifacts/
