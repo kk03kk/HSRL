@@ -475,6 +475,7 @@ def update(model, reference, optimizer, batch, args, iteration):
 
 
 def train(args):
+    started = time.monotonic()
     fields = ("original",) if args.original_only else FIELDS
     if not (
         0 < args.games
@@ -490,7 +491,13 @@ def train(args):
         and args.bc_kl_scale >= 0
         and args.kl_check_every > 0
         and args.snapshot_every >= 0
-        and not (args.sample_only and (args.resume or args.stop_after is not None or args.snapshot_every))
+        and (args.time_budget_seconds is None or args.time_budget_seconds > 0)
+        and not (
+            args.sample_only and (
+                args.resume or args.stop_after is not None or args.snapshot_every
+                or args.time_budget_seconds is not None
+            )
+        )
     ):
         raise ValueError("Invalid rollout or minibatch settings")
     if args.actors == 2 and (
@@ -622,10 +629,16 @@ def train(args):
             "event": "train_start",
             "from_iteration": start,
             "through_iteration": finish,
+            "time_budget_seconds": args.time_budget_seconds,
             "config": meta,
         }
     )
+    completed = start
+    reason = "target_iterations"
     for iteration in range(start, finish):
+        if args.time_budget_seconds is not None and time.monotonic() - started >= args.time_budget_seconds:
+            reason = "segment_time_budget"
+            break
         batch, metrics = collect(iteration)
         tick = time.perf_counter()
         diagnostics = update(model, reference, optimizer, batch, args, iteration)
@@ -644,10 +657,17 @@ def train(args):
         report = {"iteration": iteration + 1, "sampling": metrics, "optimization": diagnostics}
         json_file(args.out / f"iteration-{iteration + 1:03}.json", report)
         emit(report)
+        completed = iteration + 1
+    segment = {
+        "event": "segment_end", "from_iteration": start, "iterations": completed,
+        "target_iteration": finish, "reason": reason,
+        "elapsed_seconds": time.monotonic() - started,
+    }
     json_file(
         args.out / "summary.json",
-        {"iterations": finish, "config": meta, "rollout_history": history},
+        {**segment, "config": meta, "rollout_history": history},
     )
+    emit(segment)
 
 
 def compare(args):
@@ -789,6 +809,10 @@ def parse():
     training.add_argument("--microbatch", type=int, default=512)
     training.add_argument("--precision", choices=("bf16", "fp32"), default="bf16")
     training.add_argument("--stop-after", type=int)
+    training.add_argument(
+        "--time-budget-seconds", type=int,
+        help="Stop before starting another iteration once this segment's elapsed time reaches the budget",
+    )
     training.add_argument("--resume", action="store_true")
     training.add_argument("--actors", type=int, choices=(1, 2), default=1)
     training.add_argument("--resident-rollout", action="store_true")
