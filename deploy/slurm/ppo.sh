@@ -16,6 +16,9 @@ case "$mode" in
     resume) test -f "$run/train/latest.pt"; flags+=(--resume) ;;
     *) printf 'Unknown training mode: %s\n' "$mode" >&2; exit 2 ;;
 esac
+if [[ -f "$run/policy_batch_size" ]]; then
+    flags+=(--policy-batch-size "$(cat "$run/policy_batch_size")")
+fi
 python="$bc/env/venv/bin/python"
 export BC_EXPECTED_GPU='NVIDIA H100 NVL'
 "$python" -c 'import torch; assert torch.cuda.device_count() == 1; device = torch.cuda.get_device_properties(0); assert device.name == "NVIDIA H100 NVL" and device.total_memory >= 90 * 2**30; print(f"{device.name}, {device.total_memory / 2**30:.1f} GiB")'

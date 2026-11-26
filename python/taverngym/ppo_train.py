@@ -17,7 +17,7 @@ from torch.nn import functional as F
 from taverngym import N_ACTIONS, OBS_CARDS, OBS_FLOATS, build_info
 from taverngym._core import BcArena
 from taverngym.bc_train import Demonstrations, configure, emit, json_file, paired, play, save
-from taverngym.entity_policy import EntityPolicy
+from taverngym.entity_policy import EntityPolicy, PolicyOutput
 
 FIELDS = ("original", "mixed")
 UTILITY = (1.0, 0.3, 0.0, -0.05, -0.1, -0.15, -0.2, -0.25)
@@ -71,8 +71,32 @@ def load_reference(path, receipt_path):
     return saved, digest
 
 
-def make_model(weights):
-    model = EntityPolicy(**MODEL).to("cuda").eval()
+class FixedBatchPolicy(EntityPolicy):
+    """Use the same BF16 kernel shape for rollout, replay, and policy gradients."""
+
+    def __init__(self, width_per_forward):
+        super().__init__(**MODEL)
+        self.width_per_forward = width_per_forward
+
+    def forward(self, features, cards, action_mask):
+        width = self.width_per_forward
+        if len(features) == width:
+            return super().forward(features, cards, action_mask)
+        outputs = []
+        for start in range(0, len(features), width):
+            batch = (features[start : start + width], cards[start : start + width],
+                     action_mask[start : start + width])
+            size = len(batch[0])
+            if size < width:
+                batch = tuple(F.pad(t, (0, 0, 0, width - size)) for t in batch)
+            out = super().forward(*batch)
+            outputs.append(PolicyOutput(out.logits[:size], out.value[:size], out.placement_logits[:size]))
+        return PolicyOutput(*(torch.cat(rows) for rows in zip(*outputs, strict=True)))
+
+
+def make_model(weights, policy_batch_size=0):
+    model = FixedBatchPolicy(policy_batch_size) if policy_batch_size else EntityPolicy(**MODEL)
+    model.to("cuda").eval()
     model.load_state_dict(weights, strict=True)
     return model
 
@@ -491,6 +515,8 @@ def train(args):
         and args.bc_kl_scale >= 0
         and args.kl_check_every > 0
         and args.snapshot_every >= 0
+        and (args.policy_batch_size == 0 or args.microbatch % args.policy_batch_size == 0)
+        and args.policy_batch_size >= 0
         and (args.time_budget_seconds is None or args.time_budget_seconds > 0)
         and not (
             args.sample_only and (
@@ -549,15 +575,17 @@ def train(args):
     }
     if args.snapshot_every:
         meta["snapshot_every"] = args.snapshot_every
+    if args.policy_batch_size:
+        meta["policy_batch_size"] = args.policy_batch_size
     args.out.mkdir(parents=True, exist_ok=True)
     latest = args.out / "latest.pt"
     if latest.exists() != args.resume:
         raise ValueError("Use a new output directory, or pass --resume for an existing checkpoint")
-    model = make_model(initial["model"])
+    model = make_model(initial["model"], args.policy_batch_size)
     secondary = None
     if args.actors == 2:
         with torch.cuda.device(1):
-            secondary = make_model(initial["model"])
+            secondary = make_model(initial["model"], args.policy_batch_size)
 
     def collect(iteration):
         torch.cuda.reset_peak_memory_stats()
@@ -586,7 +614,7 @@ def train(args):
             emit(report)
         json_file(args.out / "summary.json", {"iterations": args.iterations, "config": meta})
         return
-    reference = make_model(initial["model"])
+    reference = make_model(initial["model"], args.policy_batch_size)
     reference.requires_grad_(False)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=RECIPE["lr_start"], weight_decay=0, fused=True
@@ -728,7 +756,7 @@ def evaluate(args):
             if any(m["first_seed"] <= seed < m["first_seed"] + m["games"] for seed in data.games):
                 raise ValueError("PPO evaluation overlaps a BC data or selection split")
     args.out.mkdir(parents=True, exist_ok=False)
-    candidate_model = make_model(trained["model"])
+    candidate_model = make_model(trained["model"], meta.get("policy_batch_size", 0))
     reference_model = None
     cached = args.reference_pairs
     if cached is None:
@@ -816,6 +844,7 @@ def parse():
     training.add_argument("--resume", action="store_true")
     training.add_argument("--actors", type=int, choices=(1, 2), default=1)
     training.add_argument("--resident-rollout", action="store_true")
+    training.add_argument("--policy-batch-size", type=int, default=0)
     training.add_argument("--defer-metrics", action="store_true")
     training.add_argument("--expected-gpu")
     training.add_argument("--original-only", action="store_true")
