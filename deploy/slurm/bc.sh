@@ -50,7 +50,7 @@ case "$mode" in
     collect)
         test -f "$run/native/READY"
         split="${1:?split name required}"
-        read -r name first count field capture < <(awk -v split="$split" '$1==split {print; exit}' deploy/slurm/bc_splits.tsv)
+        read -r name first count field capture < <(awk -v wanted="$split" '$1==wanted {print; exit}' deploy/slurm/bc_splits.tsv)
         test "$name" = "$split"
         args=()
         if [[ "$capture" == metrics ]]; then args=(metrics); fi
