@@ -14,7 +14,7 @@
 
 [Slurm 入口](../deploy/slurm/ppo_hardware.sh) 的阶段为 `full`、`mig`、`panel`、`reference` 和 `evaluate`。A100 分支命令保存在运行目录的 `alt.sh`。从冻结检出执行各阶段。创建新输出目录，绑定已经验收的 BC 运行目录及 wheel。评估缓存和配对脚本位于 [PPO 训练入口](../python/taverngym/ppo_train.py)。固定轨迹分析见 [replay 脚本](../tools/ppo_replay_bench.py) 和 [汇总脚本](../tools/ppo_hardware_report.py)。
 
-运行目录 `/home/h/hengzhi/projects/HSRL/artifacts/ppo-hardware/37.0.3-37e19d9f3a91` 保留源码提交、Slurm 作业和设备日志、逐轮报告、模型与优化器、精确一致性报告，以及共享评测面板和逐局统计。总轮耗时包含采样、更新、检查点写盘。资源比较还应计入实际排队和设备各自的资源单价。
+运行目录 `~/projects/HSRL/artifacts/ppo-hardware/37.0.3-37e19d9f3a91` 保留源码提交、Slurm 作业和设备日志、逐轮报告、模型与优化器、精确一致性报告，以及共享评测面板和逐局统计。总轮耗时包含采样、更新、检查点写盘。资源比较还应计入实际排队和设备各自的资源单价。
 
 ## 目标规模实测
 

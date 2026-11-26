@@ -5275,7 +5275,7 @@ fn cast_without_this_is_your_cast() {
         let st = &g.players[0].stats;
         assert_eq!((st.spells_cast, st.tavern_spells_cast), (casts, casts));
         // Three Barrages advance the four-spell counter without consuming a minion.
-        assert_eq!(g.players[0].board[0].counter, casts as i32);
+        assert_eq!(g.players[0].board[0].counter, casts);
         let ate = shop - g.players[0].shop.len();
         assert_eq!(ate, 0, "option {opt}");
         if casts == 0 {

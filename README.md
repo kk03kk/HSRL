@@ -1,77 +1,31 @@
-<a name="top"></a>
+# HSRL 酒馆战棋 AI 研究
 
-<p align="center">
-  <img src="docs/assets/autotavern-banner.png" alt="AutoTavern: fantasy tavern, tactical battlefield and AI decision trees" width="100%">
-</p>
+HSRL 以 [AutoTavern](https://github.com/MCG-NJU/AutoTavern) 的 TavernGym 为模拟器基础。仓库记录从服务器规则验收、手写策略教师、行为克隆，到 PPO、战团库和无人值守训练的完整工作流。30 多套攻略流派用于教师开发和终局阵容审计。
 
-<h3 align="center">TavernGym &amp; TavernBench</h3>
+**当前学习基线是 37.0.3 热修、八席、十族抽五、每招募回合 100 次操作。** 18M 实体模型已通过 BC 准入。脚本场 PPO 第 288 轮已通过独立棋力验收。战团库与短训验证完成，九小时混合训练的最终结论以该作业的独立验收为准。
 
-<p align="center"><strong>English</strong> · <a href="README.zh-CN.md">简体中文</a></p>
+| 要做什么 | 从哪里开始 |
+| --- | --- |
+| 回顾整轮如何完成，准备接入新补丁 | [研究流程与迁移手册](docs/WORKFLOW.md) |
+| 找到引擎、教师、Python 模型、作业和产物 | [项目目录](docs/PROJECT_LAYOUT.md) |
+| 查环境和 Slurm 操作 | [NUS 工作手册](docs/NUS.md) |
+| 看实际棋力、训练曲线和遗留问题 | [37.0.3 研究记录](docs/reports/37.0.3.md) |
+| 查脚本参数、门槛或基准接口 | [文档索引](docs/README.md) |
 
-<p align="center">
-  A fast simulator and a decision benchmark for Hearthstone Battlegrounds.
-</p>
+## 快速运行模拟器
 
-<p align="center">
-  <a href="https://arxiv.org/abs/2610.33845v1"><img src="https://img.shields.io/badge/arXiv-2610.33845-b31b1b?style=flat-square" alt="Paper on arXiv"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-cb963e?style=flat-square" alt="License: MIT"></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.10%2B-3572a5?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10 or newer"></a>
-  <a href="rust-toolchain.toml"><img src="https://img.shields.io/badge/Rust-1.98-995c3c?style=flat-square&amp;logo=rust&amp;logoColor=white" alt="Rust 1.98"></a>
-  <a href="tavernbench/data"><img src="https://img.shields.io/badge/TavernBench-960_tasks-237f89?style=flat-square" alt="TavernBench: 960 tasks"></a>
-</p>
-
-<p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#taverngym">TavernGym</a> ·
-  <a href="#tavernbench">TavernBench</a> ·
-  <a href="#documentation">Documentation</a> ·
-  <a href="#citation">Citation</a>
-</p>
-
-## Overview
-
-AutoTavern brings the decisions of Battlegrounds into a reproducible environment for AI
-research: simulate complete games, connect a learning algorithm, or evaluate a model's
-judgment against a fixed set of tasks.
-
-| [TavernGym](docs/TAVERNGYM.md) | [TavernBench](docs/TAVERNBENCH.md) |
-| :--- | :--- |
-| A deterministic simulator for complete eight-player games. | A benchmark for reasoning about game decisions and rules. |
-| Game content from server hotfix 37.0.3, with [content coverage](docs/CONTENT.md). | 960 tasks in 40 scenarios across eight categories. |
-| Rust engine, Python bindings, single-seat and batched environments. | Prompts, labels, saved states, model answers, scoring and tool-use evaluation. |
-
-This is the code and data release for [*Build, Don't Play: Self-Improving LLM Research Agents
-Develop a Hearthstone Battlegrounds AI That Rivals Top Players*](https://arxiv.org/abs/2610.33845v1),
-by Changlian Ma and Limin Wang, Nanjing University and Shanghai AI Laboratory.
-
-The release includes TavernGym and TavernBench. The trained TavernAgent, its weights and
-training code, and the benchmark item generators are not included.
-
-HSRL uses TavernGym with server rules **37.0.3**; see the [simulator baseline](docs/SIMULATOR.md).
-TavernBench keeps the paper's **36.6.3** tasks, labels, saved states and results unchanged.
-Use the `v1.0.0` release for historical simulator-based reproduction; running the tool-use
-harness with the current engine applies 37.0.3 rules.
-
-## Quick start
+需要 Python 3.10+ 和 [rustup](https://rustup.rs)。Rust 版本锁在 [rust-toolchain.toml](rust-toolchain.toml)。NUS 上通过 [构建与验收入口](docs/NUS.md) 在计算节点编译。
 
 ```bash
-git clone https://github.com/MCG-NJU/AutoTavern.git
-cd AutoTavern
-```
-
-### Run a game
-
-Install with Python 3.10 or newer and a [Rust toolchain](https://rustup.rs). The version in
-[`rust-toolchain.toml`](rust-toolchain.toml) is installed automatically by rustup.
-
-```bash
-pip install .
+git clone https://github.com/kk03kk/HSRL.git
+cd HSRL
+python -m pip install .
 ```
 
 ```python
 import taverngym
 
-game = taverngym.Game(seed=1)
+game = taverngym.Game(seed=1, config_json=taverngym.hsrl_config_json())
 while not game.is_over():
     for seat in range(game.num_players):
         if game.needs_action(seat):
@@ -80,111 +34,6 @@ while not game.is_over():
 print(list(game.placements()))
 ```
 
-This plays a full eight-player game with the included scripted bots. Replace a bot's action
-with your own legal action to control a seat.
+## 上游与许可
 
-### Score the released answers
-
-From the repository root:
-
-```bash
-cd tavernbench
-python -X utf8 -m tavernbench.report --set data/eval --runs results/eval \
-    --systems tavernagent,gpt-6-astra,claude-opus-5.5,jev
-```
-
-This scores released answers against the labels. It needs only Python's standard library: no
-simulator build, model access or API key is required.
-
-## TavernGym
-
-TavernGym reproduces solo Battlegrounds for client **37.0.2.256589**, server rules **37.0.3**.
-It exposes the player-visible state, an exact legal action mask, and seeded save and restore.
-
-| Interface | Use it for |
-| :--- | :--- |
-| `Game` | Drive any seat, inspect a game, or branch from a saved state. |
-| `BattlegroundsEnv` | Connect one learning seat against seven scripted bots. |
-| `BatchEnv` | Step many games together, with any set of controlled seats, including self-play. |
-
-The learning interface provides 245 discrete actions, 3,227 numeric features and 124 card
-indices per observation. Rules and lobby settings can be configured explicitly.
-
-[Environment guide](docs/TAVERNGYM.md) · [Architecture](docs/ARCHITECTURE.md) ·
-[Implemented cards](docs/CONTENT.md) · [Timewarp rules](docs/TIMEWARP.md)
-
-## TavernBench
-
-TavernBench tests combat predictions, warband arrangements, target choices and turn plans
-with a shared prompt format and common scoring code.
-
-| Category | Examples |
-| :--- | :--- |
-| Combat | Predict outcomes, damage and lethal risk. |
-| Positioning | Arrange a warband against shields, cleave and deathrattles. |
-| Ordering | Sequence plays, spells and triggers. |
-| Targets | Choose a spell, Hero Power or minion target. |
-| Selection | Choose a hero, trinket, discovery or play. |
-| Strategy | Choose a turn plan: upgrade, buy, refresh or save the Gold. |
-| Economy | Reason about Gold, purchases and upgrade costs. |
-| Rule execution | Apply game rules to concrete actions. |
-
-The **368-task evaluation set** is released alongside all **960 tasks**. Saved simulator
-states cover the 30 play scenarios; the ten rule-execution scenarios need no state. The
-released answers include TavernAgent, ten language models, Jev, and five tool-use runs.
-
-To evaluate your own model, install the optional runners from the repository root:
-
-```bash
-pip install ".[bench]"
-```
-
-[Benchmark guide](docs/TAVERNBENCH.md) · [Task data](tavernbench/data) ·
-[Released answers](tavernbench/results) · [Scoring code](tavernbench/tavernbench/score.py)
-
-## Documentation
-
-| Guide | Contents |
-| :--- | :--- |
-| [TavernGym](docs/TAVERNGYM.md) | Game APIs, batched environments, observations, actions, configuration and speed. |
-| [TavernBench](docs/TAVERNBENCH.md) | Dataset layout, labels, scoring, model runners, tool use and reproduction notes. |
-| [Architecture](docs/ARCHITECTURE.md) | Engine structure, interfaces and how the components fit together. |
-| [Content coverage](docs/CONTENT.md) | Implemented minions, heroes, spells, trinkets and other game objects. |
-| [Timewarp](docs/TIMEWARP.md) | The Timewarped Tavern (off by default in 37.0.2; two heroes still visit it). |
-
-For development, run `pip install -e ".[test]"` and `pytest`. The Rust crate also works on its
-own with `cargo test --release`.
-
-## Citation
-
-If you use TavernGym or TavernBench in your research, please cite:
-
-```bibtex
-@misc{ma2026build,
-  title  = {Build, Don't Play: Self-Improving {LLM} Research Agents Develop a Hearthstone
-            Battlegrounds {AI} That Rivals Top Players},
-  author = {Ma, Changlian and Wang, Limin},
-  year   = {2026},
-  eprint = {2610.33845},
-  archivePrefix = {arXiv},
-  primaryClass = {cs.AI},
-  url    = {https://arxiv.org/abs/2610.33845v1}
-}
-```
-
-## License
-
-Code, documentation and the TavernBench tasks, labels, states and results are released under
-the [MIT License](LICENSE). Third-party game content retains its original rights; see
-[NOTICE](NOTICE).
-
-This is an independent, non-commercial research project, unaffiliated with Blizzard
-Entertainment. Hearthstone and Hearthstone Battlegrounds are Blizzard trademarks. No game
-client files or official game artwork are distributed, and TavernGym does not connect to
-Blizzard's services. The AutoTavern banner and emblem are original generated illustrations.
-
-<p align="center">
-  <a href="#top"><img src="docs/assets/autotavern-emblem.png" alt="AutoTavern emblem" width="76"></a>
-  <br>
-  <a href="#top">Back to the tavern</a>
-</p>
+上游模拟器与论文基准的使用说明、引用和历史版本见 [中文说明](docs/upstream/README.zh-CN.md) 和 [English reference](docs/upstream/README.en.md)。代码采用 [MIT 许可证](LICENSE)，第三方游戏内容权利见 [NOTICE](NOTICE)。GitHub 发布源码和可公开的说明，权重、原始回放与完整训练产物保存在独立实验目录。

@@ -6,8 +6,8 @@
 //!    - `BG22_HERO_007p`  “When your warband reaches 30 total Attack, begin your Naga
 //!      Conquest.”（cost 0，passive）
 //!    - `BG22_HERO_007p2` “Discover a Naga.”（cost 1，active，每回合 1 次）
-//!    语义：己方战队（存活随从攻击力之和）首次达到 30 时，把主技能替换为 Naga Conquest；
-//!    之后可花 1 金 Discover 一张 Naga（池感知三选一）。
+//!      语义：己方战队（存活随从攻击力之和）首次达到 30 时，把主技能替换为 Naga Conquest；
+//!      之后可花 1 金 Discover 一张 Naga（池感知三选一）。
 //! 2) `BG36_360` Dark Paradox 的 37 重做：当前数据 schema 只提供 base 卡（tier 1/1/1 的
 //!    占位壳，不在池）+ 5 个 36.6.3 形态 token（tier/属性/效果各不同）；`flow.rs` 每局随机
 //!    抽出 1 个形态放进本局池。**评估结论：保持 5 形态机制**（37 卡面声明的“每局不同的

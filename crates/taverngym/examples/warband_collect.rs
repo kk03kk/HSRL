@@ -45,7 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             game.warband_capture = Some(Default::default());
             let mut drivers: Vec<_> = (0..8)
-                .map(|p| ((run + p as u64) % 4 != 0).then(|| PolicyState::new(TEACHER_POLICY)))
+                .map(|p| {
+                    (!(run + p as u64).is_multiple_of(4)).then(|| PolicyState::new(TEACHER_POLICY))
+                })
                 .collect();
             for _ in 0..10_000 {
                 if game.is_over() {

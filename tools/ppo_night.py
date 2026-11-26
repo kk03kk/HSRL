@@ -37,7 +37,7 @@ def read(path):
 
 
 def atomic(path, value):
-    tmp = path.with_suffix(".tmp")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
     tmp.replace(path)
 

@@ -6,7 +6,7 @@
 
 NUS 的 `gpu` 分区时限为 3 小时，较长 GPU 作业使用 `gpu-long`。首段使用 `gpu`、Slurm 时限 2 小时 59 分钟，训练进程在已完成迭代的边界检查 2 小时 54 分钟的软预算。软预算耗尽后保留最后一轮完整检查点。本段最多 288 轮与 294,912 个训练终局。硬件实验的整轮中位数为 35.60 秒，实测平均每秒 28.27 个终局。正式训练每轮决策数与计算时间随策略变化。
 
-Slurm 作业为 1205520。运行目录为 `/home/h/hengzhi/projects/HSRL/artifacts/ppo/37.0.3-first-training`。目录包含 `segment-01.json`、`source_commit`、权重和依赖摘要、日志、逐轮结果及检查点。从 [训练入口](../deploy/slurm/ppo.sh) 在该目录记录的冻结检出运行。首段仅提交一个作业。每个有效迭代原子保存 `train/latest.pt`，每 20 轮额外保留 `snapshot-NNN.pt`。续训选择同一冻结检出和输出目录，入口参数改为 `resume` 并给出新的累计目标轮数。模型、AdamW、随机数和下一局种子随检查点保存。
+Slurm 作业为 1205520。运行目录为 `~/projects/HSRL/artifacts/ppo/37.0.3-first-training`。目录包含 `segment-01.json`、`source_commit`、权重和依赖摘要、日志、逐轮结果及检查点。从 [训练入口](../deploy/slurm/ppo.sh) 在该目录记录的冻结检出运行。首段仅提交一个作业。每个有效迭代原子保存 `train/latest.pt`，每 20 轮额外保留 `snapshot-NNN.pt`。续训选择同一冻结检出和输出目录，入口参数改为 `resume` 并给出新的累计目标轮数。模型、AdamW、随机数和下一局种子随检查点保存。
 
 ## 训练配方
 
@@ -35,6 +35,26 @@ Slurm 作业为 1205520。运行目录为 `/home/h/hengzhi/projects/HSRL/artifac
 
 固定 BF16 前向形状的 128、256、512、1,024 行对照均通过。采用 512 行，采样、回放及带梯度前向统一分块，不足部分填充，返回前切掉填充。每轮仍使用同一 1,024 局、2,048 有效训练批和 1,024 微批。PPO 学习率、奖励、对手、采样 RNG 和回放保护阈值保持原配置。固定形状的全批回放最大误差小于 2e-6。源码冻结提交为 a40178c，引擎指纹保持 9432249ae4888d0f。
 
-故障作业与原权重保存在原运行目录。诊断及四个形状的回执在 `/home/h/hengzhi/projects/HSRL/artifacts/ppo/37.0.3-replay-208`。独立接续目录为 `/home/h/hengzhi/projects/HSRL/artifacts/ppo/37.0.3-first-training-recovery`。第 207 轮迁移只修改冻结源码与固定前向宽度两项元数据，复载核验了模型、优化器、随机数、采样历史和游标逐项一致。接续目录的 `repair-receipt.json` 及 `policy_batch_size` 记录了迁移和冻结配置。
+故障作业与原权重保存在原运行目录。诊断及四个形状的回执在 `~/projects/HSRL/artifacts/ppo/37.0.3-replay-208`。独立接续目录为 `~/projects/HSRL/artifacts/ppo/37.0.3-first-training-recovery`。第 207 轮迁移只修改冻结源码与固定前向宽度两项元数据，复载核验了模型、优化器、随机数、采样历史和游标逐项一致。接续目录的 `repair-receipt.json` 及 `policy_batch_size` 记录了迁移和冻结配置。
 
 修复验证作业 1206412 完成第 208–211 轮，共 4,096 个有效终局和 470 次优化器更新。四轮均消费全批可选动作，更新前最大对数概率差 1.811e-6，轮末 KL 最大 0.0012444。单轮采样、更新与写盘用时 41.56–44.99 秒。根据这项验证，作业 1206436 从接续目录第 211 轮继续到原目标第 288 轮。Slurm 时限 1:25:00，禁止无效依赖继续执行。
+
+## 首轮晋级与后续
+
+第 288 轮已完成并通过独立棋力验收。训练曲线、逐动作回放、终盘诊断和具体数值见 [37.0.3 研究记录](reports/37.0.3.md)。后续对照和无人值守入口见 [战团库研究](WARBAND.md) 和 [NUS 九小时运行](OVERNIGHT.md)。
+
+## 完整动作回放
+
+在已验收的冻结源码和相配 wheel 上，使用 [动作导出器](../tools/ppo_trace.py)分别采集原版与混合大厅。指定同一引擎版本的候选与 BC 参考权重，以及已登记的整局种子。执行阶段使用支持 BF16 的 GPU。
+
+```bash
+python tools/ppo_trace.py "$candidate" "$bc_reference" "$run/trace-original.jsonl" \
+    --field original --first "$audit_seed" --greedy 256 --sample 128
+```
+
+在 CPU 作业使用对应源码的 [Rust 审计器](../crates/taverngym/examples/ppo_audit.rs)重放合法动作，核对完整终局回执，并导出回合、站位、冻结、刷新与流派成型证据。审计源码可用当前发布版，历史模型推理遵守各自的冻结引擎与卡表。
+
+```bash
+cargo run --release -p taverngym --example ppo_audit \
+    < "$run/trace-original.jsonl" > "$run/replay-original.jsonl"
+```

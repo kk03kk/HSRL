@@ -57,7 +57,7 @@ fn shard(
         match game_result {
             Ok(record) => {
                 let rank = episode.game.players[episode.seat].placement;
-                for row in buffer.chunks_exact_mut(ROW_BYTES) {
+                for row in buffer.as_chunks_mut::<ROW_BYTES>().0 {
                     row[ROW_BYTES - 2] = rank;
                 }
                 let count = buffer.len() / ROW_BYTES;

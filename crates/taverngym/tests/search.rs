@@ -31,8 +31,8 @@ fn uniform_search_policy_is_legal_and_normalized() {
     let sum: f32 = r.pi.iter().sum();
     assert!((sum - 1.0).abs() < 1e-4, "sum {sum}");
     let legal = g.legal_mask(0);
-    for i in 0..N_ACTIONS {
-        if !legal[i] {
+    for (i, &is_legal) in legal.iter().enumerate() {
+        if !is_legal {
             assert_eq!(r.pi[i], 0.0, "illegal action {i}");
         }
     }
@@ -78,8 +78,8 @@ fn zero_simulations_returns_eval_prior() {
     let r = search(&g, 0, &cfg, uniform_eval);
     let legal = g.legal_mask(0);
     let n_legal = legal.iter().filter(|x| **x).count();
-    for i in 0..N_ACTIONS {
-        if legal[i] {
+    for (i, &is_legal) in legal.iter().enumerate() {
+        if is_legal {
             assert!((r.pi[i] - 1.0 / n_legal as f32).abs() < 1e-5);
         } else {
             assert_eq!(r.pi[i], 0.0);
@@ -109,8 +109,8 @@ fn rollout_mode_skips_eval_and_is_seeded() {
     let sum: f32 = a.pi.iter().sum();
     assert!((sum - 1.0).abs() < 1e-4, "sum {sum}");
     let legal = g.legal_mask(0);
-    for i in 0..N_ACTIONS {
-        if !legal[i] {
+    for (i, &is_legal) in legal.iter().enumerate() {
+        if !is_legal {
             assert_eq!(a.pi[i], 0.0);
         }
     }

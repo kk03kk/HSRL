@@ -283,10 +283,10 @@ fn validate_payload(g: &Game, seat: usize, p: &Player) -> Result<(), String> {
     // 引擎约定：hand 里 minion 的 hid 就是它的 eid；队列 mark 预留的 hid 与队列 minion 的
     // eid 相同。不一致的帧无法做 typed EID 重映射，直接拒绝。
     for (i, h) in p.hand.iter().enumerate() {
-        if let Item::Minion(m) = &h.item {
-            if m.eid != h.hid {
-                return Err(format!("hand_hid_mismatch({i})"));
-            }
+        if let Item::Minion(m) = &h.item
+            && m.eid != h.hid
+        {
+            return Err(format!("hand_hid_mismatch({i})"));
         }
     }
     if p.hand_queue_marks.len() == p.hand_queue.len() {
@@ -696,10 +696,10 @@ impl Game {
                 self.cfg.board_size
             ));
         }
-        if let Some(t) = tier {
-            if !(1..=7).contains(&t) {
-                return Err(format!("bad_tier({t})"));
-            }
+        if let Some(t) = tier
+            && !(1..=7).contains(&t)
+        {
+            return Err(format!("bad_tier({t})"));
         }
         for (i, (card, atk, hp)) in minions.iter().enumerate() {
             let d = db()

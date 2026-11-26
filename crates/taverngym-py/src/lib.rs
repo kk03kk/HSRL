@@ -78,6 +78,10 @@ impl PyBcArena {
     }
 
     #[staticmethod]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "preserve the Python arena constructor"
+    )]
     fn with_warbands(
         py: Python<'_>,
         seeds: Vec<u64>,

@@ -190,12 +190,12 @@ fn heuristic_action(game: &Game, seat: usize) -> Option<Action> {
     }
 
     // 6) 一次性的 Activate / Dark Gift / 英雄技能。
-    for i in 0..N_ACTIONS {
+    for (i, &legal) in mask.iter().take(N_ACTIONS).enumerate() {
         let Some(a) = Action::decode(i) else { continue };
         if matches!(
             a,
             Action::Activate(_) | Action::DarkGift | Action::HeroPower(_)
-        ) && mask[i]
+        ) && legal
         {
             return Some(a);
         }
@@ -398,19 +398,17 @@ pub fn turn_search(game: &Game, seat: usize, cfg: TurnSearchConfig) -> TurnSearc
     let mask = game.legal_mask(seat);
     let mut candidates: Vec<(u8, usize)> = Vec::new();
     for (i, legal) in mask.iter().enumerate().take(N_ACTIONS) {
-        if *legal {
-            if let Some(action) = Action::decode(i) {
-                // Cancel 只用于回退 targeting；TurnSearch 不应该把回退当动作。
-                if matches!(action, Action::Cancel) {
-                    continue;
-                }
-                // 旧 driver 只在“当前未冻结”时生成 Freeze；Rust 动作空间里
-                // 冻结后仍可再次按 Freeze（切回未冻结），会形成 no-op 循环。
-                if matches!(action, Action::Freeze) && game.players[seat].is_frozen() {
-                    continue;
-                }
-                candidates.push((action_rank(&action), i));
+        if *legal && let Some(action) = Action::decode(i) {
+            // Cancel 只用于回退 targeting；TurnSearch 不应该把回退当动作。
+            if matches!(action, Action::Cancel) {
+                continue;
             }
+            // 旧 driver 只在“当前未冻结”时生成 Freeze；Rust 动作空间里
+            // 冻结后仍可再次按 Freeze（切回未冻结），会形成 no-op 循环。
+            if matches!(action, Action::Freeze) && game.players[seat].is_frozen() {
+                continue;
+            }
+            candidates.push((action_rank(&action), i));
         }
     }
     candidates.sort_by_key(|(rank, idx)| (*rank, *idx));

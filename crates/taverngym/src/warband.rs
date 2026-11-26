@@ -160,6 +160,10 @@ impl Bank {
         self.tracks[id].frames.len() >= turn as usize
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "selection inputs are supplied by the arena"
+    )]
     pub fn choose(
         &self,
         lobby: u16,

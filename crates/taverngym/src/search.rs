@@ -282,8 +282,8 @@ fn select_action(node: &Node, legal: &[bool], c_puct: f32) -> u16 {
     let sqrt_total = total.max(1.0).sqrt();
     let mut best = 0u16;
     let mut best_score = f32::NEG_INFINITY;
-    for a in 0..N_ACTIONS {
-        if !legal[a] {
+    for (a, &is_legal) in legal.iter().take(N_ACTIONS).enumerate() {
+        if !is_legal {
             continue;
         }
         let n = node.visits[a] as f32;
@@ -563,8 +563,8 @@ mod tests {
         let sum: f32 = r1.pi.iter().sum();
         assert!((sum - 1.0).abs() < 1e-4, "pi sum {sum}");
         let legal = g.legal_mask(0);
-        for i in 0..N_ACTIONS {
-            if !legal[i] {
+        for (i, &is_legal) in legal.iter().take(N_ACTIONS).enumerate() {
+            if !is_legal {
                 assert_eq!(r1.pi[i], 0.0, "illegal action {i} has mass");
             }
         }
