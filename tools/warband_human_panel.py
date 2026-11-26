@@ -9,7 +9,12 @@ import sys
 
 import taverngym
 
-root, raw, card_table, native_cards = map(Path,sys.argv[1:])
+root, raw, card_table, native_cards = map(Path,sys.argv[1:5])
+part = sys.argv[5] if len(sys.argv) > 5 else "external"
+
+def partition(original):
+    key = int.from_bytes(hashlib.sha256(original.encode()).digest()[:4],"little") % 10
+    return "train" if key < 6 else "dev" if key < 8 else "test"
 source_db = json.loads(card_table.read_text())["cards"]
 target_db = json.loads(native_cards.read_text())["cards"]
 targets = {card["id"]:i for i,card in enumerate(target_db)}
@@ -27,6 +32,8 @@ for path in sorted(raw.glob("snap_*.json.gz")):
         if row["turn"] > 17:
             continue
         original = row["source_game_id"]
+        if part != "external" and partition(original) != part:
+            continue
         identity=(original,row.get("source_side"),row["turn"])
         if identity in seen:
             drops["duplicate_origin_side_turn"] += 1
@@ -58,7 +65,7 @@ randomizer = random.Random(61831)
 span = 16
 used = defaultdict(set)
 unique_sizes = {}
-target = root/"human-external.jsonl"
+target = root/f"human-{part}.jsonl"
 with target.with_suffix(".tmp").open("w") as f:
     with (root/"source-data/dev-script-0.jsonl").open() as data:
         f.write(data.readline())
@@ -94,8 +101,8 @@ with target.with_suffix(".tmp").open("w") as f:
 target.with_suffix(".tmp").replace(target)
 receipt={"source_manifest_sha256":hashlib.file_digest((raw/"manifest.json").open("rb"),"sha256").hexdigest(),
          "original_games_by_turn":{t:len(xs) for t,xs in sorted(used.items())},
-         "dropped":drops,"mode":"rolling only","source_cards":len(source_db),"translated":len(translated),
+         "partition":part,"dropped":drops,"mode":"rolling only","source_cards":len(source_db),"translated":len(translated),
          "coverage":{t:min(stats.get(t,0) for stats in unique_sizes.values()) for t in range(1,18)}}
-(root/"human-receipt.json").write_text(json.dumps(receipt,indent=2))
-(root/"human-plan.json").write_text(json.dumps({"human":{"bank":str(target),
+(root/("human-receipt.json" if part=="external" else f"human-{part}-receipt.json")).write_text(json.dumps(receipt,indent=2))
+(root/("human-plan.json" if part=="external" else f"human-{part}-plan.json")).write_text(json.dumps({"human":{"bank":str(target),
     "seats":7,"start":1,"level":0,"mode":"rolling"}},indent=2))
