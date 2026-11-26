@@ -76,6 +76,8 @@ def collect(args):
     with args.checkpoint.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
+    if checkpoint["meta"]["source"] != build_info()["source_hash"]:
+        raise ValueError("Student checkpoint was trained with a different simulator")
     model = EntityPolicy(**checkpoint["meta"]["model"]).to("cuda")
     for key in ("static_cards", "rule_cards"):
         if not torch.equal(checkpoint["model"][key], model.state_dict()[key].cpu()):

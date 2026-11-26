@@ -66,6 +66,8 @@ def audit(split, source_commit):
     if m["field"] not in {"original", "mixed"}:
         raise ValueError(f"{split}: unexpected opponent field")
 
+    correction = m.get("method") == "dagger"
+    allowed_flags = np.uint8(15 if correction else 7)
     cores = card_groups(json.loads(taverngym.catalog_json()))
     totals = Counter()
     seed_set = set()
@@ -82,7 +84,7 @@ def audit(split, source_commit):
             if (
                 seed in seed_set or game["seat"] != seed % 8 or game["rank"] not in range(1, 9)
                 or item["offset"] != offset or game["lobby"].bit_count() != 5
-                or item["rows"] != (game["actions"] if m["rows"] else 0)
+                or item["rows"] != (game["decisions" if correction else "actions"] if m["rows"] else 0)
             ):
                 raise ValueError(f"{split}: invalid record {seed}")
             seed_set.add(seed)
@@ -122,7 +124,8 @@ def audit(split, source_commit):
                     or (masks > 1).any()
                     or masks[:, A["A_CANCEL"]].any()
                     or masks[:, A["A_MOVE"] :].any()
-                    or (flags & ~np.uint8(7)).any()
+                    or (flags & ~allowed_flags).any()
+                    or (correction and not choice.all())
                     or not np.array_equal(choice, (flags & 4) != 0)
                     or not np.array_equal(batch["rank"], expected_ranks[owners])
                     or (batch["cards"] < 0).any()
@@ -144,6 +147,7 @@ def audit(split, source_commit):
                     if token in freezes:
                         totals["repeat_freeze"] += 1
                     freezes.add(token)
+                totals["corrected"] += int(np.count_nonzero(flags & 8))
                 totals["late_decisions"] += int(np.count_nonzero(choice & (turns >= 8)))
                 totals["choices"] += int(np.count_nonzero(choice))
                 totals["rows"] += len(batch)
@@ -158,6 +162,10 @@ def audit(split, source_commit):
 
     if seed_set != set(range(m["first_seed"], m["first_seed"] + m["games"])):
         raise ValueError(f"{split}: seed range mismatch")
+    if correction and (
+        totals["corrected"] != m["corrections"] or not 0 <= m["expert_actions"] <= totals["corrected"]
+    ):
+        raise ValueError(f"{split}: correction label counts do not match the manifest")
     if totals["rows"] != m["rows"]:
         raise ValueError(f"{split}: manifest row count mismatch")
     fingerprint = taverngym.build_info()["source_hash"]
