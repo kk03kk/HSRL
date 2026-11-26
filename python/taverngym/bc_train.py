@@ -484,12 +484,12 @@ def train(args):
 
 
 @torch.inference_mode()
-def play(model, seeds, field, batch_size, workers, failures=None, recorder=None, *, sample=False):
+def play(model, seeds, field, batch_size, workers, failures=None, recorder=None, *, sample=False, arena_factory=None):
     model.eval()
     games = []
     for left in range(0, len(seeds), batch_size):
         group = seeds[left : left + batch_size]
-        arena = BcArena(group, field == "mixed", workers)
+        arena = arena_factory(group, field, workers) if arena_factory else BcArena(group, field == "mixed", workers)
         if recorder:
             recorder.start(group)
         try:

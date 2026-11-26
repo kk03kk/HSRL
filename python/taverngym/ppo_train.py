@@ -52,14 +52,15 @@ def snapshot_checkpoint(latest, iteration, every):
             os.link(latest, path)
 
 
-def load_reference(path, receipt_path):
+def load_reference(path, receipt_path, parent_engine=None):
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     digest = sha256(path)
     if not receipt["approved"] or receipt["sha256"] != digest:
         raise ValueError("Starting checkpoint has not passed the recorded BC admission")
     saved = torch.load(path, map_location="cpu", weights_only=False)
     meta = saved["meta"]
-    if meta["source"] != build_info()["source_hash"] or receipt["native_source"] != meta["source"]:
+    expected_engine = parent_engine or build_info()["source_hash"]
+    if meta["source"] != expected_engine or receipt["native_source"] != meta["source"]:
         raise ValueError("The starting checkpoint requires its frozen native engine")
     if (
         meta["model"] != MODEL
@@ -135,6 +136,9 @@ def game_metrics(games):
         "top2": float((ranks <= 2).mean()),
         "top4": float((ranks <= 4).mean()),
         "first": float((ranks == 1).mean()),
+        **({"warband": {
+            key: sum(g["warband"][key] for g in games) for key in ("frames","splices","repeats")
+        }} if "warband" in games[0] else {}),
         "eighth": float((ranks == 8).mean()),
         "utility": float(np.asarray(UTILITY)[ranks - 1].mean()),
         "budget_rate": sum(g["budget_turns"] for g in games) / sum(len(g["rounds"]) for g in games),
@@ -145,6 +149,7 @@ def game_metrics(games):
 def sample(
     model, first_seed, n_games, concurrent, workers, precision, failure_path, fields=FIELDS,
     *, seed_groups=None, generator=None, defer_batch_finalization=False,
+    arena_factory=None, temperature=1.0,
 ):
     """Generate fresh data under one frozen iteration policy. Opponents are native bots."""
     columns = {k: [] for k in ("features", "cards", "mask", "actions", "old_logp", "old_value")}
@@ -163,7 +168,7 @@ def sample(
     for offset in range(0, games_per_field, concurrent_per_field):
         cohorts = [list(seeds[offset : offset + concurrent_per_field]) for seeds in seeds_by_field]
         arenas = [
-            BcArena(seeds, field == "mixed", workers)
+            (arena_factory(seeds, field, workers) if arena_factory else BcArena(seeds, field == "mixed", workers))
             for field, seeds in zip(fields, cohorts, strict=True)
         ]
         history = [[[] for _ in seeds] for seeds in cohorts]
@@ -197,7 +202,7 @@ def sample(
                     forward_start = time.perf_counter()
                     profile["prepare_inputs"] += forward_start - tick
                     result = model_output(model, *device_inputs, precision)
-                    dist = torch.distributions.Categorical(logits=result.logits.float())
+                    dist = torch.distributions.Categorical(logits=result.logits.float() / temperature)
                     picked = (
                         dist.sample() if generator is None else
                         torch.multinomial(dist.probs, 1, generator=generator).squeeze(-1)
@@ -357,7 +362,7 @@ def index_tensors(batch, rows):
 
 
 @torch.no_grad()
-def policy_kl(model, batch, rows, microbatch, precision, *, defer_metrics=False):
+def policy_kl(model, batch, rows, microbatch, precision, *, defer_metrics=False, temperature=1.0):
     if defer_metrics:
         statistics = torch.zeros(3, device="cuda", dtype=torch.float64)
         finite = torch.ones((), device="cuda", dtype=torch.bool)
@@ -366,7 +371,7 @@ def policy_kl(model, batch, rows, microbatch, precision, *, defer_metrics=False)
     for left in range(0, len(rows), microbatch):
         x, y = index_tensors(batch, rows[left : left + microbatch])
         output = model_output(model, *x, precision)
-        logp, _ = distribution(output.logits, x[2])
+        logp, _ = distribution(output.logits.float() / temperature, x[2])
         delta = logp.gather(1, y["actions"][:, None]).squeeze(1) - y["old_logp"]
         if defer_metrics:
             finite &= torch.isfinite(delta).all()
@@ -402,16 +407,18 @@ def update(model, reference, optimizer, batch, args, iteration):
     staging_seconds = time.perf_counter() - started
     interval = min(4096, count)
     started = time.perf_counter()
-    kl_options = {"defer_metrics": args.defer_metrics}
+    kl_options = {"defer_metrics": args.defer_metrics, "temperature": args.temperature}
     before = policy_kl(model, batch, order[:interval], args.microbatch, args.precision, **kl_options)
     initial_kl_seconds = time.perf_counter() - started
     if before["log_ratio_rms"] > 0.03 or before["max_abs_log_ratio"] > 0.15:
         raise RuntimeError(f"Same-weight batch replay differs from rollout: {before}")
     progress = min(iteration / (RECIPE["schedule_iterations"] - 1), 1.0)
-    lr = args.lr_scale * (RECIPE["lr_start"] + progress * (RECIPE["lr_end"] - RECIPE["lr_start"]))
+    lr = args.continuation_lr
+    if lr is None:
+        lr = args.lr_scale * (RECIPE["lr_start"] + progress * (RECIPE["lr_end"] - RECIPE["lr_start"]))
     for group in optimizer.param_groups:
         group["lr"] = lr
-    anchor = args.bc_kl_scale * 0.10 * min(1.0, max(0.0, (39 - iteration) / 20))
+    anchor = 0.0 if args.parent else args.bc_kl_scale * 0.10 * min(1.0, max(0.0, (39 - iteration) / 20))
     names = ("policy", "value", "placement", "entropy", "anchor_kl", "clip_fraction", "loss")
     totals = (
         torch.zeros(len(names), device="cuda", dtype=torch.float64)
@@ -424,17 +431,17 @@ def update(model, reference, optimizer, batch, args, iteration):
     for left in range(0, count, args.minibatch):
         rows = order[left : left + args.minibatch]
         optimizer.zero_grad(set_to_none=True)
-        if left and steps % args.kl_check_every == 0:
+        if args.target_kl and left and steps % args.kl_check_every == 0:
             tick = time.perf_counter()
             probe = policy_kl(model, batch, order[:interval], args.microbatch, args.precision, **kl_options)
             probe_seconds += time.perf_counter() - tick
-            if probe["kl"] > RECIPE["target_kl"]:
+            if probe["kl"] > args.target_kl:
                 stopped = "target_kl"
                 break
         for start in range(0, len(rows), args.microbatch):
             x, y = index_tensors(batch, rows[start : start + args.microbatch])
             out = model_output(model, *x, args.precision)
-            logp, prob = distribution(out.logits, x[2])
+            logp, prob = distribution(out.logits.float() / args.temperature, x[2])
             log_ratio = logp.gather(1, y["actions"][:, None]).squeeze(1) - y["old_logp"]
             ratio = log_ratio.exp()
             eps = RECIPE["clip"]
@@ -453,7 +460,7 @@ def update(model, reference, optimizer, batch, args, iteration):
                 pg
                 + RECIPE["value"] * vf
                 + RECIPE["placement"] * aux
-                - RECIPE["entropy"] * entropy
+                - args.entropy_coef * entropy
                 + anchor * anchor_kl
             )
             n = len(adv)
@@ -473,7 +480,7 @@ def update(model, reference, optimizer, batch, args, iteration):
         steps += 1
     tick = time.perf_counter()
     after = policy_kl(model, batch, order, args.microbatch, args.precision, **kl_options)
-    if not steps or after["kl"] > RECIPE["rollback_kl"]:
+    if not steps or not math.isfinite(after["kl"]) or (args.rollback_kl and after["kl"] > args.rollback_kl):
         raise RuntimeError(
             f"Iteration rejected before checkpoint publication: steps={steps}, {after}"
         )
@@ -500,7 +507,22 @@ def update(model, reference, optimizer, batch, args, iteration):
 
 def train(args):
     started = time.monotonic()
-    fields = ("original",) if args.original_only else FIELDS
+    arena_factory = None
+    if args.arena_plan:
+        from taverngym.warband import Fields
+        arena_factory = Fields(args.arena_plan)
+    fields = tuple(arena_factory.spec) if arena_factory else (("original",) if args.original_only else FIELDS)
+    customized = bool(args.parent or args.arena_plan or args.temperature != 1.0 or
+                      args.entropy_coef != RECIPE["entropy"] or args.target_kl != RECIPE["target_kl"] or
+                      args.rollback_kl != RECIPE["rollback_kl"] or args.continuation_lr is not None)
+    if (customized and args.actors != 1) or (args.parent and not args.parent_sha256):
+        raise ValueError("Use one actor for a customized branch and provide the parent SHA-256")
+    for value in (args.temperature, args.entropy_coef, args.target_kl, args.rollback_kl,
+                  args.continuation_lr if args.continuation_lr is not None else 1):
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("Invalid numerical recipe value")
+    if args.temperature <= 0 or args.continuation_lr == 0:
+        raise ValueError("Temperature and fixed learning rate must be positive")
     if not (
         0 < args.games
         and args.games % len(fields) == 0
@@ -539,7 +561,17 @@ def train(args):
                 )
     configure(args.seed)
     torch.use_deterministic_algorithms(True)
-    initial, fingerprint = load_reference(args.init, args.admission)
+    parent = None
+    if args.parent:
+        if sha256(args.parent) != args.parent_sha256:
+            raise ValueError("Parent checkpoint digest differs")
+        parent = torch.load(args.parent, map_location="cpu", weights_only=False)
+        if parent["meta"]["source"] != args.parent_engine or parent["meta"]["model"] != MODEL:
+            raise ValueError("Unexpected parent engine or model")
+    initial, fingerprint = load_reference(args.init, args.admission, args.parent_engine)
+    if parent is not None and (parent["meta"]["initial_sha256"] != fingerprint or
+                              tuple(parent["meta"]["placement_utility"]) != UTILITY):
+        raise ValueError("Parent does not belong to the admitted BC and reward recipe")
     meta = {
         "schema": 1,
         "source": build_info()["source_hash"],
@@ -573,6 +605,14 @@ def train(args):
             )
         },
     }
+    if customized:
+        meta["branch"] = {
+            "parent_iteration": parent["iteration"] if parent else None,
+            "parent_sha256": args.parent_sha256, "parent_engine": args.parent_engine,
+            "arena_plan": arena_factory.identity if arena_factory else None,
+            "temperature": args.temperature, "entropy": args.entropy_coef, "target_kl": args.target_kl,
+            "rollback_kl": args.rollback_kl, "continuation_lr": args.continuation_lr,
+        }
     if args.snapshot_every:
         meta["snapshot_every"] = args.snapshot_every
     if args.policy_batch_size:
@@ -581,7 +621,7 @@ def train(args):
     latest = args.out / "latest.pt"
     if latest.exists() != args.resume:
         raise ValueError("Use a new output directory, or pass --resume for an existing checkpoint")
-    model = make_model(initial["model"], args.policy_batch_size)
+    model = make_model((parent or initial)["model"], args.policy_batch_size)
     secondary = None
     if args.actors == 2:
         with torch.cuda.device(1):
@@ -595,6 +635,7 @@ def train(args):
         if secondary is None:
             batch, metrics = sample(
                 model, first, args.games, args.concurrent, args.workers, args.precision, failure, fields,
+                arena_factory=arena_factory, temperature=args.temperature,
             )
         else:
             batch, metrics = sample_pair(
@@ -620,6 +661,9 @@ def train(args):
         model.parameters(), lr=RECIPE["lr_start"], weight_decay=0, fused=True
     )
     start, history = 0, []
+    if parent is not None and not args.resume:
+        optimizer.load_state_dict(parent["optimizer"])
+    del parent
     if args.resume:
         saved = torch.load(latest, map_location="cpu", weights_only=False)
         if saved["meta"] != meta:
@@ -848,6 +892,15 @@ def parse():
     training.add_argument("--defer-metrics", action="store_true")
     training.add_argument("--expected-gpu")
     training.add_argument("--original-only", action="store_true")
+    training.add_argument("--parent", type=Path)
+    training.add_argument("--parent-sha256")
+    training.add_argument("--parent-engine")
+    training.add_argument("--arena-plan", type=Path)
+    training.add_argument("--continuation-lr", type=float)
+    training.add_argument("--entropy-coef", type=float, default=RECIPE["entropy"])
+    training.add_argument("--temperature", type=float, default=RECIPE["temperature"])
+    training.add_argument("--target-kl", type=float, default=RECIPE["target_kl"], help="Zero disables the mid-update KL stop")
+    training.add_argument("--rollback-kl", type=float, default=RECIPE["rollback_kl"], help="Zero disables the terminal KL threshold")
     training.add_argument("--lr-scale", type=float, default=1.0)
     training.add_argument("--bc-kl-scale", type=float, default=1.0)
     training.add_argument("--kl-check-every", type=int, default=1)
