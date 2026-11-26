@@ -95,7 +95,7 @@ impl Episode {
             game.warband_start = plan.start;
             game.warband_end = plan
                 .bank
-                .last_turn(game.lobby_races.0, plan.mode)
+                .last_turn(game.lobby_races.0, plan.mode, plan.seats)
                 .ok_or_else(|| format!("missing bank lobby {}", game.lobby_races.0))?;
             let mut order: Vec<_> = (0..8).filter(|&i| i != seat).collect();
             // Hybrid preserves first preference for its two V2.0 script seats.
@@ -210,6 +210,15 @@ impl Episode {
         }
         let turn = game.turn;
         let mut drawn = Vec::with_capacity(plan.seats);
+        if !matches!(plan.mode, Mode::Rolling) {
+            drawn.extend(
+                (0..8)
+                    .filter(|&p| game.players[p].alive && game.warband_seat(p))
+                    .filter_map(|p| self.warband_tracks[p])
+                    .filter(|&id| plan.bank.has_frame(id, turn)),
+            );
+        }
+        let mut installed = 0;
         for p in 0..8 {
             if !game.players[p].alive || !game.warband_seat(p) || game.players[p].ended_turn {
                 continue;
@@ -227,13 +236,16 @@ impl Episode {
             )?;
             game.install_warband(p, frame)
                 .map_err(|e| format!("seed {} turn {turn} bank seat {p}: {e}", self.seed))?;
-            drawn.push(id);
+            if !drawn.contains(&id) {
+                drawn.push(id);
+            }
+            installed += 1;
             self.warband_tracks[p] = Some(id);
             self.warband_counts.frames += 1;
             self.warband_counts.splices += usize::from(previous.is_some() && previous != Some(id));
             self.warband_counts.repeats += usize::from(repeat);
         }
-        if drawn.is_empty() {
+        if installed == 0 {
             return Ok(false);
         }
         game.fight_when_all_ended();

@@ -3,7 +3,7 @@ set -euo pipefail
 root=$1; bc=$2
 shift 2
 unset PYTHONHOME VIRTUAL_ENV
-export PYTHONPATH="$root/wheel-env"
+export PYTHONPATH="$root/wheel-coverage"
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 CUBLAS_WORKSPACE_CONFIG=:4096:8
 python="$bc/env/venv/bin/python"
 case "$1" in

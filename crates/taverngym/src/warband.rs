@@ -141,8 +141,9 @@ impl Bank {
         Ok(Self { tracks, by_lobby })
     }
 
-    pub fn last_turn(&self, lobby: u16, mode: Mode) -> Option<u32> {
-        self.by_lobby
+    pub fn last_turn(&self, lobby: u16, mode: Mode, seats: usize) -> Option<u32> {
+        let mut lengths: Vec<_> = self
+            .by_lobby
             .get(&lobby)?
             .iter()
             .filter_map(|&id| {
@@ -150,7 +151,13 @@ impl Bank {
                 (!matches!(mode, Mode::ScriptOnly) || t.source == "script")
                     .then(|| t.frames.last().unwrap().turn)
             })
-            .max()
+            .collect();
+        lengths.sort_unstable_by(|a, b| b.cmp(a));
+        lengths.get(seats - 1).copied()
+    }
+
+    pub fn has_frame(&self, id: usize, turn: u32) -> bool {
+        self.tracks[id].frames.len() >= turn as usize
     }
 
     pub fn choose(
@@ -209,15 +216,33 @@ impl Bank {
                     .iter()
                     .any(|&other| self.tracks[other].seed == self.tracks[id].seed)
         };
-        let offset = (mix(key) as usize) % band.len();
+        let start = mix(key) as usize;
         let id = band
             .iter()
             .cycle()
-            .skip(offset)
+            .skip(start % band.len())
             .take(band.len())
             .copied()
             .find(|&id| !skip(id))
-            .unwrap_or(band[offset]);
+            .or_else(|| {
+                eligible
+                    .iter()
+                    .cycle()
+                    .skip(start % n)
+                    .take(n)
+                    .copied()
+                    .find(|&id| !skip(id))
+            })
+            .or_else(|| {
+                eligible
+                    .iter()
+                    .cycle()
+                    .skip(start % n)
+                    .take(n)
+                    .copied()
+                    .find(|id| !drawn.contains(id))
+            })
+            .ok_or_else(|| format!("no distinct warband for lobby {lobby} turn {turn}"))?;
         Ok((id, frame_at(id).unwrap(), false))
     }
 }
