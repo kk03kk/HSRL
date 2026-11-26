@@ -23,6 +23,7 @@ struct WarbandCounts {
     frames: usize,
     splices: usize,
     repeats: usize,
+    live_tail_turns: u32,
 }
 
 #[derive(Serialize)]
@@ -92,6 +93,10 @@ impl Episode {
                 return Err("invalid warband seats, first turn or difficulty".into());
             }
             game.warband_start = plan.start;
+            game.warband_end = plan
+                .bank
+                .last_turn(game.lobby_races.0, plan.mode)
+                .ok_or_else(|| format!("missing bank lobby {}", game.lobby_races.0))?;
             let mut order: Vec<_> = (0..8).filter(|&i| i != seat).collect();
             // Hybrid preserves first preference for its two V2.0 script seats.
             order.sort_by_key(|&i| {
@@ -184,6 +189,16 @@ impl Episode {
             return Ok(false);
         };
         let game = &mut self.game;
+        if game.turn > game.warband_end {
+            if game
+                .players
+                .iter()
+                .any(|p| p.alive && (game.warband_seats >> p.id) & 1 != 0)
+            {
+                self.warband_counts.live_tail_turns = game.turn - game.warband_end;
+            }
+            return Ok(false);
+        }
         if game.phase != Phase::Recruit
             || game.turn < plan.start
             || game

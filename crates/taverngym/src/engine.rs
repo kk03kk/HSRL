@@ -139,6 +139,8 @@ pub struct Game {
     pub(crate) warband_seats: u8,
     #[serde(default, skip_serializing_if = "diagnostic_is_zero")]
     pub(crate) warband_start: u32,
+    #[serde(default, skip_serializing_if = "diagnostic_is_zero")]
+    pub(crate) warband_end: u32,
     #[serde(skip)]
     pub warband_capture: Option<[Vec<crate::warband::Frame>; 8]>,
 }
@@ -149,7 +151,9 @@ fn warband_mask_is_empty(mask: &u8) -> bool {
 
 impl Game {
     pub(crate) fn warband_seat(&self, p: PlayerId) -> bool {
-        self.turn >= self.warband_start && (self.warband_seats >> p) & 1 != 0
+        self.turn >= self.warband_start
+            && self.turn <= self.warband_end
+            && (self.warband_seats >> p) & 1 != 0
     }
 
     /// Whether this build can play a game that was just read from a saved state: its

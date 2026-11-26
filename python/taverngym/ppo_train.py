@@ -137,7 +137,7 @@ def game_metrics(games):
         "top4": float((ranks <= 4).mean()),
         "first": float((ranks == 1).mean()),
         **({"warband": {
-            key: sum(g["warband"][key] for g in games) for key in ("frames","splices","repeats")
+            key: sum(g["warband"][key] for g in games) for key in ("frames","splices","repeats","live_tail_turns")
         }} if "warband" in games[0] else {}),
         "eighth": float((ranks == 8).mean()),
         "utility": float(np.asarray(UTILITY)[ranks - 1].mean()),

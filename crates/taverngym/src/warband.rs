@@ -141,6 +141,18 @@ impl Bank {
         Ok(Self { tracks, by_lobby })
     }
 
+    pub fn last_turn(&self, lobby: u16, mode: Mode) -> Option<u32> {
+        self.by_lobby
+            .get(&lobby)?
+            .iter()
+            .filter_map(|&id| {
+                let t = &self.tracks[id];
+                (!matches!(mode, Mode::ScriptOnly) || t.source == "script")
+                    .then(|| t.frames.last().unwrap().turn)
+            })
+            .max()
+    }
+
     pub fn choose(
         &self,
         lobby: u16,

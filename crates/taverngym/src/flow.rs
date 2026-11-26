@@ -317,6 +317,7 @@ impl Game {
             last_frames: vec![],
             warband_seats: 0,
             warband_start: 0,
+            warband_end: 0,
             warband_capture: None,
         };
         g.log(|| {
