@@ -72,16 +72,24 @@ case "$stage" in
         "$CARGO_TARGET_DIR/release/examples/bc_collect" "$first" 2048 "$SLURM_CPUS_PER_TASK" "$data" "$field" metrics
         "$bc/native/venv/bin/python" tools/bc_prepare_data.py "$data" --source-commit "$(cat "$bc/native/source_commit")"
         ;;
+    reference)
+        export BC_EXPECTED_GPU='NVIDIA H100 NVL MIG 3g.47gb'
+        "$python" -u tools/run_frozen_python.py python/taverngym/bc_train.py evaluate \
+            --checkpoint "$bc/admission-1/ppo-init.pt" --workers 10 --arena-batch 384 \
+            --test "$run/panel-original" "$run/panel-mixed" --out "$run/eval-reference"
+        ;;
     evaluate)
         case "${SLURM_ARRAY_TASK_ID:?variant task required}" in
             0) arm=full-resident ;;
             1) arm=mig-single ;;
             2) arm=mig-dual ;;
+            3) arm=a100 ;;
             *) exit 2 ;;
         esac
         export BC_EXPECTED_GPU='NVIDIA H100 NVL MIG 3g.47gb'
         "$python" -u "${src[@]}" evaluate "${reference[@]}" --workers 10 --arena-batch 384 \
             --panel development --test "$run/panel-original" "$run/panel-mixed" \
+            --reference-pairs "$run/eval-reference" \
             --checkpoint "$run/$arm/latest.pt" --out "$run/eval-$arm"
         ;;
     *) printf 'Unknown hardware stage: %s\n' "$stage" >&2; exit 2 ;;

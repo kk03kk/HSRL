@@ -690,22 +690,37 @@ def evaluate(args):
             if any(m["first_seed"] <= seed < m["first_seed"] + m["games"] for seed in data.games):
                 raise ValueError("PPO evaluation overlaps a BC data or selection split")
     args.out.mkdir(parents=True, exist_ok=False)
-    models = [make_model(s["model"]) for s in (initial, trained)]
+    candidate_model = make_model(trained["model"])
+    reference_model = None
+    cached = args.reference_pairs
+    if cached is None:
+        reference_model = make_model(initial["model"])
+    else:
+        report = json.loads((cached / "report.json").read_text(encoding="utf-8"))
+        if (
+            report["checkpoint_sha256"] != fingerprint or report["source"] != meta["source"]
+            or report["gpu"] != torch.cuda.get_device_name()
+            or report["arena_batch"] != args.arena_batch or report["test"] != data.identity
+        ):
+            raise ValueError("The cached BC reference uses different weights, panel, or runtime")
     fields = {}
     for field in FIELDS:
         seeds = sorted(seed for seed, (name, _) in data.games.items() if name == field)
         if not seeds:
             raise ValueError(f"No evaluation seeds for {field}")
-        reference, candidate = (
-            play(
-                model,
-                seeds,
-                field,
-                args.arena_batch,
-                args.workers,
-                args.out / f"failure-{field}-{role}.json",
+        if cached is not None:
+            with (cached / f"pairs-{field}.jsonl").open(encoding="utf-8") as stream:
+                reference = [json.loads(line)["bc"] for line in stream]
+            if [game["seed"] for game in reference] != seeds:
+                raise ValueError(f"Cached BC panel differs for {field}")
+        else:
+            reference = play(
+                reference_model, seeds, field, args.arena_batch, args.workers,
+                args.out / f"failure-{field}-reference.json",
             )
-            for model, role in zip(models, ("reference", "ppo"), strict=True)
+        candidate = play(
+            candidate_model, seeds, field, args.arena_batch, args.workers,
+            args.out / f"failure-{field}-ppo.json",
         )
         with (args.out / f"pairs-{field}.jsonl").open("w", encoding="utf-8") as f:
             for bc, ppo in zip(reference, candidate, strict=True):
@@ -721,6 +736,8 @@ def evaluate(args):
     report = {
         "evaluation": f"{args.panel}_greedy_pairs",
         "promotion_decision": None,
+        "arena_batch": args.arena_batch,
+        "evaluation_gpu": torch.cuda.get_device_name(),
         "checkpoint_sha256": sha256(args.checkpoint),
         "initial_sha256": fingerprint,
         "iteration": trained["iteration"],
@@ -767,6 +784,7 @@ def parse():
     evaluation.add_argument("--checkpoint", type=Path, required=True)
     evaluation.add_argument("--test", type=Path, nargs="+", required=True)
     evaluation.add_argument("--arena-batch", type=int, default=192)
+    evaluation.add_argument("--reference-pairs", type=Path)
     evaluation.add_argument("--panel", choices=("preflight", "development", "holdout"), default="preflight")
     comparison.add_argument("--compare-residency", action="store_true")
     comparison.add_argument("checkpoints", type=Path, nargs=2)
